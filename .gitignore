@@ -1,0 +1,46 @@
+# Rust / Cargo
+/target/
+**/*.rs.bk
+*.pdb
+
+# Tauri
+/src-tauri/target/
+/src-tauri/gen/
+
+# Node / Svelte
+node_modules/
+dist/
+.vite/
+.svelte-kit/
+
+# Android
+*.apk
+*.aab
+*.keystore
+!debug.keystore
+/local.properties
+/.gradle/
+/android/.gradle/
+/android/app/build/
+/android/build/
+/captures/
+
+# Spec Kit — estado local por máquina
+.specify/feature.json
+.specify/extensions/*/local-config.yml
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+
+# Editores
+.idea/
+.vscode/
+*.swp
+
+# Segredos — Princípio XI: nenhuma credencial entra no repositório
+.env
+.env.*
+!.env.example
+*.pem
+*.key

@@ -1,15 +1,14 @@
 //! Tauri bridge — plugin registration + mobile plugin execution (FR-011 / FR-042 / SC-035).
 //! NO playback logic (FR-042). Pure delegation to Rust playback module (FR-002/FR-003).
 
-use tauri::plugin::{TauriPlugin, PluginBuilder};
+use tauri::plugin::Plugin;
 
-pub fn plugin() -> TauriPlugin<()> {
-    PluginBuilder::new("android-media-shell")
+pub fn plugin() -> Plugin<()> {
+    Plugin::new("android-media-shell")
         .invoke_handler(tauri::generate_handler![
             register_android_plugin,
             run_mobile_plugin,
         ])
-        .build()
 }
 
 /// Plugin registration usable without prior app-process start (FR-009a / FR-011).

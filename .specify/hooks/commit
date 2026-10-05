@@ -1,0 +1,13 @@
+#!/bin/sh
+# Deterministic commit hook — constraint #6 (atomic conventional commit on every file edit).
+# Executed automatically when a file edit finishes (via .specify/extensions or manual trigger).
+# Usage: .specify/hooks/commit <path> [<message>]
+set -euo pipefail
+FILE="${1:-}"
+MSG="${2:-[feat] $(basename "$FILE") edited per analysis remediation}"
+if [ -z "$FILE" ]; then
+  echo "Usage: $0 <file> [msg]" >&2
+  exit 1
+fi
+git add "$FILE"
+git commit -m "$MSG" -- "$FILE"

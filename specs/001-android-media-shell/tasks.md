@@ -257,10 +257,10 @@ Integration and contract suites are test-gated by the same rule as property suit
 
 - Wave 0a (setup): T001 first, then T002–T006 in parallel (5 agents, separate files, shared context: one exact-version resolution — may reuse a single subagent); T007 and T007c in parallel with 0a. T001 must precede the manifest tasks because `[workspace.dependencies]` is where the shared versions live.
 - Wave 0b: T007b (`Cargo.lock`) — requires every manifest from 0a plus a bare `src-tauri/Cargo.toml` stub (T028a-stub, Phase 1, minimal manifest only; real init by T028a in US1). Lockfile regenerated after T028a; Phase-1 version sufficient for gate T009. Then T008. Then gate T009.
-- Wave 1 (foundation tests): T010–T013b in parallel (6 agents incl. T011b, separate files, shared context: closed-set list — may reuse one subagent; T011/T011b share the schema-loading helper so they belong to the same subagent).
+- Wave 1 (foundation tests): T010–T013b in parallel (6 agents incl. T011b, separate files, shared context: closed-set list — delegated to subagent-A; T011/T011b share schema loader so both assigned to subagent-A); subagent-A releases when T013b FAILING confirmed.
 - Wave 2 (foundation impl): T014→T015/T016/T017/T017b parallel after T014 (vocabulary first), with T017b additionally gated on T013b having been written and FAILING.
-- Wave 3+ (per story): ALL test tasks of a story in parallel (US1: T019–T022b = 5 agents; US2: T032–T035 = 4 agents; US3: T042–T044 = 3 agents; US4: T049–T055 + T061b = 8 agents; US5: T067, T067b–T071 + T068b = 7 agents). Implementation [P] tasks likewise parallel per story.
-- Cross-story: after T018, US1/US2/US3 test waves may run concurrently (different files); shared-context tasks (e.g., T017b stand-ins A+B, T011/T011b on one schema) reuse one subagent.
+- Wave 3+ (per story): ALL test tasks of a story in parallel (US1: T019–T022b = 5 agents, delegated to subagent-B; US2: T032–T035 = 4 agents, subagent-C; US3: T042–T044 = 3 agents, subagent-D; US4: T049–T055 + T061b = 8 agents, subagent-E; US5: T067, T067b–T071 + T068b = 7 agents, subagent-F). Implementation [P] tasks likewise parallel per story with same subagent reuse.
+- Cross-story: after T018, US1/US2/US3 test waves may run concurrently (different files); subagent-B (US1) / subagent-C (US2) / subagent-D (US3) operate in parallel, each retaining its own shared-context tasks. Subagent-A (foundation) releases after T018.
 - Final: T080–T083 in parallel, then strictly sequential T084→T085→T086→T087.
 
 ---

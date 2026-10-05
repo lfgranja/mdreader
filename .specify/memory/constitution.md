@@ -589,6 +589,7 @@ drift. Each was authorized by the sole maintainer on 2026-10-01.
 7. **Edge read-aloud endpoint admitted as a fallback.** See Principle XI. It is a documented
    exception to the consent rule, not a ranked default, and the adapter speaks the protocol
    directly rather than through the OpenAI-compatible Python wrapper.
+8. **Gate 8 split for `001-android-media-shell`.** Constitution gate 8 (byte-budget + SSML + sentence-alignment) cannot pass while FR-024 places synthesis in another feature. `verify.sh` reports `gate-8-shell: PASS` (handoff shape + granularity-declared + 22050 Hz request) and `gate-8-full: DEFERRED (owner=synthesis)`; no build claims constitution gate 8 PASS until the synthesis feature discharges it with SC-044.
 
 Any new deviation is added here in the same commit that introduces it, and is treated as a
 minor amendment.

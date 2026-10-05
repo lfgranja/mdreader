@@ -3,12 +3,11 @@
 
 use tauri::plugin::Plugin;
 
-pub fn plugin() -> impl Plugin<()> {
-    Plugin::new("android-media-shell")
-        .invoke_handler(tauri::generate_handler![
-            register_android_plugin,
-            run_mobile_plugin,
-        ])
+pub fn plugin() -> Box<dyn Plugin<()>> {
+    Box::new(tauri::plugin::Plugin::new("android-media-shell").invoke_handler(tauri::generate_handler![
+        register_android_plugin,
+        run_mobile_plugin,
+    ]))
 }
 
 /// Plugin registration usable without prior app-process start (FR-009a / FR-011).

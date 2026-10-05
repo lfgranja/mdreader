@@ -79,7 +79,10 @@
     },
     {
       "if": { "properties": { "kind": { "const": "session_end" } } },
-      "then": { "required": ["transport", "session_end_reason"] }
+      "then": {
+        "required": ["transport", "session_end_reason"],
+        "properties": { "transport": { "enum": ["paused", "stopped", "completed", "interrupted"] } }
+      }
     },
     {
       "if": { "properties": { "kind": { "enum": ["failure", "refusal"] } } },

@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mdreader.local/schemas/diagnostic-record.json",
+  "title": "Session Diagnostic Record event (FR-039/FR-039b/FR-040)",
+  "description": "One JSONL line per event. Event contents are kinds, positions and failure names — never document text. Trim/gap markers keep absences visible.",
+  "type": "object",
+  "required": ["v", "ts_ms", "kind", "position_secs"],
+  "properties": {
+    "v": { "const": 1 },
+    "ts_ms": { "type": "integer", "minimum": 0 },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "session_start",
+        "session_end",
+        "transport_change",
+        "focus_transition",
+        "output_device",
+        "failure",
+        "refusal",
+        "trim",
+        "gap"
+      ]
+    },
+    "position_secs": { "type": "number", "minimum": 0 },
+    "transport": {
+      "type": "string",
+      "enum": ["playing", "paused", "stopped", "completed", "interrupted"]
+    },
+    "session_end_reason": {
+      "type": "string",
+      "enum": ["paused", "stopped", "completed", "interrupted"]
+    },
+    "supersedes_ts_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "focus": {
+      "type": "string",
+      "enum": ["duckable_transient", "silence_demanding", "permanent_loss", "regained"]
+    },
+    "device": {
+      "type": "object",
+      "required": ["direction", "device_id"],
+      "properties": {
+        "direction": { "enum": ["appeared", "disappeared"] },
+        "device_id": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "error": {
+      "type": "string",
+      "enum": [
+        "engine_unreachable",
+        "engine_init_failed",
+        "rate_mismatch",
+        "channel_mismatch",
+        "device_refused",
+        "device_lost",
+        "start_refused"
+      ]
+    },
+    "engine": { "type": "string", "minLength": 1 },
+    "detail": { "type": "string", "maxLength": 200, "pattern": "^[A-Za-z0-9_]+=[A-Za-z0-9_.+\\-]+( [A-Za-z0-9_]+=[A-Za-z0-9_.+\\-]+)*$" },
+    "trim": {
+      "type": "object",
+      "required": ["dropped_events", "cutoff_ts_ms"],
+      "properties": {
+        "dropped_events": { "type": "integer", "minimum": 1 },
+        "cutoff_ts_ms": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "kind": { "const": "trim" } } },
+      "then": { "required": ["trim"] }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "session_end" } } },
+      "then": { "required": ["transport", "session_end_reason"] }
+    },
+    {
+      "if": { "properties": { "kind": { "enum": ["failure", "refusal"] } } },
+      "then": { "required": ["error"] }
+    }
+  ],
+  "additionalProperties": false
+}

@@ -524,8 +524,9 @@ derived requirement exists only as prose.
   put two lock-screen surfaces in competition for the same glance and would create a second
   place for playback state to be tracked, which is the divergence FR-002 and FR-003 prohibit.
   While resident and paused, the notification MUST show the paused state and the resume
-  control, and MUST NOT assert an elapsed or remaining time or a section title, because
-  playback is not at any position within the document while paused. The notification MAY
+  control, and MUST NOT assert an elapsed or remaining time or a section title on that
+  resident-paused surface, because residency without active playback is not a position
+  within the document while paused. The notification MAY
   persist indefinitely after playback has been paused; that persistence is the cost of
   making the lock-screen Play press of SC-014 unconditional, and the reader's way out of it
   is the resident-stop control defined here: a Stop action on the resident notification that
@@ -846,7 +847,9 @@ derived requirement exists only as prose.
   In neither case may it fall back to body text. Elapsed time, remaining time, rate, and voice
   name MUST NOT be shown on these
   surfaces, because a total duration may not be knowable before a streamed document has been
-  synthesised and a wrong number is worse than none (FR-028a, FR-028c)
+  synthesised and a wrong number is worse than none (FR-028a, FR-028c). The section-title
+  requirement governs active playback; on the resident-paused surface FR-009a governs and
+  the section title is suppressed.
 - **FR-028b**: The lock-screen surface MUST declare its notification as visible, so that the
   document title and section title FR-028 requires are actually shown while the device is
   locked, and the application MUST NOT redact, hide, or substitute that content when the
@@ -1086,7 +1089,11 @@ derived requirement exists only as prose.
   **Session end, transport, and the record**: transport is a closed set of five values — playing, paused, stopped, completed,
   interrupted — and the session-end reason is the closed four-value subset paused, stopped, completed, interrupted shared with it.
   A session-end entry carries `transport` constrained to that shared four-value subset plus `session_end_reason` from the same subset (never `playing` on a `session_end` entry), so a session cannot end in a condition the transport vocabulary cannot express
-  (FR-019, FR-013a, FR-023c, FR-039)
+  (FR-019, FR-013a, FR-023c, FR-039). The Kotlin→Rust routing/device intents
+  (`BecomingNoisy`, `DeviceAppeared`, `DeviceDisappeared`) and the shell IPC verb set are
+  likewise closed, with their single enumeration in `contracts/shell-ipc.md`; extending them
+  follows the same coordinated-edit plus documentation rule. `FocusRegained` is the intent
+  name; `regained` is its wire string.
 - **FR-045**: No entry in the diagnostic record may contain text drawn from the document. An
   entry's content is limited to **event kinds, playback position, time, identifiers, and named
   failures**; a sentence, a heading, a fragment of prose, or a passage of the document's body

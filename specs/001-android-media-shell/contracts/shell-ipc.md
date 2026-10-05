@@ -6,7 +6,7 @@ FR-028 series/FR-041.
 
 ## Commands (notification / MediaSession → Rust; same code as any other driver, FR-042)
 
-Closed verb set: `Play | Pause | Stop | SkipForward5s | SkipBack5s | RateUp | RateDown |
+Closed verb set (single enumeration; extension follows the FR-044 coordinated-edit plus documentation rule): `Play | Pause | Stop | SkipForward5s | SkipBack5s | RateUp | RateDown |
 CycleVoiceNext | CycleVoicePrev | ResumeAtStored | StartOver | ChooseEngine(id)`.
 `CycleVoice*` cycles one voice per press in the order supplied by the voice-selection
 interface (FR-024, FR-018b); `ChooseVoice(id)` is intentionally absent — picking from a

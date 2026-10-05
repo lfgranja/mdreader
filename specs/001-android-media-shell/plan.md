@@ -187,4 +187,4 @@ No violations — table intentionally empty.
 - `soundtouch`/`rubato` remain unevaluated contingencies: if the engine contract's
   pitch-preserving stretch cannot be honoured by real engines, the tasks phase records the
   licence implication (LGPL) in the Exceptions Log. No plan-level exception taken.
-- Gates: no ERROR. Proceed to `/speckit.tasks`.
+- Gates: no ERROR. Gate 8 split recorded in constitution Exceptions Log item 8; T080/T084 wording matches it (`gate-8-shell: PASS` + `gate-8-full: DEFERRED (owner=synthesis)`). Proceed to `/speckit.tasks`.

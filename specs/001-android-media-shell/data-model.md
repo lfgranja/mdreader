@@ -107,7 +107,10 @@ Append-only events (`SessionStart | SessionEnd | TransportChange | FocusTransiti
 OutputDevice | Failure | Refusal | Trim | Gap`), each with position + timestamp; 30-day +
 10 MB oldest-first bounds; gap/trim markers instead of silent gaps (`Gap` marks entries
 dropped under storage exhaustion, emitted per the FR-039 edge case); private storage;
-never transmitted; no app surface. Schema: `contracts/diagnostic-record.schema.json`.
+never transmitted; no app surface. `session_end` entries carry `transport` +
+`session_end_reason` from the shared closed-4; a superseding permanent-loss entry carries
+`supersedes_ts_ms` = the `ts_ms` of the transient entry it supersedes; the transient entry
+is never rewritten. Schema: `contracts/diagnostic-record.schema.json`.
 
 ## DeclaredFormat
 

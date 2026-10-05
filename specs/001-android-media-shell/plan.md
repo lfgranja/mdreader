@@ -22,7 +22,9 @@ engines later), and a 30-day/10 MB on-device diagnostic record with no in-app su
 **Language/Version**: Rust, Edition 2024, MSRV 1.85 (constitution-fixed)
 
 **Primary Dependencies**: `tauri` 2.12.1 (stable 2.x; 3.0.0-alpha rejected per Principle IV);
-`cpal` 0.18.2 (AAudio backend via `ndk`, mono f32 playback, device-format conversion in Rust);
+`cpal` (latest stable at add-time, with the AAudio backend via `ndk`, mono f32 playback,
+device-format conversion in Rust; pinned only if the AAudio/`aarch64-linux-android` requirement
+forces a version, recorded with version + reason + risk per Principle IV);
 `redb` (bookmark + settings store); `blake3` (content fingerprint); `serde`/`serde_json`
 (JSONL diagnostic record, IPC payloads); `thiserror` (closed-set errors); `tracing`
 (observability); `clap` (CLI per Principle II). Kotlin side: `MediaSession`,
@@ -51,7 +53,7 @@ criteria (SC-009, SC-054, SC-050-idle-resume) are measured on this class of devi
 faster device passing is conforming, a slower device failing is not evidence of failure.
 
 **Project Type**: Mobile app (Tauri) backed by a Cargo-workspace modular monolith of focused
-library crates (`player`, `session`, `diag`, engine-contract), each CLI-drivable per
+library crates (`player`, `session`, `diag`, `engine-core`), each CLI-drivable per
 Principles I–II.
 
 **Performance Goals**: Audible audio ≤3 s after Play (mid-range arm64, parsed document);
@@ -127,7 +129,15 @@ specs/001-android-media-shell/
 │   ├── shell-ipc.md
 │   ├── storage-schema.md
 │   └── diagnostic-record.schema.json
+├── checklists/          # Reviewer-owned requirements-quality reviews
+│   ├── requirements.md
+│   ├── playback-authority.md
+│   ├── notification-surface.md
+│   ├── diagnosability-nfr.md
+│   └── session-recovery.md
 └── tasks.md             # Phase 2 output (/speckit.tasks command - NOT created by /speckit.plan)
+
+VERIFICATION.md          # Phase 8 output: per-SC attestation report (created by tasks)
 ```
 
 ### Source Code (repository root)
@@ -137,12 +147,22 @@ crates/
 ├── player/          # Rust playback authority: transport, position, buffering,
 │   └── src/         #   pre-roll ring (≤60 s), rate ladder, rewind/snap math,
 │       └── ...      #   device-format conversion, engine-failure recovery
+│   └── tests/       #   prop_* property suites, integration/ + contract/ suites
 ├── session/         # Stored positions (redb: bookmarks + settings), content
 │   └── src/         #   fingerprint (blake3), resume-offer state machine
+│   └── tests/       #   prop_fingerprint, prop_resume, prop_offer
 ├── diag/            # Diagnostic record: JSONL append, 30 d + 10 MB trim,
 │   └── src/         #   private-storage writer, tooling-readable reader CLI
-└── engine-core/     # Engine-neutral trait: handoff contract, capability levels,
-    └── src/         #   pitch-preserving stretch op, stand-in engines (SC-051)
+│   └── tests/       #   schema conformance (+negative control), prop_record,
+│                     #   prop_no_prose, prop_scanner_canary
+├── engine-core/     # Engine-neutral trait: handoff contract, capability levels,
+│   └── src/         #   pitch-preserving stretch op, stand-in engines (SC-051)
+│   └── tests/       #   prop_closed_sets, standin_shape, prop_pitch,
+│                     #   prop_fallback, contract/ (handoff + stand-in conformance)
+└── doc-structure/   # Ordered document headings + boundary re-anchor, the runtime
+    └── src/         #   stand-in for the parser FR-024 defers: headings_before(pos),
+        └── ...      #   nearest-boundary re-anchor with 0.0 fallback, CLI-drivable
+    └── tests/       #   prop_headings
 
 src-tauri/
 ├── src/             # Tauri app: plugin registration, Channel streaming (delegates only, no playback logic)
@@ -159,10 +179,35 @@ android-shell/      # Thin Kotlin, forward-only mirrors (SC-035 allowlist, zero 
                         #   RoutingMirror.kt (T047), MediaMirror.kt (T062), Residency.kt (T064)
 
 tests/
-├── contract/        # Engine-handoff conformance (incl. stand-in failover)
-├── integration/     # Session recovery, re-anchor, trim bounds
-└── unit/            # Rewind math, ladder, fingerprint, progress determinacy
+├── device/          # 10/10 on-device trial procedures (T083); documentation only,
+│   ├── README.md    #   no cargo target
+│   └── trials.md
+└── expected-tests.txt  # committed target list; verify.sh gate 2 diffs against it
+
+scripts/
+├── verify.sh        # gates 1-9, single entrypoint, fail-closed on missing input
+├── check-manifest.sh
+└── check-shell-purity.sh
+
+docs/
+├── architecture.md
+├── ipc.md
+├── fallback-order.md
+├── diagnostic-record.md
+└── byte-budget.md   # versioned Principle X table (per-request bytes, per-character price)
+
+# Tests live in the crate that owns the behaviour, not in a root tests/ directory: the
+# workspace root is a virtual manifest and therefore owns no targets, and Cargo only compiles
+# `tests/**` inside a package. Cross-crate integration and contract suites sit under
+# `crates/player/tests/{integration,contract}/` with the other crates as dev-dependencies.
 ```
+
+**Test-harness placement** (constitution Principle I + gate 2 fail-closed): property suites
+live beside the crate whose invariant they test (`crates/*/tests/prop_*.rs`); cross-crate
+suites live in `crates/player/tests/integration/` and `crates/player/tests/contract/`, which
+declare `session`, `diag`, and `engine-core` as dev-dependencies; `scripts/expected-tests.txt`
+records the full `cargo nextest list --workspace-type all` target set so verify.sh fails closed
+if a target is missing *or* unexpected.
 
 **Structure Decision**: Cargo-workspace modular monolith (constitution-fixed). Four focused
 library crates under `crates/` (each independently testable + CLI-drivable), Tauri app as one

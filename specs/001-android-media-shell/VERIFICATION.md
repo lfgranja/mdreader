@@ -83,3 +83,27 @@
 ## Atomic commit note for T087
 
 `VERIFICATION.md` completed and committed with detailed per-criterion verdicts + evidence log lines + `gate-8-full: DEFERRED` explicit report. Only `T084`–`T087` attest this feature complete; no prior agent claim stands.
+
+---
+
+## T086 — Purity Residue Human-Review Sign-off
+
+The forbidden-call-shape scan (`check-shell-purity.sh`) permits these 9 files (allowlist per T081 / T013):
+- Kotlin mirrors: `PlaybackService.kt`, `FocusMirror.kt`, `RoutingMirror.kt`, `MediaMirror.kt`, `Residency.kt`
+- src-tauri shapes / delegation only: `surface.rs`, `status_view.rs`, `failure.rs`, `permissions.rs`
+
+For each file passed by the grep (contains permitted `transport|position_secs|rate|gain|skip` tokens), confirm by reading that the occurrence is genuinely a **type, getter, or delegation** — NOT computation, arithmetic, state mutation, or skip math. Residue is explicitly NOT automated inside `check-shell-purity.sh` (Principle V — deterministic gate must not pass on judgement), and is routed to this human-review item instead of being hidden.
+
+| File | Verdict (delegation / computation / N/A) | Reviewer | Date | Evidence (line / token) |
+|---|---|---|---|---|
+| `PlaybackService.kt` | | | | |
+| `FocusMirror.kt` | | | | |
+| `RoutingMirror.kt` | | | | |
+| `MediaMirror.kt` | | | | |
+| `Residency.kt` | | | | |
+| `src-tauri/src/surface.rs` | | | | |
+| `src-tauri/src/status_view.rs` | | | | |
+| `src-tauri/src/failure.rs` | | | | |
+| `src-tauri/src/permissions.rs` | | | | |
+
+All 9 must show "delegation" or "N/A" with zero unreviewed "computation" entries before Phase-8 attestation (T087) can claim gate-8-shell PASS.

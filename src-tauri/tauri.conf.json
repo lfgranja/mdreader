@@ -5,23 +5,11 @@
   "identifier": "app.mdreader",
   "build": {
     "beforeBuildCommand": "",
-    "beforeDevCommand": "",
-    "beforeBuild": "",
     "devPath": "../",
     "distDir": "../dist"
   },
   "app": {
     "windows": [{ "fullscreen": false }],
     "security": { "csp": null }
-  },
-  "bundle": {
-    "active": true,
-    "category": "Entertainment",
-    "copyright": "",
-    "deb": { "depends": ["libgtk-3-0"] },
-    "macOS": { "entitlements": null, "provisioningProfile": null },
-    "resources": [],
-    "shortDescription": "Android media playback shell",
-    "longDescription": "Driving-first audio playback with single Rust authority."
   }
 }

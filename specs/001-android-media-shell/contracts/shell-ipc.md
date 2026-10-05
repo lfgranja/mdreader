@@ -22,8 +22,15 @@ The shell renders; it never computes position. `setOngoing(true)` while playing.
 ## Focus & routing intents (Kotlin → Rust, classified at the boundary)
 
 `DuckableTransient | SilenceDemanding | PermanentLoss | FocusRegained |
-BecomingNoisy | DeviceAppeared(id) | DeviceDisappeared(id)` → Rust applies FR-013/
-FR-013a/FR-014/FR-015/FR-016/FR-017a and replies with the new mirror state.
+BecomingNoisy | DeviceAppeared(id) | DeviceDisappeared(id) | AppForegrounded |
+AppBackgrounded` → Rust applies FR-013/FR-013a/FR-014/FR-015/FR-016/FR-017a and replies with the
+new mirror state.
+
+`AppForegrounded`/`AppBackgrounded` carry no playback decision of their own. They latch the
+application-lifecycle state consulted at resume-offer expiry (FR-032c) and at engine-offer
+expiry (FR-023a); a foregrounded offer is never converted early, so FR-032c's 3-second
+visibility MUST is unchanged. Reachable from the CLI as `foreground on|off` (Principle II), so
+the SC-020 foreground/background split is drivable in CI without an emulator.
 
 ## Failure/refusal statements (Rust → shell)
 
@@ -49,3 +56,4 @@ the diagnostic record and IPC payloads carry; Rust names never appear on the wir
 | `DuckableTransient\|SilenceDemanding\|PermanentLoss` + `Regained` event | `duckable_transient\|silence_demanding\|permanent_loss\|regained` | intents `DuckableTransient\|SilenceDemanding\|PermanentLoss\|FocusRegained\|BecomingNoisy\|DeviceAppeared\|DeviceDisappeared` |
 | `Unreachable\|InitFailed\|RateMismatch\|ChannelMismatch\|DeviceRefused\|DeviceLost\|StartRefused` | `engine_unreachable\|engine_init_failed\|rate_mismatch\|channel_mismatch\|device_refused\|device_lost\|start_refused` | — (named `error` on `failure` + `refusal`) |
 | `PlaybackRate` 7 rungs | `0.75\|1.0\|1.25\|1.5\|1.75\|2.0\|4.0` numbers | `RateUp\|RateDown` (+ `CycleVoiceNext\|CycleVoicePrev` per FR-018b) |
+| `offline_default\|cloud_default\|cloud_escalation\|test_double\|evaluated_fallback` | same five strings in `engine_tier` | — (closed tier order, FR-023c) |

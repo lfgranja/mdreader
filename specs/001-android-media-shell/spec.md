@@ -1362,7 +1362,8 @@ derived requirement exists only as prose.
   lock-screen surface competes with them, the resident notification shows the paused state and
   a resume control while asserting no elapsed time, remaining time, or section title, and a
   Play press from that notification still produces audio without the application being opened
-  (FR-009a)
+  (FR-009a). This criterion is the liveness verdict (the Play press produces audio); the count
+  clause restates the invariant verdict under SC-049 for count/teardown.
 - **SC-015**: Zero trials in which a rate change, or a sequence of rate changes including the
   step from 2.0x to 4.0x, is audible as a change in pitch or voice character. Verification is
   deterministic and host-runnable: the fundamental-frequency contour and spectral-peak
@@ -1384,7 +1385,8 @@ derived requirement exists only as prose.
   after an interrupted session; and in 10 out of 10 trials where the document reached its end,
   zero resident components and zero ongoing notifications remain, so that residency is
   observable as tracking whether there is something to resume rather than tracking that
-  playback has ever been started (FR-009a, FR-032f)
+  playback has ever been started (FR-009a, FR-032f). This criterion is the count/teardown
+  verdict; liveness (a Play press producing audio) is verdict under SC-043.
 - **SC-045**: In 10 out of 10 trials, a document reaching its end while the device is locked
   results in the resident notification being dismissed and the resident component being torn
   down, with zero instances of a surface remaining that offers to play or resume the completed

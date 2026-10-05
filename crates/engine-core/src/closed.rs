@@ -110,7 +110,7 @@ impl<'de> Deserialize<'de> for PlaybackRate {
         /// number, in float or integer notation.
         struct RungVisitor;
 
-        impl<'de> serde::de::Visitor<'de> for RungVisitor {
+        impl serde::de::Visitor<'_> for RungVisitor {
             type Value = PlaybackRate;
 
             fn expecting(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -129,14 +129,17 @@ impl<'de> Deserialize<'de> for PlaybackRate {
             where
                 E: serde::de::Error,
             {
-                match value {
-                    1 => Ok(PlaybackRate::R1_0),
-                    2 => Ok(PlaybackRate::R2_0),
-                    4 => Ok(PlaybackRate::R4_0),
-                    _ => Err(E::invalid_value(
+                if value == 1 {
+                    Ok(PlaybackRate::R1_0)
+                } else if value == 2 {
+                    Ok(PlaybackRate::R2_0)
+                } else if value == 4 {
+                    Ok(PlaybackRate::R4_0)
+                } else {
+                    Err(E::invalid_value(
                         serde::de::Unexpected::Unsigned(value),
                         &self,
-                    )),
+                    ))
                 }
             }
 
@@ -144,14 +147,17 @@ impl<'de> Deserialize<'de> for PlaybackRate {
             where
                 E: serde::de::Error,
             {
-                match value {
-                    1 => Ok(PlaybackRate::R1_0),
-                    2 => Ok(PlaybackRate::R2_0),
-                    4 => Ok(PlaybackRate::R4_0),
-                    _ => Err(E::invalid_value(
+                if value == 1 {
+                    Ok(PlaybackRate::R1_0)
+                } else if value == 2 {
+                    Ok(PlaybackRate::R2_0)
+                } else if value == 4 {
+                    Ok(PlaybackRate::R4_0)
+                } else {
+                    Err(E::invalid_value(
                         serde::de::Unexpected::Signed(value),
                         &self,
-                    )),
+                    ))
                 }
             }
         }
@@ -344,7 +350,7 @@ impl EngineTier {
     /// drift (FR-044). The fallback selector consumes this order
     /// directly (T075); the Edge endpoint is last and never a
     /// default.
-    pub const ORDER: [EngineTier; 5] = [
+    pub const ORDER: [Self; 5] = [
         Self::OfflineDefault,
         Self::CloudDefault,
         Self::CloudEscalation,

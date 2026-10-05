@@ -4,9 +4,10 @@
 //! reachable as a Rust API, and the crate is CLI-drivable
 //! headless (Principle II) once the CLI lands (T017). The
 //! modules: [`closed`] (T014, the closed-set vocabulary),
-//! [`format`] (T015, the declared engine→shell handoff
-//! format), and the stand-in engines [`standin_a`] /
-//! [`standin_b`] (T017b, the SC-051 failover fixtures).
+//! [`crate::format`] (T015, the declared engine→shell
+//! handoff format), and the stand-in engines
+//! [`standin_a`] / [`standin_b`] (T017b, the SC-051
+//! failover fixtures).
 //! Engine IDs are referenced from the constitution's TTS
 //! Engine Registry by name and version only; the sole
 //! exception is the `test_double` tier, restricted to the

@@ -101,7 +101,11 @@ mod tests {
     fn a_rate_deviation_names_rate_mismatch() {
         for rate in [0, 1, 8_000, 22_049, 22_051, 44_100, u32::MAX] {
             assert_eq!(
-                check_handoff(rate, DeclaredFormat::CHANNELS, DeclaredFormat::SAMPLE_WIDTH_BITS),
+                check_handoff(
+                    rate,
+                    DeclaredFormat::CHANNELS,
+                    DeclaredFormat::SAMPLE_WIDTH_BITS
+                ),
                 Err(EngineError::RateMismatch),
                 "rate {rate} Hz"
             );
@@ -112,7 +116,11 @@ mod tests {
     fn a_channel_deviation_names_channel_mismatch() {
         for channels in [0, 2, 6, u16::MAX] {
             assert_eq!(
-                check_handoff(DeclaredFormat::SAMPLE_RATE, channels, DeclaredFormat::SAMPLE_WIDTH_BITS),
+                check_handoff(
+                    DeclaredFormat::SAMPLE_RATE,
+                    channels,
+                    DeclaredFormat::SAMPLE_WIDTH_BITS
+                ),
                 Err(EngineError::ChannelMismatch),
                 "channel count {channels}"
             );

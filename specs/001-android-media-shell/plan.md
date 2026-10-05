@@ -53,7 +53,7 @@ criteria (SC-009, SC-054, SC-050-idle-resume) are measured on this class of devi
 faster device passing is conforming, a slower device failing is not evidence of failure.
 
 **Project Type**: Mobile app (Tauri) backed by a Cargo-workspace modular monolith of focused
-library crates (`player`, `session`, `diag`, `engine-core`), each CLI-drivable per
+library crates (`player`, `session`, `diag`, `engine-core`, `doc-structure`), each CLI-drivable per
 Principles I–II.
 
 **Performance Goals**: Audible audio ≤3 s after Play (mid-range arm64, parsed document);

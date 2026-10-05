@@ -700,7 +700,14 @@ derived requirement exists only as prose.
   direction, rate change, voice change — MUST demand looking at the screen. Every one of
   them MUST be operable locked, by feel, with its effect confirmed audibly rather than
   visually, because a control that needs eyes is a control that cannot be used where this
-  feature exists to be used (FR-018, FR-019)
+  feature exists to be used (FR-018, FR-018b, FR-019)
+- **FR-018b** (derived from FR-018): The system MUST expose next-voice and previous-voice
+  controls from the lock screen or notification shade without requiring the device to be
+  unlocked. Each press MUST move exactly one voice in the order supplied by the
+  voice-selection interface (FR-024), MUST confirm the effect audibly per FR-018a, and
+  MUST re-anchor the stored position to the nearest sentence or node boundary per FR-038
+  rather than restarting. Voice ordering itself belongs to the synthesis feature; this
+  feature owns only the one-step locked control and its audible confirmation
 - **FR-019**: Rate adjustment MUST be reachable without unlocking the device. The reachable
   rates are a fixed, closed ladder: 0.75x, 1.0x, 1.25x, 1.5x, 1.75x, 2.0x, and 4.0x. Each rate
   control press MUST advance or retreat exactly one step on that ladder, and a press at either
@@ -1334,7 +1341,9 @@ derived requirement exists only as prose.
   started session, not a session start)
 - **SC-020**: In 10 out of 10 trials, reopening a deliberately paused document shows the
   resume offer with both continue and start-over available, and reading begins within 4
-  seconds of the offer appearing whether or not the user acts, provided the application is
+  seconds of the offer appearing (3 s offer window per FR-032c + 1 s post-expiry start
+  budget, stricter than the FR-027 3 s play-to-audio bound which still governs the
+  post-expiry start itself) whether or not the user acts, provided the application is
   in the foreground when the window expires; where it is not, no audio begins until the
   user activates resume (FR-032c, FR-032d)
 - **SC-021**: In 10 out of 10 trials, reopening a document left by an unexpected end, a

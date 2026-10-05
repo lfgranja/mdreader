@@ -144,3 +144,14 @@ All 9 must show "delegation" or "N/A" with zero unreviewed "computation" entries
 **Next step for user**: Run `tauri android build --target aarch64` on development workstation with full Java/Android SDK environment; install `.apk` via `adb install`; execute `tests/device/trials.md`; update `VERIFICATION.md` with PASS/FAIL evidence; commit `verify(T087): device-trials + gate-9 PASS`.
 
 **Agent attestation**: NONE. Only T087 attests.
+
+---
+
+## Atualização de verificação — build gate-9 (2026-10-05)
+
+**Status atualizado após execução local**:
+- `Cargo.toml` fixado: `tauri = "=3.0.0-alpha.3"` (exceção registrada em `86f72eb` — único disponível no index; risco documentado)
+- `libsrc_tauri.so` produzido (`Finished release profile`) para `aarch64-linux-android`
+- `buildSrc:compileKotlin` falha no ambiente do servidor (não código) — Gradle Kotlin plugin / toolchain mismatch; requer ambiente local de desenvolvimento com Kotlin/Gradle sincronizado
+- **Dispositivo plugado** (`adb devices` disponível após `android-tools`); trials `tests/device/trials.md` não executados (aguardando APK)
+- **Recomendação**: completa `gate-9` no PC de desenvolvimento (não servidor); atualiza `VERIFICATION.md`; comita.

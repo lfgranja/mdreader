@@ -9,3 +9,4 @@
 //! [`standin_a`], [`standin_b`]) follow.
 
 pub mod closed;
+pub mod format;

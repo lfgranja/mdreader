@@ -60,7 +60,21 @@
         "start_refused"
       ]
     },
-    "engine": { "type": "string", "minLength": 1 },
+    "engine": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Engine identifier. With engine_tier=test_double this MUST be one of the two declared stand-ins (standin_a, standin_b) and is exempt from constitution registry resolution (FR-023c, SC-057)."
+    },
+    "engine_tier": {
+      "enum": [
+        "offline_default",
+        "cloud_default",
+        "cloud_escalation",
+        "test_double",
+        "evaluated_fallback"
+      ],
+      "description": "Closed tier. Fallback order is ascending: offline_default < cloud_default < cloud_escalation < test_double < evaluated_fallback, so the Edge endpoint stays last and is never a default. test_double is admissible only while no non-test_double adapter is registered (FR-024)."
+    },
     "detail": { "type": "string", "maxLength": 200, "pattern": "^[A-Za-z0-9_]+=[A-Za-z0-9_.+\\-]+( [A-Za-z0-9_]+=[A-Za-z0-9_.+\\-]+)*$" },
     "trim": {
       "type": "object",
@@ -73,6 +87,10 @@
     }
   },
   "allOf": [
+    {
+      "if": { "required": ["engine"] },
+      "then": { "required": ["engine_tier"] }
+    },
     {
       "if": { "properties": { "kind": { "const": "trim" } } },
       "then": { "required": ["trim"] }

@@ -1,23 +1,17 @@
-//! Tauri bridge — plugin registration + mobile plugin execution (FR-011 / FR-042 / SC-035).
-//! NO playback logic (FR-042). Pure delegation to Rust playback module (FR-002/FR-003).
+//! Tauri bridge — plugin delegation (FR-011 / FR-042 / SC-035).
+//! NO playback logic in Kotlin surface — pure delegation to Rust module.
 
-use tauri::plugin::Plugin;
+pub mod commands {
+    //! Plugin commands exposed via IPC.
+    use tauri::command;
 
-pub fn plugin() -> Box<dyn Plugin<()>> {
-    Box::new(tauri::plugin::Plugin::new("android-media-shell").invoke_handler(tauri::generate_handler![
-        register_android_plugin,
-        run_mobile_plugin,
-    ]))
-}
+    #[command]
+    pub fn register_android_plugin() {
+        // Delegate to Rust playback module — never computes position/rate/transport.
+    }
 
-/// Plugin registration usable without prior app-process start (FR-009a / FR-011).
-#[tauri::command]
-fn register_android_plugin() {
-    // Delegate to Rust playback module — never computes position/rate/transport.
-}
-
-/// Mobile plugin execution via `tauri::ipc::Channel` (no `InvokeBody::Streaming`).
-#[tauri::command]
-fn run_mobile_plugin() {
-    // Same code path as IPC from Kotlin mirror (SC-035 purity — no second source).
+    #[command]
+    pub fn run_mobile_plugin() {
+        // Same code path as Kotlin mirror (SC-035 purity).
+    }
 }

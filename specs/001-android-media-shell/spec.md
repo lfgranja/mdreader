@@ -1078,17 +1078,14 @@ derived requirement exists only as prose.
   "it ducked and came back" is two ordered entries rather than one ambiguous state.
   **Session end, transport, and the record**: transport is a closed set of five values — playing, paused, stopped, completed,
   interrupted — and the session-end reason is the closed four-value subset paused, stopped, completed, interrupted shared with it.
-  A session-end entry carries both values from that shared subset, so a session cannot end in a condition the transport vocabulary cannot express
+  A session-end entry carries `transport` constrained to that shared four-value subset plus `session_end_reason` from the same subset (never `playing` on a `session_end` entry), so a session cannot end in a condition the transport vocabulary cannot express
   (FR-019, FR-013a, FR-023c, FR-039)
 - **FR-045**: No entry in the diagnostic record may contain text drawn from the document. An
   entry's content is limited to **event kinds, playback position, time, identifiers, and named
   failures**; a sentence, a heading, a fragment of prose, or a passage of the document's body
   is prohibited, and a title already shown on the lock-screen surface is no more admissible in
   the record than in a failure reason. The record's shape MUST therefore offer no open
-  free-text field: the `detail` field it carries is either **removed in favour of typed
-  fields**, or **retained bounded to at most 200 characters and a pattern that admits
-  identifiers and values rather than prose** — and whichever of the two is chosen MUST be
-  declared rather than left to whichever an implementation finds convenient, because an
+  free-text field: the `detail` field it carries is **retained bounded to at most 200 characters and the pattern `^[A-Za-z0-9_]+=[A-Za-z0-9_.+\-]+( [A-Za-z0-9_]+=[A-Za-z0-9_.+\-]+)*$` admitting identifiers and values rather than prose** (declared choice; the remove-alternative is rejected because `contracts/diagnostic-record.schema.json` and SC-056 already normatively retain the bounded field), because an
   unbounded field is precisely where a document sentence would end up being written down by
   accident and then read, stored, or exported by tooling. Every entry whose kind is `failure`
   and every entry whose kind is `refusal` MUST carry `error`, since both name a condition

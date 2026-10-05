@@ -3,13 +3,5 @@
   "productName": "mdreader",
   "version": "0.1.0",
   "identifier": "app.mdreader",
-  "build": {
-    "beforeBuildCommand": "",
-    "devPath": "../",
-    "distDir": "../dist"
-  },
-  "app": {
-    "windows": [{ "fullscreen": false }],
-    "security": { "csp": null }
-  }
+  "build": {}
 }

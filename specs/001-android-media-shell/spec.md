@@ -704,7 +704,8 @@ derived requirement exists only as prose.
 - **FR-019**: Rate adjustment MUST be reachable without unlocking the device. The reachable
   rates are a fixed, closed ladder: 0.75x, 1.0x, 1.25x, 1.5x, 1.75x, 2.0x, and 4.0x. Each rate
   control press MUST advance or retreat exactly one step on that ladder, and a press at either
-  end MUST stay at that end rather than saturating, wrapping, or failing. The ladder is closed
+  end MUST saturate (stay at that end) rather than wrapping, failing, or yielding a rate
+  outside the ladder. The ladder is closed
   because a rate the reader cannot anticipate is a control they cannot use without looking
   (FR-028)
 - **FR-019a**: Changing the playback rate MUST preserve pitch and voice character. Faster
@@ -820,7 +821,7 @@ derived requirement exists only as prose.
 **Playback start latency**
 
 - **FR-027**: The system MUST begin producing audible audio within 3 seconds of the user's
-  play action, measured on the reference mid-range arm64 device named in plan.md (4x Cortex-A78 class cores, 6 GB RAM or equivalent) with the document already parsed. A
+  play action, measured on the reference device defined in plan.md §Target Platform with the document already parsed. A
   longer silence is treated as a failure to start, not as normal startup
 
 **Notification content and privacy**

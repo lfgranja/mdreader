@@ -114,6 +114,8 @@ entries max; seven closed rate rungs (0.75x–4.0x).
 
 No violations. No Complexity Tracking entry required.
 
+**Development workflow note (per user operating constraint 6 / tasks.md L11, L311):** Every file edit is followed by an atomic conventional commit with a detailed edit-summary (deterministic hook). This applies to all implementation phases and to any clarification edits (e.g., A1/B1/B3 above).
+
 ## Project Structure
 
 ### Documentation (this feature)

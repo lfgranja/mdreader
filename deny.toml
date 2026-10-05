@@ -1,0 +1,44 @@
+[advisories]
+yanked = "deny"
+
+deny = [
+    { name = "tts-rs" },
+    { name = "onnx" },
+    { name = "sherpa" },
+    { name = "candle" },
+    { name = "burn" },
+    { name = "tch" },
+    { name = "llm" },
+    { name = "llama-cpp-2" },
+    { name = "llama-rs" },
+    { name = "rust-bert" },
+    { name = "openai" },
+    { name = "async-openai" },
+    { name = "openai-api" },
+    { name = "langchain" },
+    { name = "langchain-rust" },
+    { name = "edge-tts-rs" },
+]
+
+[licenses]
+version = 2
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "GPL-3.0",
+    "LGPL-3.0",
+    "AGPL-3.0",
+    "CC0-1.0",
+    "CC-BY-4.0",
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+require-registry-index = "https://github.com/rust-lang/crates.io-index"

@@ -1,0 +1,10 @@
+[package]
+name = "app"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tauri = { version = "=2.12.1", features = ["mobile"] }
+
+[package.metadata]
+description = "Stub for workspace membership (T028a-stub). Full init by T028a in US1."

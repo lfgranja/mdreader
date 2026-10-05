@@ -1,0 +1,4 @@
+[profile.ci]
+threads-required = 1
+failure-output = "final"
+leaks-request = "forbid"

@@ -1,0 +1,21 @@
+[package]
+name = "session"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+redb = "2.6.0"
+blake3 = "1.6.0"
+doc-structure = { path = "../doc-structure" }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+
+[dev-dependencies]
+proptest = { workspace = true }
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

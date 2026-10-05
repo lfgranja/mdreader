@@ -1,0 +1,24 @@
+[package]
+name = "player"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+cpal = "0.18.2"
+ndk = "0.9"
+doc-structure = { path = "../doc-structure" }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+
+[dev-dependencies]
+proptest = { workspace = true }
+tempfile = { workspace = true }
+session = { path = "../session" }
+diag = { path = "../diag" }
+engine-core = { path = "../engine-core" }
+
+[lints]
+workspace = true

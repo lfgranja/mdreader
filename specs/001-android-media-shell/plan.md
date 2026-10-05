@@ -182,12 +182,12 @@ tests/
 ├── device/          # 10/10 on-device trial procedures (T083); documentation only,
 │   ├── README.md    #   no cargo target
 │   └── trials.md
-└── expected-tests.txt  # committed target list; verify.sh gate 2 diffs against it
 
 scripts/
 ├── verify.sh        # gates 1-9, single entrypoint, fail-closed on missing input
 ├── check-manifest.sh
-└── check-shell-purity.sh
+├── check-shell-purity.sh
+└── expected-tests.txt  # committed target list; verify.sh gate 2 diffs against it
 
 docs/
 ├── architecture.md

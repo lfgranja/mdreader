@@ -4,9 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-tauri = { version = "=2.12.1", features = [] }
+tauri = { version = "=3.0.0-alpha.3", features = [] }
 #[path = "../crates/player/src/lib.rs"]
 # player = { path = "../crates/player" }
 
 [build-dependencies]
-tauri-build = { version = "=2.12.1", features = [] }
+tauri-build = { version = "=3.0.0-alpha.3", features = [] }

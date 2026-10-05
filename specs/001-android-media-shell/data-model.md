@@ -38,8 +38,8 @@ replay after kill ≤30 s (FR-004).
 |---|---|---|
 | key `fingerprint` | `[u8; 32]` | blake3 of document bytes |
 | `offset_secs` | `f64` | last spoken position |
-| `paused_at_ms` | `u64` unix-ms | basis for 5%-of-pause rewind (FR-015) |
-| `sentence_idx` | `u32` | snap target hint |
+| `first_yield_ms` | `u64` unix-ms | start of continuous non-advancing interval; basis for 5%-of-pause rewind (FR-015), never reset at supersede |
+| `sentence_idx` | `u32` | snap hint only; node re-anchor (FR-038) resolves via document structure at resume |
 
 Cleared only by Stop or document end. Unreachable hash (edited content) ⇒ no offer.
 

@@ -1,0 +1,3 @@
+{"ts_ms":0,"kind":"SERVICE_KILL","payload":{"reason":"system_kill","notify_dismissed":false,"bookmark_preserved":true},"result":"paused_at_position"}
+{"ts_ms":31000,"kind":"REOPEN","payload":{"unexpected_end":true,"position_offer":true},"result":"explicit_resume_not_auto_audio"}
+{"ts_ms":62000,"kind":"POWER_LOSS","payload":{"replay_bound_ms":30000,"document_start":false},"result":"replay_at_last_spoken"}

@@ -1,0 +1,3 @@
+{"ts_ms":0,"kind":"DEVICE_REMOVED","payload":{"signal":"BECOMING_NOISY","route":"wired"},"result":"pause_within_1000ms"}
+{"ts_ms":800,"kind":"DEVICE_APPEARED","payload":{"device":"bt_new","position_preserved":true},"result":"continue_same_position"}
+{"ts_ms":1500,"kind":"DEVICE_REMOVED","payload":{"signal":"onAudioDevicesRemoved","route":"bt_only"},"result":"pause_within_1000ms"}

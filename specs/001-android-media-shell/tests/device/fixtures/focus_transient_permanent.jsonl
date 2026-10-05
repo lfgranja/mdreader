@@ -1,0 +1,3 @@
+{"ts_ms":0,"kind":"FOCUS_CHANGE","payload":{"request":"PERMANENT_LOSS"},"result":"pause_never_auto_resume"}
+{"ts_ms":300,"kind":"FOCUS_CHANGE","payload":{"request":"TRANSIENT_DUCK"},"result":"supersede_cleared_transient"}
+{"ts_ms":3000,"kind":"FOCUS_CHANGE","payload":{"request":"GAIN_REGained"},"result":"no_resume_reason_expired"}

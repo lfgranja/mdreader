@@ -1,0 +1,3 @@
+{"ts_ms":0,"kind":"LOCK_SCREEN_CONTROL","payload":{"action":"skip_forward_5s","blind_tester":true,"unlock_required":false},"result":"confirmed_audibly_position_advanced"}
+{"ts_ms":12000,"kind":"LOCK_SCREEN_CONTROL","payload":{"action":"rate_up","blind_tester":true},"result":"confirmed_audibly_rate_changed"}
+{"ts_ms":24000,"kind":"LOCK_SCREEN_CONTROL","payload":{"action":"pause","blind_tester":true},"result":"confirmed_audibly_paused"}

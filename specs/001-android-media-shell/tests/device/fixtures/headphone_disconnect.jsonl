@@ -1,0 +1,2 @@
+{"ts_ms":0,"kind":"HEADPHONE_PULL","payload":{"wired_disconnect":true,"speaker_risk":true},"result":"pause_then_private_to_speaker_false"}
+{"ts_ms":350,"kind":"RECONNECT","payload":{"device":"wired_original"},"result":"resume_at_same_position_explicit"}

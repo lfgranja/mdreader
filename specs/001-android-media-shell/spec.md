@@ -1010,9 +1010,11 @@ derived requirement exists only as prose.
 
 **Audio handoff contract**
 
-- **FR-033**: The system MUST declare a single fixed playback sample rate, and every
-  engine MUST deliver mono f32 PCM resampled to exactly that rate. **The declared rate is
-  22050 Hz.** The output stream MUST be requested at exactly that rate, and the device's own
+- **FR-033** (superseded by FR-019): The system MUST declare a single fixed playback
+  sample rate, and every engine MUST deliver mono f32 PCM resampled to exactly that rate.
+  The declared rate is 22050 Hz. See FR-019 and T015 for the single authoritative
+  declaration; FR-033 is retained only for traceability and must not be cited as an
+  independent requirement in new tasks or contracts.
   preferred default rate MUST NOT be adopted in its place: a device default is not this
   specification's declared rate, and adopting one silently would put a different timeline
   behind every stored position, so the rate a position is recorded against and the rate it is

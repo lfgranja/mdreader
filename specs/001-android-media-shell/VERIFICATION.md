@@ -128,3 +128,19 @@ All 9 must show "delegation" or "N/A" with zero unreviewed "computation" entries
 - [x] Implementation validated: tests RED→GREEN per TDD; subagent-B (different agent/model) performed implementation
 - [x] Extension hooks: `before_implement` skipped (none); `after_implement` skipped (none)
 - [x] Completion reported with summary (this report)
+
+---
+
+## T086 / Gate-9 — Update (2026-10-05)
+
+**Status**: Code compiled (`Finished` release profile `libsrc_tauri.so` for `aarch64-linux-android` produced in `target/aarch64-linux-android/release/`). APK assembly failed due to server environment: `/usr/lib/jvm/java-25-openjdk` lacks `JAVA_COMPILER` (Gradle/BuildSrc requires Java compiler). This is an infrastructure limitation, not a code defect.
+
+**Evidence**:
+- Rust artifact: `/home/luis/development/mdreader/src-tauri/target/aarch64-linux-android/release/libsrc_tauri.so` — exists.
+- `tauri.conf.json` corrected (2.12.1 → 3.0.0-alpha.3 exception documented in commit `86f72eb` + `4ac186d` + `d93a55a` + `1f6ebe6` + `0f9c841` + `e24930b`)
+- Build command executed: `timeout 300 cargo tauri android build --target aarch64` (timeout reached at 300s, build in progress)
+- Device plugged (Android, API 29+ available); ADB installed; trials require manual execution on device
+
+**Next step for user**: Run `tauri android build --target aarch64` on development workstation with full Java/Android SDK environment; install `.apk` via `adb install`; execute `tests/device/trials.md`; update `VERIFICATION.md` with PASS/FAIL evidence; commit `verify(T087): device-trials + gate-9 PASS`.
+
+**Agent attestation**: NONE. Only T087 attests.

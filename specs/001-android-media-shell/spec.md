@@ -482,7 +482,8 @@ derived requirement exists only as prose.
   without playback state of their own
 - **FR-003**: The system MUST NOT maintain a second independent source of truth for
   playback position; any media-control surface MUST reflect the Rust playback module's
-  state rather than computing its own position
+  state rather than computing its own position (layer mapping: FR-002 = Rust module
+  authority; FR-003 = no second state source; FR-042 = surface contains no logic)
 - **FR-004**: Playback position MUST survive process death and be recoverable to the last
   spoken position rather than the document start, replaying at most 30 seconds of
   already-spoken audio in the process. This bound is what makes the requirement true under a

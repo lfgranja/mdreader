@@ -157,7 +157,8 @@
 - [ ] T053 [P] [US4] Integration test: lock-screen + residency trials in `tests/integration/test_lockscreen_us4.rs` (blind-test protocol per SC-008 — tester cannot see surface, trial fails on any unlock or any effect left unconfirmed aloud: play, pause, resume, skip ±, rate change, voice-cycle next/prev (one-voice step, re-anchored per FR-038), each confirmed audibly not visually per FR-018a, FR-018b; SC-004 functional correctness on same run; ±5 s clamp; ladder incl. 2.0x→4.0x; Stop-discards vs Pause-preserves; completion tears down residency SC-045, SC-049; one resident + one notification while resumable SC-043; cold-start refusal stated + no playing state FR-010, SC-014; denied permission stated in-app FR-021, SC-028; regression check only: lock-screen controls remain functional on resident service (FR-011 proof owned by T022b, refs T028); FGS-absent trial per FR-008 — permission missing → stated reason + no playing state (refs T030b); airplane-mode trial per FR-026 — start + 60 s continue with no network on parsed document; status-view assertions: rate shown in-app equals lock-screen rate source (SC-027); denied-permission statement visible (SC-028); FAIL before implementation)
 - [ ] T054 [P] [US4] Contract test: shell-IPC verb/state mirror in `tests/contract/test_shell_ipc_us4.rs` (closed verbs `Play|Pause|Stop|SkipForward5s|SkipBack5s|RateUp|RateDown|CycleVoiceNext|CycleVoicePrev|ResumeAtStored|StartOver|ChooseEngine` each honoured-or-rejected never phantom-playing; `CycleVoice*` asserts one-voice step + FR-038 re-anchor + audible confirmation per FR-018a, FR-018b; Rust→shell mirror carries `transport|position_secs|section_title|progress|transient_reason?`; rapid presses each resolved; per contracts/shell-ipc.md; CLI parity: every IPC verb has a CLI equivalent resolving through the same function (FR-042, Principle II), asserted by invoking both drivers; mirror never shows playing while backend is paused per FR-020 (assert on every verb response); FAIL before implementation)
 - [ ] T055 [P] [US4] Property test: pitch invariance in `crates/engine-core/tests/prop_pitch.rs` (F0 contour + spectral peaks of identical PCM across all 7 rungs match within ±50 cents per SC-015 incl. 2.0x→4.0x; delivered rate invariant 22050 Hz across rungs per SC-034; FAIL before implementation)
-- [ ] T056 BLOCKING GATE [US4] — All US4 tests T049–T055 written and FAILING. Implementation T057–T066 MUST NOT begin until attested.
+- [ ] T061b [P] [US4] Implement document-structure stub in `tests/fixtures/doc_structure.rs` (test-wave fixture, parallel with T049–T055: ordered headings `{position_secs: f64, title: String}` + `headings_before(pos)` helper; consumed by T051 prop_surface and T061 resolver; asserts FR-028d re-resolve triggers boundary-cross/resume/skip/re-anchor, fingerprint re-check on resume, and no polling/watcher between events; real parser replaces the stub without changing T051/T061 assertions)
+- [ ] T056 BLOCKING GATE [US4] — All US4 tests T049–T055 + fixture T061b written and FAILING. Implementation T057–T066 MUST NOT begin until attested (T061b already done in test wave).
 
 ### Implementation for US4
 
@@ -166,7 +167,7 @@
 - [ ] T059 [P] [US4] Implement fingerprint + re-anchor in `crates/session/src/fingerprint.rs` (blake3-256 content hash, move/rename-stable, edit→different-doc no-offer discard, cross-voice nearest-boundary else `0.0` + report per FR-036, FR-036a, FR-038)
 - [ ] T060 [P] [US4] Implement resume-offer machine in `crates/session/src/offer.rs` (offer form resolved SOLELY from stored `end_kind` — deliberate 3 s auto-start-if-foreground on `paused` vs unexpected explicit-resume on `interrupted`, start-over→`0.0`+discard, completion mutual-exclusion vs open offers per FR-032c, FR-032d, FR-032b, FR-032e, FR-032f)
 - [ ] T061 [P] [US4] Implement notification content resolver in `crates/player/src/surface.rs` (title+section+progress only, FR-028, FR-028a, FR-028b, FR-028c, FR-028d re-resolve triggers boundary-cross/resume/skip/re-anchor with fingerprint check, FR-029 metadata-else-filename, FR-028e ongoing/dismissal split; headings supplied via T061b stub)
-- [ ] T061b [P] [US4] Implement document-structure stub in `tests/fixtures/doc_structure.rs` (ordered headings `{position_secs: f64, title: String}` + `headings_before(pos)` helper; consumed by T051 prop_surface and T061 resolver; asserts FR-028d re-resolve triggers boundary-cross/resume/skip/re-anchor, fingerprint re-check on resume, and no polling/watcher between events; real parser replaces the stub without changing T051/T061 assertions)
+- [ ] T061b DONE IN TEST PHASE — see Tests for US4 (fixture built in test wave alongside T049–T055; T061 consumes it; real parser replaces the stub without changing T051/T061 assertions)
 - [ ] T062 [US4] Implement Kotlin `MediaSession` mirror + notification in `android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt` (`setPlaybackState` reflects Rust state never computes position per FR-003, `MediaStyle` title+section+progress, `setOngoing(true)` while playing, transient 3 s dismiss vs resident dismissable; depends on T061 shapes)
 - [ ] T063 [P] [US4] Implement `session` CLI in `crates/session/src/cli.rs` + `crates/session/src/main.rs` (`get|put|clear <file>`, `rate get|set <v>`, `--format json` per contracts/storage-schema.md)
 - [ ] T064 [US4] Implement resident lifecycle + teardown in `android-shell/src/main/kotlin/app/mdreader/Residency.kt` (exactly-one resident + one notification while resumable, resident-stop control preserving bookmark vs transport-Stop discarding, teardown at document end per FR-009, FR-009a, FR-032f, swipe-away-while-playing pauses first; SC-043 asserts liveness (Play press produces audio), SC-049 asserts count/teardown — T083 records separate verdicts; depends on T058–T060)
@@ -238,14 +239,14 @@
 
 ### Test-before-implementation blocking map
 
-- T023 blocks T024–T031 incl. T030b (US1) • T036 blocks T037–T041 (US2) • T045 blocks T046–T048 (US3) • T056 blocks T057–T066 (US4) • T072 blocks T073–T076 + T078–T079 (US5; T077 already done in Foundation)
+- T023 blocks T024–T031 incl. T030b (US1) • T036 blocks T037–T041 (US2) • T045 blocks T046–T048 (US3) • T056 blocks T057–T066 (US4; T061b already done in test wave) • T072 blocks T073–T076 + T078–T079 (US5; T077 already done in Foundation)
 
 ### Parallel Opportunities ([P] waves via subagents)
 
 - Wave 0 (setup): T002–T007 in parallel (separate files), then T008, then gate T009.
 - Wave 1 (foundation tests): T010–T013 in parallel (4 agents, separate files, shared context: closed-set list — may reuse one subagent).
 - Wave 2 (foundation impl): T014→T015/T016 parallel after T014 (vocabulary first), T017 + T077 parallel-safe (stand-ins depend only on T014/T015/T016 contract shapes).
-- Wave 3+ (per story): ALL test tasks of a story in parallel (US1: T019–T022b = 5 agents; US2: T032–T035 = 4 agents; US3: T042–T044 = 3 agents; US4: T049–T055 = 7 agents; US5: T067, T067b–T071 = 6 agents). Implementation [P] tasks likewise parallel per story.
+- Wave 3+ (per story): ALL test tasks of a story in parallel (US1: T019–T022b = 5 agents; US2: T032–T035 = 4 agents; US3: T042–T044 = 3 agents; US4: T049–T055 + T061b fixture = 8 agents; US5: T067, T067b–T071 = 6 agents). Implementation [P] tasks likewise parallel per story.
 - Cross-story: after T018, US1/US2/US3 test waves may run concurrently (different files); shared-context tasks (e.g., T077 stand-ins A+B) reuse one subagent.
 - Final: T080–T083 in parallel, then strictly sequential T084→T085→T086→T087.
 
@@ -263,7 +264,7 @@ Task T035: "Contract test focus intents in tests/contract/test_focus_intents_us2
 # Wave 2 — implementation (T037+T038+T039 parallel, T040 after T038, T041 gate)
 ```
 
-## Parallel Example: User Story 4 (lock-screen, 7 test agents)
+## Parallel Example: User Story 4 (lock-screen, 8 test agents incl. fixture)
 
 ```bash
 Task T049: "prop_transport_math in crates/player/tests/prop_transport_math.rs"
@@ -273,6 +274,7 @@ Task T052: "prop_offer in crates/session/tests/prop_offer.rs"
 Task T053: "lockscreen integration in tests/integration/test_lockscreen_us4.rs"
 Task T054: "shell-IPC contract in tests/contract/test_shell_ipc_us4.rs"
 Task T055: "pitch invariance in crates/engine-core/tests/prop_pitch.rs"
+Task T061b: "doc-structure stub in tests/fixtures/doc_structure.rs (test-wave fixture for T051/T061)"
 ```
 
 ---
@@ -290,7 +292,7 @@ Foundation → +US1 (locked playback, MVP) → +US2 (focus, P1 core) → +US3 (r
 ### Subagent-Driven Development
 
 - Every [P] task is delegated, never executed inline in bulk. Maximum viable agents per wave (counts above).
-- Same-subagent reuse where context is shared (closed vocabulary T010/T014; stand-ins T071/T077; surface T051/T061/T062).
+- Same-subagent reuse where context is shared (closed vocabulary T010/T014; stand-ins T071/T077; surface T051/T061b/T061/T062).
 - Background agents for long builds (`cargo tauri android build`, on-device 10/10 trials).
 - After EVERY file edit during implementation: atomic conventional commit (`feat|fix|test|chore(scope): summary` + detailed body). This tasks.md creation is itself committed atomically.
 
@@ -308,7 +310,7 @@ Foundation → +US1 (locked playback, MVP) → +US2 (focus, P1 core) → +US3 (r
 ## Notes
 
 - Total: **92 tasks** (T001–T087 + T022b + T030b + T061b + T065b + T067b). Tests: 29 (T010–T013 foundation + 25 story tests). BLOCKING gates: 7 red (T009, T018, T023, T036, T045, T056, T072) + 5 GREEN (T031/T041/T048/T066/T079).
-- Per story: US1 14 (5 tests), US2 10 (4 tests), US3 7 (3 tests), US4 20 (7 tests + T061b fixture), US5 14 (6 tests). Setup 9, Foundation 9 (4 tests), Polish/Verification 8 (4 verification).
+- Per story: US1 14 (5 tests), US2 10 (4 tests), US3 7 (3 tests), US4 20 (7 tests + T061b fixture in test wave), US5 14 (6 tests). Setup 9, Foundation 9 (4 tests), Polish/Verification 8 (4 verification).
 - [P] tasks: 59 — the parallel delegation surface. Non-[P] tasks are gates or same-file sequences.
 - MVP scope: Phases 1+2+3 (T001–T031) = workspace + locked playback.
 - Verification tasks T084–T087 are the SOLE attestation of success. Agent claims attest nothing.

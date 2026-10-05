@@ -145,12 +145,18 @@ crates/
     └── src/         #   pitch-preserving stretch op, stand-in engines (SC-051)
 
 src-tauri/
-├── src/             # Tauri app: plugin registration, Channel streaming
-└── gen/android/     # Manual <service mediaPlayback> manifest declaration
+├── src/             # Tauri app: plugin registration, Channel streaming (delegates only, no playback logic)
+│   ├── lib.rs            # register_android_plugin + run_mobile_plugin (T028)
+│   ├── permissions.rs    # FGS/notification permission gate, no logic (T030b)
+│   ├── surface.rs        # ShortReason/FullReason shapes + expiry (T065 owns)
+│   ├── status_view.rs    # read-only rate/transport/position/reason view (T065b)
+│   └── failure.rs        # failure strings conforming to surface.rs shapes (T078)
+└── gen/android/     # Manual <service mediaPlayback> manifest declaration (incl. minSdk 29 per SC-032)
     └── app/src/main/AndroidManifest.xml
 
-android-shell/      # Thin Kotlin: PlaybackService, MediaSession mirror,
-└── ...             #   MediaStyle notification, AudioFocusRequest, BECOMING_NOISY
+android-shell/      # Thin Kotlin, forward-only mirrors (SC-035 allowlist, zero computation):
+└── src/main/kotlin/app/mdreader/  # PlaybackService.kt, FocusMirror.kt (T040),
+                        #   RoutingMirror.kt (T047), MediaMirror.kt (T062), Residency.kt (T064)
 
 tests/
 ├── contract/        # Engine-handoff conformance (incl. stand-in failover)

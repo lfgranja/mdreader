@@ -25,12 +25,12 @@
 **Purpose**: Greenfield workspace scaffolding. No repo code exists yet (no `Cargo.toml`, `crates/`, `src-tauri/`, `scripts/verify.sh` — verified 2026-10-05). Create it per plan.md §Project Structure.
 
 - [ ] T001 Create Cargo workspace root in `Cargo.toml` (members: `crates/player`, `crates/session`, `crates/diag`, `crates/engine-core`; Edition 2024, MSRV 1.85, `[lints] workspace = true`, shared `[workspace.lints]` with `unsafe_code/missing_docs/missing_debug/unreachable_pub/unused_results` deny, `clippy::all+pedantic` deny, `clippy::nursery+cargo` warn, `unwrap_used/expect_used/panic/todo/dbg/println` deny)
-- [ ] T002 [P] Create `crates/player/Cargo.toml` (deps: `cpal 0.18.2`, `thiserror`, `tracing`, `serde/serde_json`, `clap` derive; `[lints] workspace = true`)
-- [ ] T003 [P] Create `crates/session/Cargo.toml` (deps: `redb`, `blake3`, `thiserror`, `tracing`, `serde/serde_json`, `clap` derive; `[lints] workspace = true`)
-- [ ] T004 [P] Create `crates/diag/Cargo.toml` (deps: `serde/serde_json`, `thiserror`, `tracing`, `clap` derive; `[lints] workspace = true`)
-- [ ] T005 [P] Create `crates/engine-core/Cargo.toml` (deps: `thiserror`, `tracing`, `serde/serde_json`, `clap` derive; `[lints] workspace = true`)
+- [ ] T002 [P] Create `crates/player/Cargo.toml` (deps: `cpal = "=0.18.2"` exact, plus latest-stable-at-add-time `thiserror`, `tracing`, `serde`/`serde_json`, `clap` (derive) with exact `=x.y.z` as resolved that day recorded in the atomic commit msg per Principle IV; `[lints] workspace = true`)
+- [ ] T003 [P] Create `crates/session/Cargo.toml` (deps: latest-stable-at-add-time `redb`, `blake3`, `thiserror`, `tracing`, `serde`/`serde_json`, `clap` (derive) with exact `=x.y.z` recorded in the atomic commit msg per Principle IV; `[lints] workspace = true`)
+- [ ] T004 [P] Create `crates/diag/Cargo.toml` (deps: latest-stable-at-add-time `serde`/`serde_json`, `thiserror`, `tracing`, `clap` (derive) with exact `=x.y.z` recorded in commit msg; `[lints] workspace = true`)
+- [ ] T005 [P] Create `crates/engine-core/Cargo.toml` (deps: latest-stable-at-add-time `thiserror`, `tracing`, `serde`/`serde_json`, `clap` (derive) with exact `=x.y.z` recorded in commit msg; `[lints] workspace = true`)
 - [ ] T006 [P] Create `deny.toml` in repo root (allow-list: MIT, Apache-2.0+LLVM-exception, BSD-2/3, ISC, Zlib, MPL-2.0, Unicode-3.0, GPL-3.0, LGPL-3.0, AGPL-3.0, CC0-1.0, CC-BY-4.0; deny-list: `tts-rs`, `onnx`, `sherpa`, `candle`, `burn`, `tch`, `llm`, `llama-cpp-2`, `llama-rs`, `rust-bert`, `openai`, `async-openai`, `openai-api`, `langchain`, `langchain-rust`, `edge-tts-rs`; sources = crates.io only) + `.cargo/config.toml` with `--locked` enforcement note
-- [ ] T007 [P] Create `clippy.toml` in repo root (document pedantic/nursery baseline; no weakenings) and add dev-dependencies `proptest 1.x latest stable` + `cargo-nextest` config in `.config/nextest.toml`
+- [ ] T007 [P] Create `clippy.toml` in repo root (document pedantic/nursery baseline; no weakenings) and add dev-dependencies `proptest` (latest stable at add-time, exact `=x.y.z` recorded in commit msg) + `cargo-nextest` config in `.config/nextest.toml`
 - [ ] T008 Create `scripts/verify.sh` skeleton in `scripts/verify.sh` (gates 1–9 stubs with `set -euo pipefail`, fail-closed on missing input; full gate bodies filled in Phase 8)
 - [ ] T009 BLOCKING GATE — Setup complete: `cargo build --workspace --locked` succeeds on host Linux AND `cargo fmt --all -- --check` passes. No Phase 2 work begins until this is green.
 
@@ -55,9 +55,10 @@
 - [ ] T015 [P] Implement `DeclaredFormat` constants in `crates/engine-core/src/format.rs` (`SAMPLE_RATE: u32 = 22050`, mono-f32 shape descriptor, `check_handoff(rate, channels, width) -> Result<(), EngineError>` returning `RateMismatch|ChannelMismatch`, never adapting silently; FR-033/FR-035)
 - [ ] T016 [P] Implement engine trait + capability declaration in `crates/engine-core/src/trait_.rs` (`declared_capabilities() -> (SsmlLevel, AlignmentGranularity Sentence|Word|None)`, `set_rate()` pitch-preserving contract doc, `stream()` pre-roll source ≤60 s bound, failures as closed `EngineError`; per contracts/engine-handoff.md)
 - [ ] T017 [P] Implement `engine-core` CLI in `crates/engine-core/src/cli.rs` + `crates/engine-core/src/main.rs` (`clap` derive, stdin/args→stdout, errors→stderr, `--format json`; commands mirror trait ops for headless driving)
-- [ ] T018 BLOCKING GATE — Foundation green: `cargo nextest run --workspace` passes T010–T012 (now implemented), `cargo doc --workspace --no-deps` clean, gate-7 scan (`no _ => in crates/*/src`) passes. No story phase begins until this is green.
+- [ ] T077 [P] Implement stand-in engines in `crates/engine-core/src/standin_a.rs` and `crates/engine-core/src/standin_b.rs` (both honour handoff contract: mono f32 @22050 Hz, declared granularities, injectable mid-document failure for SC-051 double-failure drill; NO fallback/selection logic here — that stays in T075/T076. Built in Foundation so US1 T022 + US4 T055 have fixtures; required for gates T031/T066)
+- [ ] T018 BLOCKING GATE — Foundation green: `cargo nextest run --workspace` passes T010–T012 (now implemented), `cargo doc --workspace --no-deps` clean, gate-7 scan (`no _ => in crates/*/src`) passes, stand-ins T077 conform to contracts/engine-handoff.md shape invariant. No story phase begins until this is green.
 
-**Checkpoint**: Foundation ready — closed vocabulary, format gate, trait, schema test, purity/manifest scripts exist. Story test phases can now begin in parallel waves.
+**Checkpoint**: Foundation ready — closed vocabulary, format gate, trait, schema test, purity/manifest scripts, plus conforming stand-in engines (T077) for US1/US4 fixtures exist. Story test phases can now begin in parallel waves.
 
 ---
 
@@ -81,7 +82,7 @@
 - [ ] T025 [P] [US1] Implement authoritative position clock in `crates/player/src/position.rs` (`position_secs: f64 ≥ 0`, advances only on audible playback, pre-roll never advances it, kill-replay ≤30 s basis per FR-004)
 - [ ] T026 [US1] Implement cpal playback backend in `crates/player/src/backend.rs` (cpal 0.18.2 AAudio, exact-request 22050 Hz / PCM-float / mono, device-format conversion in Rust, refusal → named `EngineError::DeviceRefused` per FR-034/FR-035/R4; depends on T024, T025)
 - [ ] T027 [P] [US1] Implement `player` CLI in `crates/player/src/cli.rs` + `crates/player/src/main.rs` (`play|pause|stop|position|state|skip-forward|skip-backward|rate-up|rate-down|rate-set <v>` verbs, `--format json`, each verb calls the identical backend function as the same-named IPC verb per contracts/shell-ipc.md; `skip-*` = exactly ±5.0 s clamped per FR-018, `rate-*` = one-step saturating ladder moves per FR-019; same code path as IPC per Principle II)
-- [ ] T028 [US1] Implement Tauri plugin registration in `src-tauri/src/lib.rs` (`register_android_plugin` + `run_mobile_plugin`, Activity-constructor `(Landroid/app/Activity;)V`, `tauri::ipc::Channel` streaming; NO playback logic, pure delegation per FR-042)
+- [ ] T028 [US1] Pin + implement Tauri bridge: `src-tauri/Cargo.toml` pins `tauri = "=2.12.1"` (stable 2.x per Principle IV; 3.0.0-alpha rejected — version+reason recorded in commit msg) and `src-tauri/src/lib.rs` implements plugin registration (`register_android_plugin` + `run_mobile_plugin`, Activity-constructor `(Landroid/app/Activity;)V`, `tauri::ipc::Channel` streaming; NO playback logic, pure delegation per FR-042)
 - [ ] T029 [US1] Implement Kotlin resident `Service` skeleton in `android-shell/src/main/kotlin/app/mdreader/PlaybackService.kt` (foreground `mediaPlayback` service, self-bootstrap from Application/Activity, API-34 `ForegroundServiceStartNotAllowedException` → stated-reason path per FR-010; mirror ONLY, zero transport/rate/position logic)
 - [ ] T030 [US1] Declare foreground service in `src-tauri/gen/android/app/src/main/AndroidManifest.xml` (`<service android:foregroundServiceType="mediaPlayback">` + `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK`, `POST_NOTIFICATIONS` API-33+; wired to `scripts/check-manifest.sh` gate SC-006)
 - [ ] T031 [US1] US1 GREEN gate: T019–T022 now pass (`cargo nextest run -p player`, `tests/integration/test_session_recovery_us1.rs`, `tests/contract/test_engine_handoff_us1.rs` green) with no `_ =>` added and no lint weakening.
@@ -166,8 +167,8 @@
 - [ ] T062 [US4] Implement Kotlin `MediaSession` mirror + notification in `android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt` (`setPlaybackState` reflects Rust state never computes position per FR-003, `MediaStyle` title+section+progress, `setOngoing(true)` while playing, transient 3 s dismiss vs resident dismissable; depends on T061 shapes)
 - [ ] T063 [P] [US4] Implement `session` CLI in `crates/session/src/cli.rs` + `crates/session/src/main.rs` (`get|put|clear <file>`, `rate get|set <v>`, `--format json` per contracts/storage-schema.md)
 - [ ] T064 [US4] Implement resident lifecycle + teardown in `android-shell/src/main/kotlin/app/mdreader/Residency.kt` (exactly-one resident + one notification while resumable, resident-stop control preserving bookmark vs transport-Stop discarding, teardown at document end FR-032f, swipe-away-while-playing pauses first; depends on T058–T060)
-- [ ] T065 [US4] Implement in-app reason + permission surfaces in `src-tauri/src/surface.rs` (focus-loss reason 3 s expiry both surfaces FR-041/037a vs failure persistence FR-037; denied-permission statement FR-021; lock-screen short + full in-app strings, document-title-only)
-- [ ] T065b [US4] Implement minimal in-app status view in `src-tauri/src/status_view.rs` + frontend binding (read-only: shows `last_rate`, transport/position mirror, current failure/focus reason with FR-037 indefinite vs FR-041 3 s expiry; zero playback logic; same Rust getters as CLI/IPC per Principle II; rendered strings come from T065/T078; asserted by T053 status-view assertions; depends on T065/T078 string shapes)
+- [ ] T065 [US4] Implement reason-string shapes + in-app reason/permission surfaces in `src-tauri/src/surface.rs` (defines shared shapes `ShortReason`/`FullReason` + `ReasonExpiry::{Focus3s, FailurePersistent}` + getters `short_reason()`/`full_reason()`; focus-loss reason 3 s expiry both surfaces FR-041/037a vs failure persistence FR-037; denied-permission statement FR-021; lock-screen short + full in-app strings, document-title-only; T065 OWNS the shapes — T065b renders through them, T078 conforms to them)
+- [ ] T065b [US4] Implement minimal in-app status view in `src-tauri/src/status_view.rs` + frontend binding (read-only: shows `last_rate`, transport/position mirror, current failure/focus reason with FR-037 indefinite vs FR-041 3 s expiry; zero playback logic; same Rust getters as CLI/IPC per Principle II; rendered strings come ONLY from T065 getters; asserted by T053 status-view assertions; depends on T065 ONLY — explicitly NOT on T078. Frontend binding pins `svelte` 5.x exact in package lock, version recorded in that task's atomic commit msg)
 - [ ] T066 [US4] US4 GREEN gate: T049–T055 now pass.
 
 **Checkpoint**: US1–US4 functional — full lock-screen control with fingerprinted resume.
@@ -196,8 +197,8 @@
 - [ ] T074 [P] [US5] Implement diagnostic reader CLI + scanner in `crates/diag/src/cli.rs` + `crates/diag/src/main.rs` + `crates/diag/src/scan.rs` (tooling-readable read, SC-005/SC-056 scanners, NO in-app surface per FR-039a, never transmit per FR-040)
 - [ ] T075 [P] [US5] Implement fallback selector in `crates/engine-core/src/fallback.rs` (closed declared order, consent read per attempt from app-private storage, Edge-last-never-default, fresh-offer descent rule, supersede-aware per FR-023c)
 - [ ] T076 [P] [US5] Implement engine offer machine in `crates/player/src/recovery.rs` (named failure + alternatives, 3 s window, choice-honoured else auto-fallback from last spoken position, no-alternative → paused-with-reason, re-offer on repeated failure, locked-resolution without unlock per FR-023a/SC-039/040)
-- [ ] T077 [P] [US5] Implement stand-in engines in `crates/engine-core/src/standin_a.rs` and `crates/engine-core/src/standin_b.rs` (both honour handoff contract: mono f32 @22050 Hz, declared granularities, injectable mid-document failure for SC-051 double-failure drill)
-- [ ] T078 [US5] Implement failure reason plumbing in `src-tauri/src/failure.rs` (short lock-screen + full in-app strings, document-title-only no body, failure persists indefinitely vs focus-reason 3 s expiry per FR-037/037a; depends on T076)
+- [ ] T077 DONE IN FOUNDATION — see Phase 2 (stand-ins built before any story GREEN gate; US5 uses them in T070/T071, does not build them here)
+- [ ] T078 [US5] Implement failure reason plumbing in `src-tauri/src/failure.rs` (short lock-screen + full in-app strings conforming to T065 `ShortReason`/`FullReason` shapes, document-title-only no body, failure persists indefinitely vs focus-reason 3 s expiry per FR-037/037a; depends on T065 shapes + T076)
 - [ ] T079 [US5] US5 GREEN gate: T067, T067b–T071 now pass.
 
 **Checkpoint**: All five stories functional. SC-044 (two REAL engines) explicitly NOT discharged — carried forward as hardware obligation per FR-023b.
@@ -208,10 +209,10 @@
 
 **Purpose**: Cross-cutting hardening + the deterministic gates. NO agent statement attests completeness — ONLY these verification tasks do.
 
-- [ ] T080 [P] Harden `scripts/verify.sh` in `scripts/verify.sh` (gates 1–8: fmt, nextest, doc, lint-drift `[lints] workspace=true` + root deny-tables intact, supply-chain `cargo deny check advisories licenses bans sources` + `cargo audit`, deny-list scan, closed-set `no _ => in crates/*/src`, pipeline byte-budget/SSML/alignment gate; fail-closed on missing input)
+- [ ] T080 [P] Harden `scripts/verify.sh` in `scripts/verify.sh` (gates 1–8: fmt, nextest, doc, lint-drift `[lints] workspace=true` + root deny-tables intact, supply-chain `cargo deny check advisories licenses bans sources` + `cargo audit`, deny-list scan, closed-set `no _ => in crates/*/src`, pipeline gate SCOPED TO THIS FEATURE = engine-handoff conformance only (shape invariant mono-f32@22050 Hz across all 7 rungs + declared granularity per adapter + 22050 Hz stream-request invariant; byte-budget chunking/SSML assembly explicitly OUT per FR-024 — gate asserts their absence from scope rather than testing them, so missing chunking input cannot fail the gate); fail-closed on missing input)
 - [ ] T081 [P] Harden automated checks in `scripts/check-manifest.sh` and `scripts/check-shell-purity.sh` (SC-006 manifest + SC-035 purity + SC-057 closed-set/registry-reference check: every closed set has no catch-all/`other`/`internal`/`unknown`, every engine ID resolves to constitution registry name+version)
 - [ ] T082 [P] Docs + examples in `docs/` (`docs/architecture.md`, `docs/ipc.md`, `docs/fallback-order.md`, `docs/diagnostic-record.md`; `cargo doc` coverage for every public item per `missing_docs` deny)
-- [ ] T083 [P] On-device trial harness in `tests/device/README.md` + `tests/device/trials.md` (10/10 procedures for SC-001/002/003/041/055/004/009/011/033/016/026/036/029/031/048/024/051/052/014/043/049/045/023/028/030/042/047/053/034; plus FR-026 offline-start procedure — airplane-mode start + 60 s continue with no network; SC-044 marked CARRIED-FORWARD not runnable here)
+- [ ] T083 [P] On-device trial harness in `tests/device/README.md` + `tests/device/trials.md` (10/10 procedures for SC-001/002/003/041/055/004/007/008/009/011/013-idle/014/016/017/018/020/021/022/023/024/025/026/028/029/030/031/032-floor/033/033b/034/036/039/040/042/043/045/046/047/048/049/050/050b/051/052/053/054; plus FR-026 offline-start procedure — airplane-mode start + 60 s continue with no network; SC-044 marked CARRIED-FORWARD not runnable here; zero-occurrence SC-005/010/012/019 routed to T087 record scans with procedure refs, NOT to trials; host-decided SC-015/056/057 noted as N/A on-device with gate refs T055/T068/T081)
 - [ ] T084 VERIFICATION — Host gates: run `./scripts/verify.sh` (gates 1–8) green on Linux CI + `cargo tauri android build --target aarch64` (gate 9) produces device artifact
 - [ ] T085 VERIFICATION — quickstart.md validation: execute every command in `specs/001-android-media-shell/quickstart.md` §§1–2 + privacy glance §4 host-checkable parts; record per-step pass/fail
 - [ ] T086 VERIFICATION — On-device trials: execute `tests/device/trials.md` each 10/10 on API-29+ hardware (SC-051 two-stand-in failover included; SC-044 explicitly excluded and logged as carried-forward hardware debt)
@@ -234,13 +235,13 @@
 
 ### Test-before-implementation blocking map
 
-- T023 blocks T024–T031 (US1) • T036 blocks T037–T041 (US2) • T045 blocks T046–T048 (US3) • T056 blocks T057–T066 (US4) • T072 blocks T073–T079 (US5)
+- T023 blocks T024–T031 (US1) • T036 blocks T037–T041 (US2) • T045 blocks T046–T048 (US3) • T056 blocks T057–T066 (US4) • T072 blocks T073–T076 + T078–T079 (US5; T077 already done in Foundation)
 
 ### Parallel Opportunities ([P] waves via subagents)
 
 - Wave 0 (setup): T002–T007 in parallel (separate files), then T008, then gate T009.
 - Wave 1 (foundation tests): T010–T013 in parallel (4 agents, separate files, shared context: closed-set list — may reuse one subagent).
-- Wave 2 (foundation impl): T014→T015/T016 parallel after T014 (vocabulary first), T017 parallel-safe.
+- Wave 2 (foundation impl): T014→T015/T016 parallel after T014 (vocabulary first), T017 + T077 parallel-safe (stand-ins depend only on T014/T015/T016 contract shapes).
 - Wave 3+ (per story): ALL test tasks of a story in parallel (US1: T019–T022 = 4 agents; US2: T032–T035 = 4 agents; US3: T042–T044 = 3 agents; US4: T049–T055 = 7 agents; US5: T067, T067b–T071 = 6 agents). Implementation [P] tasks likewise parallel per story.
 - Cross-story: after T018, US1/US2/US3 test waves may run concurrently (different files); shared-context tasks (e.g., T077 stand-ins A+B) reuse one subagent.
 - Final: T080–T083 in parallel, then strictly sequential T084→T085→T086→T087.

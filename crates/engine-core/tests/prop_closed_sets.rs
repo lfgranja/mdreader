@@ -264,7 +264,7 @@ proptest! {
         prop_assert!(wire.is_some(), "PlaybackRate failed to serialize: {rate:?}");
         let wire = wire.unwrap_or(Value::Null);
         prop_assert_eq!(
-            wire,
+            wire.clone(),
             json!(rate_wire_of(rate)),
             "wire form of {:?} is not its declared rung number",
             rate
@@ -286,7 +286,7 @@ proptest! {
         prop_assert!(wire.is_some(), "TransportState failed to serialize: {state:?}");
         let wire = wire.unwrap_or(Value::Null);
         prop_assert_eq!(
-            wire,
+            wire.clone(),
             json!(transport_wire_of(state)),
             "wire form of {:?} is not its declared wire string",
             state
@@ -308,7 +308,7 @@ proptest! {
         prop_assert!(wire.is_some(), "FocusOutcome failed to serialize: {outcome:?}");
         let wire = wire.unwrap_or(Value::Null);
         prop_assert_eq!(
-            wire,
+            wire.clone(),
             json!(focus_wire_of(outcome)),
             "wire form of {:?} is not its declared wire string",
             outcome
@@ -331,7 +331,7 @@ proptest! {
         prop_assert!(wire.is_some(), "FocusRegained failed to serialize: {event:?}");
         let wire = wire.unwrap_or(Value::Null);
         prop_assert_eq!(
-            wire,
+            wire.clone(),
             json!(focus_regained_wire_of(event)),
             "wire form of the regained direction event is not \"regained\""
         );
@@ -353,7 +353,7 @@ proptest! {
         prop_assert!(wire.is_some(), "EngineError failed to serialize: {error:?}");
         let wire = wire.unwrap_or(Value::Null);
         prop_assert_eq!(
-            wire,
+            wire.clone(),
             json!(engine_error_wire_of(error)),
             "wire form of {:?} is not its declared wire string",
             error
@@ -376,7 +376,7 @@ proptest! {
         prop_assert!(wire.is_some(), "SessionEnd failed to serialize: {end:?}");
         let wire = wire.unwrap_or(Value::Null);
         prop_assert_eq!(
-            wire,
+            wire.clone(),
             json!(session_end_wire_of(end)),
             "wire form of {:?} is not its declared wire string",
             end
@@ -398,7 +398,7 @@ proptest! {
         prop_assert!(wire.is_some(), "EngineTier failed to serialize: {tier:?}");
         let wire = wire.unwrap_or(Value::Null);
         prop_assert_eq!(
-            wire,
+            wire.clone(),
             json!(engine_tier_wire_of(tier)),
             "wire form of {:?} is not its declared wire string",
             tier

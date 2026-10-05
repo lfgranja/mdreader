@@ -840,9 +840,11 @@ derived requirement exists only as prose.
 
 **Notification content and privacy**
 
-- **FR-028**: The lock-screen and notification-shade surfaces MUST display the document title,
-  the transport controls, a progress indication, and the title of the section currently being
-  read. No document body text MUST be displayed on those surfaces: neither the sentence in
+- **FR-028** (progress indication governed by FR-028a): The lock-screen and
+  notification-shade surfaces MUST display the document title, the transport controls,
+  a progress indication, and the title of the section currently being read. The progress
+  indication is indeterminate until the document's total spoken length is actually known,
+  then determinate; see FR-028a for the exact rule. No document body text MUST be displayed on those surfaces: neither the sentence in
   progress, nor any preceding or following passage. The section title MUST track playback,
   advancing as playback crosses a section boundary, and MUST clear when playback stops.
   Section titles are structural metadata rather than document prose, so showing the current one

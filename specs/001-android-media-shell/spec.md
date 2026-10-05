@@ -840,7 +840,7 @@ derived requirement exists only as prose.
 
 **Notification content and privacy**
 
-- **FR-028** (progress indication governed by FR-028a): The lock-screen and
+- **FR-028** (progress indication governed by FR-028a; clarified 2026-10-01 session, see Clarification Q: "What should the progress indicator..."): The lock-screen and
   notification-shade surfaces MUST display the document title, the transport controls,
   a progress indication, and the title of the section currently being read. The progress
   indication is indeterminate until the document's total spoken length is actually known,

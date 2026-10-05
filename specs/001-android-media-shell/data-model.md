@@ -67,9 +67,9 @@ engine time-stretch op (FR-043); pitch/voice invariant across all rungs incl. 2.
 ## FocusTransition (closed)
 
 Classified by the interrupter's request: `DuckableTransient` (→ volume ~20%, keep
-reading, FR-013), `SilenceDemanding` call/alarm (→ pause + FR-041 reason, FR-013a),
+reading, FR-013; never leaves `Playing`, accumulates no paused duration, owes no rewind), `SilenceDemanding` call/alarm (→ pause + FR-041 reason, FR-013a),
 `PermanentLoss` (→ pause, no auto-resume, FR-014). Carries `paused_duration` for FR-015
-rewind: cursor back `min(5% × duration, 30 s)`; audio from that sentence start; total
+rewind on `SilenceDemanding` only: cursor back `min(5% × duration, 30 s)`; audio from that sentence start; total
 backward movement ≤30 s even for long sentences.
 
 ## PauseReason vs EngineFailure (disjoint, FR-037a)

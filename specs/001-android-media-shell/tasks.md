@@ -95,7 +95,7 @@
 - [ ] T029 [P] [US1] Implement Kotlin resident `Service` skeleton in `android-shell/src/main/kotlin/app/mdreader/PlaybackService.kt` (foreground `mediaPlayback` service, self-bootstrap from Application/Activity, API-34 `ForegroundServiceStartNotAllowedException` → stated-reason path per FR-010; forwards `AppForegrounded`/`AppBackgrounded` from Activity/Application lifecycle to Rust per contracts/shell-ipc.md — a lifecycle callback forwarded the same way RoutingMirror forwards a device callback, with no local decision; mirror ONLY, zero transport/rate/position logic; file-independent of T028/T028a/T028b/T030 — parallel-safe)
 - [ ] T030 [P] [US1] Declare foreground service in `src-tauri/gen/android/app/src/main/AndroidManifest.xml` per FR-006, FR-007 (`<service android:foregroundServiceType="mediaPlayback">` + `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK`, `POST_NOTIFICATIONS` API-33+; wired to `scripts/check-manifest.sh` gate SC-006; file-independent of T028/T029 — parallel-safe)
 - [ ] T030b [P] [US1] Implement permission-state gate in `src-tauri/src/permissions.rs` (startup + pre-play check: FGS permissions present per manifest else stated-reason + no playing state per FR-008, FR-010; API-33+ notification-denied routes to T065 in-app statement per FR-021; pure delegation check, no playback logic; wired to `scripts/check-manifest.sh`)
-- [ ] T031 [US1] US1 GREEN gate: T019–T022b now pass (`cargo nextest run -p player` and `cargo nextest run -p engine-core` green, covering `crates/player/tests/integration/test_session_recovery_us1.rs`, `crates/player/tests/integration/test_external_start_us1.rs`, `crates/engine-core/tests/contract/test_engine_handoff_us1.rs`) + T030b permission-state gate implemented with no `_ =>` added and no lint weakening.
+- [ ] T031 [US1] US1 GREEN gate: T019–T022b now pass (`cargo nextest run -p player` and `cargo nextest run -p engine-core` green, covering `crates/player/tests/integration/test_session_recovery_us1.rs`, `crates/player/tests/integration/test_external_start_us1.rs`, `crates/engine-core/tests/contract/test_engine_handoff_us1.rs`) + T030b permission-state gate implemented with no `_ =>` added and no lint weakening. **Regenerate `scripts/expected-tests.txt` from `cargo nextest list --workspace-type all` and commit; gate T009 comparison applies to updated file (I2).**
 
 **Checkpoint**: US1 independently functional — screen-off playback with single Rust authority; the MVP slice.
 
@@ -121,7 +121,7 @@
 - [ ] T038 [P] [US2] Implement focus classifier in `crates/player/src/focus.rs` (yield per FR-012; closed outcomes, 15–25% gain factor per FR-013, `AUDIOFOCUS_GAIN` + `USAGE_MEDIA` + `CONTENT_TYPE_SPEECH` + `setWillPauseWhenDucked(true)` + `setAcceptsDelayedFocusGain(true)` assumptions, FR-013b deferred/refused arms, FR-014 latest-event-wins)
 - [ ] T039 [P] [US2] Implement pre-roll ring buffer in `crates/player/src/buffer.rs` (≤60 s engine-delivered audio, never advances position, empty while idle, refill on Play, abandon at end per FR-015a, FR-015b, FR-015c; rate change re-prepares without shifting position)
 - [ ] T040 [US2] Implement Kotlin focus mirror in `android-shell/src/main/kotlin/app/mdreader/FocusMirror.kt` (`AudioFocusRequest.Builder(AUDIOFOCUS_GAIN)`, `OnAudioFocusChangeListener`, forwards classified intents to Rust, applies NOTHING locally; SC-035 allowlist entry only; depends on T038 contract)
-- [ ] T041 [US2] US2 GREEN gate: T032–T035 now pass with `cargo nextest run -p player` + integration/contract suites green.
+- [ ] T041 [US2] US2 GREEN gate: T032–T035 now pass with `cargo nextest run -p player` + integration/contract suites green. Regenerate `scripts/expected-tests.txt`; commit updated list (I2).
 
 **Checkpoint**: US1 + US2 both independently functional; duck-vs-pause differs observably.
 
@@ -144,7 +144,7 @@
 
 - [ ] T046 [P] [US3] Implement routing state machine in `crates/player/src/routing.rs` (disappear→pause+preserve, appear→follow-unchanged, private→public pause-first precedence, `DeviceAppeared|DeviceDisappeared|BecomingNoisy` intents per contracts/shell-ipc.md; FR-016, FR-016a, FR-017, FR-017a)
 - [ ] T047 [US3] Implement Kotlin routing mirror in `android-shell/src/main/kotlin/app/mdreader/RoutingMirror.kt` (`ACTION_AUDIO_BECOMING_NOISY` receiver + `AudioDeviceCallback.onAudioDevicesRemoved`, each independently forwarded to Rust, no local pause decision; depends on T046 intent shapes)
-- [ ] T048 [US3] US3 GREEN gate: T042–T044 now pass.
+- [ ] T048 [US3] US3 GREEN gate: T042–T044 now pass. Regenerate `scripts/expected-tests.txt`; commit (I2).
 
 **Checkpoint**: US1–US3 functional — the full P1 driving-safety core.
 
@@ -182,7 +182,7 @@
 - [ ] T064 [US4] Implement resident lifecycle + teardown in `android-shell/src/main/kotlin/app/mdreader/Residency.kt` (exactly-one resident + one notification while resumable, resident-stop control preserving bookmark vs transport-Stop discarding, teardown at document end per FR-009, FR-009a, FR-032f, swipe-away-while-playing pauses first; SC-043 asserts liveness (Play press produces audio), SC-049 asserts count/teardown — T083 records separate verdicts; depends on T058–T060)
 - [ ] T065 [P] [US4] Implement reason-string shapes + in-app reason/permission surfaces in `src-tauri/src/surface.rs` (defines shared shapes `ShortReason`/`FullReason` + `ReasonExpiry::{Focus3s, FailurePersistent}` + getters `short_reason()`/`full_reason()`; focus-loss reason 3 s expiry both surfaces FR-041, FR-037a vs failure persistence FR-037; denied-permission statement FR-021; lock-screen short + full in-app strings, document-title-only; T065 OWNS the shapes — T065b renders through them, T078 conforms to them; file-independent of T057–T064 — parallel-safe, T065b still waits on T065)
 - [ ] T065b [P] [US4] Implement minimal in-app status view in `src-tauri/src/status_view.rs` + frontend binding (read-only: shows `last_rate`, transport/position mirror, current failure/focus reason with FR-037 indefinite vs FR-041 3 s expiry; zero playback logic; same Rust getters as CLI/IPC per Principle II; rendered strings come ONLY from T065 getters; asserted by T053 status-view assertions; depends on T065 ONLY — explicitly NOT on T078. Frontend binding pins `svelte` 5.x exact in package lock, version recorded in that task's atomic commit msg)
-- [ ] T066 [US4] US4 GREEN gate: T049–T055 now pass.
+- [ ] T066 [US4] US4 GREEN gate: T049–T055 now pass. Regenerate `scripts/expected-tests.txt`; commit (I2).
 
 **Checkpoint**: US1–US4 functional — full lock-screen control with fingerprinted resume.
 
@@ -213,7 +213,7 @@
 - [ ] T076 [P] [US5] Implement engine offer machine in `crates/player/src/recovery.rs` (named failure + alternatives, 3 s window, choice-honoured else auto-fallback from last spoken position, no-alternative → paused-with-reason, re-offer on repeated failure, locked-resolution without unlock per FR-023, FR-023a, SC-039, SC-040)
 > Note: stand-in engines are built in Foundation as T017b, test-gated by T013b; US5 uses them in T070/T071 and builds nothing here.
 - [ ] T078 [US5] Implement failure reason plumbing in `src-tauri/src/failure.rs` (short lock-screen + full in-app strings conforming to T065 `ShortReason`/`FullReason` shapes, document-title-only no body, failure persists indefinitely vs focus-reason 3 s expiry per FR-037, FR-037a; depends on T065 shapes + T076)
-- [ ] T079 [US5] US5 GREEN gate: T067, T067b–T071 now pass.
+- [ ] T079 [US5] US5 GREEN gate: T067, T067b–T071 now pass. Regenerate `scripts/expected-tests.txt`; commit (I2).
 
 **Checkpoint**: All five stories functional. SC-044 (two REAL engines) explicitly NOT discharged — carried forward as hardware obligation per FR-023b.
 

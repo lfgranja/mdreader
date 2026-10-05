@@ -3,7 +3,7 @@
 
 use tauri::plugin::Plugin;
 
-pub fn plugin() -> Plugin<()> {
+pub fn plugin() -> impl Plugin<()> {
     Plugin::new("android-media-shell")
         .invoke_handler(tauri::generate_handler![
             register_android_plugin,

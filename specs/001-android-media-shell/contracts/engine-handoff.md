@@ -19,7 +19,7 @@ FR-023 series.
   what it can deliver; pipeline degrades observably to the declared coarser level
   (Principle VI). `AlignmentGranularity`: `Sentence | Word | None`.
 - `set_rate(rate: PlaybackRate)` — pitch-preserving time-stretch **in the engine**;
-  MUST NOT alter the delivered sample rate (FR-043, SC-034).
+  MUST NOT alter the delivered sample rate (FR-043, SC-034); measurable tolerance: pitch shift ≤ ±3 cents at 2.0× (deviation > 3 cents ⇒ `RateMismatch`).
 - `stream(position_secs: f64, budget) -> PCM frames + boundary events` — pre-roll source;
   ≤60 s outstanding; position never advances on buffered-only audio.
 - Failures surface as closed `EngineError`

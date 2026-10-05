@@ -724,7 +724,7 @@ derived requirement exists only as prose.
   (FR-028)
 - **FR-019a**: Changing the playback rate MUST preserve pitch and voice character. Faster
   playback MUST sound quicker rather than higher, and MUST NOT be implemented by resampling
-  the audio without correction. A rate change that is audible as a pitch change is a defect,
+  the audio without correction. Measurement: pitch shift ≤ ±3 cents at 2.0× (deviation > 3 cents = defect); applies to every rung of the FR-019 ladder, including 2.0x→4.0x.
   because intelligibility under cabin noise degrades as speed rises, which would make the
   control counterproductive in the environment this feature exists for. The pitch guarantee
   applies to every rung of the FR-019 ladder, including the largest step between 2.0x and 4.0x

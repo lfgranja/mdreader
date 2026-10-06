@@ -3,5 +3,9 @@
   "productName": "mdreader",
   "version": "0.1.0",
   "identifier": "app.mdreader",
-  "build": {}
+  "build": {
+    "beforeBuildCommand": "",
+    "devPath": "../",
+    "distDir": "../dist"
+  },
 }

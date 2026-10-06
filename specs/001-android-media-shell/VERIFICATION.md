@@ -188,24 +188,3 @@ All 9 must show "delegation" or "N/A" with zero unreviewed "computation" entries
 **Observação técnica:** Tela preta é resultado esperado — `dist/` não existe (frontend não construído ainda); `lib.rs` contém apenas stubs de bridge (sem frontend render). NÃO é falha de código ou build.
 **Verificação de código:** Nenhuma alteração de arquivo de código pendente. Todos os requisitos TDD (T019-T022b testados; T024-T041 implementados) atendidos.
 **Próximo passo (usuário):** Se desejar testar funcionalidades de mídia (SC-001 → SC-057), instalar o APK no dispositivo e executar `tests/device/trials.md` manualmente. Quando os resultados estiverem registrados, atualizar `VERIFICATION.md` com PASS/FAIL por SC e fazer o commit `verify(T087): device-trials + gate-9 PASS`.
-
----
-
-## Atualização final de trial (2026-10-05) — usuário reportou resultados no dispositivo Xiaomi/Android 13
-
-**SC verificados pelo usuário (10 itens):**
-- SC-001: PASS — playback continuou 5 min com tela bloqueada
-- SC-002: PASS — desconexão fones → pause ≤1 s; Bluetooth A2DP perdido → pause ≤1 s
-- SC-003: PASS — foco (chamada/alarme) → duck 15-25%; resume no início da frase ≤30 s
-- SC-041: PASS — pausa por silêncio → resume no gap; total ≤30 s; nunca no meio de palavra
-- SC-051: PASS — failover standin_a → standin_b; EngineError nomeado
-- SC-009 / SC-054: PASS — áudio iniciado ≤3 s após Play
-- SC-005: PASS — varredura de registro (scan) sem `transport:"playing"` sem avanço
-- SC-006 / SC-035: PASS — manifest + shell-purity checks automatizados
-
-**Observação de UX:** Tela preta desde o início; nenhum áudio audível; não há interatividade de UI além do MainActivity. Isso é ESPERADO — o `dist/` (frontend HTML) não foi construído; `lib.rs` contém apenas stubs de bridge (`register_android_plugin` / `run_mobile_plugin`); `PlaybackService.kt` e mirrors estão presentes, mas o engine de playback (`crates/player` transport/focus/resume) ainda é scaffold/stub para o pipeline de áudio (o `.so` produz o link, mas o PCM/AAudio playback real requer integração completa que está além dos stubs desta sessão — não é falha de código, é falta de frontend + engine completo no stub).
-
-**Conclusão:** Nenhuma falha técnica de código identificada. Todos os requisitos de verificação (SC-001 a SC-057) têm evidência de código/teste. O artigo completo requer:
-- Construção de `dist/` (frontend) para eliminar tela preta
-- Integração completa do `crates/player` com `cpal`/`aaudio` para áudio real
-- Atualização final de `VERIFICATION.md` quando os trials físicos de todos os SCs forem registrador pelo usuário

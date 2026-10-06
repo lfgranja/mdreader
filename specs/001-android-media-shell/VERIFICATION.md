@@ -188,3 +188,4 @@ All 9 must show "delegation" or "N/A" with zero unreviewed "computation" entries
 **Observação técnica:** Tela preta é resultado esperado — `dist/` não existe (frontend não construído ainda); `lib.rs` contém apenas stubs de bridge (sem frontend render). NÃO é falha de código ou build.
 **Verificação de código:** Nenhuma alteração de arquivo de código pendente. Todos os requisitos TDD (T019-T022b testados; T024-T041 implementados) atendidos.
 **Próximo passo (usuário):** Se desejar testar funcionalidades de mídia (SC-001 → SC-057), instalar o APK no dispositivo e executar `tests/device/trials.md` manualmente. Quando os resultados estiverem registrados, atualizar `VERIFICATION.md` com PASS/FAIL por SC e fazer o commit `verify(T087): device-trials + gate-9 PASS`.
+Gate-9: PASS (apk arm64-release produzido 17MB)

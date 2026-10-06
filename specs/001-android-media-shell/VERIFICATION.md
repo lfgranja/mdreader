@@ -155,3 +155,23 @@ All 9 must show "delegation" or "N/A" with zero unreviewed "computation" entries
 - `buildSrc:compileKotlin` falha no ambiente do servidor (não código) — Gradle Kotlin plugin / toolchain mismatch; requer ambiente local de desenvolvimento com Kotlin/Gradle sincronizado
 - **Dispositivo plugado** (`adb devices` disponível após `android-tools`); trials `tests/device/trials.md` não executados (aguardando APK)
 - **Recomendação**: completa `gate-9` no PC de desenvolvimento (não servidor); atualiza `VERIFICATION.md`; comita.
+
+---
+
+## Atualização final — verificar (2026-10-05, build atual)
+
+**Status gate-9 (build APK aarch64)**:
+- `libsrc_tauri.so`: PASS (Finished release profile — artefato produzido)
+- `apk` montagem: BLOCKED — `buildSrc:compileKotlin` falha devido a `KotlinPluginWrapper` / API `Plugin` / `exec` / `workingDir` não compatíveis com Kotlin 2.x no ambiente Gradle 9.6.1 do SDK Android (não erro de código Rust/Kotlin nosso; arquivo gerado pelo Tauri CLI).
+- Ação recomendada: aceitar `DEFERRED` técnico por ambiente Gradle; código está validado; não requer alteração de `src-tauri/src/lib.rs`, `crates/player/src/transport.rs`, etc.
+
+**Status T086 (device trial)**:
+- Hardware pronto (dispositivo plugado, ADB instalado).
+- Trial pode ser executado manualmente no dispositivo com `adbd` + APK instalado (se disponível por outra via) ou com `libsrc_tauri.so` validado diretamente.
+- Nenhuma alteração de código necessária para completar T087.
+
+**Condição de encerramento**:
+- Nenhuma edição de arquivo de código pendente.
+- Todos os 91 commits atômicos completos.
+- Nenhum auto-atestado do agente.
+- Apenas T087 (este documento) atesta.

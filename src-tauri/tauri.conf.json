@@ -1,7 +1,13 @@
 {
-  "$schema": "https://schema.tauri.app/config/2",
   "productName": "mdreader",
   "version": "0.1.0",
   "identifier": "app.mdreader",
-  "build": {}
+  "build": {
+    "devPath": "../",
+    "distDir": "../dist"
+  },
+  "app": {
+    "windows": [{"fullscreen": false}],
+    "security": {"csp": null}
+  }
 }

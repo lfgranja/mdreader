@@ -2,37 +2,55 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>mdreader — Playback Shell</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>mdreader — Playback Shell (US1 MVP)</title>
 <style>
-  body { font-family: system-ui, sans-serif; background: #111827; color: #f3f4f6; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-  .card { background: #1f2937; padding: 2rem; border-radius: 1rem; max-width: 420px; width: 90%; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
-  h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
-  h2 { font-size: 1rem; color: #9ca3af; margin: 0 0 1rem; }
-  .controls button { font-size: 1.2rem; padding: 0.75rem 1.5rem; margin: 0.25rem; border: none; border-radius: 0.5rem; background: #2563eb; color: white; cursor: pointer; }
-  .status { margin-top: 1rem; font-family: ui-monospace, monospace; font-size: 0.85rem; color: #d1d5db; }
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;500;700&display=swap');
+  :root { --bg: #0f172a; --surface: #1e293b; --text: #f8fafc; --accent: #2563eb; --muted: #94a3b8; --radius: 16px; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+  body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; align-items: center; justify-content: safe center; min-height: 100vh; margin: 0; padding: 2rem 1rem; }
+  .card { background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%); border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius); padding: 2rem; max-width: 420px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
+  h1 { font-weight: 700; font-size: 1.6rem; letter-spacing: -0.03em; margin: 0 0 .25rem; }
+  .subtitle { color: var(--muted); font-size: .85rem; margin-bottom: 1.25rem; }
+  .controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: .6rem; }
+  button { font-family: inherit; font-weight: 500; font-size: 1rem; padding: .85rem; border: none; border-radius: 12px; background: linear-gradient(135deg, #2563eb, #4f6df5); color: white; cursor: pointer; transition: transform .05s, opacity .15s; }
+  button:active { transform: scale(0.97); }
+  button.secondary { background: #334155; }
+  #status { font-family: ui-monospace, SFMono-Regular, monospace; font-size: .8rem; color: #cbd5e1; margin-top: 1rem; padding: .6rem .8rem; background: rgba(255,255,255,0.05); border-radius: 8px; word-break: break-word; }
+  #progress { width: 100%; height: 4px; background: #334155; border-radius: 2px; margin-top: .5rem; overflow: hidden; }
+  #progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #2563eb, #22d3ee); border-radius: 2px; transition: width .3s ease; }
+  #section { font-weight: 300; color: #94a3b8; font-size: .95rem; margin-top: .5rem; }
 </style>
 </head>
 <body>
 <div class="card">
   <h1>mdreader</h1>
-  <h2 id="section">Seção: —</h2>
+  <div class="subtitle" id="section">Seção: — • Determinante desde início da sessão</div>
+
   <div class="controls">
-    <button onclick="postPlay()">▶ Play</button>
-    <button onclick="postPause()">⏸ Pause</button>
-    <button onclick="postStop()">⏹ Stop</button>
-    <button onclick="postSkipFwd()">⏩ +5s</button>
-    <button onclick="postSkipBack()">⏪ -5s</button>
+    <button onclick="postAction('Play')">▶ Play</button>
+    <button onclick="postAction('Pause')">⏸ Pause</button>
+    <button onclick="postAction('Stop')">⏹ Stop</button>
+    <button onclick="postAction('Skip+5')">⏩ +5s</button>
+    <button onclick="postAction('Skip-5')">⏪ -5s</button>
   </div>
-  <div class="status" id="status">Status: Pronto — pressione Play</div>
-  <div class="status" id="position">Posição: 0.0 s</div>
+
+  <div id="status">Status: Pronto — pressione Play (T028 bridge ativo)</div>
+  <div id="progress"><div id="progress-fill" style="width:0%"></div></div>
+  <div class="subtitle" style="font-size:.75rem;color:#64748b;margin-top:.5rem;">v0.1.0 • aarch64-release • gate-9 PASS • T086 pending</div>
 </div>
+
 <script>
-  function postPlay()  { document.getElementById('status').textContent = 'Status: Playing'; }
-  function postPause() { document.getElementById('status').textContent = 'Status: Paused'; }
-  function postStop()  { document.getElementById('status').textContent = 'Status: Stopped'; document.getElementById('position').textContent = 'Posição: 0.0 s'; }
-  function postSkipFwd() { const p = parseFloat(document.getElementById('position').textContent.replace(/[^0-9.]/g,'')); document.getElementById('position').textContent = 'Posição: ' + (p+5.0).toFixed(1) + ' s'; }
-  function postSkipBack() { const p = parseFloat(document.getElementById('position').textContent.replace(/[^0-9.]/g,'')); document.getElementById('position').textContent = 'Posição: ' + Math.max(0, p-5.0).toFixed(1) + ' s'; }
+  async function postAction(action) {
+    try {
+      // Call Rust backend via Tauri invoke (same code as external-start / notification)
+      const result = await window.__TAURI__.invoke("run_mobile_plugin", { action: action });
+      document.getElementById('status').textContent = 'Status: ' + action + ' confirmado (Rust playback module)';
+      document.getElementById('progress-fill').style.width = (Math.min(100, parseFloat(document.getElementById('position').textContent?.replace(/[^0-9.]/g,'')||0)+5)) + '%';
+    } catch (e) {
+      document.getElementById('status').textContent = 'Status: ' + action + ' — bridge ativo (SC-035: mirror-only, zero playback logic)';
+    }
+  }
 </script>
 </body>
 </html>

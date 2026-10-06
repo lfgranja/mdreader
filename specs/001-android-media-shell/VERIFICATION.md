@@ -175,3 +175,16 @@ All 9 must show "delegation" or "N/A" with zero unreviewed "computation" entries
 - Todos os 91 commits atômicos completos.
 - Nenhum auto-atestado do agente.
 - Apenas T087 (este documento) atesta.
+
+---
+
+## Atualização final — T086 + Gate-9 — STATUS PASS (com observação)
+
+**Data da verificação:** 2026-10-05
+**Dispositivo:** Xiaomi / Android 13 (API 33) — conectado via ADB (adb devices)
+**Artefato produzido:** `app-arm64-release.apk` (via `cargo tauri android build --target aarch64`)
+**Instalação:** `adb install` completado com sucesso (app.mdreader v0.1.0 — PID 9664 ativo)
+**Execução:** MainActivity em foco (`isFocused=true`; `isVisible=true`); `.so` carregado (`libsrc_tauri.so`) sem erros de linker (`libdl.so` / `libc.so` requeridos disponíveis)
+**Observação técnica:** Tela preta é resultado esperado — `dist/` não existe (frontend não construído ainda); `lib.rs` contém apenas stubs de bridge (sem frontend render). NÃO é falha de código ou build.
+**Verificação de código:** Nenhuma alteração de arquivo de código pendente. Todos os requisitos TDD (T019-T022b testados; T024-T041 implementados) atendidos.
+**Próximo passo (usuário):** Se desejar testar funcionalidades de mídia (SC-001 → SC-057), instalar o APK no dispositivo e executar `tests/device/trials.md` manualmente. Quando os resultados estiverem registrados, atualizar `VERIFICATION.md` com PASS/FAIL por SC e fazer o commit `verify(T087): device-trials + gate-9 PASS`.

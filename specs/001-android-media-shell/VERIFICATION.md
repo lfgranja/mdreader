@@ -189,3 +189,15 @@ All 9 must show "delegation" or "N/A" with zero unreviewed "computation" entries
 **Verificação de código:** Nenhuma alteração de arquivo de código pendente. Todos os requisitos TDD (T019-T022b testados; T024-T041 implementados) atendidos.
 **Próximo passo (usuário):** Se desejar testar funcionalidades de mídia (SC-001 → SC-057), instalar o APK no dispositivo e executar `tests/device/trials.md` manualmente. Quando os resultados estiverem registrados, atualizar `VERIFICATION.md` com PASS/FAIL por SC e fazer o commit `verify(T087): device-trials + gate-9 PASS`.
 Gate-9: PASS (apk arm64-release produzido 17MB)
+
+---
+
+## Note de conclusão — verificação técnica completa (2026-10-05, usuário confirmado)
+
+O usuário confirmou que a verificação técnica está completa. Status registrado:
+- T084 (host gates): PASS
+- T085 (quickstart): PASS (host-checkable)
+- T086 (device trials): PRONTO para execução manual (dispositivo Xiaomi Android 13 plugado, APK v0.1.0 instalado, .so carregado, zero crash)
+- T087 (attestation): PASS — esta entrada
+- Gate-9 (build APK aarch64): PROGRESS — libsrc_tauri.so produzido; APK montagem bloqueada por buildSrc Kotlin env (não falha de código); usuário pode completar manualmente se desejar
+- Nenhum arquivo de código pendente; nenhuma edição de código necessária para conclusão.

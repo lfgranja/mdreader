@@ -2,11 +2,21 @@
 name = "adapter-synthesis"
 version = "0.1.0"
 edition = "2024"
+description = "FR-024 synthesis adapter: offline_default tier (sherpa-onnx + Piper pt-BR), declared against the engine-core contract shapes."
+license = "MIT"
+repository = "https://github.com/mdreader/mdreader"
+keywords = ["tts", "synthesis", "adapter", "text-to-speech"]
+categories = ["multimedia::audio", "text-processing"]
 
 [dependencies]
 sherpa-onnx = "1.13.8"
 ort = { version = "2.0.0-rc.13", features = ["nnapi"] }
 pulldown-cmark = "0.10"
+engine-core = { path = "../engine-core" }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
 
 [lints]
 workspace = true

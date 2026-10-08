@@ -50,8 +50,8 @@ Wave 4 (integration + verify): T11–T12, V1–V3 — verify subagent at end
 
 ## Phase 2: Convergence
 
-- [ ] T013 Add adapter registration mechanism (offline_default tier membership) per T11 / FR-024 / plan:Project Structure (missing)
-- [ ] T014 Implement player declaration-consumption branch (SsmlLevel/AlignmentGranularity) per T12 / contracts/adapter-capabilities.md §4 (missing)
-- [ ] T015 Complete paragraph/heading-aware chunk split + full byte-budget property integration per T2 / prop_chunk.rs (partial)
+- [X] T013 Add adapter registration mechanism (offline_default tier membership) per T11 / FR-024 / plan:Project Structure (missing)
+- [X] T014 Implement player declaration-consumption branch (SsmlLevel/AlignmentGranularity) per T12 / contracts/adapter-capabilities.md §4 (missing)
+- [X] T015 Complete paragraph/heading-aware chunk split + full byte-budget property integration per T2 / prop_chunk.rs (partial)
 - [ ] T016 Complete cargo nextest workspace run and confirm property tests pass per V1 (partial)
 - [ ] T017 Finalize core task verification and mark T6–T10 complete per tasks.md (partial)

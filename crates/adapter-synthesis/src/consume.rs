@@ -91,10 +91,12 @@ pub const fn resume_anchor(granularity: AlignmentGranularity) -> ResumeAnchor {
     }
 }
 
-/// The player's plan for a declaration — the composite of
-/// `ssml_delivery` and `resume_anchor`, so each half of the identity
-/// mapping is written exactly once and the plan is total over all nine
-/// `(SsmlLevel, AlignmentGranularity)` pairs.
+/// The player's plan for a declaration.
+///
+/// The plan is the composite of `ssml_delivery` and
+/// `resume_anchor`, so each half of the identity mapping
+/// is written exactly once and the plan is total over all
+/// nine `(SsmlLevel, AlignmentGranularity)` pairs.
 ///
 /// A declared `None` never upgrades: the v1 declaration
 /// (`declared_capabilities()`, `(None, None)`) plans

@@ -2,6 +2,10 @@
 /target/
 **/*.rs.bk
 *.pdb
+*.rlib
+*.prof*
+*.log
+Cargo.lock.bak
 
 # Tauri
 /src-tauri/target/
@@ -32,6 +36,7 @@ dist/
 # Sistema operacional
 .DS_Store
 Thumbs.db
+*.tmp
 
 # Editores
 .idea/

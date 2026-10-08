@@ -5,7 +5,9 @@
 //! into bounded `DocumentSegment`s at paragraph/heading
 //! boundaries, with the 5 000-byte budget (`MAX_CHUNK_BYTES`)
 //! a hard upper bound measured in UTF-8 **bytes**, never
-//! characters (`constitution.md:353`; R3).
+//! characters (`constitution.md:353`; R3), and each
+//! segment's content trimmed of its edge whitespace (§2.1
+//! rule 4).
 //!
 //! The scan is a deliberate line scan (§2.1 rule 1): it is
 //! not fence-aware and does not recognise setext headings, so
@@ -188,7 +190,7 @@ pub fn split_document_within(
             close_segment(&mut segments, &lines, open.take());
             let range = range_of(&lines, block.line_start, block.line_end);
             for piece in forced_pieces(&text, max_bytes) {
-                push_piece(&mut segments, piece, range);
+                push_piece(&mut segments, &piece, range);
             }
             continue;
         }
@@ -471,20 +473,29 @@ fn col_end(line: &str) -> u32 {
 }
 
 /// Close the open segment into the emitted vector (§2.1 rules
-/// 4 and 9): a segment whose content trims to empty is not
+/// 4 and 9): the content is trimmed of leading and trailing
+/// whitespace, a segment whose trimmed content is empty is not
 /// emitted, and the segment is numbered 0-based and
-/// consecutive.
+/// consecutive. Trimming tightens — never loosens — the rule 5
+/// byte bound, because `byte_length()` is derived from the
+/// trimmed content.
 fn close_segment(segments: &mut Vec<DocumentSegment>, lines: &[&str], open: Option<OpenSegment>) {
     let Some(open_segment) = open else {
         return;
     };
-    if open_segment.content.trim().is_empty() {
+    // §2.1 rule 4: trim the joined content of its edge
+    // whitespace (the first line's leading and the last
+    // line's trailing whitespace). Interior whitespace —
+    // including the edge whitespace of interior lines — is
+    // content and survives.
+    let content = open_segment.content.trim().to_string();
+    if content.is_empty() {
         return;
     }
     let range = range_of(lines, open_segment.line_start, open_segment.line_end);
     let index = segments.len() as u64;
     segments.push(DocumentSegment {
-        content: open_segment.content,
+        content,
         source_range: range,
         boundary_kind: open_segment.kind,
         segment_index: index,
@@ -495,16 +506,29 @@ fn close_segment(segments: &mut Vec<DocumentSegment>, lines: &[&str], open: Opti
 /// Emit a forced sub-piece of an oversized block: `Paragraph`
 /// (§2.1 rule 3 — there is no interior boundary to report)
 /// and reporting the source block's own line range (§2.1 rule
-/// 10), numbered 0-based and consecutive (§2.1 rule 9). A
-/// piece whose content trims to empty is not emitted (§2.1
-/// rule 4).
-fn push_piece(segments: &mut Vec<DocumentSegment>, piece: String, range: SourceRange) {
-    if piece.trim().is_empty() {
+/// 10), numbered 0-based and consecutive (§2.1 rule 9). The
+/// piece's content is trimmed of leading and trailing
+/// whitespace, and a piece whose trimmed content is empty is
+/// not emitted (§2.1 rule 4 — every emitted segment's content
+/// is trimmed, and a forced sub-piece is a segment).
+///
+/// The trim cannot break the rule 3 hard split or the rule 5
+/// bound: it only removes whitespace from a piece's edges, so
+/// the cut points and the byte count are unchanged or
+/// smaller. The byte-exact reassembly the rule-3 fixtures
+/// pin (`reassembled_contents(&segments) == source`) holds
+/// because those sources are whitespace-free, where the trim
+/// is a no-op; wherever a cut does cross whitespace, rule 6
+/// losslessness is measured whitespace-squashed, as the
+/// property tests' `assert_lossless` helpers document.
+fn push_piece(segments: &mut Vec<DocumentSegment>, piece: &str, range: SourceRange) {
+    let content = piece.trim().to_string();
+    if content.is_empty() {
         return;
     }
     let index = segments.len() as u64;
     segments.push(DocumentSegment {
-        content: piece,
+        content,
         source_range: range,
         boundary_kind: BoundaryKind::Paragraph,
         segment_index: index,

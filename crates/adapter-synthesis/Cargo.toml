@@ -9,9 +9,6 @@ keywords = ["tts", "synthesis", "adapter", "text-to-speech"]
 categories = ["multimedia::audio", "text-processing"]
 
 [dependencies]
-sherpa-onnx = "1.13.8"
-ort = { version = "2.0.0-rc.13", features = ["nnapi"] }
-pulldown-cmark = "0.10"
 engine-core = { path = "../engine-core" }
 thiserror = { workspace = true }
 

@@ -339,7 +339,7 @@ proptest! {
         prop_assert_eq!(
             landed,
             position + SKIP_STEP_SECS,
-            "skip-forward from {position} did not land exactly 5.0 s forward"
+            "skip-forward from {} did not land exactly 5.0 s forward", position,
         );
         prop_assert_eq!(
             clock.position_secs(),
@@ -359,7 +359,7 @@ proptest! {
         prop_assert_eq!(
             landed,
             expected,
-            "skip-back from {position} did not land exactly 5.0 s back, clamped at 0.0"
+            "skip-back from {} did not land exactly 5.0 s back, clamped at 0.0", position,
         );
         prop_assert_eq!(
             clock.position_secs(),

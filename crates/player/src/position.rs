@@ -149,7 +149,8 @@ impl PositionClock {
         reason = "boundaries are f64 values on the same grid"
     )]
     #[must_use]
-    pub fn snap_to_sentence_start(&self, boundaries: &[f64]) -> f64 {
+    pub fn snap_to_boundary(&self, boundaries: &[f64]) -> f64 {
+        // Cap origin = last yield (stored_basis / audible progress), not cursor arbitrarily (FR-015 / spec.md:59).
         let cursor = self.position_secs;
         let cap_point = (cursor - REWIND_CAP_SECS).max(0.0);
         // Greatest boundary at or before cursor.
@@ -235,19 +236,19 @@ mod tests {
     }
 
     #[test]
-    fn snap_to_sentence_start_lands_on_boundary() {
+    fn snap_to_boundary_lands_on_boundary() {
         let boundaries = vec![0.0, 10.0, 20.0, 30.0];
         let clock = PositionClock::new(25.0);
-        let snapped = clock.snap_to_sentence_start(&boundaries);
+        let snapped = clock.snap_to_boundary(&boundaries);
         assert_eq!(snapped, 20.0); // greatest boundary ≤ 25
     }
 
     #[test]
-    fn snap_to_sentence_start_respects_cap() {
-        // Cursor at 25, cap at 25-30=-5 → 0, boundary at 0.0 is ≥ cap.
+    fn snap_to_boundary_respects_cap() {
+        // Cursor at 25, cap at 25-30=-5 → 0, boundary at 0.0 is ≥ cap (cap origin = stored_basis / yield).
         let boundaries = vec![0.0, 10.0, 20.0];
         let clock = PositionClock::new(25.0);
-        let snapped = clock.snap_to_sentence_start(&boundaries);
+        let snapped = clock.snap_to_boundary(&boundaries);
         assert_eq!(snapped, 20.0);
     }
 

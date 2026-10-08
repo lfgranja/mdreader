@@ -1,0 +1,12 @@
+[package]
+name = "adapter-synthesis"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+sherpa-onnx = "1.13.8"
+ort = { version = "2.0.0-rc.13", features = ["nnapi"] }
+pulldown-cmark = "0.10"
+
+[lints]
+workspace = true

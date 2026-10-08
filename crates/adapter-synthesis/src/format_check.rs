@@ -120,6 +120,17 @@ pub fn check_delivery(
         return Err(EngineError::RateMismatch);
     }
     let expected_samples = (duration_ms / 1000.0) * f64::from(DECLARED_RATE_HZ);
+    // §6 mandates the `pcm_sample_count as f64` cast:
+    // `f64` has no lossless `From<usize>`, and
+    // narrowing to `u32` first would be lossy for a
+    // >4-billion-sample buffer and would disagree with
+    // the frozen test's identical computation at the
+    // half-sample boundary — sanctioned by
+    // API_CONTRACT.md §0.1 entry 3.
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "API_CONTRACT.md §6 mandates comparing pcm_sample_count as f64 against (duration_ms / 1000.0) * DECLARED_RATE_HZ; f64 has no lossless From<usize>, so the cast is unavoidable — narrowing to u32 first would be lossy for a >4-billion-sample buffer and would disagree with the frozen test's identical computation at the half-sample boundary; sanctioned by API_CONTRACT.md §0.1 entry 3"
+    )]
     let deviation = (pcm_sample_count as f64 - expected_samples).abs();
     match deviation.total_cmp(&HALF_SAMPLE) {
         Ordering::Greater => Err(EngineError::RateMismatch),

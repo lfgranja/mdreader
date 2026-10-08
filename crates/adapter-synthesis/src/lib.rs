@@ -1,20 +1,21 @@
-//! FR-024 synthesis adapter — offline_default (sherpa-onnx + Piper pt-BR).
+//! FR-024 synthesis adapter — `offline_default` (sherpa-onnx + Piper pt-BR).
 //! Declares capabilities against existing engine-core shapes (format.rs / closed.rs);
 //! does NOT invent phantom trait methods (T016 not yet built — Assumption 3 corrected).
 
 use engine_core::closed::EngineTier;
 
 pub mod capabilities;
-pub mod reg;
-pub mod consume;
 pub mod chunk;
+pub mod consume;
 pub mod failure;
 pub mod format_check;
+pub mod reg;
 pub mod synth;
 
-/// The tier this adapter registers at (contracts/adapter-handoff.md
-/// §6.1; SC-051): `OfflineDefault` only — the sole selectable tier
-/// at v1. The `test_double` stand-ins (`engine_core::standin_a` /
+/// The tier this adapter registers at: `OfflineDefault` only.
+///
+/// The sole selectable tier at v1 (`contracts/adapter-handoff.md`
+/// §6.1; SC-051). The `test_double` stand-ins (`engine_core::standin_a` /
 /// `standin_b`) are fixtures and are never selectable while this
 /// non-`test_double` adapter is registered (`closed.rs`:305-312).
 pub const REGISTERED_TIER: EngineTier = EngineTier::OfflineDefault;
@@ -52,7 +53,7 @@ pub enum AlignmentGranularity {
 /// Declared adapter capabilities (FR-024c).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AdapterCapabilities {
-    /// SSML level (`None` for the v1 offline_default adapter).
+    /// SSML level (`None` for the v1 `offline_default` adapter).
     pub ssml_level: SsmlLevel,
     /// Resume granularity (`None` for v1 paragraph/heading).
     pub alignment_granularity: AlignmentGranularity,
@@ -71,9 +72,16 @@ pub struct AdapterCapabilities {
 /// inferring SSML presence or sentence-level alignment;
 /// Principle VI).
 #[must_use]
-pub fn declared_capabilities() -> AdapterCapabilities {
+pub const fn declared_capabilities() -> AdapterCapabilities {
     AdapterCapabilities {
         ssml_level: SsmlLevel::None,
         alignment_granularity: AlignmentGranularity::None,
     }
 }
+
+pub use crate::chunk::{BoundaryKind, DocumentSegment, MAX_CHUNK_BYTES, SourceRange};
+pub use crate::consume::{PlayerPlan, ResumeAnchor, SsmlDelivery};
+pub use crate::failure::{
+    EngineError, EngineFailure, FailureCondition, FailureReportError, MAX_CONDITION_DETAIL_CHARS,
+    MAX_OFFER_MS,
+};

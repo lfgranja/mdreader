@@ -154,22 +154,32 @@ proptest! {
             }
         }
 
-        // Rule 6 — losslessness: every non-blank source line appears in
-        // exactly one segment, in source order.
-        let expected: Vec<&str> = document
-            .lines()
-            .filter(|line| !line.trim().is_empty())
+        // Rule 6 — losslessness: every non-blank source
+        // line is reproduced, in order, none dropped,
+        // duplicated, or reordered. Whitespace is
+        // squashed before comparison because segment
+        // contents are trimmed (§2.1 rule 4) and
+        // forced sub-pieces may cut through interior
+        // whitespace (§2.1 rule 3) — the same
+        // measurement as `assert_lossless` in
+        // `prop_chunk_refined.rs` and
+        // `prop_segmentation_shapes.rs`. The padded
+        // generator stays: it keeps the byte budget
+        // and losslessness exercised together, and any
+        // dropped, duplicated, or reordered line still
+        // changes the squashed sequence.
+        let source_squashed: String =
+            document.chars().filter(|ch| !ch.is_whitespace()).collect();
+        let reassembled: String = segments
+            .iter()
+            .map(|segment| segment.content.as_str())
             .collect();
-        let mut produced: Vec<&str> = Vec::new();
-        for segment in &segments {
-            for line in segment.content.lines() {
-                if !line.trim().is_empty() {
-                    produced.push(line);
-                }
-            }
-        }
+        let produced_squashed: String = reassembled
+            .chars()
+            .filter(|ch| !ch.is_whitespace())
+            .collect();
         prop_assert_eq!(
-            produced, expected,
+            produced_squashed, source_squashed,
             "segmentation is not lossless over non-blank lines"
         );
 

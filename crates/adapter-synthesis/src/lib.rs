@@ -32,6 +32,7 @@ pub enum AlignmentGranularity {
 }
 
 /// Declared adapter capabilities (FR-024c).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AdapterCapabilities {
     /// SSML level (None for v1 offline_default).
     pub ssml_level: SsmlLevel,

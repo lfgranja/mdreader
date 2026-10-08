@@ -11,11 +11,23 @@ Normative sources: `spec.md` (FR-024/024a/024b/024c), `data-model.md` (E1–E5, 
 
 1. **No `_ =>` arm anywhere in `crates/adapter-synthesis/src/`** — constitution gate 7 (`constitution.md:614`) and Principle VII (`constitution.md:314-317`). Every `match` over a closed-set enum enumerates every arm explicitly. Adding a wildcard is a verification failure, not a style choice.
 2. **`missing_docs`, `missing_debug_implementations`, `unreachable_pub`, `unused_results`, `unsafe_code` are `deny`**; `clippy::all` + `clippy::pedantic` are `deny`; `clippy::nursery` + `clippy::cargo` are `warn`. Every public item carries a `///` doc comment and a `#[derive(Debug, ...)]`.
-3. **`unwrap` / `expect` / `panic!` / `todo!` / `unimplemented!` / `dbg!` / `println!` / `eprintln!` are `deny` — in tests too.** This crate has no `#[expect]`/`#[allow]` lint suppression and must not gain one. Write `match`, `let Ok(x) = … else { … }`, or `prop_assert!`.
+3. **`unwrap` / `expect` / `panic!` / `todo!` / `unimplemented!` / `dbg!` / `println!` / `eprintln!` are `deny` — in tests too.** `#[allow]` is `deny` workspace-wide and is never permitted here. `#[expect(lint, reason = "…")]` is the **only** permitted suppression, per the workspace rule in `AGENTS.md`; it must carry a reason and must be justified in a comment. It is permitted **only where this frozen contract's own normative text mandates a shape that the `deny`-level `clippy::pedantic` set rejects** — there are exactly three such places, all enumerated in §0.1. Everywhere else, write `match`, `let Ok(x) = … else { … }`, or `prop_assert!`. **Amendment 2026-10-08:** this rule previously read "no `#[expect]`/`#[allow]` suppression … and must not gain one", which made this contract self-inconsistent — §3 and §4 mandate one explicit match arm per closed-set member (so `clippy::match_same_arms` fires) and §6 mandates `pcm_sample_count as f64` (so `clippy::cast_precision_loss` fires), while the workspace denies both lints and forbade the only sanctioned remedy. The workspace `AGENTS.md` rule (`#[expect(lint, reason = "…")]` as the single permitted suppression) governs.
 4. **No new `EngineError` variant.** The set is re-exported from `engine_core::closed`; a second list would drift (`FR-044`). `crates/engine-core` is not modified.
 5. **No phantom trait, no `trait_.rs`, no `format()` / `fail()` method, no marker trait** (`spec.md` Assumption 3; `contracts/adapter-capabilities.md` §5).
 6. **No second authority over playback.** The adapter splits and declares; `player` remains the sole authority for position/buffering/transport (`constitution.md:486-490`). The adapter never converts audio to the device format.
 7. **Bad Markdown is a document-layer concern, not an `EngineError`** (R8; `spec.md:85`).
+
+### 0.1 The three sanctioned suppressions (§0 rule 3)
+
+Exactly three `#[expect]` attributes exist in this crate, each mandated by this contract's own normative text and each carrying a `reason`:
+
+| # | Location | Lint | Why the contract mandates the shape the lint rejects |
+|---|---|---|---|
+| 1 | `failure.rs` — `FailureCondition::variant()` | `clippy::match_same_arms` | §3 requires an exhaustive 10-arm match so every condition names its variant explicitly. Five of the ten share a body (`RateDeviation`/`WidthDeviation`/`PitchToleranceViolation` → `RateMismatch`; `ProcessDeath`/`TransportUnreachable` → `Unreachable`). Grouping them would satisfy the lint but weaken the explicit per-condition mapping the failure taxonomy depends on (`spec.md:86`). |
+| 2 | `reg.rs` — `is_selectable()` | `clippy::match_same_arms` | §4 requires five distinct arms. Three of them (`CloudDefault`, `CloudEscalation`, `EvaluatedFallback`) legitimately return the same `false`, because all three are unregistered at v1 with distinct reasons (`SC-044` deferred, consent deferred, evaluated-fallback deferred). The reasons belong in doc comments, not in duplicated arm bodies. |
+| 3 | `format_check.rs` — `check_delivery()` | `clippy::cast_precision_loss` | §6 mandates comparing `pcm_sample_count as f64` against `(duration_ms / 1000.0) * DECLARED_RATE_HZ`. `f64` has no lossless `From<usize>`, so the cast is unavoidable; narrowing to `u32` first would be lossy for a >4-billion-sample buffer and would disagree with the frozen test's identical computation at the half-sample boundary. |
+
+No fourth suppression is sanctioned. If a future change needs one, that is a coordinated edit to this section — not a local decision.
 
 ---
 

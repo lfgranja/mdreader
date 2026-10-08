@@ -108,6 +108,19 @@ impl FailureCondition {
     /// (spec.md:86 condition→variant table). The match is
     /// exhaustive over the closed ten-member set — there is no
     /// "unmapped" arm.
+    // §3 mandates the exhaustive 10-arm condition→variant
+    // match — every condition names its variant explicitly —
+    // so five arms legitimately share a body
+    // (RateDeviation/WidthDeviation/PitchToleranceViolation
+    // → RateMismatch; ProcessDeath/TransportUnreachable →
+    // Unreachable). Grouping them would weaken the explicit
+    // per-condition mapping the failure taxonomy depends on
+    // (spec.md:86) — sanctioned by API_CONTRACT.md §0.1
+    // entry 1.
+    #[expect(
+        clippy::match_same_arms,
+        reason = "API_CONTRACT.md §3 mandates the exhaustive 10-arm condition→variant match with every arm explicit; five arms share a body by design (RateDeviation/WidthDeviation/PitchToleranceViolation → RateMismatch, ProcessDeath/TransportUnreachable → Unreachable) — grouping would weaken the explicit per-condition mapping (spec.md:86); sanctioned by API_CONTRACT.md §0.1 entry 1"
+    )]
     #[must_use]
     pub const fn variant(self) -> EngineError {
         match self {

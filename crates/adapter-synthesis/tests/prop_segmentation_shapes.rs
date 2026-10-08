@@ -475,6 +475,36 @@ fn universal_invariants_hold_on_a_fixed_mix_of_pinned_constructs() {
     }
 }
 
+/// The byte-budget floor: §2.1 rules 3, 5 and 6 are
+/// jointly satisfiable only from the maximum UTF-8
+/// character width (4 bytes) upward. Below the floor a
+/// single `char` can exceed the budget, and cutting
+/// through it would produce invalid UTF-8 — so the hard
+/// bound and losslessness cannot both hold, and the
+/// property generators draw their budgets from
+/// `4..=MAX_CHUNK_BYTES`, never lower. Exactly at the
+/// floor the pair is coherent: every character —
+/// including a 4-byte one, the widest UTF-8 allows —
+/// fits whole, the bound holds for every emitted
+/// segment, and every non-blank source line is
+/// reproduced, in order.
+#[test]
+fn budget_floor_at_max_utf8_char_width_keeps_bound_and_losslessness() {
+    let source = "Ãmbar 𝐀 çelofane — ação, éter e õ.";
+    let segments = split_document_within(source, TEST_HASH, 4);
+    assert!(
+        !segments.is_empty(),
+        "the over-budget source must be hard-split, not dropped"
+    );
+    assert_universal_invariants(source, &segments, 4);
+    // §2.1 rule 7 — determinism at the floor budget.
+    assert_eq!(
+        split_document_within(source, TEST_HASH, 4),
+        segments,
+        "the floor-budget split must be deterministic"
+    );
+}
+
 // A generated document mixing setext headings, fenced code
 // blocks (with `#`, `-`, `>`, `1.` and plain content
 // lines), list runs, block-quote runs, ATX headings with
@@ -598,7 +628,7 @@ proptest! {
         // fields compared; `DocumentSegment` derives
         // `PartialEq`).
         let repeated = split_document(&document, TEST_HASH);
-        prop_assert_eq!(repeated, segments, "the split is not deterministic");
+        prop_assert_eq!(&repeated, &segments, "the split is not deterministic");
 
         // Rule 12 / R5 — the document hash is accepted but
         // never stored on the segment: a distinct hash per
@@ -614,7 +644,7 @@ proptest! {
 }
 
 // The same generated documents under an explicit budget
-// chosen at random from `1..=MAX_CHUNK_BYTES`: the budget
+// chosen at random from `4..=MAX_CHUNK_BYTES`: the budget
 // is a hard bound even when a single construct block
 // exceeds it (§2.1 rule 3 — the block is hard-split,
 // snapped down to a UTF-8 character boundary, into
@@ -623,7 +653,14 @@ proptest! {
 // `line_end >= line_start`, and the reassembly still
 // reproduces every non-blank source line (whitespace
 // squashed, because forced sub-pieces may cut through
-// interior whitespace).
+// interior whitespace). The floor is the maximum UTF-8
+// character width: below 4 bytes a single `char` can
+// exceed the budget, and §2.1 rules 3, 5 and 6
+// (character-safe hard split, hard bound, losslessness)
+// are jointly unsatisfiable — cutting through a `char`
+// would produce invalid UTF-8 — so the bound is a
+// precondition that holds from the floor upward, never
+// below it.
 //
 // Plain `//`, not `///`: a doc comment cannot attach to a
 // `proptest!` block (see the previous block).
@@ -663,7 +700,7 @@ proptest! {
         // Rule 7 — determinism under an explicit budget.
         let repeated = split_document_within(&document, TEST_HASH, max_bytes);
         prop_assert_eq!(
-            repeated, segments,
+            &repeated, &segments,
             "the bounded split is not deterministic"
         );
 
@@ -822,10 +859,15 @@ fn mixed_document_strategy() -> impl Strategy<Value = String> {
 }
 
 /// A generated document paired with an explicit budget
-/// chosen at random from `1..=MAX_CHUNK_BYTES` — small
+/// chosen at random from `4..=MAX_CHUNK_BYTES` — small
 /// enough that single construct blocks are routinely
-/// hard-split (§2.1 rule 3).
+/// hard-split (§2.1 rule 3). The floor is the maximum
+/// UTF-8 character width: below 4 bytes a single `char`
+/// can exceed the budget, and §2.1 rules 3, 5 and 6
+/// (character-safe hard split, hard bound, losslessness)
+/// are jointly unsatisfiable, so the bound is a
+/// precondition that holds from this floor upward.
 #[must_use]
 fn mixed_document_and_budget_strategy() -> impl Strategy<Value = (String, usize)> {
-    (mixed_document_strategy(), 1usize..=MAX_CHUNK_BYTES)
+    (mixed_document_strategy(), 4usize..=MAX_CHUNK_BYTES)
 }

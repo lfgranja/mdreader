@@ -380,9 +380,14 @@ fn document_hash_is_accepted_but_never_stored_on_segments() {
 }
 
 // Generated documents (headings, paragraphs, blank runs, multi-byte
-// characters) under a randomly chosen budget in `1..=MAX_CHUNK_BYTES`:
+// characters) under a randomly chosen budget in `4..=MAX_CHUNK_BYTES`:
 // no segment ever exceeds its budget, and `segment_index` stays
-// consecutive.
+// consecutive. The floor is the maximum UTF-8 character width: below
+// 4 bytes a single `char` can exceed the budget, and §2.1 rules 3, 5
+// and 6 (character-safe hard split, hard bound, losslessness) are
+// jointly unsatisfiable — cutting through a `char` would produce
+// invalid UTF-8 — so the bound is a precondition that holds from
+// this floor upward, never below it.
 //
 // Plain `//`, not `///`: a doc comment cannot attach to a `proptest!`
 // block, so `///` here would raise `unused_doc_comments`, which
@@ -409,7 +414,9 @@ proptest! {
 
 // A generated document: heading lines, ASCII and multi-byte
 // paragraph lines, and blank runs, paired with a budget in
-// `1..=MAX_CHUNK_BYTES`.
+// `4..=MAX_CHUNK_BYTES` — the floor is the maximum UTF-8
+// character width, the smallest budget at which every
+// character fits whole (see the property above).
 #[must_use]
 fn document_strategy() -> impl Strategy<Value = (String, usize)> {
     let line = prop_oneof![
@@ -423,7 +430,7 @@ fn document_strategy() -> impl Strategy<Value = (String, usize)> {
     ];
     (
         proptest::collection::vec(line, 0..=16),
-        1usize..=MAX_CHUNK_BYTES,
+        4usize..=MAX_CHUNK_BYTES,
     )
         .prop_map(|(lines, max_bytes)| (lines.join("\n"), max_bytes))
 }

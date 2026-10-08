@@ -145,7 +145,7 @@ impl DocumentSegment {
     /// content, not stored, so the byte invariant cannot drift
     /// from the text it measures.
     #[must_use]
-    pub fn byte_length(&self) -> usize {
+    pub const fn byte_length(&self) -> usize {
         self.content.len()
     }
 }
@@ -215,7 +215,7 @@ pub fn split_document_within(
             // re-opens with the block rather than dropping it.
             match open.take() {
                 Some(mut open_segment) => {
-                    open_segment.append(text, block);
+                    open_segment.append(&text, block);
                     open_segment
                 }
                 None => OpenSegment::new(text, block),
@@ -263,7 +263,7 @@ struct OpenSegment {
 impl OpenSegment {
     /// A new open segment holding exactly one block.
     #[must_use]
-    fn new(text: String, block: Block) -> Self {
+    const fn new(text: String, block: Block) -> Self {
         Self {
             content: text,
             line_start: block.line_start,
@@ -274,9 +274,9 @@ impl OpenSegment {
 
     /// Append a block's text to the open segment, joined with
     /// a single blank line, extending the covered line range.
-    fn append(&mut self, text: String, block: Block) {
+    fn append(&mut self, text: &str, block: Block) {
         self.content.push_str(SEPARATOR);
-        self.content.push_str(&text);
+        self.content.push_str(text);
         self.line_end = block.line_end;
     }
 }
@@ -315,11 +315,15 @@ fn scan_blocks(lines: &[&str]) -> Vec<Block> {
             line = line.saturating_add(1);
             continue;
         }
-        if is_heading_line(lines[index]) {
-            let start_line = line;
-            let mut end_line = line;
-            index += 1;
-            line = line.saturating_add(1);
+        // The block's opening line is shared by both branch
+        // shapes: consume it once here, before the branch, so
+        // neither branch duplicates the prologue.
+        let start_line = line;
+        let is_heading = is_heading_line(lines[index]);
+        index += 1;
+        line = line.saturating_add(1);
+        if is_heading {
+            let mut end_line = start_line;
             // The heading block extends over the immediately
             // following non-blank, non-heading lines.
             while index < lines.len()
@@ -360,9 +364,6 @@ fn scan_blocks(lines: &[&str]) -> Vec<Block> {
                 kind: BoundaryKind::Heading,
             });
         } else {
-            let start_line = line;
-            index += 1;
-            line = line.saturating_add(1);
             while index < lines.len()
                 && !lines[index].trim().is_empty()
                 && !is_heading_line(lines[index])

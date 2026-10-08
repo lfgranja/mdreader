@@ -8,28 +8,34 @@ pub mod format_check;
 pub mod failure;
 pub mod capabilities;
 
-use failure::EngineError;
-
 /// Closed-set declaration (constitution §Closed Sets VII; no Other/Unknown).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// Closed SSML capability level (no catch-all).
 pub enum SsmlLevel {
+    /// No SSML rendering.
     None,
+    /// Partial SSML (reserved v2).
     Partial,
+    /// Full SSML (reserved cloud).
     Full,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// Closed resume-granularity level (deferred to v2 for Sentence).
 pub enum AlignmentGranularity {
+    /// Paragraph/heading only (v1).
     None,
+    /// Word boundary (reserved).
     Word,
+    /// Sentence boundary (deferred v2).
     Sentence,
 }
 
 /// Declared adapter capabilities (FR-024c).
 pub struct AdapterCapabilities {
+    /// SSML level (None for v1 offline_default).
     pub ssml_level: SsmlLevel,
+    /// Resume granularity (None for v1 paragraph/heading).
     pub alignment_granularity: AlignmentGranularity,
 }
 

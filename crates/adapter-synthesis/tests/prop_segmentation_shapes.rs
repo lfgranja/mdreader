@@ -22,10 +22,20 @@
 //! setext headings (a title line over a `=====` or `-----`
 //! underline), `#` lines inside fenced code blocks (``` or
 //! ~~~), list items (`- item`, `1. item`) and block
-//! quotes (`> text`). Under the §2.1 rule 1 line scan
-//! each is a paragraph block classified
-//! `BoundaryKind::Paragraph`, never `Heading`. This file
-//! pins each classification, contrasts it with a real ATX
+//! quotes (`> text`). Under the §2.1 rule 1 line scan,
+//! setext headings, list items and block quotes are
+//! paragraph blocks classified `BoundaryKind::Paragraph`,
+//! never `Heading` — none of their lines starts with `#`.
+//! A `#`-prefixed line inside a fenced code block, however,
+//! satisfies rule 1 literally: the line scan is not
+//! fence-aware, so a fenced code comment is narrated as a
+//! heading block and classified `BoundaryKind::Heading`.
+//! That is an observed limitation of the line scan, to be
+//! recorded as a deviation by T034 — the deviation is
+//! measured against `spec.md:94-95` (parser-side
+//! `pulldown-cmark` segmentation, under which the line is
+//! code text and opens no heading block). This file pins
+//! each classification, contrasts it with a real ATX
 //! heading — which IS `BoundaryKind::Heading` and absorbs
 //! its following non-blank body lines into the same
 //! segment — and re-asserts the universal §2.1 invariants
@@ -224,50 +234,66 @@ fn setext_headings_are_paragraphs_not_headings() {
     }
 }
 
-/// A `#` line inside a fenced code block (``` or ~~~) is
-/// code text, not a heading: no segment of the document is
-/// classified `Heading` — every segment is a `Paragraph` —
-/// and the fenced text survives verbatim. The same
-/// document under a small explicit budget, where the
-/// fence-marker paragraph would close early and let the
-/// `#` line open its own segment under a heading-labelling
-/// scan, still yields no `Heading` segment.
+/// A `#`-prefixed line inside a fenced code block (``` or
+/// ~~~) opens a heading block under `API_CONTRACT.md`
+/// §2.1 rule 1: the line scan is not fence-aware, so a
+/// fenced code comment is narrated as a heading block and
+/// classified `BoundaryKind::Heading`, not `Paragraph`.
+/// This is an observed limitation of the line scan, to be
+/// recorded as a deviation by T034 — the deviation is
+/// measured against `spec.md:94-95` (parser-side
+/// `pulldown-cmark` segmentation, under which the `#` line
+/// is code text and opens no heading block).
+///
+/// The pin needs the fenced heading block to open its own
+/// segment, so each fixture carries a blank line between
+/// the fence opener and the `#` line, and the 25-byte
+/// budget closes the 7-byte fence-opener paragraph as its
+/// own segment while the heading block (19 or 20 bytes)
+/// still fits whole — a hard-split block's forced
+/// sub-pieces carry `BoundaryKind::Paragraph` (§2.1 rule
+/// 3), which would hide the classification this pin
+/// observes.
 #[test]
-fn hash_lines_inside_fenced_code_blocks_are_paragraphs_not_headings() {
-    for source in [
-        "```rust\n# Not a heading\nlet x = 1;\n```",
-        "~~~text\n# Still not a heading\ny = 2;\n~~~",
-    ] {
-        let segments = split_document(source, TEST_HASH);
+fn hash_lines_inside_fenced_code_blocks_open_heading_blocks() {
+    let fixtures: [(&str, &str, &str); 2] = [
+        (
+            "```rust\n\n# Not a heading\n```",
+            "```rust",
+            "# Not a heading\n```",
+        ),
+        (
+            "~~~text\n\n# Also a heading\n~~~",
+            "~~~text",
+            "# Also a heading\n~~~",
+        ),
+    ];
+    for (source, opener, heading_block) in fixtures {
+        let segments = split_document_within(source, TEST_HASH, 25);
         assert_eq!(
             segments.len(),
-            1,
-            "the fenced block is a single paragraph block, hence one segment"
+            2,
+            "the fence opener and the fenced heading block close two segments at the 25-byte budget"
         );
-        for segment in &segments {
-            assert!(
-                is_paragraph(segment.boundary_kind),
-                "a `#` line inside a fenced code block must be classified Paragraph, never Heading"
-            );
-        }
+        let opener_segment = &segments[0];
+        assert!(
+            is_paragraph(opener_segment.boundary_kind),
+            "the fence-opener line opens a paragraph block"
+        );
         assert_eq!(
-            segments[0].content, source,
-            "the whole fenced block must survive verbatim in the one segment"
+            opener_segment.content, opener,
+            "the fence-opener paragraph survives as its own segment"
         );
-        assert_universal_invariants(source, &segments, MAX_CHUNK_BYTES);
-
-        // Small budget: the fenced block alone exceeds it,
-        // so it is hard-split (§2.1 rule 3); every forced
-        // sub-piece is still a `Paragraph` sub-piece, never
-        // a `Heading`.
-        let bounded = split_document_within(source, TEST_HASH, 20);
-        for segment in &bounded {
-            assert!(
-                is_paragraph(segment.boundary_kind),
-                "a hard-split sub-piece of a fenced code block must still be a Paragraph"
-            );
-        }
-        assert_universal_invariants(source, &bounded, 20);
+        let heading_segment = &segments[1];
+        assert!(
+            is_heading(heading_segment.boundary_kind),
+            "a `#` line inside a fenced code block opens a heading block, classified Heading by the §2.1 rule 1 line scan"
+        );
+        assert_eq!(
+            heading_segment.content, heading_block,
+            "the fenced `#` line and the closing fence form the heading block"
+        );
+        assert_universal_invariants(source, &segments, 25);
     }
 }
 
@@ -713,9 +739,9 @@ fn mixed_document_strategy() -> impl Strategy<Value = String> {
     // A fenced code block: ``` or ~~~ (optionally carrying a
     // language tag), 0..=4 content lines — some beginning
     // with `#`, `-`, `>` or `1.`, so the generator exercises
-    // exactly the constructs that must not open a heading
-    // block inside a fence — closed by the matching fence
-    // marker.
+    // the constructs whose classification the line scan pins
+    // (a `#` line inside a fence opens a heading block under
+    // §2.1 rule 1) — closed by the matching fence marker.
     let fenced_block = (
         prop_oneof![Just("```"), Just("~~~")],
         prop_oneof![Just("rust"), Just("text"), Just("")],

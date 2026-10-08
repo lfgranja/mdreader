@@ -12,6 +12,7 @@ use failure::EngineError;
 
 /// Closed-set declaration (constitution §Closed Sets VII; no Other/Unknown).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Closed SSML capability level (no catch-all).
 pub enum SsmlLevel {
     None,
     Partial,
@@ -19,12 +20,14 @@ pub enum SsmlLevel {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Closed resume-granularity level (deferred to v2 for Sentence).
 pub enum AlignmentGranularity {
     None,
     Word,
     Sentence,
 }
 
+/// Declared adapter capabilities (FR-024c).
 pub struct AdapterCapabilities {
     pub ssml_level: SsmlLevel,
     pub alignment_granularity: AlignmentGranularity,
@@ -33,6 +36,7 @@ pub struct AdapterCapabilities {
 /// Unconditional declaration (constitution.md:304-305 / FR-024c).
 /// Option A (v1): offline_default => (None, None); deferring SSML/segment
 /// boundary events until second engine / consent (SC-044 deferred).
+/// Unconditional declaration — Option A v1 (offline_default => None/None).
 pub fn declared_capabilities() -> AdapterCapabilities {
     AdapterCapabilities {
         ssml_level: SsmlLevel::None,

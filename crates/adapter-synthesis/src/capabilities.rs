@@ -2,6 +2,7 @@
 //! Matches adapter-capabilities.md §2.1 / spec.md:97.
 use crate::{AdapterCapabilities, SsmlLevel, AlignmentGranularity};
 
+/// Unconditional (None, None) declaration.
 pub fn capabilities() -> AdapterCapabilities {
     AdapterCapabilities {
         ssml_level: SsmlLevel::None,

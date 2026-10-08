@@ -1,5 +1,7 @@
 # Rust / Cargo
 /target/
+/debug/
+/release/
 **/*.rs.bk
 *.pdb
 *.rlib
@@ -28,6 +30,13 @@ dist/
 /android/app/build/
 /android/build/
 /captures/
+
+# Kotlin / Gradle / JVM
+build/
+out/
+*.iml
+*.class
+*.jar
 
 # Spec Kit — estado local por máquina
 .specify/feature.json

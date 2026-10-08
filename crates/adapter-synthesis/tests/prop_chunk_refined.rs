@@ -9,7 +9,10 @@
 //! boundary is the last boundary at or before the yield point),
 //! CHK008 (the byte limit is a hard upper bound, not a target),
 //! CHK016 (segment-boundary compliance is measurable), CHK029
-//! (paragraph/heading precedence over sentence boundaries), and
+//! (paragraph/heading precedence over sentence boundaries),
+//! `API_CONTRACT.md` §2.1 rule 4 (each segment's content is
+//! trimmed of leading and trailing whitespace, and a segment
+//! whose trimmed content is empty is not emitted), and
 //! `API_CONTRACT.md` §2 — the frozen interface:
 //! `split_document(source, document_hash)` and
 //! `split_document_within(source, document_hash, max_bytes)` over
@@ -278,6 +281,59 @@ fn empty_and_whitespace_only_sources_yield_zero_segments() {
     }
 }
 
+/// §2.1 rule 4 — trimming: every emitted segment's `content`
+/// is trimmed of leading and trailing whitespace. A segment
+/// whose trimmed content is empty is not emitted (rule 4's
+/// second clause, exercised below and by the rule-8 test
+/// above), so the trim assertion never demands an empty
+/// segment.
+///
+/// The fixture's first line opens with two spaces and its
+/// last line closes with three, so the packed segment's
+/// content carries whitespace on both edges; at the small
+/// budget each paragraph becomes its own segment, and each
+/// one's edge whitespace must be trimmed too.
+#[test]
+fn segment_content_is_trimmed_of_leading_and_trailing_whitespace() {
+    let packed = "  primeira linha com recuo  \n\nsegunda linha com espaço à direita   ";
+    let segments = split_document(packed, TEST_HASH);
+    assert_eq!(
+        segments.len(),
+        1,
+        "the two fitting paragraphs pack into one segment"
+    );
+    for segment in &segments {
+        assert_eq!(
+            segment.content,
+            segment.content.trim(),
+            "segment content must be trimmed of leading and trailing whitespace (§2.1 rule 4)"
+        );
+    }
+
+    let separated = "  primeira  \n\nsegunda  \n\nterceira   ";
+    let segments = split_document_within(separated, TEST_HASH, 20);
+    assert_eq!(
+        segments.len(),
+        3,
+        "the 20-byte budget gives each paragraph its own segment"
+    );
+    for segment in &segments {
+        assert_eq!(
+            segment.content,
+            segment.content.trim(),
+            "segment content must be trimmed of leading and trailing whitespace (§2.1 rule 4)"
+        );
+    }
+
+    for source in ["   ", "\t\n  \n\t", " "] {
+        let segments = split_document(source, TEST_HASH);
+        assert!(
+            segments.is_empty(),
+            "whitespace-only source {source:?} must yield zero segments"
+        );
+    }
+}
+
 /// A heading block extends over the heading line and its body: they
 /// are narrated together and the split never lands between them
 /// (contract §2.1 rule 1).
@@ -412,6 +468,34 @@ proptest! {
     }
 }
 
+// §2.1 rule 4 — trimming, over generated documents whose
+// lines carry leading and/or trailing whitespace: every
+// emitted segment's content equals its own trim. The
+// generator deliberately produces whitespace (an
+// unpadded-only generator would make the property
+// vacuous — no segment could ever carry edge whitespace).
+//
+// Plain `//`, not `///`: a doc comment cannot attach to a
+// `proptest!` block, so `///` here would raise
+// `unused_doc_comments`, which verification task V2
+// promotes to an error via `-D warnings`.
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(256))]
+    #[test]
+    fn every_segment_content_is_trimmed(
+        document in whitespace_padded_document_strategy(),
+    ) {
+        let segments = split_document(&document, TEST_HASH);
+        for segment in &segments {
+            prop_assert!(
+                segment.content == segment.content.trim(),
+                "segment content carries leading or trailing whitespace: {:?}",
+                segment.content
+            );
+        }
+    }
+}
+
 // A generated document: heading lines, ASCII and multi-byte
 // paragraph lines, and blank runs, paired with a budget in
 // `4..=MAX_CHUNK_BYTES` — the floor is the maximum UTF-8
@@ -433,4 +517,26 @@ fn document_strategy() -> impl Strategy<Value = (String, usize)> {
         4usize..=MAX_CHUNK_BYTES,
     )
         .prop_map(|(lines, max_bytes)| (lines.join("\n"), max_bytes))
+}
+
+/// A generated document whose lines may carry leading and
+/// trailing whitespace: each line is an optional run of
+/// spaces or tabs, 1–20 ASCII or multi-byte characters,
+/// and another optional run, with blank and
+/// whitespace-only lines mixed in. The generator makes the
+/// §2.1 rule 4 trimming property non-vacuous: a document
+/// of only unpadded lines could never expose untrimmed
+/// segment content, and the default budget keeps every
+/// generated block well under `MAX_CHUNK_BYTES`, so no
+/// block is ever hard-split and the property observes the
+/// segment-close path alone.
+#[must_use]
+fn whitespace_padded_document_strategy() -> impl Strategy<Value = String> {
+    let line = prop_oneof![
+        "[ \\t]{0,3}[a-zãçé]{1,20}[ \\t]{0,3}",
+        "[a-zãçé]{1,20}",
+        Just(String::new()),
+        Just("   ".to_owned()),
+    ];
+    proptest::collection::vec(line, 0..=16).prop_map(|lines| lines.join("\n"))
 }

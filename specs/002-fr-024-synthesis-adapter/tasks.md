@@ -55,3 +55,17 @@ Wave 4 (integration + verify): T11–T12, V1–V3 — verify subagent at end
 - [X] T015 Complete paragraph/heading-aware chunk split + full byte-budget property integration per T2 / prop_chunk.rs (partial)
 - [ ] T016 Complete cargo nextest workspace run and confirm property tests pass per V1 (partial)
 - [ ] T017 Finalize core task verification and mark T6–T10 complete per tasks.md (partial)
+
+## Phase 3: Convergence
+
+> Appended per convergence command (rule 6: atomic conventional commit after edit; rule 1: T2–T5 tests BLOCK core; rule 2: core done by agent different from test writer; rule 3/4: [P] tasks delegated / parallel waves; rule 5: verification ONLY at end V1–V3 — these tasks attest, never the agent).
+
+Ordered CRITICAL/HIGH first (F1–F4), then MEDIUM verification (F5–F7). Tests fixed/re-written first (T018–T020) blocking T021–T024 per rule 1.
+
+- [ ] T018 [P] Rewrite prop_format.rs to use `engine_core::closed::EngineError` 7-member closed set with correct condition→variant table (rate/width→RateMismatch, channel→ChannelMismatch, init/voice→InitFailed, process/OOM/kill→Unreachable, device refusal→DeviceRefused, device lost→DeviceLost, start refused→StartRefused) per spec.md:85 / C4-A / contracts/adapter-handoff.md §3.1 (contradicts) — test-agent write first, different from core-impl agent
+- [ ] T019 [P] Align prop_chunk + prop_chunk_refined with chunk.rs split logic; enforce ≤5000 bytes/paragraph-heading invariant via proptest (partial) — shared test subagent, parallel with T018 wave
+- [ ] T020 [P] Complete T2–T5 property/unit tests (prop_chunk done, prop_declare invariant, prop_format corrected, T5 failure mapping 7-member + SC-051 mechanism + adapter-registration property); do NOT start T021–T024 until T020 passes (missing / rule 1 block)
+- [ ] T021 [P] Finalize core verification (T6–T10): confirm `declared_capabilities()` unconditional; `format_check.rs` delegates to `engine_core::format::check_handoff`; `failure.rs` re-exports correct 7-member set; `reg.rs` records `OfflineDefault`; no phantom `format()`/`fail()`/`trait_` methods; `chunk.rs` split correct (partial — different agent from T018–T020 test writer per rule 2)
+- [ ] T022 [P] Execute `cargo nextest run --workspace`; confirm prop_chunk / prop_declare / prop_format all pass after F1/F2 fixes (partial / V1 — verification only, not self-attested)
+- [ ] T023 [P] Run `cargo fmt --check`; `cargo clippy --workspace -- -D warnings`; `cargo deny check advisories licenses bans sources`; verify adapter `Cargo.toml` declares `[lints] workspace = true`; no suppressions added (partial / V2 — verification only)
+- [ ] T024 [P] Confirm V3 checklists (adapter-interface.md, mechanism-gate.md, requirements.md, segment-resume.md, audio-safety.md) all verified [x]; byte-budget ≤5000 verified; SC-051 preserved continuously (`offline_default` registered, standins not selectable per `001/spec.md:89` / `closed.rs:305-312`); bad Markdown = document-layer only (no `diag` `parse` kind at v1); declare `AlignmentGranularity::None`; no `AdapterFailed`; document no new authority (partial / V3 — verification only; final attestation)

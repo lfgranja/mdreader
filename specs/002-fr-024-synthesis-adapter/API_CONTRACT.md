@@ -142,6 +142,63 @@ impl DocumentSegment {
 11. **`resume_point`** is `Some(source_range)` — the completed boundary at-or-before the yield point when the yield point falls inside this segment (`R6`; `CLARIFICATION_BATCH.md` C1-A: last boundary **at or before**, never after, never mid-sentence).
 12. **`document_hash`** is *not* stored on the segment: the `blake3` document fingerprint is owned by `session` (`spec.md` Assumption 5; R5). It is carried on the split call so callers can bind segments to a document identity, and is deliberately not duplicated into adapter state. **Every call site passes it explicitly** — there is no default.
 
+### 2.1a Recorded deviation from `spec.md`: line-scan segmentation (decision 2026-10-08)
+
+`spec.md:94-95` (FR-024 / FR-024a) describes resume alignment as *parser-side
+`pulldown-cmark` segmentation*. §2.1 rule 1 implements it as a **line scan**.
+This is a recorded deviation, not an oversight. Decision: keep the line scan,
+record the deviation, and drop the now-unconsumed parser dependency (T032).
+
+**Why.** The line scan is what §2.1 normatively specifies and what the frozen
+T019 tests assert; switching to `pulldown-cmark` would require revising both,
+and this contract is frozen ("no additions, no renames, no removals"). Rule 1's
+block model — a heading absorbs its following non-blank run, everything else is a
+paragraph — is sufficient for v1's declared `AlignmentGranularity::None`, because
+resume aligns to paragraph/heading boundaries and never to sentence boundaries
+(`spec.md` clarification 2026-10-06, C1-A; R6).
+
+**What it misclassifies.** Observed and pinned by
+`tests/prop_segmentation_shapes.rs` (task T033):
+
+| Construct | `boundary_kind` under rule 1 | Deviation |
+|---|---|---|
+| ATX heading (`# …` … `###### …`) | `Heading` | none — correct |
+| Setext heading (`Title` + `====` / `----`) | `Paragraph` | under-classified: rule 1 recognises ATX only |
+| `#` line inside a fenced code block | **`Heading`** | **over-classified**: the scan is not fence-aware, so a fenced comment is narrated as a heading block |
+| List item (`- item`, `1. item`) | `Paragraph` | under-classified: a list is narrated as one paragraph block |
+| Block quote (`> text`) | `Paragraph` | under-classified |
+
+None of these affects the byte budget (rule 5), losslessness (rule 6),
+determinism (rule 7) or resume correctness (rules 10-11) — resume snaps to a
+completed block boundary either way. They affect only the `boundary_kind` label
+and where narration blocks split. Sentence-level resume is deferred to v2
+regardless, so the v1 user-visible promise (paragraph/heading resume) holds.
+
+**Escalation path.** A future feature needing fence-aware, setext-aware or
+list-aware segmentation — or sentence-level resume — must adopt `pulldown-cmark`
+and revise §2.1 rule 1 and the frozen tests together. That is a coordinated edit
+to this contract, not a local change.
+
+### 2.1b Precondition on `max_bytes` (budget floor)
+
+Rule 5 (the budget is a hard bound) and rule 6 (losslessness) are **jointly
+unsatisfiable when `max_bytes` is below the maximum UTF-8 character width (4
+bytes)**. For multi-byte content at such a budget: emitting the character whole
+satisfies losslessness and violates the bound; emitting nothing violates
+losslessness; splitting the character yields invalid UTF-8.
+
+The bound is therefore a **precondition holding from `max_bytes >= 4` upward**.
+Below the floor, rule 6 wins — the character is emitted whole, keeping the
+content valid UTF-8 and lossless, exceeding the budget only where no char-safe
+cut exists. The floor is pinned by
+`budget_floor_at_max_utf8_char_width_keeps_bound_and_losslessness` in
+`tests/prop_chunk_refined.rs`, and both property generators draw budgets from
+`4..=MAX_CHUNK_BYTES`.
+
+`split_document` is unaffected: it always uses `MAX_CHUNK_BYTES` (5 000). The
+floor concerns only `split_document_within`, which exists so property tests can
+exercise small budgets.
+
 ### 2.2 `SourceRange` helpers
 
 ```rust

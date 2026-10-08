@@ -3,7 +3,8 @@
 use crate::{AdapterCapabilities, AlignmentGranularity, SsmlLevel};
 
 /// Unconditional (None, None) declaration.
-pub fn capabilities() -> AdapterCapabilities {
+#[must_use]
+pub const fn capabilities() -> AdapterCapabilities {
     AdapterCapabilities {
         ssml_level: SsmlLevel::None,
         alignment_granularity: AlignmentGranularity::None,

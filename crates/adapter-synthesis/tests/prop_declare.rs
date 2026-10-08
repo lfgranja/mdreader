@@ -2,9 +2,17 @@
 // Implementation reserved for T6 (different agent from this test writer).
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SsmlLevel { None, Partial, Full }
+pub enum SsmlLevel {
+    None,
+    Partial,
+    Full,
+}
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AlignmentGranularity { None, Word, Sentence }
+pub enum AlignmentGranularity {
+    None,
+    Word,
+    Sentence,
+}
 
 pub struct AdapterCapabilities {
     pub ssml_level: SsmlLevel,

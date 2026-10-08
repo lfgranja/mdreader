@@ -1,6 +1,6 @@
 //! Capability declaration — unconditional; Option A v1.
 //! Matches adapter-capabilities.md §2.1 / spec.md:97.
-use crate::{AdapterCapabilities, SsmlLevel, AlignmentGranularity};
+use crate::{AdapterCapabilities, AlignmentGranularity, SsmlLevel};
 
 /// Unconditional (None, None) declaration.
 pub fn capabilities() -> AdapterCapabilities {

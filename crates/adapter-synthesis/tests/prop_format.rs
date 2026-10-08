@@ -12,7 +12,11 @@ pub enum EngineError {
     ReservationFailed,
 }
 
-pub fn verify_format(sample_rate: u32, channels: u16, sample_format: &str) -> Result<(), EngineError> {
+pub fn verify_format(
+    sample_rate: u32,
+    channels: u16,
+    sample_format: &str,
+) -> Result<(), EngineError> {
     if sample_rate != 22050 || channels != 1 || sample_format != "f32" {
         return Err(EngineError::FormatMismatch);
     }
@@ -29,10 +33,16 @@ mod prop_tests {
     }
     #[test]
     fn wrong_rate_named_error() {
-        assert_eq!(verify_format(44100, 1, "f32"), Err(EngineError::FormatMismatch));
+        assert_eq!(
+            verify_format(44100, 1, "f32"),
+            Err(EngineError::FormatMismatch)
+        );
     }
     #[test]
     fn stereo_named_error() {
-        assert_eq!(verify_format(22050, 2, "f32"), Err(EngineError::FormatMismatch));
+        assert_eq!(
+            verify_format(22050, 2, "f32"),
+            Err(EngineError::FormatMismatch)
+        );
     }
 }

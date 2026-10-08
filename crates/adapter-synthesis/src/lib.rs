@@ -2,11 +2,11 @@
 //! Declares capabilities against existing engine-core shapes (format.rs / closed.rs);
 //! does NOT invent phantom trait methods (T016 not yet built — Assumption 3 corrected).
 
-pub mod chunk;
-pub mod synth;
-pub mod format_check;
-pub mod failure;
 pub mod capabilities;
+pub mod chunk;
+pub mod failure;
+pub mod format_check;
+pub mod synth;
 
 /// Closed-set declaration (constitution §Closed Sets VII; no Other/Unknown).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

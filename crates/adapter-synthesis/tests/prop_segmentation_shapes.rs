@@ -736,12 +736,45 @@ proptest! {
 /// block (blank-run separation). Blocks are joined with
 /// blank lines.
 ///
-/// Every block stays far below `MAX_CHUNK_BYTES` (at most
-/// ~160 bytes), so the default-budget property is never
-/// vacuous — up to 48 blocks routinely exceed 5000 bytes
-/// in total — yet no block is ever hard-split at the
-/// default budget, which keeps exact non-blank-line
-/// losslessness provable.
+/// What this generator is for: exercising every Markdown
+/// construct above against the §2.1 rule 1 line scan
+/// (setext headings, list runs and block quotes classify
+/// `Paragraph`; a `#` line inside a fence opens a
+/// `Heading` block) and re-asserting the universal §2.1
+/// invariants over that mix — the byte budget,
+/// `byte_length()` as the content's UTF-8 byte count,
+/// consecutive 0-based `segment_index`, 1-based
+/// non-overlapping `source_range`,
+/// `resume_point == Some(source_range)`, determinism,
+/// `document_hash` never stored, losslessness over
+/// non-blank lines, and the closed two-member
+/// `boundary_kind` set.
+///
+/// Size distribution, measured (a throwaway harness
+/// outside the repository, an exact replica of this
+/// strategy; stable across a second, differently-seeded
+/// run): over 200 000 draws, documents run 0–2 688
+/// bytes — median ~950, p90 ~1 750, mean ~960, mean
+/// 24 blocks — and not one draw reached `MAX_CHUNK_BYTES`
+/// (the theoretical maximum, ~8 900 bytes, needs
+/// near-maximal blocks in every one of up to 48 slots).
+/// At the default budget this file therefore asserts the
+/// byte bound without stressing it; the byte-budget
+/// property's non-vacuity is carried primarily by
+/// `tests/prop_chunk.rs` (documents over 5 000 bytes in
+/// ~74% of draws, median ~9 300) and
+/// `tests/prop_chunk_refined.rs` (12 000-byte ASCII and
+/// 24 000-byte multi-byte fixtures), not by this file.
+///
+/// The largest block any draw produces is ~160 bytes
+/// (theoretical maximum ~183: a fenced block of four
+/// maximum-length prefixed lines), so no block is ever
+/// hard-split at the default budget — which is what keeps
+/// exact, whitespace-preserving non-blank-line
+/// losslessness provable for this generator. The
+/// hard-split path is still exercised in this file by the
+/// random-budget property below, whose budgets start at
+/// 4 bytes.
 #[must_use]
 fn mixed_document_strategy() -> impl Strategy<Value = String> {
     // An ATX heading block: 1–6 `#`, a space, a title,

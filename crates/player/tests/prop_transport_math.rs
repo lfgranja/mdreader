@@ -62,11 +62,11 @@
 //!   `0.0`), `rewind_for_silence(&mut self, paused_duration_secs:
 //!   f64) -> f64` (moves the cursor back from the yield by exactly
 //!   `min(REWIND_FRACTION × d, REWIND_CAP_SECS)`, clamped at `0.0`,
-//!   and remembers the yield for the cap), and `snap_to_sentence_start(
-//!   &mut self, boundaries: &[f64]) -> f64` (the greatest sentence
-//!   boundary at or before the cursor, never earlier than the
-//!   `REWIND_CAP_SECS` cap point — the cap takes precedence over the
-//!   zero-mid-word rule, FR-015).
+//!   and remembers the yield for the cap), and `snap_to_boundary(
+//!   &self, boundaries: &[f64]) -> f64` (the greatest boundary at or
+//!   before the cursor, never earlier than the `REWIND_CAP_SECS` cap
+//!   point — the cap takes precedence over the zero-mid-word rule,
+//!   FR-015).
 //! - `player::cli::PlaybackSession` — the single dispatch every
 //!   surface routes through (FR-042): `new() -> Self` (position
 //!   `0.0`, rate `R1_0` per FR-019b, transport `Paused`),
@@ -409,7 +409,7 @@ proptest! {
         // at the cap point instead (the cap takes precedence).
         let mut clock = PositionClock::new(yield_position);
         let cursor = clock.rewind_for_silence(paused_duration);
-        let resumed = clock.snap_to_sentence_start(&boundaries);
+        let resumed = clock.snap_to_boundary(&boundaries);
         let cap_point = (yield_position - REWIND_CAP_SECS).max(0.0);
         prop_assert!(
             resumed <= cursor,
@@ -621,7 +621,10 @@ fn ladder_index(rate: PlaybackRate) -> usize {
         PlaybackRate::R2_0,
         PlaybackRate::R4_0,
     ];
-    LADDER.iter().position(|candidate| *candidate == rate).unwrap_or(0)
+    LADDER
+        .iter()
+        .position(|candidate| *candidate == rate)
+        .unwrap_or(0)
 }
 
 /// The one-step-up neighbor on the closed ladder, saturating at

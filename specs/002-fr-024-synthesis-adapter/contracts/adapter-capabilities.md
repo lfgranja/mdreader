@@ -102,7 +102,8 @@ The adapter uses only `offline_default`; therefore `SsmlLevel::None` is correct 
 
 **Player branch behavior when `None`**:
 - Resume aligns to nearest completed paragraph/heading boundary (`FR-024`; `spec.md:59`; `FR-015`).
-- `snap_to_sentence_start` deferred to v2.
+- Sentence-level resume deferred to v2 (`AlignmentGranularity::Sentence` is unused in v1).
+- **Rename decision (2026-10-09, accepted; supersedes the open request at `CLARIFICATION_BATCH_DECISION_2026-10-08.md:44`)**: the `player` function formerly named `snap_to_sentence_start` (`crates/player/src/position.rs`) is renamed to the boundary-kind-agnostic `snap_to_boundary(boundaries: &[f64])`. Rationale: `BoundaryKind` has no `Sentence` member in v1 (`API_CONTRACT.md` §2.1), so a function named after one deferred member hard-codes a closed-set member as if it were the only one; no sentence semantics remain in its signature or body. **No constitution amendment and no Exceptions Log entry**: the rename implements the C1-A deferral already approved in `CLARIFICATION_BATCH_RESOLVED.md:13`, so no principle changes and no deviation is retained.
 - Source-range mapping at node granularity (paragraph / heading), not word / sentence.
 - Degradation from `Sentence` (desired) to `None` (actual) is **observable** — `player` knows from declaration; user sees resume at coarser boundary; never silent (Principle VI).
 
@@ -117,7 +118,7 @@ The adapter uses only `offline_default`; therefore `SsmlLevel::None` is correct 
 | Declared value | Player action |
 |---|---|
 | `SsmlLevel::None` | No SSML rendering path; direct text-to-audio; no `<break>` / `<prosody>` / `<emphasis>` / embedded markup — adapter passes Markdown-derived raw text only; any embedded markup is document-layer error (not `EngineError`). Bad Markdown / unparseable segment: document-layer only (`pulldown-cmark` unreachable in v1; `grep` workspace `Cargo.toml` → 0); reserve `document_unparseable` on existing `failure`/`refusal` for `FR-044` coordinated edit — never new `diag` `kind`. |
-| `AlignmentGranularity::None` | Resume snap to `Paragraph` / `Heading`; `snap_to_sentence_start` not called; bookmark at segment index (`redb`) |
+| `AlignmentGranularity::None` | Resume snap to `Paragraph` / `Heading`; `snap_to_boundary` used (the v1 path); bookmark keyed by `blake3` document fingerprint, value = playback offset (`redb`); `segment_index` is not a bookmark key or field |
 
 **Constraint**: `player` must branch explicitly on declared value; must not silently fall back to `Sentence` or `Full` if adapter declares `None`. Silent inference = violation of Principle VI (.degradation must be observable) and `FR-024c`.
 

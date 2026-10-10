@@ -23,7 +23,11 @@ error: missing documentation for …               (×1)
 error: unused result of type `std::option::Option<AccessGuard<'_, (f64, u64, u32, u8)>>`
                                                     crates/session/src/lib.rs:54:9  `table.remove(fp)?;`
 ```
+**Note (2026-10-09, C1-A):** historical snapshot — the error text above is preserved byte-for-byte as the compiler emitted it at commit `4993f5c`; the bookmark tuple is now `(f64, u64, u8)` because the C1-A v1 ruling removed the `sentence_idx` member (`u32`) from the bookmark value (coordinated edit recorded in the note below), so the snapshot's `(f64, u64, u32, u8)` is stale, not current state.
+
 Workspace denies `missing_docs` and `unused_results` (`Cargo.toml:16-21`). `crates/session` is the `redb` bookmark store — FR-024 **must not modify it** (`spec.md` Assumption 5; API_CONTRACT §10).
+
+**Note (2026-10-09, C1-A):** the v1 ruling of clarification C1-A (`CLARIFICATION_BATCH_RESOLVED.md:13` — resume snaps to the nearest completed paragraph/heading boundary at or before the yield point; sentence-level resume is deferred to v2) required a one-time coordinated edit (closed as T050 in `tasks.md`, 2026-10-09) to `crates/session` (`sentence_idx` removed from the bookmark value; `lib.rs:9` now `TableDefinition<&[u8; 32], (f64, u64, u8)>`) together with 001's `data-model.md`, `contracts/storage-schema.md` and `tasks.md`; the constraint above otherwise stands. A Sync Impact Report under the constitution's Amendment Procedure (`constitution.md` §Governance) is owed for this ruling but has not been written — the orchestrator must decide that separately.
 
 ### 2. `crates/diag` — 2 test targets fail to compile
 

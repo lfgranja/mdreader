@@ -25,7 +25,7 @@ restrictions."
 - Q: What text should the lock-screen notification display about the document being read? → A: The document title and the title of the section currently being read; no document body text. This answer supersedes both earlier answers on this question ("title only" and "title plus a teleprompter of the spoken text")
 - Q: When the system kills the foreground service under memory pressure, what should the user see when they next open the app? → A: Show a paused state at the last spoken position with an explicit resume control; never auto-resume
 - Q: What format and sample rate should the audio engine hand to playback, and who decides it? → A: Engine emits mono f32 already resampled to a fixed rate the shell declares; the shell only converts to the device format
-- Q: What should happen to the playback position while another app holds audio focus transiently and the document is ducked? → A: Rewind 5% of the paused duration on resume, capped at 30 seconds, so a half-cut sentence is picked up without replaying far back. **Narrowed later in this session:** the 5% is how far the cursor moves, and the audio then restarts from the start of the sentence the cursor lands in; see the later entry on the rewind
+- Q: What should happen to the playback position while another app holds audio focus transiently and the document is ducked? → A: Rewind 5% of the paused duration on resume, capped at 30 seconds, so a half-cut sentence is picked up without replaying far back. **Narrowed later in this session:** the 5% is how far the cursor moves, and the audio then restarts from the start of the nearest completed paragraph/heading boundary at or before the yield point (sentence-level resume is deferred to v2); see the later entry on the rewind
 - Q: When the user taps skip-forward or skip-backward from the lock screen, what should the reader jump to? → A: Fixed 5-second increments: +5s forward, -5s back, measured against the current playback position and independent of document structure
 - Q: When the user presses Play from the lock screen while the background service is not running, how should playback be started given Android's rules about starting services from the background? → A: Keep a lightweight always-resident component so play can start immediately; if even that component has been killed, state the reason and require one app open
 - Q: When the user changes the playback rate, should the audio keep its current pitch and voice character, or should a faster rate sound higher-pitched? → A: Preserve pitch and voice character; faster speech sounds quicker, not higher, because intelligibility under noise is the point of rate control in a car
@@ -138,9 +138,10 @@ confirm the volume and transport-state response differs correctly in each case.
 2. **Given** a document is reading aloud, **When** another app requests audio focus
    permanently, **Then** playback pauses and does not resume on its own
 3. **Given** focus was lost transiently, **When** it is regained, **Then** playback resumes
-   from the start of the sentence containing the point 5% of the paused duration back from
-   where it yielded, capped at 30 seconds in total, so the listener hears the thought that was
-   cut off rather than resuming mid-word
+   from the start of the nearest completed paragraph/heading boundary at or before
+   the yield point, after the reading cursor moves back 5% of the paused duration,
+   capped at 30 seconds in total, so the listener hears the thought that was cut off
+   rather than resuming mid-word
 4. **Given** a document is reading aloud, **When** an interrupting app demands that other
    audio stop, such as a phone call or an alarm, **Then** playback pauses rather than ducks,
    and the same pause reason is stated as for a permanent loss (FR-013a)
@@ -276,13 +277,14 @@ message rather than reporting normal playback.
 - The user presses play rapidly several times. Each press must be honoured or explicitly
   rejected; the app must not enter a state where it reports "playing" while producing no
   audio.
-- Audio focus is lost and regained within the same sentence. Playback must resume at the
-  rewind position defined in FR-015, which is what recovers the words the interruption
-  covered, not the beginning of the sentence (FR-015).
+- Audio focus is lost and regained within the same paragraph/heading. Playback must resume at the
+  rewind position defined in FR-015 (nearest completed paragraph/heading boundary containing
+  the 5%-back point; sentence-level deferred to v2), which is what recovers the words the
+  interruption covered, not the beginning of the paragraph (FR-015, FR-024a).
 - A pause lasts long enough for the 5% rewind to reach its 30-second cap. The rewind MUST
-  saturate at the cap rather than continuing to grow, the sentence snap MUST NOT push the resume
-  further back than the cap even where the sentence containing the cursor is longer than 30
-  seconds, and a paused session left
+  saturate at the cap rather than continuing to grow, the paragraph/heading-boundary snap
+  MUST NOT push the resume further back than the cap even where the paragraph/heading
+  containing the 5%-back point is longer than 30 seconds, and a paused session left
   indefinitely MUST NOT accumulate pre-roll audio beyond the 60-second bound of FR-015a
   (FR-015, FR-015a). A paused session left indefinitely MUST also prepare no audio at all, so
   the buffer drains to empty on becoming idle rather than sitting at its 60-second bound, and
@@ -598,21 +600,25 @@ derived requirement exists only as prose.
 - **FR-015**: After a transient silence-paused loss under FR-013a and recovery (ducked playback under FR-013 excluded — it never leaves `Playing`, accumulates no paused duration, and owes no rewind), playback MUST resume from a rewind of 5% of
   the paused duration, capped at 30 seconds, measured back from the position at which playback
   yielded. That proportional figure is where the reading cursor moves back to; the position the
-  audio actually resumes from is the start of the sentence containing that cursor position, so
-  the resume lands on a sentence boundary rather than part-way through a word. Total backward
+  audio actually resumes from is the start of the nearest completed paragraph/heading boundary
+  at or before the yield point (this is the `AlignmentGranularity::None` v1 behaviour per
+  clarification C1-A and `CLARIFICATION_BATCH_RESOLVED.md:13`; sentence-level resume is
+  explicitly deferred to v2), so the resume lands on a structural boundary rather than
+  part-way through a word. Total backward
   movement from the yield point MUST NOT exceed 30 seconds under any pause length: where the
-  sentence containing the cursor begins earlier than that, the resume lands at the point 30
-  seconds before the yield instead. Where that cap point falls part-way through a word, it snaps forward to the start of the nearest following inter-word gap, except where that gap lies beyond the 30-second cap point, in which case the resume lands exactly at the cap point; the 30-second cap is a hard ceiling that no snap may exceed, so the cap and the zero-mid-word guarantee hold together with the cap taking precedence. Both parts are load-bearing and neither replaces the other.
+  nearest completed paragraph/heading boundary at or before the yield point begins earlier
+  than that, the resume lands at the point 30 seconds before the yield instead. Where that cap point falls part-way through a word, it snaps forward to the start of the nearest following inter-word gap, except where that gap lies beyond the 30-second cap point, in which case the resume lands exactly at the cap point; the 30-second cap is a hard ceiling that no snap may exceed, so the cap and the zero-mid-word guarantee hold together with the cap taking precedence. Both parts are load-bearing and neither replaces the other.
   The proportional term scales how much context is replayed with the length of the interruption,
-  so a short navigation duck replays little and a long interruption replays more; the sentence
-  snap is what makes that replay intelligible rather than starting inside a word, which is the
+  so a short navigation duck replays little and a long interruption replays more; the paragraph/heading snap
+  is what makes that replay intelligible rather than starting inside a word, which is the
   same defect FR-038 prohibits across a voice change; and the cap bounds the result, so neither a
-  long pause nor a sentence longer than the cap can send the reader further back than 30 seconds
-  (FR-015a, FR-015c). Where the active engine declares no sentence or node boundary granularity,
-  the snap degrades to the raw cursor position — declared and observable, never to the document
-  start — because a parser-estimated sentence start has no audio timing behind it. Verification
+  long pause nor a paragraph/heading section longer than the cap can send the reader further back than 30 seconds
+  (FR-015a, FR-015c). Where the active engine declares no sentence or node boundary granularity
+  (`AlignmentGranularity::None`, the v1 case per `002/spec.md:94-95`), the degradation branch
+  never fires: the paragraph/heading snap always applies, and the raw cursor is reserved for the
+  document-layer / unparseable case only, never degrading to the document start. Verification
   uses synthetic audio with known inter-word gaps: the resume MUST land in a gap, never in an
-  energy peak. Where a transient loss is superseded by a permanent loss before any regain, the rewind clock MUST NOT reset at the supersede point: paused duration is the continuous non-advancing interval from the first yield to the eventual manual resume, and the 5%-capped-at-30s plus sentence-snap plus hard-cap rule applies unchanged against that cumulative duration
+  energy peak. Where a transient loss is superseded by a permanent loss before any regain, the rewind clock MUST NOT reset at the supersede point: paused duration is the continuous non-advancing interval from the first yield to the eventual manual resume, and the 5%-capped-at-30s plus paragraph/heading-snap plus hard-cap rule applies unchanged against that cumulative duration
 - **FR-015a**: Once the reader has acted to hear audio — a Play or resume press, or playback
   beginning — the system MUST continue preparing audio ahead of the playback point without
   playing it. This pre-roll buffering MUST NOT
@@ -782,7 +788,7 @@ derived requirement exists only as prose.
   because every failure then resolves to a path the reader could have been told about in
   advance rather than to whichever engine happened to be installed next on the device
   (FR-023a, FR-023b)
-- Q: After a transient interruption, should the resume rewind land on a sentence boundary rather than at 5% of the paused duration? → A: Both, in that order. The 5% of the paused duration is how far back the reading cursor moves, capped at 30 seconds; the audio then restarts from the beginning of the sentence the cursor now sits in. Total backward movement never exceeds 30 seconds whatever the pause length
+- Q: After a transient interruption, should the resume rewind land on a sentence boundary rather than at 5% of the paused duration? → A: Both, in that order. The 5% of the paused duration is how far back the reading cursor moves, capped at 30 seconds; the audio then restarts from the start of the nearest completed paragraph/heading boundary at or before the yield point (sentence-level resume is deferred to v2). Total backward movement never exceeds 30 seconds whatever the pause length
 - **FR-023b**: Verification of engine recovery MUST be performed on a device carrying at least
   two working engines, one offline and one cloud, so that a real engine stops and a real engine
   takes over on real hardware rather than only against a stub. A single-engine device is not an
@@ -1282,12 +1288,12 @@ derived requirement exists only as prose.
   (FR-016, FR-016a)
 - **SC-003**: In 10 out of 10 trials, a permitted interruption reduces playback gain to 15–25%
   of its normal level without stopping the document, transport stays `Playing` with monotonically advancing `position_secs` and zero rewind owed, and full volume returns when focus is
-  regained — measured against synthetic audio with known inter-word gaps (FR-013). The 5%-capped-at-30s sentence-snap resume rule (FR-015) applies only to silence-paused transient loss and is asserted under SC-041, where the resume MUST land in a gap and never in an energy peak
+  regained — measured against synthetic audio with known inter-word gaps (FR-013). The 5%-capped-at-30s paragraph/heading-snap resume rule (FR-015) applies only to silence-paused transient loss and is asserted under SC-041, where the resume MUST land in a gap and never in an energy peak
 - **SC-041**: In 10 out of 10 trials, an interruption that demands silence — a phone call, an
   alarm — pauses playback rather than ducking it, produces no audible document audio for the
   duration of the interruption, and states the same reason a permanent loss states; and in 10
   out of 10 trials an interruption that merely permits reduced audio still ducks instead of
-  pausing, so the two signals produce different outcomes (FR-013a). In 10 out of 10 silence-paused transient trials, resume lands at the start of the sentence containing the point 5% of the paused duration back from the yield, total repetition ≤30 s, zero mid-word landings (FR-015).
+  pausing, so the two signals produce different outcomes (FR-013a). In 10 out of 10 silence-paused transient trials, resume lands at the start of the nearest completed paragraph/heading boundary at or before the yield point, with the cursor first moving back 5% of the paused duration capped at 30 s, total repetition ≤30 s, zero mid-word landings (FR-015).
 - **SC-055**: In 10 out of 10 trials where a focus request is answered with a deferred grant,
   the document produces no audio at all until the grant arrives and then plays from the point
   it would otherwise have played from, with no rewind applied and no pause reason shown; and in

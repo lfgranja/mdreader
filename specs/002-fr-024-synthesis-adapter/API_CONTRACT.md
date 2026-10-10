@@ -401,8 +401,14 @@ pub struct EngineFailure {
     pub condition: FailureCondition,
     /// Identifier-pattern detail only (e.g. `delivered_rate=24000`). Never document text.
     pub observed: String,
-    /// Echo of the last delivered segment's `source_range` — derived from
-    /// `DocumentSegment`, never adapter-computed (`segment-resume.md` CHK030).
+    /// Echo of the segment's `resume_point` (falling back to its
+    /// `source_range` when none is declared — `chunk.rs` always emits
+    /// `Some(source_range)`) — derived from `DocumentSegment`, never
+    /// adapter-computed; a failure before any delivery echoes the
+    /// segment in synthesis (`player` MUST NOT treat the echo as
+    /// playback authority; it derives resume position from its own
+    /// delivered-chunk log — `constitution.md:82-86`). Closed per
+    /// `checklists/segment-resume.md` CHK030.
     pub session_position: SourceRange,
     /// `<= MAX_OFFER_MS`.
     pub offer_expires_in_ms: u32,
@@ -587,6 +593,6 @@ re-declares `EngineError`, `SsmlLevel`, `AdapterCapabilities` or its own
 
 - `AudioChunk` / `DocumentSegment`-to-player delivery structs — delivery is the integration stage's contract (`003-contract-edit`); the byte budget and boundary invariant are what this feature discharges.
 - `T016` engine trait, `trait_.rs`, any marker trait.
-- `snap_to_sentence_start`, sentence-level alignment, `BoundaryKind::Sentence`.
+- `snap_to_boundary` (in scope at v1 — the boundary-kind-agnostic snap; not deferred), sentence-level alignment, `BoundaryKind::Sentence`.
 - `SC-044` active fallback switch, consent acquisition surface, cloud tiers, Edge fallback, a second voice.
 - Any change to `crates/player`, `crates/session`, `crates/diag`, `crates/engine-core`, `deny.toml`, or the constitution.

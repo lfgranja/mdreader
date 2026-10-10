@@ -51,7 +51,10 @@ pub struct PositionClock {
 impl PositionClock {
     /// Create a new clock initialised at `start_secs`, clamped to the
     /// declared floor of 0.0 (data-model `PlaybackPosition: f64 ≥ 0`).
-    #[expect(clippy::cast_possible_truncation, reason = "input is f64; clamped to floor")]
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "input is f64; clamped to floor"
+    )]
     pub fn new(start_secs: f64) -> Self {
         let position_secs = start_secs.max(0.0);
         Self {
@@ -82,10 +85,7 @@ impl PositionClock {
     /// Returns the new position, or [`PlayerError::NegativeProgress`] when
     /// the caller supplies a negative elapsed value.
     #[instrument(skip(self))]
-    pub fn on_audible_progress(
-        &mut self,
-        elapsed_secs: f64,
-    ) -> Result<f64, PlayerError> {
+    pub fn on_audible_progress(&mut self, elapsed_secs: f64) -> Result<f64, PlayerError> {
         if elapsed_secs < 0.0 {
             return Err(PlayerError::NegativeProgress(elapsed_secs));
         }
@@ -138,10 +138,11 @@ impl PositionClock {
         self.position_secs
     }
 
-    /// Snap to the start of the sentence containing the cursor: the
-    /// greatest boundary in `boundaries` at or before the cursor. The
-    /// snap never lands earlier than the cap point — the cap takes
-    /// precedence over the zero-mid-word rule (FR-015).
+    /// Snap to the start of the nearest completed boundary at or
+    /// before the cursor: the greatest boundary in `boundaries` at
+    /// or before the cursor. The snap never lands earlier than the
+    /// cap point — the cap takes precedence over the zero-mid-word
+    /// rule (FR-015).
     ///
     /// Returns the snapped position.
     #[expect(
@@ -171,8 +172,8 @@ impl PositionClock {
                 cap_point
             }
             None => {
-                // No sentence boundary found — land at cap point (never
-                // earlier than the cap).
+                // No boundary found — land at cap point (never earlier
+                // than the cap).
                 cap_point
             }
         }

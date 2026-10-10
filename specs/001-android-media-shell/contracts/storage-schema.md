@@ -5,12 +5,10 @@ FR-004/FR-015/FR-019b/FR-030–FR-032 series/FR-036/FR-036a.
 ## Tables
 
 - `bookmarks`: key `[u8; 32]` (blake3-256 of document bytes) → value
-  `{ offset_secs: f64, first_yield_ms: u64, sentence_idx: u32, end_kind: SessionEnd }`.
+  `{ offset_secs: f64, first_yield_ms: u64, end_kind: SessionEnd }`.
   `end_kind` ∈ `{paused, interrupted}` for retained entries (`stopped|completed` delete the entry per FR-032/FR-032b); `paused` ⇒ FR-032c deliberate offer, `interrupted` ⇒ FR-032d explicit-resume.
   `first_yield_ms` = start of the continuous non-advancing interval (FR-015 supersede
   clock, never reset at supersede; the record carries the `supersedes_ts_ms` link).
-  `sentence_idx` = snap hint only; node-boundary re-anchor (FR-038) resolves via document
-  structure at resume, not from store.
 - `settings`: key `str` → bytes. Required key: `"last_rate"` ∈
   `{0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 4.0}`, default `1.0` on first use.
 

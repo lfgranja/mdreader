@@ -39,7 +39,6 @@ replay after kill ≤30 s (FR-004).
 | key `fingerprint` | `[u8; 32]` | blake3 of document bytes |
 | `offset_secs` | `f64` | last spoken position |
 | `first_yield_ms` | `u64` unix-ms | start of continuous non-advancing interval; basis for 5%-of-pause rewind (FR-015), never reset at supersede |
-| `sentence_idx` | `u32` | snap hint only; node re-anchor (FR-038) resolves via document structure at resume |
 | `end_kind` | `SessionEnd` | `paused` ⇒ FR-032c deliberate offer, `interrupted` ⇒ FR-032d explicit-resume; `stopped\|completed` delete the entry |
 
 Cleared only by Stop or document end. Unreachable hash (edited content) ⇒ no offer.
@@ -70,8 +69,9 @@ engine time-stretch op (FR-043); pitch/voice invariant across all rungs incl. 2.
 Classified by the interrupter's request: `DuckableTransient` (→ volume ~20%, keep
 reading, FR-013; never leaves `Playing`, accumulates no paused duration, owes no rewind), `SilenceDemanding` call/alarm (→ pause + FR-041 reason, FR-013a),
 `PermanentLoss` (→ pause, no auto-resume, FR-014). Carries `paused_duration` for FR-015
-rewind on `SilenceDemanding` only: cursor back `min(5% × duration, 30 s)`; audio from that sentence start; total
-backward movement ≤30 s even for long sentences.
+rewind on `SilenceDemanding` only: cursor back `min(5% × duration, 30 s)`; audio from the nearest completed
+paragraph/heading boundary at or before the yield point (sentence-level resume deferred to v2); total
+backward movement ≤30 s even for long paragraphs/heading sections.
 
 ## PauseReason vs EngineFailure (disjoint, FR-037a)
 

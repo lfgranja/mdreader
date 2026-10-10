@@ -5,8 +5,8 @@ use blake3::Hasher;
 use redb::{Database, TableDefinition};
 use std::path::Path;
 
-/// Bookmarks table: fingerprint → offset, paused-at, sentence_idx, end_kind (FR-044).
-pub const BOOKMARKS: TableDefinition<&[u8; 32], (f64, u64, u32, u8)> = TableDefinition::new("bookmarks");
+/// Bookmarks table: fingerprint → offset, paused-at, end_kind (FR-044).
+pub const BOOKMARKS: TableDefinition<&[u8; 32], (f64, u64, u8)> = TableDefinition::new("bookmarks");
 
 /// Fingerprint: blake3-256 of document bytes (FR-036 / FR-038).
 /// Same bytes → same 32-byte hash regardless of path; 1-bit change → different hash.

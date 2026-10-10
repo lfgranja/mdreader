@@ -70,7 +70,10 @@ const PROGRAM_NAME: &str = "adapter-synthesis";
 ///   `delivery-check` names a closed-set [`EngineError`]
 ///   deviation.
 /// * [`CliError::Synthesis`] when `synthesize` fails
-///   closed (the design-phase voice model is unbound).
+///   closed: a voice-load, engine-process-death,
+///   interior-NUL, or delivery-rate condition is
+///   named in the reported [`EngineFailure`], never
+///   an empty buffer.
 /// * [`CliError::Io`] when reading the document (stdin or
 ///   `--input`) or writing a stream fails.
 /// * [`CliError::Rendering`] when a machine-readable
@@ -144,9 +147,11 @@ pub enum CliError {
     /// (FR-024b; SC-035).
     #[error("verification failed: {0:?}")]
     Verification(EngineError),
-    /// Synthesis failed closed: the design-phase voice
-    /// model is unbound, so the named failure is reported
-    /// instead of an empty buffer (R2/R7; SC-035).
+    /// Synthesis failed closed: the embedded voice
+    /// model is bound, so only a named failure — a
+    /// voice-load, engine-process-death, interior-NUL,
+    /// or delivery-rate condition — is reported,
+    /// never an empty buffer (R2/R7; SC-035).
     #[error("synthesis failed closed: {0:?}")]
     Synthesis(EngineFailure),
     /// Reading the document (stdin or `--input`) or writing
@@ -254,8 +259,11 @@ enum Command {
         #[arg(long)]
         duration_ms: f64,
     },
-    /// Synthesize a document to PCM (`synthesize`), failing
-    /// closed while the voice model is unbound.
+    /// Synthesize a document to PCM (`synthesize`) with
+    /// the embedded Piper pt-BR `faber` voice — real
+    /// mono-`f32` at 22 050 Hz — failing closed on a
+    /// voice-load, engine-process-death, interior-NUL,
+    /// or delivery-rate condition.
     Synthesize {
         /// Read the document from this file instead of
         /// stdin.
@@ -401,12 +409,16 @@ fn verification_payload(
 /// synthesized from `document`, projected for the selected
 /// format.
 ///
-/// The design-phase `synthesize` fails closed on the first
-/// segment (the unbound voice model names
-/// `FailureCondition::VoiceInitFailure` →
-/// `EngineError::InitFailed`), so a success payload is
-/// reachable only for a document with no segments — or
-/// once a voice model is bound (`003-contract-edit`).
+/// `synthesize` runs on the embedded Piper pt-BR
+/// `faber` voice (T044): every segment synthesizes to
+/// real mono-`f32` PCM at 22 050 Hz, and the payload
+/// aggregates the sample count across segments. Any
+/// segment fails closed on a voice-load,
+/// engine-process-death, interior-NUL, or
+/// delivery-rate condition — the named
+/// [`EngineFailure`] is routed through the failure
+/// half of the protocol, never a silent empty buffer
+/// (R2/R7; SC-035).
 fn synthesize_payload(document: &str, format: OutputFormat) -> Result<String, CliError> {
     let segments = split_document(document, "");
     let mut pcm_samples: usize = 0;

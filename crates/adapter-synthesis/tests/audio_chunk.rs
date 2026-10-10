@@ -131,11 +131,15 @@
 //! Result<Vec<f32>, EngineFailure>` surface — the PCM
 //! buffer the T043 chunk wraps; its assertions transfer
 //! one-to-one to `AudioChunk.pcm_data` when the delivery
-//! unit lands. Today `synthesize` fails closed with a
-//! named `InitFailed` on every call while the voice model
-//! is unbound (`src/synth.rs:48-58`), so the test's
-//! `Err` arm fails — the required pre-implementation
-//! position (T042 blocks T043/T044). Every other test
+//! unit lands. Since T044 the engine is bound
+//! (`sherpa-onnx` 1.13.8 driving the embedded Piper
+//! pt-BR `faber` voice — API_CONTRACT.md §7, commit
+//! `ee95b2d`), so a well-formed segment synthesizes to a
+//! real, non-empty, mono-`f32` buffer at the declared
+//! 22 050 Hz and the test's `Ok` arm carries the real
+//! assertions (the design-phase pin — an unconditional
+//! `InitFailed` on every call while the voice model was
+//! unbound — does not survive binding). Every other test
 //! pins behaviour that is already implemented and
 //! observable through the current surface (the format
 //! gate, the duration derivation, the boundary echo, the
@@ -483,15 +487,19 @@ proptest! {
     /// duration derived from its own length (R1; R2;
     /// data-model E2).
     ///
-    /// This is the RED blocker: `synthesize` fails closed
-    /// with a named `InitFailed` while the voice model is
-    /// unbound (`src/synth.rs:48-58`), so the `Err` arm
-    /// below fails — the required pre-implementation
-    /// position (T042 blocks T043/T044). The arm's
-    /// predicate is a runtime value that is always false
-    /// (a named failure's offer never outlives
-    /// `MAX_OFFER_MS` — `EngineFailure::report` refuses
-    /// it), so the assertion stays live without tripping
+    /// Since T044 the engine is bound (`sherpa-onnx`
+    /// 1.13.8 driving the embedded Piper pt-BR `faber`
+    /// voice — API_CONTRACT.md §7, commit `ee95b2d`),
+    /// so the `Ok` arm below carries the real assertions
+    /// for a well-formed segment. The `Err` arm is the
+    /// guard: the bound engine failing closed on a
+    /// well-formed segment is the silent branch this
+    /// crate exists to prevent, so the test must fail
+    /// if it ever happens. The arm's predicate is a
+    /// runtime value that is always false (a named
+    /// failure's offer never outlives `MAX_OFFER_MS` —
+    /// `EngineFailure::report` refuses it), so the
+    /// assertion stays live without tripping
     /// `clippy::assertions_on_constants` — the same
     /// runtime-predicate idiom as `unit_failure.rs`'s
     /// `silent_success`. The named failure is still
@@ -613,7 +621,8 @@ proptest! {
 //    `source_range` exactly and is never adapter-computed;
 //    a failure's `session_position` echoes the segment's
 //    `resume_point` when present, else its `source_range`
-//    — the behaviour implemented at `src/synth.rs:48-58`.
+//    — the echo implemented at `src/synth.rs:311-317`
+//    (`named_failure` → `echoed_position`).
 // ---------------------------------------------------------------------------
 
 proptest! {
@@ -626,7 +635,9 @@ proptest! {
     /// `constitution.md:486-490`). The delivered chunk's
     /// `source_range_ref` echo is pinned by the delivery
     /// test above; this test pins the echo on the failure
-    /// path, the path the unbound model takes today.
+    /// path — the path a named-`EngineFailure` condition
+    /// takes (voice load, engine-process death, interior
+    /// NUL, or delivery-rate deviation).
     #[test]
     fn the_failure_session_position_echoes_the_segment_boundary(
         document in document_strategy(),

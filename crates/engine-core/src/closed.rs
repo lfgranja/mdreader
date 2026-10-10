@@ -193,6 +193,21 @@ pub enum TransportState {
     Interrupted,
 }
 
+impl std::fmt::Display for TransportState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // The wire form is the human-readable form too, so a
+        // state interpolated into a failure message can never
+        // drift from its diagnostic-record form (SC-005).
+        f.write_str(match self {
+            Self::Playing => "playing",
+            Self::Paused => "paused",
+            Self::Stopped => "stopped",
+            Self::Completed => "completed",
+            Self::Interrupted => "interrupted",
+        })
+    }
+}
+
 /// The audio-focus outcome classification (FR-023 series): exactly
 /// `DuckableTransient | SilenceDemanding | PermanentLoss`.
 ///

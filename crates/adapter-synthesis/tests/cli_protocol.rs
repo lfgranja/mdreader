@@ -1283,9 +1283,9 @@ proptest! {
                 "the payload must name the synthesize capability"
             );
         } else {
-            // The fail-closed path (the design-phase
-            // behaviour: the unbound voice model reports
-            // `InitFailed`).
+            // The fail-closed path: a named
+            // `EngineFailure` condition (voice load,
+            // engine-process death, NUL, rate deviation).
             prop_assert!(
                 stdout.is_empty(),
                 "stdout must be empty when synthesis fails closed, but carried: {stdout}",

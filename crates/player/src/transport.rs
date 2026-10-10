@@ -3,30 +3,57 @@
 //! Single source of truth — no second position source (FR-003).
 
 use thiserror::Error;
-use tracing::{debug, trace};
 
-/// Closed-set rate ladder (FR-019). Pitch-preserving stretch is engine's
-/// contract (FR-043) — this layer only selects the rung.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub enum PlaybackRate {
-    R0_75,
-    R1_0,
-    R1_25,
-    R1_5,
-    R1_75,
-    R2_0,
-    R4_0,
+/// The closed-set rate ladder (FR-019). The single
+/// authoritative definition lives in `engine-core`
+/// (`engine_core::closed::PlaybackRate` — the closed-set
+/// registry; Principle VII / FR-044: no second list that
+/// can drift). Re-exported here so the `player::transport`
+/// path stays stable. Pitch-preserving stretch is the
+/// engine's contract (FR-043) — this layer only selects
+/// the rung.
+pub use engine_core::closed::PlaybackRate;
+
+/// Advance one rung up the closed rate ladder (FR-019),
+/// saturating at `R4_0` — the ladder is closed, so the
+/// top rung is the ceiling, never an error.
+#[must_use]
+pub fn rate_up_from(rate: PlaybackRate) -> PlaybackRate {
+    match rate {
+        PlaybackRate::R0_75 => PlaybackRate::R1_0,
+        PlaybackRate::R1_0 => PlaybackRate::R1_25,
+        PlaybackRate::R1_25 => PlaybackRate::R1_5,
+        PlaybackRate::R1_5 => PlaybackRate::R1_75,
+        PlaybackRate::R1_75 => PlaybackRate::R2_0,
+        PlaybackRate::R2_0 => PlaybackRate::R4_0,
+        PlaybackRate::R4_0 => PlaybackRate::R4_0,
+    }
 }
 
-/// Transport-state closed set (FR-044, no catch-all).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub enum TransportState {
-    Playing,
-    Paused,
-    Stopped,
-    Completed,
-    Interrupted,
+/// Retreat one rung down the closed rate ladder (FR-019),
+/// saturating at `R0_75`.
+#[must_use]
+pub fn rate_down_from(rate: PlaybackRate) -> PlaybackRate {
+    match rate {
+        PlaybackRate::R4_0 => PlaybackRate::R2_0,
+        PlaybackRate::R2_0 => PlaybackRate::R1_75,
+        PlaybackRate::R1_75 => PlaybackRate::R1_5,
+        PlaybackRate::R1_5 => PlaybackRate::R1_25,
+        PlaybackRate::R1_25 => PlaybackRate::R1_0,
+        PlaybackRate::R1_0 => PlaybackRate::R0_75,
+        PlaybackRate::R0_75 => PlaybackRate::R0_75,
+    }
 }
+
+/// The transport-state closed set (FR-044, no catch-all).
+/// The single authoritative definition lives in
+/// `engine-core` (`engine_core::closed::TransportState`),
+/// whose `snake_case` wire form (`"playing"`, `"paused"`,
+/// …) is the diagnostic-record contract (SC-005); the
+/// shell mirrors this state and never computes transitions
+/// itself (SC-035). Re-exported here so the
+/// `player::transport` path stays stable.
+pub use engine_core::closed::TransportState;
 
 /// Rewind / snap / skip invariants (SC-007 / FR-015 / FR-018 / FR-038):
 /// — Replay after kill ≤30 s (FR-004).
@@ -34,20 +61,27 @@ pub enum TransportState {
 ///    5% of paused duration back from yield; total backward ≤30 s.
 /// — Skip displacement exactly ±5.0 s.
 /// — Pause duration accumulates only when transport is Paused.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Position {
+    /// Current position in seconds from document start (≥ 0.0).
     pub secs: f64,
+    /// Transport state at this position.
     pub transport: TransportState,
 }
 
+/// Closed-set transport errors (FR-044, no catch-all).
 #[derive(Error, Debug)]
 pub enum TransportError {
+    /// The skip would move the position below the 0.0 floor.
     #[error("Position exceeds document bounds")]
     OutOfBounds,
+    /// The rewind would exceed the 30 s cap (FR-004 / FR-015).
     #[error("Rewind exceeds 30 s cap")]
     RewindCapExceeded,
+    /// The skip displacement is not exactly ±5.0 s (FR-018).
     #[error("Skip displacement not exactly ±5.0 s")]
     SkipDisplacement,
+    /// The engine delivered a rung other than the selected one (FR-019).
     #[error("Rate mismatch: engine delivered different rung")]
     RateMismatch,
 }
@@ -88,9 +122,12 @@ pub fn apply_skip(current: Position, direction: SkipDirection) -> Result<Positio
     })
 }
 
+/// Skip direction — the closed two-member set (FR-018).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SkipDirection {
+    /// Skip forward exactly +5.0 s.
     Forward,
+    /// Skip backward exactly −5.0 s.
     Backward,
 }
 
@@ -154,24 +191,39 @@ pub fn select_rate(current_rate: PlaybackRate, step: i8) -> PlaybackRate {
 
 /// Pre-roll buffer ≤60 s (FR-015a / FR-015b).
 /// Never advances position; emptied at session end.
+#[derive(Debug)]
 pub struct PreRollBuffer {
+    /// Maximum pre-roll, in seconds (the 60 s cap, FR-015a).
     pub max_secs: f64,
+    /// Pre-roll currently buffered, in seconds.
     pub current_secs: f64,
 }
 
 impl PreRollBuffer {
+    /// The hard pre-roll cap (FR-015a): 60 s.
     pub const MAX: f64 = 60.0;
+    /// Create an empty pre-roll buffer at the cap.
     pub fn new() -> Self {
         Self {
             max_secs: Self::MAX,
             current_secs: 0.0,
         }
     }
+    /// Add delivered audio to the pre-roll buffer,
+    /// capped at [`Self::MAX`].
     pub fn refill(&mut self, delivered: f64) {
         self.current_secs = (self.current_secs + delivered).min(Self::MAX);
     }
+    /// Empty the pre-roll buffer — the pipeline-side bound;
+    /// never advances position while idle (FR-015c).
     pub fn drain_while_idle(&mut self) {
         // Pipeline-side bound — never advances position
         self.current_secs = 0.0;
+    }
+}
+
+impl Default for PreRollBuffer {
+    fn default() -> Self {
+        Self::new()
     }
 }

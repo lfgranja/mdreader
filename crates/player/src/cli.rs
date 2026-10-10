@@ -4,11 +4,8 @@
 //! notification, lock screen, CLI, IPC — all call the same
 //! backend function per Principle II.
 
-use crate::engine_core::closed::{PlaybackRate, TransportState};
-use crate::position::{
-    PlayerError, PositionClock, REWIND_CAP_SECS, REWIND_FRACTION, SKIP_STEP_SECS,
-};
-use crate::transport::{rate_down_from, rate_up_from};
+use crate::position::PositionClock;
+use crate::transport::{PlaybackRate, TransportState, rate_down_from, rate_up_from};
 use thiserror::Error;
 use tracing::{debug, instrument};
 
@@ -49,6 +46,27 @@ pub enum ShellVerb {
     ExternalStart,
 }
 
+impl std::fmt::Display for ShellVerb {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let name = match self {
+            ShellVerb::Play => "play",
+            ShellVerb::Pause => "pause",
+            ShellVerb::Stop => "stop",
+            ShellVerb::Complete => "complete",
+            ShellVerb::Interrupt => "interrupt",
+            ShellVerb::RateUp => "rate-up",
+            ShellVerb::RateDown => "rate-down",
+            ShellVerb::SkipForward => "skip-forward",
+            ShellVerb::SkipBackward => "skip-backward",
+            ShellVerb::ResumeAtStored => "resume-at-stored",
+            ShellVerb::StartOver => "start-over",
+            ShellVerb::ChooseEngine => "choose-engine",
+            ShellVerb::ExternalStart => "external-start",
+        };
+        f.write_str(name)
+    }
+}
+
 /// Helper for skip verbs — the skip actions are exactly
 /// ±5.0 s, measured against the position at the moment the
 /// control was pressed (FR-018).
@@ -84,7 +102,8 @@ pub struct SessionSnapshot {
     pub engine_id: &'static str,
 }
 
-/// Errors raised by the playback session.
+/// Errors raised by the playback session (the position
+/// clock's own errors live in [`crate::position::PlayerError`]).
 #[derive(Debug, Error)]
 pub enum PlayerError {
     /// The requested skip would move the position below 0.0.
@@ -179,11 +198,11 @@ impl PlaybackSession {
                 debug!(rate = ?self.rate, "rate down one step");
             }
             ShellVerb::SkipForward => {
-                self.clock.skip_forward();
+                let _ = self.clock.skip_forward();
                 debug!(position = self.clock.position_secs(), "skip forward");
             }
             ShellVerb::SkipBackward => {
-                self.clock.skip_back();
+                let _ = self.clock.skip_back();
                 debug!(position = self.clock.position_secs(), "skip backward");
             }
             ShellVerb::ResumeAtStored => {
@@ -239,6 +258,7 @@ impl Default for PlaybackSession {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::position::SKIP_STEP_SECS;
 
     #[test]
     fn new_session_defaults_to_paused_at_zero() {
@@ -259,7 +279,7 @@ mod tests {
     #[test]
     fn pause_transitions_to_paused() {
         let mut session = PlaybackSession::new();
-        session.execute(ShellVerb::Play).unwrap();
+        let _ = session.execute(ShellVerb::Play).unwrap();
         let snap = session.execute(ShellVerb::Pause).unwrap();
         assert_eq!(snap.transport, TransportState::Paused);
     }
@@ -267,9 +287,9 @@ mod tests {
     #[test]
     fn stop_resets_position() {
         let mut session = PlaybackSession::new();
-        session.execute(ShellVerb::Play).unwrap();
+        let _ = session.execute(ShellVerb::Play).unwrap();
         session.on_audible_progress(10.0);
-        session.execute(ShellVerb::Stop).unwrap();
+        let _ = session.execute(ShellVerb::Stop).unwrap();
         assert_eq!(session.snapshot().position_secs, 0.0);
     }
 
@@ -281,7 +301,7 @@ mod tests {
         assert_eq!(session.snapshot().position_secs, 0.0);
 
         // Now playing — progress advances.
-        session.execute(ShellVerb::Play).unwrap();
+        let _ = session.execute(ShellVerb::Play).unwrap();
         session.on_audible_progress(5.0);
         assert_eq!(session.snapshot().position_secs, 5.0);
     }
@@ -289,15 +309,15 @@ mod tests {
     #[test]
     fn skip_forward_moves_five_seconds() {
         let mut session = PlaybackSession::new();
-        session.execute(ShellVerb::Play).unwrap();
-        session.execute(ShellVerb::SkipForward).unwrap();
+        let _ = session.execute(ShellVerb::Play).unwrap();
+        let _ = session.execute(ShellVerb::SkipForward).unwrap();
         assert_eq!(session.snapshot().position_secs, SKIP_STEP_SECS);
     }
 
     #[test]
     fn skip_back_clamps_at_zero() {
         let mut session = PlaybackSession::new();
-        session.execute(ShellVerb::SkipBackward).unwrap();
+        let _ = session.execute(ShellVerb::SkipBackward).unwrap();
         assert_eq!(session.snapshot().position_secs, 0.0);
     }
 
@@ -306,7 +326,7 @@ mod tests {
         let mut session = PlaybackSession::new();
         // Walk to R4_0
         for _ in 0..10 {
-            session.execute(ShellVerb::RateUp).unwrap();
+            let _ = session.execute(ShellVerb::RateUp).unwrap();
         }
         assert_eq!(session.snapshot().rate, PlaybackRate::R4_0);
     }
@@ -315,7 +335,7 @@ mod tests {
     fn rate_down_saturates_at_r0_75() {
         let mut session = PlaybackSession::new();
         for _ in 0..10 {
-            session.execute(ShellVerb::RateDown).unwrap();
+            let _ = session.execute(ShellVerb::RateDown).unwrap();
         }
         assert_eq!(session.snapshot().rate, PlaybackRate::R0_75);
     }
@@ -323,7 +343,7 @@ mod tests {
     #[test]
     fn external_start_is_playing() {
         let mut session = PlaybackSession::new();
-        session.execute(ShellVerb::ExternalStart).unwrap();
+        let _ = session.execute(ShellVerb::ExternalStart).unwrap();
         assert_eq!(session.snapshot().transport, TransportState::Playing);
     }
 }

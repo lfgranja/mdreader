@@ -3,8 +3,10 @@
 //! Unexpected-end: paused + explicit resume control; never auto-starts.
 //! Resume lands at sentence start; total backward ≤30 s (FR-015 / SC-041).
 
-use crate::transport::{Position, TransportState};
-
+/// The resume-offer window (FR-032c / FR-041): a deliberate
+/// pause offers continue-by-default, an unexpected end offers
+/// an explicit resume control — and both expire everywhere
+/// after 3 s, returning `None` (never auto-resume, FR-014).
 pub fn resume_offer_window(
     secs_since_pause: f64,
     is_deliberate_pause: bool,
@@ -19,9 +21,15 @@ pub fn resume_offer_window(
     }
 }
 
+/// The choice a resume offer presents — the closed
+/// three-member set (FR-032c / SC-041).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ResumeChoice {
+    /// Deliberate pause: continue from the yield point
+    /// (after the rewind/snap) without asking.
     ContinueDefault,
+    /// Unexpected end: offer an explicit resume control.
     ExplicitResume,
+    /// Start over from 0.0 s.
     StartOver,
 }

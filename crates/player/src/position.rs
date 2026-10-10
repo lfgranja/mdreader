@@ -167,7 +167,7 @@ impl PositionClock {
         }
         match best {
             Some(boundary) if boundary >= cap_point => boundary,
-            Some(boundary) => {
+            Some(_) => {
                 // Boundary exists but is before the cap — land at cap point.
                 cap_point
             }
@@ -256,9 +256,9 @@ mod tests {
     #[test]
     fn stored_basis_tracks_last_audible_progress() {
         let mut clock = PositionClock::new(0.0);
-        clock.on_audible_progress(5.0).unwrap();
+        let _ = clock.on_audible_progress(5.0).unwrap();
         assert_eq!(clock.stored_basis(), 5.0);
-        clock.on_audible_progress(3.0).unwrap();
+        let _ = clock.on_audible_progress(3.0).unwrap();
         assert_eq!(clock.stored_basis(), 8.0);
     }
 }

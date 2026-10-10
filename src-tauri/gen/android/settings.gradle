@@ -5,3 +5,7 @@ pluginManagement {
         mavenCentral()
     }
 }
+
+include ':app'
+
+apply from: 'tauri.settings.gradle'

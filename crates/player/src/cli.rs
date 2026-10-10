@@ -5,7 +5,9 @@
 //! backend function per Principle II.
 
 use crate::engine_core::closed::{PlaybackRate, TransportState};
-use crate::position::{PositionClock, PlayerError, REWIND_CAP_SECS, REWIND_FRACTION, SKIP_STEP_SECS};
+use crate::position::{
+    PlayerError, PositionClock, REWIND_CAP_SECS, REWIND_FRACTION, SKIP_STEP_SECS,
+};
 use crate::transport::{rate_down_from, rate_up_from};
 use thiserror::Error;
 use tracing::{debug, instrument};
@@ -144,10 +146,7 @@ impl PlaybackSession {
 
     /// Execute a shell verb, returning the new snapshot or an error.
     #[instrument(skip(self))]
-    pub fn execute(
-        &mut self,
-        verb: ShellVerb,
-    ) -> Result<SessionSnapshot, PlayerError> {
+    pub fn execute(&mut self, verb: ShellVerb) -> Result<SessionSnapshot, PlayerError> {
         match verb {
             ShellVerb::Play => {
                 self.transport = TransportState::Playing;

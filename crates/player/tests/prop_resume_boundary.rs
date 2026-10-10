@@ -261,10 +261,7 @@ fn boundary_kind_strategy() -> impl Strategy<Value = BoundaryKind> {
 /// The split kinds a delivered segment may carry: `Paragraph` or
 /// `Heading` only — a `Sentence` is never a chunk split (FR-024a).
 fn split_kind_strategy() -> impl Strategy<Value = BoundaryKind> {
-    prop_oneof![
-        Just(BoundaryKind::Paragraph),
-        Just(BoundaryKind::Heading),
-    ]
+    prop_oneof![Just(BoundaryKind::Paragraph), Just(BoundaryKind::Heading),]
 }
 
 /// Mixed boundary lists on the quarter-second grid: every position of the
@@ -273,8 +270,8 @@ fn split_kind_strategy() -> impl Strategy<Value = BoundaryKind> {
 /// precedence already applied at coincident positions (a paragraph/heading
 /// boundary survives where a sentence boundary shares its position).
 fn mixed_boundaries_strategy() -> impl Strategy<Value = Vec<ResumeBoundary>> {
-    proptest::collection::vec((0u64..=14_400, boundary_kind_strategy()), 0..=32)
-        .prop_map(|mut entries| {
+    proptest::collection::vec((0u64..=14_400, boundary_kind_strategy()), 0..=32).prop_map(
+        |mut entries| {
             // The document start is always a paragraph boundary.
             entries.push((0, BoundaryKind::Paragraph));
             entries.sort_by_key(|(position, kind)| (*position, kind_rank(*kind)));
@@ -286,7 +283,8 @@ fn mixed_boundaries_strategy() -> impl Strategy<Value = Vec<ResumeBoundary>> {
                     kind,
                 })
                 .collect()
-        })
+        },
+    )
 }
 
 /// The rank of a boundary kind in the FR-024a precedence order: a
@@ -319,18 +317,22 @@ fn eligible_boundaries(boundaries: &[ResumeBoundary]) -> Vec<f64> {
 
 /// A source range anywhere in a document of up to ~22 kB.
 fn source_range_strategy() -> impl Strategy<Value = SourceRange> {
-    (0u32..=20_000, 1u32..=2_000)
-        .prop_map(|(start, length)| SourceRange {
-            start,
-            end: start + length,
-        })
+    (0u32..=20_000, 1u32..=2_000).prop_map(|(start, length)| SourceRange {
+        start,
+        end: start + length,
+    })
 }
 
 /// A delivery sequence: segments in document order with increasing,
 /// non-overlapping source ranges and monotonic segment indices (E1).
 fn segment_sequence_strategy() -> impl Strategy<Value = Vec<DocumentSegment>> {
     proptest::collection::vec(
-        (0u32..=500, 1u32..=1_000, split_kind_strategy(), 1usize..=5_000),
+        (
+            0u32..=500,
+            1u32..=1_000,
+            split_kind_strategy(),
+            1usize..=5_000,
+        ),
         0..=16,
     )
     .prop_map(|entries| {
@@ -813,12 +815,12 @@ proptest! {
     reason = "the boundary values 12.0 and 0.0 are exact binary fractions on the quarter-second grid; == is the correct assertion and a tolerance would admit an off-boundary snap"
 )]
 #[test]
-fn given_no_boundaries_and_a_cursor_within_the_first_thirty_seconds_when_snapping_then_the_resume_is_zero() {
+fn given_no_boundaries_and_a_cursor_within_the_first_thirty_seconds_when_snapping_then_the_resume_is_zero()
+ {
     let clock = PositionClock::new(12.0);
     let snapped = clock.snap_to_boundary(&[]);
     assert_eq!(
-        snapped,
-        0.0,
+        snapped, 0.0,
         "an empty boundary list must snap to the cap point, which is 0.0 within the first 30 s"
     );
 }
@@ -835,8 +837,7 @@ fn given_a_single_boundary_at_the_cursor_when_snapping_then_the_boundary_is_retu
     let boundaries = [25.0];
     let snapped = clock.snap_to_boundary(&boundaries);
     assert_eq!(
-        snapped,
-        25.0,
+        snapped, 25.0,
         "a boundary exactly at the cursor is the greatest boundary at or before it"
     );
 }
@@ -849,7 +850,8 @@ fn given_a_single_boundary_at_the_cursor_when_snapping_then_the_boundary_is_retu
     reason = "the boundary values 3600.0, 3570.0, 30.0 and 0.0 are exact binary fractions and 0.05 × 7200.0 caps at exactly 30.0, so == is the correct assertion; a tolerance would admit an off-boundary rewind or a cap violation"
 )]
 #[test]
-fn given_a_rewind_saturating_at_the_cap_when_snapping_then_total_backward_is_exactly_thirty_seconds() {
+fn given_a_rewind_saturating_at_the_cap_when_snapping_then_total_backward_is_exactly_thirty_seconds()
+ {
     let yield_position = 3600.0;
     let mut clock = PositionClock::new(yield_position);
     // 5% of 7200 s = 360 s > 30 s → the rewind saturates at the cap.
@@ -890,7 +892,8 @@ fn given_no_delivered_segments_when_deriving_session_position_then_no_session_po
 /// echoed verbatim as the session position, and the failure view carries
 /// that echo (CHK030).
 #[test]
-fn given_one_delivered_segment_when_a_failure_occurs_then_the_failure_echoes_its_source_range_ref() {
+fn given_one_delivered_segment_when_a_failure_occurs_then_the_failure_echoes_its_source_range_ref()
+{
     let segment = DocumentSegment {
         blake3_hash: format!("{:032x}", 1),
         source_range: SourceRange {
@@ -923,8 +926,7 @@ fn given_one_delivered_segment_when_a_failure_occurs_then_the_failure_echoes_its
             session_position: echoed_position,
         };
         assert_eq!(
-            failure.session_position,
-            segment.source_range,
+            failure.session_position, segment.source_range,
             "the failure's session_position must be the echoed source_range_ref, never an adapter computation (CHK030)"
         );
     }
@@ -935,7 +937,8 @@ fn given_one_delivered_segment_when_a_failure_occurs_then_the_failure_echoes_its
 /// echo of the last delivered `source_range_ref` is the only source of
 /// truth (CHK030, constitution.md:82-86).
 #[test]
-fn given_an_adapter_computed_boundary_diverging_from_the_echo_when_a_failure_occurs_then_the_failure_carries_the_echo() {
+fn given_an_adapter_computed_boundary_diverging_from_the_echo_when_a_failure_occurs_then_the_failure_carries_the_echo()
+ {
     let segment = DocumentSegment {
         blake3_hash: format!("{:032x}", 7),
         source_range: SourceRange {
@@ -948,10 +951,7 @@ fn given_an_adapter_computed_boundary_diverging_from_the_echo_when_a_failure_occ
     };
     // The adapter's own computation: an earlier boundary it considers
     // "nearest completed" — not a source of truth (CHK030).
-    let adapter_computed = SourceRange {
-        start: 0,
-        end: 100,
-    };
+    let adapter_computed = SourceRange { start: 0, end: 100 };
     let chunk = AudioChunk {
         pcm_data: Vec::new(),
         rate_hz: DeclaredFormat::SAMPLE_RATE,
@@ -980,8 +980,7 @@ fn given_an_adapter_computed_boundary_diverging_from_the_echo_when_a_failure_occ
             session_position: echoed_position,
         };
         assert_ne!(
-            failure.session_position,
-            adapter_computed,
+            failure.session_position, adapter_computed,
             "the failure's session_position must not be the adapter-computed boundary (CHK030)"
         );
     }

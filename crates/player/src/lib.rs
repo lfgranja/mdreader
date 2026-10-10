@@ -5,8 +5,8 @@
 //! Rust code path (Principle II).
 
 pub mod cli;
-pub mod position;
-pub mod transport;
-pub mod skip;
 pub mod focus;
+pub mod position;
 pub mod resume;
+pub mod skip;
+pub mod transport;

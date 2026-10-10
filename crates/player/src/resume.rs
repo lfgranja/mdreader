@@ -5,7 +5,10 @@
 
 use crate::transport::{Position, TransportState};
 
-pub fn resume_offer_window(secs_since_pause: f64, is_deliberate_pause: bool) -> Option<ResumeChoice> {
+pub fn resume_offer_window(
+    secs_since_pause: f64,
+    is_deliberate_pause: bool,
+) -> Option<ResumeChoice> {
     if secs_since_pause > 3.0 {
         return None; // expired everywhere after 3 s (FR-041)
     }

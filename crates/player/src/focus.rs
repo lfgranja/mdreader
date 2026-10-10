@@ -2,7 +2,7 @@
 //! Closed set outcomes: DuckableTransient, SilenceDemanding, PermanentLoss + FocusRegained direction.
 //! No `Other/Unknown`; no `_ =>`; engine failure surfaces named (`EngineError`).
 
-use crate::transport::{TransportState, PlaybackRate};
+use crate::transport::{PlaybackRate, TransportState};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum FocusOutcome {
@@ -20,7 +20,9 @@ pub enum FocusRegained {
 /// SilenceDemanding / PermanentLoss → `Paused` / `Interrupted`; never auto-resume.
 /// Supersede transient→permanent clears resume/duck-restore flags.
 /// Deferred grant → zero audio before grant, no rewind; refusal → named failure + no playing state.
-pub fn classify_focus(request: &str) -> Result<FocusOutcome, crate::engine_core::closed::EngineError> {
+pub fn classify_focus(
+    request: &str,
+) -> Result<FocusOutcome, crate::engine_core::closed::EngineError> {
     match request {
         "DuckableTransient" => Ok(FocusOutcome::DuckableTransient),
         "SilenceDemanding" => Ok(FocusOutcome::SilenceDemanding),

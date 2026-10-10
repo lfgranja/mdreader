@@ -9,6 +9,9 @@ mod tests {
     use proptest::prelude::*;
     #[test]
     fn prop_rewind_cap_30s() {
-        assert!(false, "T032 RED: rewind cap 30 s invariant — implementation T037 missing");
+        assert!(
+            false,
+            "T032 RED: rewind cap 30 s invariant — implementation T037 missing"
+        );
     }
 }

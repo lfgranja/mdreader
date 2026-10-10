@@ -82,7 +82,10 @@ pub fn apply_skip(current: Position, direction: SkipDirection) -> Result<Positio
         return Err(TransportError::OutOfBounds);
     }
     // End-bound check deferred to document-structure (FR-038 / FR-022)
-    Ok(Position { secs: target, transport: TransportState::Playing })
+    Ok(Position {
+        secs: target,
+        transport: TransportState::Playing,
+    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -97,13 +100,55 @@ pub fn select_rate(current_rate: PlaybackRate, step: i8) -> PlaybackRate {
     // Ladder saturates at ends; one step per press.
     // Exact rung mapping documented in spec FR-019.
     match current_rate {
-        PlaybackRate::R0_75 => if step < 0 { PlaybackRate::R0_75 } else { PlaybackRate::R1_0 },
-        PlaybackRate::R1_0 => if step > 0 { PlaybackRate::R1_25 } else { PlaybackRate::R0_75 },
-        PlaybackRate::R1_25 => if step > 0 { PlaybackRate::R1_5 } else { PlaybackRate::R1_0 },
-        PlaybackRate::R1_5 => if step > 0 { PlaybackRate::R1_75 } else { PlaybackRate::R1_25 },
-        PlaybackRate::R1_75 => if step > 0 { PlaybackRate::R2_0 } else { PlaybackRate::R1_5 },
-        PlaybackRate::R2_0 => if step > 0 { PlaybackRate::R4_0 } else { PlaybackRate::R1_75 },
-        PlaybackRate::R4_0 => if step < 0 { PlaybackRate::R2_0 } else { PlaybackRate::R4_0 },
+        PlaybackRate::R0_75 => {
+            if step < 0 {
+                PlaybackRate::R0_75
+            } else {
+                PlaybackRate::R1_0
+            }
+        }
+        PlaybackRate::R1_0 => {
+            if step > 0 {
+                PlaybackRate::R1_25
+            } else {
+                PlaybackRate::R0_75
+            }
+        }
+        PlaybackRate::R1_25 => {
+            if step > 0 {
+                PlaybackRate::R1_5
+            } else {
+                PlaybackRate::R1_0
+            }
+        }
+        PlaybackRate::R1_5 => {
+            if step > 0 {
+                PlaybackRate::R1_75
+            } else {
+                PlaybackRate::R1_25
+            }
+        }
+        PlaybackRate::R1_75 => {
+            if step > 0 {
+                PlaybackRate::R2_0
+            } else {
+                PlaybackRate::R1_5
+            }
+        }
+        PlaybackRate::R2_0 => {
+            if step > 0 {
+                PlaybackRate::R4_0
+            } else {
+                PlaybackRate::R1_75
+            }
+        }
+        PlaybackRate::R4_0 => {
+            if step < 0 {
+                PlaybackRate::R2_0
+            } else {
+                PlaybackRate::R4_0
+            }
+        }
     }
 }
 
@@ -116,7 +161,12 @@ pub struct PreRollBuffer {
 
 impl PreRollBuffer {
     pub const MAX: f64 = 60.0;
-    pub fn new() -> Self { Self { max_secs: Self::MAX, current_secs: 0.0 } }
+    pub fn new() -> Self {
+        Self {
+            max_secs: Self::MAX,
+            current_secs: 0.0,
+        }
+    }
     pub fn refill(&mut self, delivered: f64) {
         self.current_secs = (self.current_secs + delivered).min(Self::MAX);
     }

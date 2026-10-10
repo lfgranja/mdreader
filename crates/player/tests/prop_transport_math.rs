@@ -89,7 +89,7 @@ use proptest::prelude::*;
 use engine_core::closed::{PlaybackRate, TransportState};
 use engine_core::format::{DeclaredFormat, check_handoff};
 use engine_core::standin_a::StandinA;
-use player::cli::{PlaybackSession, ShellVerb};
+use player::cli::{PlaybackSession, ShellVariant, ShellVerb};
 use player::position::{PositionClock, REWIND_CAP_SECS, REWIND_FRACTION, SKIP_STEP_SECS};
 
 /// Positions on the exact quarter-second grid `k × 0.25` ∈ [0, 3600].
@@ -384,7 +384,9 @@ proptest! {
         prop_assert_eq!(
             rewound,
             expected,
-            "rewind of a {paused_duration}s pause from {yield_position} did not land at the 5%-of-pause cursor capped at 30 s"
+            "rewind of a {}s pause from {} did not land at the 5%-of-pause cursor capped at 30 s",
+            paused_duration,
+            yield_position
         );
         prop_assert_eq!(
             clock.position_secs(),
@@ -460,7 +462,8 @@ proptest! {
         prop_assert_eq!(
             snapshot.position_secs,
             progress,
-            "audible progress of {progress} s did not advance the position by exactly that amount"
+            "audible progress of {} s did not advance the position by exactly that amount",
+            progress
         );
     }
 
@@ -482,7 +485,7 @@ proptest! {
 
         let mut paused = PlaybackSession::new();
         let _played = paused.execute(ShellVerb::Play);
-        let _advanced = paused.on_audible_progress_keep_assert(progress);
+        paused.on_audible_progress(progress);
         let _paused = paused.execute(ShellVerb::Pause);
         paused.on_audible_progress(progress);
         prop_assert_eq!(
@@ -551,37 +554,37 @@ proptest! {
         // exactly one step on that ladder, and a press at either end
         // MUST saturate (stay at that end) rather than wrapping,
         // failing, or yielding a rate outside the ladder."
-        let mut session = PlaybackSession::new();
-        // Walk from the default rung (R1_0, FR-019b) to the generated
-        // rung, then assert the one-step saturating moves from it.
-        let default = PlaybackRate::R1_0;
-        let upwards = ladder_index(rung) > ladder_index(default);
-        for _ in 0..7 {
-            if session.snapshot().rate == rung {
-                break;
-            }
-            let _stepped = session.execute(if upwards {
-                ShellVerb::RateUp
-            } else {
-                ShellVerb::RateDown
-            });
-        }
+        // Each direction gets its own session walked to the rung,
+        // so both one-step assertions are measured from the rung —
+        // a single session would measure the down-press from the
+        // post-up rung instead.
+        let mut up_session = walked_to(rung);
+        let mut down_session = walked_to(rung);
         prop_assert_eq!(
-            session.snapshot().rate,
+            up_session.snapshot().rate,
             rung,
-            "the session could not be walked to the {rung:?} rung"
+            "the session could not be walked to the {:?} rung",
+            rung
         );
-        let up = session.execute(ShellVerb::RateUp);
+        prop_assert_eq!(
+            down_session.snapshot().rate,
+            rung,
+            "the session could not be walked to the {:?} rung",
+            rung
+        );
+        let up = up_session.execute(ShellVerb::RateUp);
         prop_assert_eq!(
             up.ok().map(|snapshot| snapshot.rate),
             Some(rate_up_from(rung)),
-            "RateUp from {rung:?} did not move exactly one step up the ladder"
+            "RateUp from {:?} did not move exactly one step up the ladder",
+            rung
         );
-        let down = session.execute(ShellVerb::RateDown);
+        let down = down_session.execute(ShellVerb::RateDown);
         prop_assert_eq!(
             down.ok().map(|snapshot| snapshot.rate),
             Some(rate_down_from(rung)),
-            "RateDown from {rung:?} did not move exactly one step down the ladder"
+            "RateDown from {:?} did not move exactly one step down the ladder",
+            rung
         );
     }
 
@@ -600,7 +603,8 @@ proptest! {
         prop_assert_eq!(
             delivered,
             (DeclaredFormat::SAMPLE_RATE, DeclaredFormat::CHANNELS, DeclaredFormat::SAMPLE_WIDTH_BITS),
-            "the engine's delivered shape changed at rate {rung:?} — a rate change must be a pitch-preserving time-stretch, not a resample"
+            "the engine's delivered shape changed at rate {:?} — a rate change must be a pitch-preserving time-stretch, not a resample",
+            rung
         );
         prop_assert!(
             check_handoff(delivered.0, delivered.1, delivered.2).is_ok(),
@@ -625,6 +629,25 @@ fn ladder_index(rate: PlaybackRate) -> usize {
         .iter()
         .position(|candidate| *candidate == rate)
         .unwrap_or(0)
+}
+
+/// A fresh session walked from the default rung (`R1_0`,
+/// FR-019b) to `rung` — one RateUp/RateDown press per step,
+/// the walk bounded by the closed seven-rung ladder.
+fn walked_to(rung: PlaybackRate) -> PlaybackSession {
+    let mut session = PlaybackSession::new();
+    let upwards = ladder_index(rung) > ladder_index(PlaybackRate::R1_0);
+    for _ in 0..7 {
+        if session.snapshot().rate == rung {
+            break;
+        }
+        let _stepped = session.execute(if upwards {
+            ShellVerb::RateUp
+        } else {
+            ShellVerb::RateDown
+        });
+    }
+    session
 }
 
 /// The one-step-up neighbor on the closed ladder, saturating at

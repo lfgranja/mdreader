@@ -5,20 +5,27 @@ edition = "2024"
 
 [dependencies]
 cpal = "0.18.2"
-ndk = "0.9"
 doc-structure = { path = "../doc-structure" }
+engine-core = { path = "../engine-core" }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 
+# The NDK bindings are Android-only: `ndk-sys` emits a
+# `compile_error!` on every non-Android target, so the
+# dependency is gated to the Android build (Tauri Platform
+# Contract — the Kotlin/NDK surface is the one language
+# boundary the platform forces).
+[target.'cfg(target_os = "android")'.dependencies]
+ndk = "0.9"
+
 [dev-dependencies]
 proptest = { workspace = true }
 tempfile = { workspace = true }
 session = { path = "../session" }
 diag = { path = "../diag" }
-engine-core = { path = "../engine-core" }
 
 [lints]
 workspace = true

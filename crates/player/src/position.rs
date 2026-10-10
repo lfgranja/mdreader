@@ -152,8 +152,12 @@ impl PositionClock {
     #[must_use]
     pub fn snap_to_boundary(&self, boundaries: &[f64]) -> f64 {
         // Cap origin = last yield (stored_basis / audible progress), not cursor arbitrarily (FR-015 / spec.md:59).
+        // `rewind_for_silence` moves the cursor back but leaves
+        // the basis at the yield, so the 30 s cap is measured
+        // from the yield — total backward movement (rewind +
+        // snap) then never exceeds [`REWIND_CAP_SECS`].
         let cursor = self.position_secs;
-        let cap_point = (cursor - REWIND_CAP_SECS).max(0.0);
+        let cap_point = (self.stored_basis_secs - REWIND_CAP_SECS).max(0.0);
         // Greatest boundary at or before cursor.
         let mut best: Option<f64> = None;
         for &b in boundaries {

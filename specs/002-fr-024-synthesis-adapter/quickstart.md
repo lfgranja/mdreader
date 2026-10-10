@@ -224,7 +224,7 @@ Consequences stated plainly:
 
 - **`cargo deny` fails (B4)**: `deny.toml` has two invalid keys, so `cargo deny check …` exits 1 on config deserialization. The engine binding (T044) depends on `sherpa-onnx` 1.13.8 (constitution-pinned registry version) and deliberately **not** on `ort`: `sherpa-onnx-sys` bundles ONNX Runtime in its prebuilt static archive, so the constitution's pre-recorded `ort` 2.0.0-rc.13 RC exception (`constitution.md:412-413`) is not exercised — the deviation is recorded in `API_CONTRACT.md` §7.1. `cargo audit`, the gate's other half, passes.
 - **Scoped clippy is clean for this crate**: `cargo clippy -p adapter-synthesis --all-targets --no-deps` aborts on B3 (exit 101) and, before aborting, emits warnings for *other* workspace crates (`clippy::cargo` missing-package-metadata about `player`, `doc-structure`, `diag`, `engine-core`, `session`) — but **zero diagnostics name `crates/adapter-synthesis/{src,tests}/`**, which is the T056/V2'' assertion (the count, not clippy's exit code, is the assertion; `-D warnings` is deliberately not passed because it would escalate the cross-crate `clippy::cargo` notices).
-- **The suite is not fully green**: `cargo nextest run --locked -p adapter-synthesis --no-fail-fast` reports **106 tests run: 105 passed, 1 failed, 0 skipped**. The single failure is `a_bounded_segment_delivers_a_conforming_non_empty_mono_buffer` (`tests/audio_chunk.rs:500`) — the T042 test-first property that pins the *bound*-engine behavior. It cannot pass until T044 binds the Piper voice model (deferred to `003-contract-edit`; the reference device is the Android arm64 unit of `plan.md`, gate 9). It is recorded here, not hidden: without `--no-fail-fast`, nextest stops early and reports `12 tests run: 11 passed, 1 failed`.
+- **The suite is green**: `cargo nextest run --locked -p adapter-synthesis --no-fail-fast` reports **106 tests run: 106 passed (4 slow), 0 skipped** (`Summary [179.484s]`, post-T044, against commit `ee95b2d`). Four tests are slow because they perform real single-threaded ONNX inference through the bound voice (the T042 bound-engine property ~98 s, the resume-echo delivery ~110 s, the no-document-text delivery ~120 s, and the budget-bounded no-leak proptest ~179 s); everything else runs in milliseconds. `cargo deny` still fails on B4 and the workspace-wide gates still cannot run here (B1/B2/B3/B7) — the green result is scoped to the adapter package, which is what this feature owns.
 
 ---
 
@@ -238,7 +238,7 @@ Consequences stated plainly:
 | C — SC-051 preserved | `cargo nextest run --locked -p adapter-synthesis sc_051_registration_makes_offline_default_the_sole_selectable_tier` (adapter-scoped — the workspace run cannot execute here, B1/B2/B7) | PASS — `offline_default` sole selectable; `test_double` not selectable; active switch deferred | `spec.md:85`; `CLARIFICATION_BATCH.md` C4-A; `constitution.md:643` |
 | D — Resume echo | `cargo nextest run --locked -p adapter-synthesis failure_session_position_echoes_the_segment_source_range` | PASS — failure echoes the segment's source range verbatim (`resume_after_failure` / `resume_after_edit` are session-layer, 001 — no such adapter tests exist) | `spec.md:52`; `FR-015`; `FR-36` |
 | E — Lock / focus | Manual / existing `player` tests — needs T044 + Android device; not executable on this host | ≤3 s start; duck ~20%; no auto-resume; reason expires | `spec.md:30-61`; `constitution.md` §Driving-Safety |
-| Suite | `cargo nextest run --locked -p adapter-synthesis --no-fail-fast` | **106 run: 105 pass, 1 fail** — `a_bounded_segment_delivers_a_conforming_non_empty_mono_buffer` (needs the T044 bound voice model) | `tasks.md` T042/T044 |
+| Suite | `cargo nextest run --locked -p adapter-synthesis --no-fail-fast` | **106 run: 106 pass, 0 fail** (4 slow — real inference; `Summary [179.484s]`, post-T044) | `tasks.md` T042/T044/T055 |
 
 ---
 
@@ -273,7 +273,7 @@ The CLI protocol (success payload on stdout, exit 0; typed diagnostic on stderr 
 | `T016` trait not built | `crates/engine-core/src/lib.rs` no `trait_.rs`; `grep '\btrait\b'` = 0 | Declaration against existing shapes (`format.rs`/`closed.rs`); no phantom methods (`Assumption 3` corrected); trait design deferred to separate feature |
 | `SC-051` regression if adapter breaks mechanism | `spec.md:85`; `CLARIFICATION_BATCH.md` C4-A | Design explicitly preserves mechanism; `test_double` not selectable (`is_selectable(TestDouble) == false`); active switch deferred; mechanism verified via paused-with-stated-reason |
 | Byte budget enforcement at engine side | `spec.md:19`; `FR-024a` | Design assigns split to adapter (`chunk.rs`); engine receives bounded chunks only; contract rule (`adapter-handoff.md` §2.1) prevents engine-side split |
-| Suite not green on this host | §2 above | The one red test is the T042 test-first property awaiting T044's bound model; it is reported, not routed around (`--no-fail-fast` shows the full 106) |
+| Suite green, 4 slow tests | §2 above | The four slow tests perform real single-threaded ONNX inference through the bound voice (98–179 s each); the no-leak proptest's document budget was bounded in T044 (>19 min → 179 s). Workspace-wide gates still cannot run here (B1/B2/B3/B7) — the green result is scoped to the adapter package. |
 
 ---
 

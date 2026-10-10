@@ -124,7 +124,7 @@
 //! and the adapter never modifies fields after delivery
 //! (`spec.md:103`; `contracts/adapter-handoff.md:30`).
 //!
-//! # Why this file is RED today
+//! # Why this file was RED before T044
 //!
 //! `a_bounded_segment_delivers_a_conforming_non_empty_mono_buffer`
 //! binds to the current `synthesize(&DocumentSegment) ->
@@ -473,8 +473,9 @@ fn a_wrong_width_delivery_names_rate_mismatch() {
 
 // ---------------------------------------------------------------------------
 // 3. The delivery contract, end to end (data-model E2;
-//    `contracts/adapter-handoff.md:36-46`). This is the
-//    RED blocker of this file (see the module header).
+//    `contracts/adapter-handoff.md:36-46`). This was
+//    the pre-T044 RED blocker of this file (see the
+//    module header); it is green since T044.
 // ---------------------------------------------------------------------------
 
 proptest! {

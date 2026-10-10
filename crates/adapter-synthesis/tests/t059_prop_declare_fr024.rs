@@ -3,12 +3,11 @@
 //! Rule 2 (clean session): writes only this file; no src/ edits.
 //! Freeze bound: API_CONTRACT.md §1 / adapter-capabilities.md / adapter-handoff.md.
 
-use adapter_synthesis::{
-    AdapterCapabilities, AlignmentGranularity, SsmlLevel,
-    declared_capabilities,
-};
 use adapter_synthesis::consume::{ResumeAnchor, SsmlDelivery, plan_for};
-use adapter_synthesis::reg::{is_selectable, REGISTERED_TIERS};
+use adapter_synthesis::reg::{REGISTERED_TIERS, is_selectable};
+use adapter_synthesis::{
+    AdapterCapabilities, AlignmentGranularity, SsmlLevel, declared_capabilities,
+};
 use engine_core::closed::EngineTier;
 
 // (a) OfflineDefault visible to selector, not only reg.rs.
@@ -17,12 +16,18 @@ use engine_core::closed::EngineTier;
 // not just via reg.rs internal names.
 #[test]
 fn t059_offline_default_visible_to_selector_not_only_reg_rs() {
-    assert_eq!(adapter_synthesis::REGISTERED_TIER, EngineTier::OfflineDefault);
+    assert_eq!(
+        adapter_synthesis::REGISTERED_TIER,
+        EngineTier::OfflineDefault
+    );
     assert!(is_selectable(EngineTier::OfflineDefault));
     // The tier is visible to external selectors (player / registry),
     // not hidden inside reg.rs only.
     assert_eq!(REGISTERED_TIERS, [EngineTier::OfflineDefault]);
-    assert_eq!(adapter_synthesis::REGISTERED_TIER, EngineTier::OfflineDefault);
+    assert_eq!(
+        adapter_synthesis::REGISTERED_TIER,
+        EngineTier::OfflineDefault
+    );
 }
 
 // (b) plan_for(None, None) -> (PlainText, ParagraphHeading); never FullSsml.
@@ -37,10 +42,16 @@ fn t059_plan_for_none_none_is_plaintext_paragraph_never_fullssml() {
     assert_eq!(plan.ssml, SsmlDelivery::PlainText);
     assert_eq!(plan.resume, ResumeAnchor::ParagraphHeading);
     // The v1 declaration never silently upgrades to FullSsml or Sentence.
-    assert_ne!(plan.ssml, SsmlDelivery::FullSsml,
-        "plan_for(None,None) must NEVER yield FullSsml (FR-024c; Principle VI)");
-    assert_ne!(plan.resume, ResumeAnchor::Sentence,
-        "plan_for(None,None) must NEVER yield Sentence (C1-A deferred)");
+    assert_ne!(
+        plan.ssml,
+        SsmlDelivery::FullSsml,
+        "plan_for(None,None) must NEVER yield FullSsml (FR-024c; Principle VI)"
+    );
+    assert_ne!(
+        plan.resume,
+        ResumeAnchor::Sentence,
+        "plan_for(None,None) must NEVER yield Sentence (C1-A deferred)"
+    );
 }
 
 // (c) test_double non-selectable when adapter registered.
@@ -51,8 +62,10 @@ fn t059_test_double_non_selectable_when_adapter_registered() {
     // Adapter registered at OfflineDefault (not a fixture).
     assert!(is_selectable(EngineTier::OfflineDefault));
     // Fixture tiers must not be selectable while adapter registered.
-    assert!(!is_selectable(EngineTier::TestDouble),
-        "TestDouble non-selectable when adapter registered (SC-051 / 001/spec.md:89)");
+    assert!(
+        !is_selectable(EngineTier::TestDouble),
+        "TestDouble non-selectable when adapter registered (SC-051 / 001/spec.md:89)"
+    );
 }
 
 // Frozen surface binding: declared_capabilities() is constant (None, None).

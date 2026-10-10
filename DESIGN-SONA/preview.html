@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SONA — Design System Oficial · ressona.dev / mdreader</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&display=swap');
+:root{--void:#0B0F1A;--stage:#141B2D;--voice:#F2F0E6;--hush:#A9B8CE;--etwahl:#8FD8E8;--harp:#E8C46A;--celeste:#B9A6F5;--bound:#55688F;--warn:#FFD400;--fail:#FF4D63;--paper:#F5F2EC;}
+*{box-sizing:border-box;margin:0;padding:0;font-family:'Inter',system-ui,sans-serif;}
+body{margin:0;padding:0;background:linear-gradient(180deg,#0B0F1A 0%,#0A0C14 60%,#0B0F1A 100%);color:var(--voice);line-height:1.45;}
+.hero{position:relative;overflow:hidden;padding:140px 32px 100px;max-width:1200px;margin-inline:auto;}
+.hero::before{content:"";position:absolute;top:-20%;right:-10%;width:600px;height:600px;background:radial-gradient(circle,rgba(143,216,232,.15)0%,transparent 70%);border-radius:50%;pointer-events:none;}
+.hero h1{font-family:'Cormorant Garamond',Georgia,serif;font-weight:300;font-size:4.2rem;letter-spacing:-.04em;line-height:1.05;color:var(--voice);margin-bottom:.2em;}
+.hero h1 em{font-style:italic;color:var(--etwahl);}
+.subtitle{font-size:1.15rem;color:var(--hush);max-width:640px;margin-bottom:2.5em;}
+.tag-row{display:flex;gap:6px;margin-bottom:1.2em;flex-wrap:wrap;}
+.tag{font-family:'IBM Plex Mono',monospace;font-size:.7rem;padding:3px 10px;border-radius:999px;border:1px solid #333;background:#181B21;color:#A9B8CE;}
+.section{max-width:1200px;margin-inline:auto;padding:60px 32px;border-top:1px solid #2A3042;}
+.section h2{font-family:'Cormorant Garamond',Georgia,serif;font-size:1.8rem;font-weight:300;color:var(--voice);letter-spacing:-.02em;margin-bottom:.6em;}
+.section h3{font-size:1.1rem;color:#C9CDD2;font-weight:600;margin:1.4em 0 .3em;}
+.pill{display:inline-block;padding:6px 14px;border-radius:999px;font-family:'IBM Plex Mono',monospace;font-size:.75rem;font-weight:500;border:1px solid #38465E;background:rgba(143,216,232,.08);color:#8FD8E8;margin:.2em .2em 0 0;}
+.swatch-row{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0;}
+.swatch{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:12px;background:#141B2D;border:1px solid #2A3042;min-width:260px;}
+.swatch .color{width:56px;height:56px;border-radius:10px;border:1px solid rgba(255,255,255,.08);box-shadow:inset 0 0 24px rgba(143,216,232,.08);flex-shrink:0;}
+.swatch .label{line-height:1.35;}
+.swatch .label strong{display:block;color:var(--voice);font-size:.9rem;font-family:inherit;font-weight:600;}
+.swatch .label span{color:var(--hush);font-size:.78rem;font-family:'IBM Plex Mono',monospace;}
+.notif-preview{border-radius:16px;padding:22px 24px;margin:24px auto;max-width:380px;background:linear-gradient(180deg,#0B0F1A 0%,#121B2D 100%);border:1px solid #38465E;box-shadow:0 24px 60px rgba(0,0,0,.7);position:relative;overflow:hidden;}
+.notif-preview::before{content:"";position:absolute;top:0;left:0;width:100%;height:3px;background:linear-gradient(90deg,#8FD8E8 60%,#FFD400 80%,#FF4D63 100%);opacity:.7;}
+.notif-title{font-weight:600;font-size:1.05rem;color:#F2F0E6;margin:0 0 6px;letter-spacing:-.01em;}
+.notif-sub{font-size:.78rem;color:#A9B8CE;margin:0 0 10px;}
+.notif-bar{height:8px;border-radius:4px;background:#55688F;position:relative;overflow:hidden;margin:10px 0;}
+.notif-fill-flow{height:100%;width:62%;border-radius:4px;background:#8FD8E8;}
+.notif-fill-caution{height:100%;width:40%;border-radius:4px;background:#FFD400;}
+.notif-fill-fail{height:100%;width:30%;border-radius:4px;background:#FF4D63;}
+.grid-inapp{display:grid;grid-template-columns:1.6fr 1fr;gap:24px;padding:24px;border:1px solid #2A3042;border-radius:14px;background:#141B2D;margin:20px auto;max-width:720px;}
+.grid-col{padding:0 12px;border-right:1px solid #2A3042;}
+.grid-col:last-child{border-right:none;padding-left:12px;}
+.block-label{font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:#A9B8CE;margin-bottom:6px;letter-spacing:.05em;text-transform:uppercase;}
+.badge{display:inline-block;padding:3px 8px;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:.72rem;font-weight:500;border:1px solid #333;color:#A9B8CE;background:#181B21;margin:0 4px 4px 0;}
+.rule-h{border-top:1px solid #38465E;margin:32px 0;padding-top:8px;}
+.note-soft{font-size:.82rem;color:#A9B8CE;padding:12px 14px;background:rgba(143,216,232,.06);border-left:3px solid #8FD8E8;border-radius:0 8px 8px 0;margin:12px 0;}
+.footer{margin-top:60px;padding-top:24px;border-top:1px solid #2A3042;color:#55688F;font-family:'IBM Plex Mono',monospace;font-size:.75rem;}
+</style>
+</head>
+<body>
+
+<section class="hero" aria-label="Heroação Sona">
+  <div style="font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:#A9B8CE;margin-bottom:1em;letter-spacing:.08em;text-transform:uppercase;">Design System · B-Sinalização · Inspirado por Sona · v1.0.0 · 2026-10-06</div>
+  <h1>SONA <span>— Design do som, <br>não do barulho.</span></h1>
+  <p class="subtitle">Leitor de áudio de documentos técnicos. Notificação Android MediaStyle. Status in-app. Acessibilidade eyes-free com earcon. Nenhum conteúdo do documento na superfície. Nenhum marquee. Nenhum green. Nenhum som que não seja da própria voz.</p>
+  <div style="display:flex;gap:10px;margin-bottom:2em;flex-wrap:wrap;">
+    <span class="tag" style="background:#8FD8E820;color:#8FD8E8;border-color:#8FD8E840;">B — Base técnica</span>
+    <span class="tag" style="background:#2D5F8B20;color:#5D9BE8;border-color:#2D5F8B60;">Sona — Inspiração</span>
+    <span class="tag" style="background:#FFD40020;color:#FFD400;border-color:#FFD40060;">SC-029: declarado</span>
+    <span class="tag" style="background:#E8A33D20;color:#E8A33D;border-color:#E8A33D60;">F-Droid</span>
+    <span class="tag" style="background:#F2F0E620;color:#F2F0E6;border-color:#F2F0E640;">Open Source · 0 faturamento</span>
+  </div>
+  <div style="font-family:'IBM Plex Mono',monospace;font-size:.85rem;color:#55688F;max-width:640px;line-height:1.6;">
+    <strong>Marca:</strong> <span style="color:#8FD8E8">ressona.dev</span> (RDAP livre) · <strong>Workspace:</strong> <span style="color:#A9B8CE">mdreader</span> · <strong>Motor:</strong> <span style="color:#E8C46A">Engine Sona</span> (crates/engine-core) · <strong>Distribuição:</strong> F-Droid · <strong>Estado:</strong> greenfield (0 frontend, tela preta — VERIFICATION.md:188)
+  </div>
+</section>
+
+<section aria-label="Paleta Sona" style="padding:60px 32px;border-top:1px solid #2A3042;max-width:1200px;margin-inline:auto;">
+  <h2>A Paleta Sona <span style="font-weight:300;color:#A9B8CE;font-size:.9em">— inspirada em <em>Universe:Sona</em> (turquesa, ouro, violeta, cream) · corrigida para AA</span></h2>
+  <div class="swatch-row" style="margin-bottom:1em;">
+    <div class="swatch"><div class="color" style="background:#0B0F1A"></div><div class="label"><strong>--sona-void</strong><span>Fundo OLED · nenhuma</span></div></div>
+    <div class="swatch"><div class="color" style="background:#141B2D"></div><div class="label"><strong>--sona-stage</strong><span>Superfície</span></div></div>
+    <div class="swatch"><div class="color" style="background:#F2F0E6"></div><div class="label"><strong>--sona-voice</strong><span>Tinta · <strong>16.75:1</strong></span></div></div>
+    <div class="swatch"><div class="color" style="background:#A9B8CE"></div><div class="label"><strong>--sona-hush</strong><span>Secundário · 9.51:1</span></div></div>
+    <div class="swatch"><div class="color" style="background:#8FD8E8"></div><div class="label"><strong>--sona-etwahl</strong><span>Turquesa · fluxo · 11.98:1</span></div></div>
+    <div class="swatch"><div class="color" style="background:#E8C46A"></div><div class="label"><strong>--sona-harp</strong><span>Dourado · taxa · 11.42:1</span></div></div>
+    <div class="swatch"><div class="color" style="background:#B9A6F5"></div><div class="label"><strong>--sona-celeste</strong><span>Violeta · rate · 8.96:1</span></div></div>
+    <div class="swatch"><div class="color" style="background:#FFD400"></div><div class="label"><strong>--sona-warn</strong><span>Amarelo · aviso 3s · 13.83:1</span></div></div>
+    <div class="swatch"><div class="color" style="background:#FF4D63"></div><div class="label"><strong>--sona-fail</strong><span>Vermelho · falha · 6.12:1</span></div></div>
+    <div class="swatch"><div class="color" style="background:#55688F"></div><div class="label"><strong>--sona-bound</strong><span>Trilha · 3:1 não-texto</span></div></div>
+  </div>
+  <div class="note-soft">
+    <strong>Conjunto fechado:</strong> turquesa só fluxo/identidade; dourado só taxa; violeta só rate; amarelo <strong>exclusivo</strong> aviso 3s; vermelho <strong>exclusivo</strong> falha; verde <strong>proibido</strong> (repouso = ausência de cor). Nenhum token inventado. Nenhum light mode sem verificação.
+  </div>
+</section>
+
+<section aria-label="Notificação — a superfície real" style="padding:60px 32px;border-top:1px solid #2A3042;max-width:1200px;margin-inline:auto;">
+  <h2>A Notificação — MediaStyle (o produto, não a decoração)</h2>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:24px;">
+    <div>
+      <h3 style="color:#A9B8CE;font-size:.9rem;font-family:'IBM Plex Mono',monospace;">Estado: Fluxo · Tocando</h3>
+      <div class="notif-preview">
+        <div class="notif-title" style="color:#F2F0E6">A Morte do Meu Pai — Capítulo 3</div>
+        <div class="notif-sub">Seção: "As cartas na mesa"</div>
+        <div class="notif-bar"><div class="notif-fill-flow" style="width:62%"></div></div>
+      </div>
+      <p style="font-size:.82rem;color:#9AA3AD;margin-top:8px;">Paleta Sona: título <code>#F2F0E6</code>, progresso <code>#8FD8E8</code>, trilho <code>#55688F</code>. Nenhum amarelo — fluxo não é aviso.</p>
+    </div>
+    <div>
+      <h3 style="color:#FFD400;font-size:.9rem;font-family:'IBM Plex Mono',monospace;">Estado: Caution — 3 s (SC-029)</h3>
+      <div class="notif-preview">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+          <span class="dot-pulse"></span>
+          <span style="font-size:.8rem;color:#FFD400;font-weight:600">AVISO — expira em 3 s</span>
+        </div>
+        <div class="notif-title">A Morte do Meu Pai</div>
+        <div class="notif-sub">Seção: "As cartas na mesa" · Pausado: chamada em curso</div>
+        <div class="notif-bar"><div class="notif-fill-caution" style="width:40%"></div></div>
+      </div>
+      <p style="font-size:.82rem;color:#9AA3AD;margin-top:8px;">Ponto amarelo pulsante = sinal temporal. Razão estática ≤ 40 chars pt-BR. Earcon <strong>Ostinato</strong> (duplo tick A5). Marquee: <strong>não funciona</strong> — declarado.</p>
+    </div>
+    <div>
+      <h3 style="color:#FF4D63;font-size:.9rem;font-family:'IBM Plex Mono',monospace;">Estado: Falha — Permanente</h3>
+      <div class="notif-preview">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+          <span style="width:10px;height:10px;border-radius:50%;background:#FF4D63;box-shadow:0 0 6px rgba(255,77,99,.5);display:inline-block;"></span>
+          <span style="font-size:.8rem;color:#FF4D63;font-weight:600">FALHA — toque para detalhes</span>
+        </div>
+        <div class="notif-title">A Morte do Meu Pai</div>
+        <div class="notif-sub">Seção: "As cartas na mesa" · Motor não alcançável</div>
+        <div class="notif-bar"><div class="notif-fill-fail" style="width:30%"></div></div>
+      </div>
+      <p style="font-size:.82rem;color:#9AA3AD;margin-top:8px;">Vermelho só falha. Nunca amarelo, nunca turquesa. Earcon <strong>Sforzando</strong> (D3 quadrado). Persistente (não expira 3s).</p>
+    </div>
+  </div>
+</section>
+
+<section aria-label="In-app — Grade 2-campo" style="padding:60px 32px;border-top:1px solid #2A3042;max-width:1200px;margin-inline:auto;">
+  <h2>In-app — Grade Editorial (Müller-Brockmann adaptado)</h2>
+  <div class="grid-inapp">
+    <div class="grid-col">
+      <div class="block-label">TÍTULO / SEÇÃO / PROGRESSO / RIBBON-MARKER</div>
+      <div style="font-weight:600;color:#F2F0E6;font-size:1.15rem;margin-bottom:4px;letter-spacing:-.01em;">A Morte do Meu Pai</div>
+      <div style="font-size:.9rem;color:#A9B8CE;margin-bottom:8px;">Seção: "As cartas na mesa"</div>
+      <div style="height:8px;border-radius:4px;background:#55688F;position:relative;overflow:hidden;margin-bottom:10px;">
+        <div style="height:100%;width:62%;border-radius:4px;background:#8FD8E8;"></div>
+      </div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:#A9B8CE;">Fluxo · 22050 Hz · posição preservada por blake3</div>
+      <div style="margin-top:10px;padding:4px 0;border-left:2px solid #F2F0E6;padding-left:8px;font-size:.78rem;color:#A8A196;">🎵 Fita-ribbon — posição no documento (não %)</div>
+    </div>
+    <div class="grid-col">
+      <div class="block-label">TAXA / TRANSPORTE / RAZÃO (SC-029 in-app)</div>
+      <div style="font-size:1.1rem;color:#E8C46A;font-weight:600;font-family:'IBM Plex Mono',monospace;">1.5× <span style="font-weight:400;color:#A9B8CE;font-size:.85rem;">rung 3 / 7</span></div>
+      <div style="display:flex;gap:6px;margin-top:10px;">
+        <span style="width:36px;height:36px;border-radius:50%;background:#8FD8E8;color:#0B0F1A;display:inline-flex;align-items:center;justify-content:center;font-size:.9rem;font-weight:600;">▶</span>
+        <span style="width:36px;height:36px;border-radius:50%;background:#A9B8CE;color:#0B0F1A;display:inline-flex;align-items:center;justify-content:center;font-size:.85rem;">⏸</span>
+      </div>
+      <div style="margin-top:10px;padding:10px;border:1px solid #FFD40040;border-radius:10px;background:#FFD4000A;color:#FFD400;font-family:'IBM Plex Mono',monospace;font-size:.82rem;">
+        ⚡ PAUSADO — Chamada em curso <span style="color:#A9B8CE;font-size:.75rem;">(3s restante — scroll real)</span>
+      </div>
+    </div>
+  </div>
+  <p style="font-size:.78rem;color:#9AA3AD;font-family:'IBM Plex Mono',monospace;margin-top:8px;">Grade 4-dp M3 · ribbon-marker à esquerda · scroll de razão (SC-029 atendido só in-app) · ponto amarelo pulsante apenas quando TTL > 0.</p>
+</section>
+
+<section aria-label="Earcon / Acessibilidade" style="padding:60px 32px;border-top:1px solid #2A3042;max-width:1200px;margin-inline:auto;">
+  <h2>Som como acesso — Gramática Sona</h2>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
+    <div style="padding:14px;border:1px solid #2A3042;border-radius:10px;background:#141B2D;">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:#8FD8E8;text-transform:uppercase;letter-spacing:.05em;">Adagio</div>
+      <div style="font-weight:600;color:#F2F0E6;margin:4px 0;font-size:.95rem;">Play / Resume</div>
+      <div style="font-size:.8rem;color:#A9B8CE;">C5 → E5 ascendente · suave · 120 ms/nota</div>
+    </div>
+    <div style="padding:14px;border:1px solid #2A3042;border-radius:10px;background:#141B2D;">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:#FFD400;text-transform:uppercase;letter-spacing:.05em;">Ostinato</div>
+      <div style="font-weight:600;color:#F2F0E6;margin:4px 0;font-size:.95rem;">Aviso 3 s</div>
+      <div style="font-size:.8rem;color:#A9B8CE;">Duplo tick A5 · 60 ms + 80 ms intervalo</div>
+    </div>
+    <div style="padding:14px;border:1px solid #2A3042;border-radius:10px;background:#141B2D;">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:#FF4D63;text-transform:uppercase;letter-spacing:.05em;">Sforzando</div>
+      <div style="font-weight:600;color:#F2F0E6;margin:4px 0;font-size:.95rem;">Falha permanente</div>
+      <div style="font-size:.8rem;color:#A9B8CE;">D3 quadrado 200 ms + breve repetição</div>
+    </div>
+    <div style="padding:14px;border:1px solid #2A3042;border-radius:10px;background:#141B2D;">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:#8FD8E8;text-transform:uppercase;letter-spacing:.05em;">Unison</div>
+      <div style="font-weight:600;color:#F2F0E6;margin:4px 0;font-size:.95rem;">Fronteira de seção</div>
+      <div style="font-size:.8rem;color:#A9B8CE;">Tick 880 Hz / 60 ms — leve, estrutural</div>
+    </div>
+  </div>
+  <div class="note-soft" style="margin-top:16px;">
+    <strong>Nota de acessibilidade:</strong> Sona é muda. Sua música é sua voz. Este design respeita isso: o earcon é redundante (confirmação audível), nunca substitutivo; a cor + forma + texto continuam operáveis sem som; o swipe de razão (gesto, não leitura) faz parte da "linguagem de sinais" do usuário com o sistema. Nenhum conteúdo do documento aparece em nenhuma superfície.
+  </div>
+</section>
+
+<section aria-label="Referências e rastreabilidade" style="padding:60px 32px;border-top:1px solid #2A3042;max-width:1200px;margin-inline:auto;font-size:.82rem;color:#A9B8CE;font-family:'IBM Plex Mono',monospace;line-height:1.6;">
+  <h2 style="font-family:'Cormorant Garamond',serif;font-weight:300;font-size:1.4rem;color:#F2F0E6;">Referências e Rastreabilidade</h2>
+  <p><strong>Paleta Sona (adaptada):</strong> derive de <code>Universe:Sona</code> (turquesa, ouro, violeta, cream) → corrigida para AA contra <code>#0B0F1A</code> → tokens 3-camadas. Nenhuma cor inventada. Nenhuma cor de LoL copiada; apenas a personalidade.</p>
+  <p><strong>Base técnica:</strong> <code>DESIGN.md</code> (B — Sinalização) · <code>DESIGN/tokens.md</code> · <code>spec.md</code> FR-028/FR-041/SC-029/SC-035 · <code>VERIFICATION.md</code> 184 (Xiaomi/API 33).</p>
+  <p><strong>Marca:</strong> <code>ressona.dev</code> — RDAP livre (<code>pubapi.registry.google</code> → 404). <code>mdreader</code> = workspace técnico. <code>Engine Sona</code> = motor (não marca).</p>
+  <p><strong>Distribuição:</strong> F-Droid (confirmado pelo usuário). Não Play Store. Sem taxa 30% Google.</p>
+  <p><strong>Estado:</strong> open source, greenfield, 0 faturamento, projeto pessoal / dogfooding.</p>
+  <p><strong>SC-029:</strong> declarado FAIL parcial (marquee impossível em RemoteViews/MediaStyle). Solução: earcon + razão estática + TTL 3s + ponto amarelo pulsante (in-app).</p>
+  <p style="margin-top:12px;padding-top:12px;border-top:1px solid #333;color:#55688F;">Projeto construído com subagentes + skills (brand-naming, brand-identity, product-marketing, pricing, launch, paywalls, impeccable, mobile-android-design, design-system). Modelo: Inkling Small (free). Nenhum arquivo de terceiro copiado. Nenhum segredo em código. Nenhum arquivo .env/.key.</p>
+</section>
+
+</body>
+</html>

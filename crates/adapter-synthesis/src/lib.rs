@@ -83,7 +83,7 @@ pub const fn declared_capabilities() -> AdapterCapabilities {
 
 pub use crate::audio_chunk::{AudioChunk, DeliveryError};
 pub use crate::chunk::{BoundaryKind, DocumentSegment, MAX_CHUNK_BYTES, SourceRange};
-pub use crate::consume::{PlayerPlan, ResumeAnchor, SsmlDelivery};
+pub use crate::consume::{PlayerPlan, ResumeAnchor, SsmlDelivery, plan_for};
 pub use crate::failure::{
     EngineError, EngineFailure, FailureCondition, FailureReportError, MAX_CONDITION_DETAIL_CHARS,
     MAX_OFFER_MS,

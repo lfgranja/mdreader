@@ -372,4 +372,36 @@ impl EngineTier {
         Self::TestDouble,
         Self::EvaluatedFallback,
     ];
+
+    /// Whether this tier is selectable while the adapter's
+    /// `OfflineDefault` registration is active (`SC-051`;
+    /// `adapter-handoff.md` §6.1; `reg.rs`: `REGISTERED_TIERS`).
+    ///
+    /// Reflects adapter registration — not a second tier list
+    /// (`FR-044`; `API_CONTRACT.md` §4). Only `OfflineDefault`
+    /// is selectable at v1; `TestDouble` is false because the
+    /// stand-ins (`standin_a`/`standin_b`) are fixtures
+    /// (`001/spec.md:89`; `closed.rs`:305-312).
+    ///
+    /// Five explicit arms — never a wildcard or underscore arm
+    /// (Principle VII; constitution gate 7). The three unregistered
+    /// tiers return false with distinct deferral reasons
+    /// (`SC-044` deferred, consent deferred, evaluated-fallback
+    /// deferred) recorded in doc comments, not duplicated arm
+    /// bodies — sanctioned by `API_CONTRACT.md` §0.1 entry 2
+    /// (registered in `API_CONTRACT.md` §0.1).
+    #[expect(
+        clippy::match_same_arms,
+        reason = "API_CONTRACT.md §0.1 entry 2: SC-051 requires five distinct arms; CloudDefault, CloudEscalation, EvaluatedFallback legitimately all false at v1 (unregistered: SC-044 deferred / consent deferred / evaluated-fallback deferred). Reasons live in doc comments above, not duplicated bodies."
+    )]
+    #[must_use]
+    pub const fn is_selectable(self) -> bool {
+        match self {
+            Self::OfflineDefault => true,
+            Self::CloudDefault => false,
+            Self::CloudEscalation => false,
+            Self::TestDouble => false,
+            Self::EvaluatedFallback => false,
+        }
+    }
 }

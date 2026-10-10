@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc be916a8b923462c2d84c5dffd7c006d50eb1e00bd36cdfa05367f0409f769dff # shrinks to rung = R1_0
+cc 67d48db8b2fe259ef32d90c9b7bf98ece0f8879dc1e43e3f5470d9dc2a400233 # shrinks to actions = [Play, AudibleProgress(0.01), SkipBack]

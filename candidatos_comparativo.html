@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>mdreader — 5 Candidatos a Design System</title>
+<style>
+:root{--bg:#0B0C0E;--ink:#F2F4F7;--dim:#9AA3AD;}
+*{box-sizing:border-box;font-family:system-ui,-apple-system,Roboto,"Segoe UI",sans-serif;}
+body{margin:0;padding:24px 32px;background:var(--bg);color:var(--ink);line-height:1.45;max-width:1100px;margin-inline:auto;}
+h1{font-weight:700;font-size:2rem;margin:0 0 .25em;letter-spacing:-.02em;border-bottom:1px solid #333;padding-bottom:.5em;}
+h2{font-size:1.15rem;margin:2em 0 .4em;color:#C9CDD2;font-weight:600;}
+h3{font-size:1rem;margin:1.6em 0 .3em;color:#F5F2EC;font-weight:600;}
+p{margin:.35em 0;}
+.badge{display:inline-block;padding:3px 8px;border-radius:999px;font-size:.78rem;font-weight:600;border:1px solid #333;margin:.2em .2em 0 0;}
+.badge-a{background:#E8B04B20;color:#F5A623;border-color:#E8B04B40;}
+.badge-b{background:#FFD40020;color:#FFD400;border-color:#FFD40060;}
+.badge-c{background:#5AC8FA20;color:#5AC8FA;border-color:#5AC8FA60;}
+.badge-d{background:#F5F2EC10;color:#F5F2EC;border-color:#A8A19660;}
+.badge-e{background:#E8A33D20;color:#E8A33D;border-color:#E8A33D60;}
+.card{border:1px solid #222;border-radius:12px;padding:18px;margin:14px 0;background:#121419;}
+.card h3{margin-top:0;}
+.swatch{display:inline-block;width:72px;height:36px;border-radius:6px;border:1px solid #333;vertical-align:middle;margin:0 4px 4px 0;box-shadow:inset 0 0 0 1px rgba(255,255,255,.05);}
+.swatch-label{font-size:.7rem;color:#9AA3AD;margin-top:2px;display:block;}
+.table-wrap{overflow-x:auto;margin:.6em 0;}
+table{width:100%;border-collapse:collapse;font-size:.82rem;}
+th{background:#181B21;color:#F4F6F8;text-align:left;padding:8px 10px;font-weight:600;border-bottom:2px solid #333;}
+td{padding:7px 10px;border-bottom:1px solid #222;vertical-align:top;}
+.notif-sim{border-radius:12px;padding:14px 16px;margin:10px 0;background:#0A0A0A;border:1px solid #333;box-shadow:0 12px 40px rgba(0,0,0,.6);}
+.notif-title{font-weight:600;font-size:1.05rem;color:#F5F2EC;margin:0 0 4px;}
+.notif-sub{font-size:.78rem;color:#A7B0BA;margin:0 0 6px;}
+.notif-bar{height:8px;border-radius:4px;background:#555F6B;margin:8px 0;position:relative;overflow:hidden;}
+.notif-fill{height:100%;border-radius:4px;background:var(--fill,#E8B04B);width:62%;}
+.notif-fill-small{height:100%;border-radius:4px;background:#C8553D;width:40%;}
+.notif-fill-cyan{height:100%;border-radius:4px;background:#5AC8FA;width:55%;}
+.notif-fill-amber{height:100%;border-radius:4px;background:#FFD400;width:70%;}
+.notif-fill-warn{height:100%;border-radius:4px;background:#FF4D63;width:30%;}
+.note{font-size:.82rem;color:#A8A196;padding:10px 12px;background:#181B21;border-left:3px solid #C8553D;border-radius:0 6px 6px 0;margin:.5em 0;}
+.note-ok{border-left-color:#5FD0A0;}
+.note-info{border-left-color:#5AC8FA;}
+</style>
+</head>
+<body>
+<h1>mdreader — 5 Candidatos a Design System</h1>
+<p><strong>Marca:</strong> <span style="color:#E8A33D">ressona.dev</span> (RDAP livre • .org/.com.br tomados pelo terceiro) • <strong>Workspace:</strong> <span style="color:#C9CDD2">mdreader</span> • <strong>Distribuição:</strong> F-Droid • <strong>Estado:</strong> greenfield (0 frontend, tela preta — VERIFICATION.md:188)</p>
+
+<h2>Comparativo rápido</h2>
+<div class="table-wrap">
+<table>
+<thead><tr><th>Candidato</th><th>Tese</th><th>SC-029 (texto rolante)</th><th>Contraste</th><th>Notificação</th><th>Risco OEM</th></tr></thead>
+<tbody>
+<tr><td><span class="badge badge-a">A</span> Medidor</td><td>VU-meter / Ableton / SMuFL</td><td>FAIL declarado</td><td>✓ todos ≥3.01</td><td>Barra âmbar, estado verde/amarelo/vermelho</td><td>Médio</td></tr>
+<tr><td><span class="badge badge-b">B</span> Sinalização</td><td>CTB/DIN semáforo — cor como função</td><td><strong>Mais próximo</strong> (ponto pulsante + TTL)</td><td>✓ todos ≥3.01</td><td>Barra branca, amarelo só 3s, vermelho só falha</td><td>Baixo (sem custom RemoteViews)</td></tr>
+<tr><td><span class="badge badge-c">C</span> Emissora</td><td>NRK/DR/Yle — disciplina institucional</td><td>FAIL declarado</td><td>✓ ≥3.0</td><td>Ciano progresso, coral falha</td><td>Médio</td></tr>
+<tr><td><span class="badge badge-d">D</span> Editorial</td><td>Müller-Brockmann grade + ribbon</td><td>FAIL declarado (scroll só in-app)</td><td>✓ corrigido (rule 3.04)</td><td>Monocromático + regra separação</td><td>Médio</td></tr>
+<tr><td><span class="badge badge-e">E</span> Espectral</td><td>Duotone / Audacity / sonificação</td><td>Parcial (gradiente esfria 3s)</td><td>⚠ cool 3.12 marginal</td><td>Gradiente cool→hot, ponto quente posição</td><td>Alto (gradiente pode confundir OEM)</td></tr>
+</tbody>
+</table>
+</div>
+
+<p><strong>Nota do autor (honesto):</strong> Nenhum candidato entrega marquee na notificação Android — a plataforma não permite (RemoteViews sem <code>selected</code>, MediaStyle template obrigatória, Live Updates proíbem <code>customContentView</code>). Todos declaram o descumprimento com <strong>earcon + razão estática + TTL 3s</strong>. B é o que mais se aproxima sem quebrar.</p>
+
+<h2>Candidato A — Medidor (VU-meter)</h2>
+<div class="card">
+<h3>Paleta corrigida (fundo #0B0C0E)</h3>
+<div>
+<span class="swatch" style="background:#F2F4F7"></span><span class="swatch-label">ink-100 17.76:1</span>
+<span class="swatch" style="background:#E8B04B"></span><span class="swatch-label">amber 10.01:1</span>
+<span class="swatch" style="background:#5FD0A0"></span><span class="swatch-label">green 10.27:1</span>
+<span class="swatch" style="background:#E5534B"></span><span class="swatch-label">red 5.28:1</span>
+<span class="swatch" style="background:#555F6B"></span><span class="swatch-label">track 3.01:1 ✓ corrigido</span>
+</div>
+<h3>Notificação simulado</h3>
+<div class="notif-sim" style="background:#0B0C0E;border:1px solid #333;">
+<div class="notif-title">A Morte do Meu Pai — Capítulo 3</div>
+<div class="notif-sub">Seção atual: "As cartas na mesa"</div>
+<div class="notif-bar"><div class="notif-fill" style="width:62%"></div></div>
+<div style="font-size:.72rem;color:#9AA3AD;margin-top:4px">■ tocando · ⏸ pausa · ■ parada</div>
+</div>
+<div class="note note-ok"><strong>Verificado:</strong> texto ≥ 4.5:1, trilho ≥ 3:1, progress fill ≥ 3:1 (objeto gráfico). Nenhum texto em trilho.</div>
+<h3>O que é único</h3><p>Agulha RMS real (Rust 22050 Hz mono f32, canal IPC) — só no in-app. Notificação é só metáfora (título + seção + barra + cor de estado).</p>
+<div class="note"><strong>SC-029:</strong> FAIL declarado — marquee impossível; solução = earcon descendente 3 notas + reason estática + auto-dismiss 3s.</div>
+</div>
+
+<h2>Candidato B — Sinalização (CTB / DIN)</h2>
+<div class="card">
+<h3>Paleta corrigida (fundo #0A0A0A)</h3>
+<div>
+<span class="swatch" style="background:#FFD400"></span><span class="swatch-label">warning 13.83:1 ✓ exclusivo aviso 3s</span>
+<span class="swatch" style="background:#FF4D63"></span><span class="swatch-label">prohibit 6.12:1 ✓ exclusivo falha</span>
+<span class="swatch" style="background:#3D8BE8"></span><span class="swatch-label">info 5.71:1 ✓</span>
+<span class="swatch" style="background:#5D5D5D"></span><span class="swatch-label">track 3.01:1 ✓ corrigido</span>
+</div>
+<h3>Notificação — estado "Caution-3s" (causa do SC-029 mais próxima)</h3>
+<div class="notif-sim" style="background:#0A0A0A;border:1px solid #333;">
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+<span style="width:10px;height:10px;border-radius:50%;background:#FFD400;animation:pulse 1.2s infinite;"></span>
+<span style="font-size:.8rem;color:#FFD400;font-weight:600">AVISO — expira em 3 s</span>
+</div>
+<div class="notif-title">A Morte do Meu Pai</div>
+<div class="notif-sub">Seção atual: "As cartas na mesa" · Pausado: chamada em curso</div>
+<div class="notif-bar"><div class="notif-fill-amber" style="width:40%"></div></div>
+</div>
+<style>@keyframes pulse{0%{opacity:1}50%{opacity:.4}100%{opacity:1}}</style>
+<div class="note note-ok"><strong>SC-029:</strong> ponto amarelo pulsante (in-app) + razão estática + TTL 3s — <strong>mais próximo sem quebrar</strong>. Nenhum marquee.</div>
+<h3>Regra fechada</h3><p>Vermelho só falha. Amarelo só 3s. Azul só info. Sem verde (repouso = ausência de cor). Sem outro amarelo. Sem outro vermelho. Se adicionar → edição coordenada + bump semântico + docs.</p>
+</div>
+
+<h2>Candidato C — Emissora (NRK / DR)</h2>
+<div class="card">
+<h3>Paleta (fundo #0E1116)</h3>
+<div>
+<span class="swatch" style="background:#F4F6F8"></span><span class="swatch-label">ink 17.46:1</span>
+<span class="swatch" style="background:#5AC8FA"></span><span class="swatch-label">brand 9.98:1 (ciano identidade)</span>
+<span class="swatch" style="background:#FF7A59"></span><span class="swatch-label">warm 7.37:1 (falha exclusiva)</span>
+<span class="swatch" style="background:#556170"></span><span class="swatch-label">track 3.0:1 ✓</span>
+</div>
+<h3>Notificação</h3>
+<div class="notif-sim" style="background:#0E1116;border:1px solid #333;">
+<div class="notif-title" style="color:#F4F6F8">A Morte do Meu Pai — Capítulo 3</div>
+<div class="notif-sub" style="color:#A7B0BA">Seção: "As cartas na mesa"</div>
+<div class="notif-bar"><div class="notif-fill-cyan" style="width:55%"></div></div>
+</div>
+<div class="note note-info"><strong>Disciplina institucional:</strong> nenhuma animação, nenhuma cor extra, uma voz tipográfica, sobrevivência 4K→16px. Marca = emissora (ressona), não personagem.</div>
+</div>
+
+<h2>Candidato D — Editorial (Müller-Brockmann / iA Writer)</h2>
+<div class="card">
+<h3>Paleta (fundo #101010)</h3>
+<div>
+<span class="swatch" style="background:#F5F2EC"></span><span class="swatch-label">paper 17.03:1</span>
+<span class="swatch" style="background:#A8A196"></span><span class="swatch-label">dim 7.43:1</span>
+<span class="swatch" style="background:#646057"></span><span class="swatch-label">rule 3.04:1 (hairline)</span>
+<span class="swatch" style="background:#C8553D"></span><span class="swatch-label">vermilion 4.37:1 só falha</span>
+</div>
+<div class="note"><strong>Grade in-app:</strong> campo esquerdo (título + seção + progresso), campo direito (taxa + razão scroll). Ribbon-marker físico na borda esquerda = posição no documento (metáfora do livro, nunca porcentagem).</div>
+<div class="note"><strong>Risco principal:</strong> importar tipografia editorial (serif, display 58px) para notificação — Android já renderiza. <strong>Regra dura:</strong> notificação = operational (Roboto Flex, 12–20sp), nunca editorial.</div>
+</div>
+
+<h2>Candidato E — Espectral (Duotone / Sonificação)</h2>
+<div class="card">
+<h3>Paleta (fundo #000000)</h3>
+<div>
+<span class="swatch" style="background:#F0F0F0"></span><span class="swatch-label">ink 18.43:1</span>
+<span class="swatch" style="background:#2D5F8B"></span><span class="swatch-label">cool 3.12:1 ⚠ (marginal)</span>
+<span class="swatch" style="background:#E8A33D"></span><span class="swatch-label">hot 9.74:1 (ponto quente)</span>
+</div>
+<div class="note"><strong>In-app faixa:</strong> envelope de fala (3–5px) = previsão de passagem densa. Gradiente cool→hot = posição no documento.</div>
+<div class="note"><strong>Risco OEM:</strong> gradiente pode ser lido como glitch; cool 3.12:1 só aceitável como trilho não-texto. Verificação obrigatória Samsung/Xiaomi/Pixel.</div>
+</div>
+
+<h2>Síntese — qual escolher?</h2>
+<div class="card">
+<p><strong>B (Sinalização)</strong> se o SC-029 importa mais e você quer a solução mais honesta sem quebrar Android.</p>
+<p><strong>D (Editorial)</strong> se a grade + ribbon-marker in-app é o diferencial real e você aceita que a notificação seja monocromática.</p>
+<p><strong>A (Medidor)</strong> se a agulha RMS no Rust + grid 2-campo são o centro do produto.</p>
+<p><strong>C (Emissora)</strong> se disciplina institucional é mais importante que inovação visual.</p>
+<p><strong>E (Espectral)</strong> só se você aceita o risco OEM e quer a surpresa — use como variante, não base.</p>
+<div class="note note-ok"><strong>Base para todos:</strong> ressona.dev, mdreader técnico, Engine Sona (motor), F-Droid, 0 faturamento, SC-029 declarado honesto.</div>
+</div>
+
+<footer style="margin-top:40px;padding-top:16px;border-top:1px solid #333;color:#9AA3AD;font-size:.78rem;">
+Comparativo gerado de <code>DESIGN_SYSTEMS_5_CANDIDATOS.md</code> (112 linhas) + contexto consolidado da conversa. Não substitui a decisão de design — serve como base de comparação com paletas verificadas, tokens 3-camadas e declaração do SC-029.<br>
+Marca de divulgação: <strong>ressona.dev</strong> (RDAP livre). Workspace técnico: <strong>mdreader</strong>. Motor: <strong>Engine Sona</strong>. Distribuição: <strong>F-Droid</strong>.
+</footer>
+</body>
+</html>

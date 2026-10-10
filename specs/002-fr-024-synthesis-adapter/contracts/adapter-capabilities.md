@@ -149,3 +149,14 @@ The adapter uses only `offline_default`; therefore `SsmlLevel::None` is correct 
 - Constitution: `/home/luis/development/mdreader/.specify/memory/constitution.md` (§VI 299–312; §Audio Pipeline Contracts 568; §TTS Engine Registry 524; §Development Workflow 643 Exception 8; §Single Playback Authority 82–86)
 - Source verification (no trait, no declared_capabilities): `/home/luis/development/mdreader/crates/engine-core/src/lib.rs` (no `trait_.rs`); `grep '\btrait\b'` = 0; `grep 'declared_capabilities'` = 0; `grep 'SsmlLevel\|AlignmentGranularity'` = 0
 - Stand-in fixtures (reference for engine-handoff contract): `/home/luis/development/mdreader/crates/engine-core/src/standin_a.rs`, `standin_b.rs`
+---
+
+## A. Scope-conflict record (T060 / FR-024c / spec.md:144)
+
+**Conflict**: `spec.md:144` (Non-Goals / this-spec-describes-adapter-only) states `player`, `session`, `diag`, Kotlin `MediaSession` are out of scope. `FR-024c` (`data-model.md` E5 `:120-121`; `contracts/adapter-capabilities.md` §4.1) and `adapter-handoff.md` §4 / §6.1 require `player` to branch explicitly on the adapter's declared value (`declared_capabilities()` -> `plan_for()` -> `(SsmlDelivery::PlainText, ResumeAnchor::ParagraphHeading)` for `(None,None)`). The `consume::plan_for()` branch is NOT `player` transport/position logic; it is the adapter-to-player declaration-consumption interface mandated by FR-024c.
+
+**Governing reading**: `FR-024c` governs the branch; `spec.md:144` governs adapter-only scope *excluding* player transport/position/bookmark logic (`constitution.md:486-490` single authority preserved — adapter splits/declar/synth only; `player` derives position from delivered-chunk log, never from adapter echo). The branch consumes the declaration and nothing else.
+
+**Amendment to `API_CONTRACT.md` §10 (line ~658)**: The out-of-scope clause for `player`-side wiring (`T045`/`T046`) is NOT a suppression of `FR-024c`'s `plan_for()` branch. `API_CONTRACT.md` §10 entry for delivery-unit wiring remains deferred (T045/T046 blocked on B1); the `plan_for()` / `declared_capabilities()` / `ssml_delivery()` / `resume_anchor()` surface is in scope and implemented (`src/consume.rs`; `src/lib.rs`). No suppression — amended in writing here rather than silently.
+
+**Confirmation**: `consume::plan_for(declared_capabilities())` yields `(SsmlDelivery::PlainText, ResumeAnchor::ParagraphHeading)` by identity mapping (`SsmlLevel::None` -> `PlainText`; `AlignmentGranularity::None` -> `ParagraphHeading`). Never upgrades to `FullSsml` / `Sentence` (Principle VI observable degradation; `consume.rs`:101-104 doc comment).

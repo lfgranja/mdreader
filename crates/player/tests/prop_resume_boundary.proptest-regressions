@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 9f48cfaa523180c0ea2f4375ebb2226e96b6252406bc7a2372fffea7fdf0bd5b # shrinks to (yield_position, paused_duration) = (30.25, 0.01)
+cc c9093ea0ef04cab0e4397e6e820fe9fa0b40b965f537fb725927254f3fed254f # shrinks to (yield_position, paused_duration, boundaries) = (60.25, 0.01, [ResumeBoundary { at_secs: 0.0, kind: Paragraph }])

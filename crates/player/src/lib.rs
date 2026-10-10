@@ -5,6 +5,7 @@
 //! Rust code path (Principle II).
 
 pub mod cli;
+pub mod consume; // T067: adapter declaration-consumption branch wired (FR-024c)
 pub mod focus;
 pub mod position;
 pub mod resume;

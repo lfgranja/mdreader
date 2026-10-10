@@ -6,6 +6,7 @@ use engine_core::closed::EngineTier;
 
 pub mod capabilities;
 pub mod chunk;
+pub mod cli;
 pub mod consume;
 pub mod failure;
 pub mod format_check;

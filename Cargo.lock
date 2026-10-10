@@ -6,8 +6,11 @@ version = 4
 name = "adapter-synthesis"
 version = "0.1.0"
 dependencies = [
+ "clap",
  "engine-core",
  "proptest",
+ "serde",
+ "serde_json",
  "thiserror 1.0.69",
 ]
 

@@ -9,7 +9,10 @@ keywords = ["tts", "synthesis", "adapter", "text-to-speech"]
 categories = ["multimedia::audio", "text-processing"]
 
 [dependencies]
+clap = { workspace = true }
 engine-core = { path = "../engine-core" }
+serde = { workspace = true }
+serde_json = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]

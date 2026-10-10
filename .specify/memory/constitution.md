@@ -1,6 +1,66 @@
 <!--
   SYNC IMPACT REPORT
   ===================
+  Amended: 2026-10-10
+  Version change: 1.3.0 -> 1.4.0
+
+  Bump rationale: MINOR. One new named constraint clause — the
+  Workspace Dependency Portability and Supply-Chain Policy — is
+  added to record the portability-first dependency-selection
+  decision (prefer universal dependencies; use restricted
+  dependencies only behind cfg-gating when they meet a
+  measured, recorded exception bar). No principle is added,
+  removed, or redefined; no existing MUST is weakened or
+  replaced; the deviation from the previous unconditional-
+  declaration default is explicitly reversible by deleting
+  the clause. Not MAJOR (no principle change, no architecture
+  reversal), not PATCH (new governance content, not a
+  wording clarification of an existing clause).
+
+  Modified constraints:
+    - Workspace Dependency Portability and Supply-Chain
+      Policy (new named section, inserted after the Tauri
+      Platform Contract section): the three refinements of
+      the portability-first policy, with the measured
+      exception bar (>=10x, paired benchmark), the first-use
+      declaration rule, the CI gate (cargo machete / cargo
+      shear / cargo-check --workspace --all-targets), and the
+      supply-chain gate (advisory-free, crates.io-only,
+      build-script-free preference, with the undiagnosed
+      build-time execution risk of build.rs documented).
+
+  Principles modified: none.
+  Sections added: one new named section — Workspace
+  Dependency Portability and Supply-Chain Policy.
+  Sections removed: none.
+  Renamed sections: none.
+
+  Deferred / non-constitution (from this amendment's
+  conversation, not a governance change):
+    - The precise tunable magnitude threshold (>=10x
+      anchored at AAudio EXCLUSIVE 20ms vs ~205ms in
+      DeviceAudioLatency docs) is set as a default; the
+      maintainer may adjust it by amendment if a
+      different domain's evidence demands.
+    - The exact CI gate (blocking cargo-machete vs
+      periodic cargo-udeps / cargo-shear) is left to
+      the workspace's gate-infrastructure owner.
+    - The specific device-farm / on-device trial plan
+      for future cfg-gated platform behavior (audio
+      focus / routing / lock-screen) is deferred to the
+      001 on-device trial plan (SC-009 stage 2) and
+      not required for this policy clause.
+
+  Source evidence for the clause: specs/002-fr-024-synthesis-adapter/
+  DEPENDENCY_PORTABILITY_RESEARCH.md (research note, 4 threads,
+  cited, 2026-10-10); B2 repair commits on 001-android-media-shell
+  (a90d2b6 manifest gate; 42b59d7 closed-set unification; 286009e
+  snap_to_boundary cap-origin behavioral fix; session/lib.py
+  lint repair at 663888b).
+-->
+<!--
+  SYNC IMPACT REPORT
+  ===================
   Amended: 2026-10-06
   Version change: 1.2.0 -> 1.3.0
 
@@ -641,6 +701,22 @@ drift. Each was authorized by the sole maintainer on 2026-10-01.
    exception to the consent rule, not a ranked default, and the adapter speaks the protocol
    directly rather than through the OpenAI-compatible Python wrapper.
 8. **Gate 8 split for `001-android-media-shell`.** Constitution gate 8 (byte-budget + SSML + sentence-alignment) cannot pass while FR-024 places synthesis in another feature. `verify.sh` reports `gate-8-shell: PASS` (handoff shape + granularity-declared + 22050 Hz request) and `gate-8-full: DEFERRED (owner=synthesis)`; no build claims constitution gate 8 PASS until the synthesis feature discharges it with SC-044.
+
+9. **Workspace Dependency Portability and Supply-Chain Policy (1.4.0)** — deviations
+   from the unconditional-declaration default (previous implicit standard) to
+   a portability-first dependency-selection rule recorded in the constitution.
+   Author: maintainer (2026-10-10). Reason: the T036 B2 repair showed the
+   unconditional `ndk = "0.9"` declaration (unused at declaration time,
+   rust-mobile/ndk#80 compile_error! on every non-Android target) broke all
+   host builds of `crates/player`. The clause requires: universal preference;
+   restricted dependencies only behind `[target.'cfg(...)'.dependencies]`
+   with a documented justification; a measured exception bar (>=10x paired
+   benchmark or exclusive API); first-use declaration; CI gate (cargo machete);
+   supply-chain fail-closed (advisory-free). Reversible by deleting the clause
+   (no architecture reversal; no existing MUST weakened; only a new named
+   constraint section added). Source evidence: specs/002-fr-024-synthesis-adapter/
+   DEPENDENCY_PORTABILITY_RESEARCH.md (4 threads, cited, 2026-10-10); B2
+   repair commits `a90d2b6`, `42b59d7`, `286009e` on 001-android-media-shell.
 
 Any new deviation is added here in the same commit that introduces it, and is treated as a
 minor amendment.

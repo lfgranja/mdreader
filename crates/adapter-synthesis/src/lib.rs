@@ -4,6 +4,7 @@
 
 use engine_core::closed::EngineTier;
 
+pub mod audio_chunk;
 pub mod capabilities;
 pub mod chunk;
 pub mod cli;
@@ -80,6 +81,7 @@ pub const fn declared_capabilities() -> AdapterCapabilities {
     }
 }
 
+pub use crate::audio_chunk::{AudioChunk, DeliveryError};
 pub use crate::chunk::{BoundaryKind, DocumentSegment, MAX_CHUNK_BYTES, SourceRange};
 pub use crate::consume::{PlayerPlan, ResumeAnchor, SsmlDelivery};
 pub use crate::failure::{

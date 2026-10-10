@@ -57,4 +57,4 @@ Thumbs.db
 .env.*
 !.env.example
 *.pem
-*.key
+*.keytarget/

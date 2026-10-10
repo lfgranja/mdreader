@@ -530,6 +530,12 @@ impl JsonParser {
                     ));
                 }
                 Some(character) => {
+                    // The cursor MUST advance here: without it
+                    // this branch re-reads the same character
+                    // forever and never terminates, because it
+                    // is the only branch whose happy path does
+                    // not consume input.
+                    self.position += 1;
                     text.push(character);
                 }
                 None => {

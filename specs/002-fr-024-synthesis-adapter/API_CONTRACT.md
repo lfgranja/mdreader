@@ -29,6 +29,23 @@ Exactly three `#[expect]` attributes exist in this crate, each mandated by this 
 
 No fourth suppression is sanctioned. If a future change needs one, that is a coordinated edit to this section — not a local decision.
 
+### 0.2 Sanctioned additions to the frozen surface (registered 2026-10-09)
+
+§0.1 registers the sanctioned `#[expect]` suppressions; this section
+registers sanctioned additions to the frozen surface — behaviours the
+crate implements that the frozen prose does not state. Two were added
+without registration. The behaviour is **kept** — nothing is removed or
+changed to match the prose — and only the registration was missing.
+Both are source-compatible, fail-closed strengthenings consistent with
+Principle VII (`constitution.md:314-317`); with this registration they
+are part of the frozen surface, and the header's "no additions, no
+renames, no removals" binds future edits, not this record.
+
+| # | Addition | Code site(s) | Contract text | Rationale |
+|---|---|---|---|---|
+| 1 | `const fn` signatures where the contract writes plain `pub fn` | `src/lib.rs:77` (`declared_capabilities`), `src/capabilities.rs:7` (`capabilities`), `src/format_check.rs:70` (`check_format`), `src/chunk.rs:150` (`byte_length`) | §1, §2, §6 and §8 each write `pub fn` | A `const fn` can always be called as a `fn`, so the strengthening is source-compatible: every caller and frozen test written against the `pub fn` text compiles and behaves identically. The four functions are pure — no state, no I/O — so nothing observable changes. |
+| 2 | Non-finite `duration_ms` → `EngineError::RateMismatch` | `src/format_check.rs:119-121` | §6's `check_delivery` prose does not mention a non-finite duration | A NaN or ±inf `duration_ms` is not a derivable duration (`duration_ms` is computed from a buffer length), so the check fails closed: it names `RateMismatch` rather than silently passing or entering an incomparable half-sample band — consistent with Principle VII (a deviation is observable, never silent) and with §6's rule that any buffer whose length disagrees with its duration is a `RateMismatch`. |
+
 ---
 
 ## 1. `src/lib.rs` — module wiring + declaration (already present; keep)
@@ -179,6 +196,128 @@ list-aware segmentation — or sentence-level resume — must adopt `pulldown-cm
 and revise §2.1 rule 1 and the frozen tests together. That is a coordinated edit
 to this contract, not a local change.
 
+### 2.1a Recorded deviation from `spec.md` and `data-model.md`: the segment carries no document fingerprint (decision 2026-10-09)
+
+`spec.md:101` (Key Entities) describes `DocumentSegment` as "carrying a
+`blake3` content hash of the document", and `data-model.md` E1 lists a
+`blake3_hash` field on the segment (`data-model.md:23`) with rule R5
+binding it to resume (`data-model.md:140`). §2.1 rule 12 governs
+instead: the frozen §2 struct has exactly five fields and no hash, and
+`document_hash` is accepted on the split call and discarded
+(`src/chunk.rs:173-177`). This is a recorded deviation, not an
+oversight. Decision: keep the frozen struct unchanged and record the
+deviation here — the register above records only the line-scan
+deviation.
+
+**Why.** The fingerprint belongs to `session`, not the adapter
+(`spec.md` Assumption 5: the "`redb` bookmark store and `blake3`
+fingerprint remain the sole resume mechanism; the adapter does not
+alter position storage"). The bookmark is keyed by the `blake3`
+document fingerprint storing the playback offset, so storing the hash
+on the segment would be an additive change to the frozen §2 surface
+(the header freezes it: "no additions, no renames, no removals") and
+a second declaration of session-owned state (`FR-044`).
+
+**Consequence.** Nothing inside the adapter binds a segment to a
+document identity: a caller passing a wrong or stale hash is currently
+unobservable — the hash never reaches a segment, never influences the
+scan, and cannot fail a split (rule 7's determinism is stated over
+`(source, document_hash, max_bytes)` and holds trivially, the third
+component being discarded). The binding is the caller's responsibility
+and is owned by `session`, which keys its bookmark on the fingerprint
+itself.
+
+**Reconciliation condition.** If a future requirement needs
+in-adapter validation of the fingerprint — the adapter must refuse a
+split whose hash does not match the document it was passed — this
+deviation is what must be revisited: either store the hash on the
+segment (a coordinated additive amendment to the frozen §2 surface) or
+validate it at the split boundary before scanning. Until one of those
+happens, rule 12 governs, and `spec.md:101` and `data-model.md`
+E1/R5 stand overridden by this entry.
+
+### 2.1a Recorded deviation from §2.1 rule 2: heading blocks are isolated into their own segment (decision 2026-10-09)
+
+**Behaviour.** When a heading block is scanned, the open segment is
+closed first and the heading block is then emitted as its own segment,
+so no other block ever shares a heading's segment
+(`src/chunk.rs:197-205`).
+
+**Departs from.** §2.1 rule 2, which is plain
+greedy packing over all blocks — "Append blocks to the open segment
+while `open.byte_length() + separator + block.len() <= max_bytes`" —
+with no heading exemption; the contract states no "own segment" rule
+anywhere.
+
+**Affected cases.** Every heading whose block would otherwise join the
+open segment (or pack with adjacent paragraphs) under rule 2: the code
+closes the segment early instead of packing. Named case: the frozen
+test `heading_absorbs_its_body_and_is_never_split_from_it`
+(`tests/prop_chunk_refined.rs:341-368`) — for `"## Título\n\nPrimeira
+frase do corpo.\n\nSegundo parágrafo."` the code yields **2** segments
+(the heading block isolated per this entry, its body absorbed per the
+next entry), where rules 1+2 alone pack all three blocks into **1**.
+
+**Invariants.** Not affected: the byte-budget bound (rule 5 — closing
+a segment early only makes segments smaller) and the 0-based,
+consecutive `segment_index` (rule 9 — assigned in emission order at
+close time either way). Also unaffected: losslessness (rule 6),
+determinism (rule 7), empty input (rule 8) and the range/resume rules
+(10-11). Affected: segmentation granularity only — how many segments a
+source yields and which blocks group — which the frozen rules do not
+pin and the code pins differently.
+
+**Pinned test.** `tests/prop_chunk_refined.rs:341-368` asserts the
+isolation jointly with the absorption below: 2 segments, the opening
+one a `Heading` segment, the trailing paragraph a separate `Paragraph`
+segment.
+
+### 2.1a Recorded deviation from §2.1 rule 1: a heading block with no immediately-following body absorbs across blank lines (decision 2026-10-09)
+
+**Behaviour.** When a heading has no immediately-following non-blank
+line, its block extends across the blank lines to the next non-blank,
+non-heading run, so a heading and a body separated by blank lines are
+still one block (`src/chunk.rs:343-362`).
+
+**Departs from.** §2.1 rule 1, which bounds
+the heading block at "the heading line **and** the immediately
+following non-blank lines" — a blank line ends it — and states "Blank
+lines separate blocks and carry no content".
+
+**Affected cases.** A heading followed by a blank line and then body
+text: under rule 1 the heading is a one-line block and the body is a
+separate paragraph block, both eligible for greedy packing; under the
+code they are one block. Named case: `"## Título\n\nPrimeira frase do
+corpo."` — rule 1 yields heading block `## Título` plus paragraph
+block `Primeira frase do corpo.`; the code yields one heading block
+carrying both.
+
+**Invariants.** Not affected: the byte-budget bound (rule 5) and the
+0-based, consecutive `segment_index` (rule 9) — absorption changes
+which lines group, never a segment's byte count or its emission-order
+index. Also unaffected: losslessness (rule 6), determinism (rule 7),
+empty input (rule 8) and the range/resume rules (10-11) — the
+absorbed block still reports its original-source range. Affected:
+block grouping only, as above.
+
+**Pinned test.** The same frozen test,
+`tests/prop_chunk_refined.rs:341-368`: its heading segment must
+contain `Primeira frase do corpo.`, which only the absorbing code
+produces.
+
+**Rule text and pinned test disagree.** The frozen rules 1-2 and the
+frozen test contradict each other: rules 1-2 alone pack the three
+blocks of `"## Título\n\nPrimeira frase do corpo.\n\nSegundo
+parágrafo."` into one segment, while `tests/prop_chunk_refined.rs:341-368`
+pins the two-segment split the code produces. (§9's test-surface table
+already anticipates "a heading block absorbing
+its body" — so the absorption was intended — but the normative rule 1
+text never states it, and the isolation has no mention anywhere.) The
+implementation matches the test, not the prose. Reconciling rule 1-2
+prose to the code — or the code to the prose — is owed before the
+surface is frozen again; until one of those happens, these two entries
+are the authority of record for the behaviours they name.
+
 ### 2.1b Precondition on `max_bytes` (budget floor)
 
 Rule 5 (the budget is a hard bound) and rule 6 (losslessness) are **jointly
@@ -192,8 +331,10 @@ Below the floor, rule 6 wins — the character is emitted whole, keeping the
 content valid UTF-8 and lossless, exceeding the budget only where no char-safe
 cut exists. The floor is pinned by
 `budget_floor_at_max_utf8_char_width_keeps_bound_and_losslessness` in
-`tests/prop_chunk_refined.rs`, and both property generators draw budgets from
-`4..=MAX_CHUNK_BYTES`.
+`tests/prop_segmentation_shapes.rs:492`, and the two budget-drawing
+property generators (`document_strategy` in `tests/prop_chunk_refined.rs`,
+`mixed_document_and_budget_strategy` in `tests/prop_segmentation_shapes.rs`)
+draw budgets from `4..=MAX_CHUNK_BYTES`.
 
 `split_document` is unaffected: it always uses `MAX_CHUNK_BYTES` (5 000). The
 floor concerns only `split_document_within`, which exists so property tests can

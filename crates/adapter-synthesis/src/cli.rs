@@ -448,7 +448,7 @@ fn project_segment(segment: &DocumentSegment) -> SegmentPayload {
 
 /// Project one segment's resume point for output.
 #[must_use]
-fn project_resume_point(range: SourceRange) -> ResumePointPayload {
+const fn project_resume_point(range: SourceRange) -> ResumePointPayload {
     ResumePointPayload {
         line_start: range.line_start,
         line_end: range.line_end,
@@ -460,7 +460,7 @@ fn project_resume_point(range: SourceRange) -> ResumePointPayload {
 /// catch-all arm — so an added member fails to compile here
 /// (`constitution.md` gate 7).
 #[must_use]
-fn ssml_level_text(level: SsmlLevel) -> &'static str {
+const fn ssml_level_text(level: SsmlLevel) -> &'static str {
     match level {
         SsmlLevel::None => "none",
         SsmlLevel::Partial => "partial",
@@ -472,7 +472,7 @@ fn ssml_level_text(level: SsmlLevel) -> &'static str {
 /// Exhaustive over the closed three-member set — no
 /// catch-all arm (`constitution.md` gate 7).
 #[must_use]
-fn alignment_granularity_text(granularity: AlignmentGranularity) -> &'static str {
+const fn alignment_granularity_text(granularity: AlignmentGranularity) -> &'static str {
     match granularity {
         AlignmentGranularity::None => "none",
         AlignmentGranularity::Word => "word",
@@ -484,7 +484,7 @@ fn alignment_granularity_text(granularity: AlignmentGranularity) -> &'static str
 /// over the closed two-member set — no catch-all arm
 /// (`constitution.md` gate 7).
 #[must_use]
-fn boundary_kind_text(kind: BoundaryKind) -> &'static str {
+const fn boundary_kind_text(kind: BoundaryKind) -> &'static str {
     match kind {
         BoundaryKind::Paragraph => "paragraph",
         BoundaryKind::Heading => "heading",
@@ -590,10 +590,10 @@ fn human_chunk(payload: &ChunkPayload) -> String {
         payload.capability, payload.segment_count,
     );
     for segment in &payload.segments {
-        let resume = match &segment.resume_point {
-            Some(point) => format!("lines {}-{}", point.line_start, point.line_end),
-            None => String::from("none"),
-        };
+        let resume = segment.resume_point.as_ref().map_or_else(
+            || String::from("none"),
+            |point| format!("lines {}-{}", point.line_start, point.line_end),
+        );
         let _ignored = writeln!(
             text,
             "segment {}: lines {}-{}, boundary-kind: {}, byte-length: {}, resume-point: {resume}",

@@ -2,7 +2,7 @@
 
 **Branch**: `002-fr-024-synthesis-adapter`  
 **Feature**: FR-024 / FR-024a / FR-024b / FR-024c  
-**Status**: Design-phase surface **implemented** in `crates/adapter-synthesis` (library + CLI binary). The engine binding (sherpa-onnx + Piper pt-BR `faber`) is **not** bound yet — task T044, deferred to `003-contract-edit` — so `synthesize` fails closed. Reconciled with the implemented surface (T051); every command below was executed on this host.  
+**Status**: Surface **implemented** in `crates/adapter-synthesis` (library + CLI binary) and the real `offline_default` engine is **bound** (T044, 2026-10-09): `sherpa-onnx` 1.13.8 driving the embedded Piper pt-BR `faber` voice (`assets/voices/pt_BR-faber-medium/`, CC0) — `synthesize` delivers real mono-`f32` @ 22 050 Hz audio, and every failure path names a closed-set member. Reconciled with the implemented surface (T051; engine-binding update T044); every command below was executed on this host.  
 **Prerequisites**: `plan.md` filled; `research.md` complete (C1–C4 resolved); `data-model.md`, `contracts/adapter-handoff.md`, `contracts/adapter-capabilities.md` reviewed; `constitution.md` §Engine Registry and §Verification Gates understood. Workspace-wide gates do **not** run on this host (blockers B1–B7, §2); every command here is scoped to the adapter package.
 
 This guide documents **runnable validation scenarios** against the implemented adapter crate. Where a command cannot pass on this host, the true outcome and the owning blocker are stated, not papered over.
@@ -91,7 +91,7 @@ printf '# Title\n\nFirst para.\n\nSecond para here.\n' | cargo run --locked -p a
 **What it proves**: Adapter delivers mono f32 @ 22050 Hz; any deviation surfaces named `EngineError`; never silent resample; `SC-051` mechanism preserved.
 
 **Prerequisites**:
-- `sherpa-onnx` + Piper are **not bound** in this crate (T044 open; binding belongs to `003-contract-edit`). `src/synth.rs` fails closed: every `synthesize` call reports `FailureCondition::VoiceInitFailure` → `EngineError::InitFailed` through `EngineFailure::report` — never an empty buffer.
+- `sherpa-onnx` **1.13.8** + the embedded Piper pt-BR `faber` voice **are bound** in this crate (T044; `API_CONTRACT.md` §7/§7.1). `src/synth.rs` loads the engine once per process (`OnceLock`) and synthesizes each bounded segment to mono `f32` @ 22 050 Hz; a load failure, an empty result, an interior NUL (FFI transport) or a process death each names a closed-set member through `EngineFailure::report` — never an empty buffer, never a silent resample.
 - `crates/engine-core/src/format.rs` unchanged (`DeclaredFormat` preserved — `SAMPLE_RATE` 22 050, `CHANNELS` 1, `SAMPLE_WIDTH_BITS` 32).
 
 **Commands / checks**:
@@ -107,8 +107,11 @@ cargo nextest run --locked -p adapter-synthesis a_wrong_rate_delivery_names_rate
 cargo nextest run --locked -p adapter-synthesis a_stereo_delivery_names_channel_mismatch
 cargo nextest run --locked -p adapter-synthesis a_wrong_width_delivery_names_rate_mismatch
 
-# Synthesis fails closed while the voice model is unbound (SC-035)
-cargo nextest run --locked -p adapter-synthesis synthesis_fails_closed_with_a_named_init_failure
+# Synthesis delivers real audio through the bound engine (FR-024b);
+# a well-formed segment must synthesize — an Err would be the silent branch.
+# The same test pins the fail-closed mechanism: an interior NUL cannot
+# cross the C FFI boundary → named Unreachable (condition TransportUnreachable)
+cargo nextest run --locked -p adapter-synthesis synthesis_delivers_real_audio_and_a_reachable_failure_names_its_condition
 
 # SC-051 mechanism — adapter registered; selector invariant (adapter-scoped)
 cargo nextest run --locked -p adapter-synthesis sc_051_registration_makes_offline_default_the_sole_selectable_tier
@@ -123,12 +126,13 @@ cargo run --locked -p adapter-synthesis -- delivery-check --rate-hz 22050 --chan
 cargo run --locked -p adapter-synthesis -- delivery-check --rate-hz 22050 --channels 1 --width-bits 32 --pcm-samples 100 --duration-ms 1000.0
 # → verification failed: RateMismatch  (stderr; stdout empty; exit 1)
 printf 'Body text.' | cargo run --locked -p adapter-synthesis -- synthesize
-# → synthesis failed closed: EngineFailure { variant: InitFailed, condition: VoiceInitFailure, … }  (stderr; stdout empty; exit 1)
+# → {"capability":"synthesize","segment_count":1,"pcm_samples":15488}  (exit 0; ~10 s on this host — model load + single-threaded inference)
 ```
 
 **Expected outcome** (all nine `nextest` filters pass on this host):
 - Happy: a conforming delivery passes `check_format` / `check_delivery` and `AudioChunk::deliver`; `player` converts to device format (only conversion); notification progress accurate (`FR-028`).
-- Rate / channel / width / init failure: a named closed-set variant (`RateMismatch`, `ChannelMismatch`, `InitFailed`) with nothing delivered; offer ≤ `MAX_OFFER_MS` (3 000 ms); reason in notification (`FR-037`); mechanism preserved; active fallback deferred (only one selectable tier at v1 — `SC-044`).
+- Rate / channel / width deviation: a named closed-set variant (`RateMismatch`, `ChannelMismatch`) with nothing delivered; offer ≤ `MAX_OFFER_MS` (3 000 ms); reason in notification (`FR-037`); mechanism preserved; active fallback deferred (only one selectable tier at v1 — `SC-044`).
+- Synthesis: a well-formed segment **delivers** real mono-`f32` @ 22 050 Hz through the bound engine (an `Err` here would be the silent branch); a voice-model load failure or empty result names `InitFailed`, an interior NUL or engine-process death names `Unreachable` — each through `EngineFailure::report` with the segment's echoed position (SC-035).
 - `SC-051`: `registered_tiers()` is `[EngineTier::OfflineDefault]`; `is_selectable(TestDouble)` is `false` while this non-`test_double` adapter is registered — verified **scoped to the adapter package**. `cargo nextest run --workspace` cannot run on this host (B1: `alsa-sys` via `player`→`cpal`; B2: `ndk-sys` is Android-only), and `engine-core` is deterministically red (B7) — see the T036 record in `tasks.md:104-120`.
 
 **Reference**: `data-model.md` E2 (validation rules R1, R2); `contracts/adapter-handoff.md` §2–§3; `spec.md:42-45`, `spec.md:85`; `research.md` §6 (condition→variant table); `crates/engine-core/src/closed.rs` 245–270.
@@ -218,8 +222,8 @@ Every `cargo` command above carries `--locked` where it builds (`constitution.md
 
 Consequences stated plainly:
 
-- **`cargo deny` fails (B4), and no `ort` exception is or can be registered**: there is no `ort` dependency anywhere in the workspace (`grep` of every `Cargo.toml` = 0 matches). The constitution's pre-recorded `ort` 2.0.0-rc.13 stability exception (`constitution.md:412-413`) applies to the future `003-contract-edit` binding (T044) only — nothing in `deny.toml` references it today. `cargo audit`, the gate's other half, passes.
-- **Scoped clippy is not clean**: `cargo clippy -p adapter-synthesis --all-targets --no-deps` aborts on B3 (exit 101) and, before aborting, emits 37 warnings for the crate — **5 of them name `crates/adapter-synthesis/src/cli.rs`** (4 × `missing_const_for_fn`, 1 × `option_if_let_else`), introduced by the Phase 5 CLI (T041, still open). T056's "zero diagnostics naming `crates/adapter-synthesis/src`" assertion is therefore **not currently met**; the count, not clippy's exit code, is the assertion.
+- **`cargo deny` fails (B4)**: `deny.toml` has two invalid keys, so `cargo deny check …` exits 1 on config deserialization. The engine binding (T044) depends on `sherpa-onnx` 1.13.8 (constitution-pinned registry version) and deliberately **not** on `ort`: `sherpa-onnx-sys` bundles ONNX Runtime in its prebuilt static archive, so the constitution's pre-recorded `ort` 2.0.0-rc.13 RC exception (`constitution.md:412-413`) is not exercised — the deviation is recorded in `API_CONTRACT.md` §7.1. `cargo audit`, the gate's other half, passes.
+- **Scoped clippy is clean for this crate**: `cargo clippy -p adapter-synthesis --all-targets --no-deps` aborts on B3 (exit 101) and, before aborting, emits warnings for *other* workspace crates (`clippy::cargo` missing-package-metadata about `player`, `doc-structure`, `diag`, `engine-core`, `session`) — but **zero diagnostics name `crates/adapter-synthesis/{src,tests}/`**, which is the T056/V2'' assertion (the count, not clippy's exit code, is the assertion; `-D warnings` is deliberately not passed because it would escalate the cross-crate `clippy::cargo` notices).
 - **The suite is not fully green**: `cargo nextest run --locked -p adapter-synthesis --no-fail-fast` reports **106 tests run: 105 passed, 1 failed, 0 skipped**. The single failure is `a_bounded_segment_delivers_a_conforming_non_empty_mono_buffer` (`tests/audio_chunk.rs:500`) — the T042 test-first property that pins the *bound*-engine behavior. It cannot pass until T044 binds the Piper voice model (deferred to `003-contract-edit`; the reference device is the Android arm64 unit of `plan.md`, gate 9). It is recorded here, not hidden: without `--no-fail-fast`, nextest stops early and reports `12 tests run: 11 passed, 1 failed`.
 
 ---
@@ -250,13 +254,13 @@ crates/adapter-synthesis/
 ├── src/consume.rs          # plan_for / ssml_delivery / resume_anchor; PlayerPlan / SsmlDelivery / ResumeAnchor
 ├── src/reg.rs              # registered_tiers() / is_selectable() over the closed EngineTier set (REGISTERED_TIERS = [OfflineDefault])
 ├── src/audio_chunk.rs      # AudioChunk::deliver (fail-closed gates); DeliveryError; MAX_PRE_ROLL_MS = 60_000
-├── src/synth.rs            # NO engine bound — fails closed: VoiceInitFailure → InitFailed (T044 deferred to 003-contract-edit)
+├── src/synth.rs            # the real offline_default engine (T044): sherpa-onnx 1.13.8 + embedded Piper pt-BR faber (CC0); OnceLock single load; fail-closed named failures on every path
 ├── src/cli.rs + src/main.rs # clap-derive CLI: capabilities | chunk | format-check | delivery-check | synthesize; global --format json|human (json default); --input <file> or stdin for chunk / synthesize
 ├── Cargo.toml              # clap, engine-core, serde, serde_json, thiserror (+ proptest dev-dep); [lints] workspace = true
 └── tests/                  # prop_chunk.rs, prop_chunk_refined.rs, prop_declare.rs, prop_format.rs, prop_segmentation_shapes.rs, unit_failure.rs, unit_consume.rs, audio_chunk.rs, cli_protocol.rs
 ```
 
-The CLI protocol (success payload on stdout, exit 0; typed diagnostic on stderr with stdout empty, exit 1; `--help` / `--version` are payloads) is pinned by `tests/cli_protocol.rs` — `capabilities_subcommand_outputs_the_declaration_as_json`, `chunk_subcommand_outputs_segmentation_metadata_as_json`, `json_is_the_default_output_format`, `human_format_is_selectable_and_differs_from_the_machine_format`, `format_check_subcommand_accepts_the_declared_shape`, `delivery_check_subcommand_accepts_a_conforming_buffer`, `format_check_subcommand_routes_a_rate_mismatch_to_stderr`, `delivery_check_subcommand_routes_a_length_deviation_to_stderr`, `synthesize_subcommand_fails_closed_with_nothing_on_stdout`, `unknown_subcommand_is_rejected_with_nothing_on_stdout` — all green on this host.
+The CLI protocol (success payload on stdout, exit 0; typed diagnostic on stderr with stdout empty, exit 1; `--help` / `--version` are payloads) is pinned by `tests/cli_protocol.rs` — `capabilities_subcommand_outputs_the_declaration_as_json`, `chunk_subcommand_outputs_segmentation_metadata_as_json`, `json_is_the_default_output_format`, `human_format_is_selectable_and_differs_from_the_machine_format`, `format_check_subcommand_accepts_the_declared_shape`, `delivery_check_subcommand_accepts_a_conforming_buffer`, `format_check_subcommand_routes_a_rate_mismatch_to_stderr`, `delivery_check_subcommand_routes_a_length_deviation_to_stderr`, `synthesize_subcommand_delivers_pcm_counts_as_json`, `unknown_subcommand_is_rejected_with_nothing_on_stdout` — all green on this host.
 
 ---
 
@@ -265,7 +269,7 @@ The CLI protocol (success payload on stdout, exit 0; typed diagnostic on stderr 
 | Risk | Evidence | Mitigation / Design response |
 |---|---|---|
 | `pulldown-cmark` not in workspace | `grep` workspace `Cargo.toml` = 0 | **Resolved by design decision (T034):** the split is a deliberate line scan; the misclassification cases (setext, in-fence `#`, list, block quote) are recorded in `API_CONTRACT.md` §2.1a and pinned by `tests/prop_segmentation_shapes.rs`. Document-layer validation holds (`R8`). |
-| Engine binding unbound (T044 open) | `src/synth.rs` returns `Err(EngineFailure)` on every call; no `sherpa-onnx` / `ort` in any `Cargo.toml` | Fail-closed by design (SC-035): the unbound model names `InitFailed` instead of a silent empty buffer. Binding — sherpa-onnx 1.13.8 / `ort` 2.0.0-rc.13 (constitution RC exception 4) + Piper pt-BR `faber` — belongs to `003-contract-edit`; gate 9 (`cargo tauri android build --target aarch64`) cannot run on this host (B1/B2). |
+| Engine binding (T044 done 2026-10-09) | `src/synth.rs` binds `sherpa-onnx` 1.13.8 `OfflineTts` + the embedded Piper pt-BR `faber` voice (CC0, `assets/voices/pt_BR-faber-medium/`); no `ort` — `sherpa-onnx-sys` bundles ONNX Runtime (`API_CONTRACT.md` §7.1) | Real mono-`f32` @ 22 050 Hz delivery; every failure path names a closed-set member (load/empty → `InitFailed`; interior NUL / process death → `Unreachable`; rate deviation → `RateMismatch`). Gate 9 (`cargo tauri android build --target aarch64`) still cannot run on this host (B1/B2) — the Android-arm64 build exercises the same release's `android-arm64` static archive. |
 | `T016` trait not built | `crates/engine-core/src/lib.rs` no `trait_.rs`; `grep '\btrait\b'` = 0 | Declaration against existing shapes (`format.rs`/`closed.rs`); no phantom methods (`Assumption 3` corrected); trait design deferred to separate feature |
 | `SC-051` regression if adapter breaks mechanism | `spec.md:85`; `CLARIFICATION_BATCH.md` C4-A | Design explicitly preserves mechanism; `test_double` not selectable (`is_selectable(TestDouble) == false`); active switch deferred; mechanism verified via paused-with-stated-reason |
 | Byte budget enforcement at engine side | `spec.md:19`; `FR-024a` | Design assigns split to adapter (`chunk.rs`); engine receives bounded chunks only; contract rule (`adapter-handoff.md` §2.1) prevents engine-side split |

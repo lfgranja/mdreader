@@ -1040,16 +1040,44 @@ fn format_check_subcommand_requires_the_delivered_shape() {
     assert_failure_protocol(succeeded, &stdout, &stderr);
 }
 
-/// Synthesis is reachable through a named subcommand,
-/// and — with the voice model unbound — fails closed
-/// (`FailureCondition::VoiceInitFailure` →
-/// `EngineError::InitFailed`): a non-success result,
-/// nothing on stdout, the failure on stderr (`FR-024b`;
-/// `SC-035`).
+/// Synthesis is reachable through a named subcommand
+/// and — with the real `offline_default` engine bound
+/// (T044: `sherpa-onnx` 1.13.8 driving the embedded
+/// Piper pt-BR `faber` voice) — delivers real audio:
+/// a success result whose JSON payload names the
+/// capability, the segment count and the total PCM
+/// sample count, with nothing on stderr (`FR-024b`;
+/// `SC-035`). The design-phase fail-closed pin
+/// (unbound model → `InitFailed`, nothing on stdout)
+/// does not survive binding: a well-formed document
+/// must synthesize, and the payload never carries the
+/// document's prose (FR-045).
 #[test]
-fn synthesize_subcommand_fails_closed_with_nothing_on_stdout() {
+fn synthesize_subcommand_delivers_pcm_counts_as_json() -> Result<(), Box<dyn std::error::Error>> {
     let (succeeded, stdout, stderr) = run_cli(&["synthesize"], FIXTURE_DOCUMENT);
-    assert_failure_protocol(succeeded, &stdout, &stderr);
+    assert_success_protocol(succeeded, &stderr);
+    assert!(
+        !stdout.contains(SENTINEL),
+        "stdout must never carry document text (FR-045; contracts/adapter-handoff.md:56), but carried: {stdout}"
+    );
+    let payload = well_formed_json(&stdout)?;
+    assert_text_equals(&payload, "capability", "synthesize")?;
+    // The fixture splits into exactly two segments (the
+    // heading block absorbs the following paragraph; the
+    // final paragraph stands alone) — the same split the
+    // `chunk` payload above pins.
+    assert_number_equals(&payload, "segment_count", 2)?;
+    // The bound engine delivers real PCM: a non-empty
+    // total sample count across the synthesized segments.
+    let pcm_samples = payload
+        .field("pcm_samples")
+        .and_then(JsonValue::number)
+        .ok_or("the payload must carry a pcm_samples number")?;
+    assert!(
+        pcm_samples > 0.0,
+        "the bound engine must deliver a non-empty PCM sample count, but the payload declared {pcm_samples}"
+    );
+    Ok(())
 }
 
 /// An unknown subcommand is rejected: a non-success
@@ -1225,7 +1253,7 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(16))]
     #[test]
     fn synthesis_never_leaks_document_prose_into_stdout(
-        document in document_strategy(),
+        document in synthesis_document_strategy(),
     ) {
         let (succeeded, stdout, stderr) = run_cli(&["synthesize"], &document);
         prop_assert!(
@@ -1275,6 +1303,47 @@ proptest! {
 // Generator
 // ---------------------------------------------------------------------------
 
+/// Builds a budget-bounded arbitrary Markdown document for the
+/// synthesis no-leakage property: the same shape as
+/// [`document_strategy`] — a sentinel heading followed by
+/// blocks, each either a `###` heading or a paragraph of
+/// multi-byte Portuguese words — with paragraphs capped at
+/// 240 bytes and documents at 8 blocks, so a case synthesizes
+/// at most a couple of full-budget segments.
+///
+/// The no-leakage property (FR-045) is structural — the
+/// success payload is segment counts and `f32` sample counts,
+/// and a named failure's fields are identifier-pattern only —
+/// so it needs *varied* documents, not large ones. The shared
+/// [`document_strategy`]'s 40-block / ~48 KB documents make
+/// every case pay single-threaded ONNX inference for up to ten
+/// full-budget segments, which measured >19 min for this one
+/// test on this host (T044 case-count/timeout-budget rewrite;
+/// `SC-009-GATE-RECORD.md` consequence (ii)). Every document
+/// still carries the sentinel in its first heading, so the
+/// property is exercised for real — a property that only ever
+/// observes sentinel-free documents would be vacuous.
+fn synthesis_document_strategy() -> impl Strategy<Value = String> {
+    // One heading block: a `###` line with accented text.
+    let heading = any::<u32>().prop_map(|index| format!("### Seção {index} — título ãçõ"));
+    // One paragraph block: 0..240 bytes of multi-byte words.
+    // Each `aãçõáê ` is 6 chars / 12 bytes, so byte length and
+    // char length diverge throughout.
+    let paragraph = (0u32..240u32).prop_map(|byte_budget| {
+        let words = byte_budget / 12;
+        "aãçõáê ".repeat(words as usize)
+    });
+    // Headings are rarer than paragraphs (1:3).
+    let block = prop_oneof![1 => heading, 3 => paragraph];
+    proptest::collection::vec(block, 2usize..8usize).prop_map(|blocks| {
+        let mut document = String::from("### ");
+        document.push_str(SENTINEL);
+        document.push_str("\n\n");
+        document.push_str(&blocks.join("\n\n"));
+        document
+    })
+}
+
 /// Builds an arbitrary Markdown document: a sentinel
 /// heading followed by 2..40 blocks, each either a `###`
 /// heading or a paragraph of multi-byte Portuguese words,
@@ -1282,6 +1351,12 @@ proptest! {
 /// sentinel in its first heading, so the no-leakage
 /// property is exercised for real — a property that only
 /// ever observes sentinel-free documents would be vacuous.
+///
+/// Reserved for the fast (non-synthesizing) properties in
+/// this file — the CLI metadata tests never invoke the
+/// engine, so the 40-block / ~48 KB upper bound costs
+/// nothing there. Synthesizing properties use
+/// [`synthesis_document_strategy`].
 fn document_strategy() -> impl Strategy<Value = String> {
     // One heading block: a `###` line with accented text.
     let heading = any::<u32>().prop_map(|index| format!("### Seção {index} — título ãçõ"));

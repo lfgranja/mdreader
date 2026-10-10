@@ -534,26 +534,91 @@ because `duration_ms` is a derived `f64` (data-model E2). A mismatch is
 
 ---
 
-## 7. `src/synth.rs` — the pipeline wrapper, fail-closed
+## 7. `src/synth.rs` — the real `offline_default` engine (bound 2026-10-09, T044)
 
 ```rust
 use crate::chunk::DocumentSegment;
 use crate::failure::EngineFailure;
 
-/// Synthesize one bounded segment to mono `f32` at 22 050 Hz.
-///
-/// The Piper `faber` voice model is not bound in this design-phase crate
-/// (`plan.md` §Structure Decision; integration belongs to
-/// `003-contract-edit`). Until it is bound, initialisation cannot succeed —
-/// so this reports the named failure `InitFailed` instead of returning an
-/// empty buffer. An empty buffer would be a *silent* success for a contract
-/// that requires named failure over silence (R2, R7, `SC-035`).
-pub fn synthesize(_segment: &DocumentSegment) -> Result<Vec<f32>, EngineFailure>;
+/// Synthesize one bounded segment to mono `f32` at 22 050 Hz
+/// through the embedded Piper pt-BR `faber` VITS voice.
+pub fn synthesize(segment: &DocumentSegment) -> Result<Vec<f32>, EngineFailure>;
 ```
 
-No `unwrap`, no `panic`, no `Ok(vec![])`. The failure it reports carries
-`FailureCondition::VoiceInitFailure`, a `session_position` derived from the
-segment's `resume_point`, and an offer of `MAX_OFFER_MS`.
+The earlier design-phase text — "the Piper `faber` voice model
+is not bound in this design-phase crate … integration belongs to
+`003-contract-edit`" — is **superseded**: T044 bound the real
+engine in this feature (that deferral was recorded in the old
+§7/§10 and in `plan.md` §Structure Decision, but `spec.md`
+grants no such deferral — it defers only sentence-level resume
+(`SC-044`), consent, and the active fallback switch). Amendment
+recorded 2026-10-09:
+
+- **Engine**: `sherpa-onnx` **1.13.8** (the constitution §TTS
+  Engine Registry pin for `offline_default`), driven through
+  `OfflineTts` + `OfflineTtsVitsModelConfig`; `num_threads: 1`
+  — a single-threaded ONNX Runtime session spawns no
+  uncontrolled per-session thread pool that would contend with
+  the playback, focus and notification threads of the driving
+  shell, and pre-roll (FR-015a) runs synthesis ahead of
+  real-time.
+- **Voice assets embedded in-repo** at
+  `assets/voices/pt_BR-faber-medium/` (CC0 per the repository's
+  `MODEL_CARD`; `PROVENANCE.md` records the source repository,
+  the model's declared 22 050 Hz sample rate, the blake3 of the
+  model file, and the download method). Paths are resolved at
+  **compile time** from `CARGO_MANIFEST_DIR`; nothing is
+  fetched from the network at synthesis time (Principle IX;
+  `spec.md` Assumption 2).
+- **One load per process**: the engine is a
+  `OnceLock<Option<OfflineTts>>`; a failed load is cached as
+  `None` and re-reported on every later call with the *current*
+  segment's echoed position (the cause — missing or corrupt
+  assets — is deterministic).
+- **Success** (`Ok`): a non-empty mono-`f32`-at-22 050 Hz
+  buffer, verified by `check_delivery` (§6) before it is
+  returned. The delivered rate is read from the engine's own
+  output and compared to the declared 22 050 Hz; a deviation
+  is a named `RateMismatch`, never a silent resample (FR-024b /
+  SC-035). An empty result for a non-empty segment is treated as
+  a corrupt synthesis result → `VoiceInitFailure` → `InitFailed`
+  (the silent-success defect mode this module exists to prevent).
+- **Failure paths** — all through the fail-closed
+  `EngineFailure::report`, with `session_position` echoing the
+  segment's `resume_point` (falling back to its `source_range`),
+  never adapter-computed (segment-resume.md CHK030):
+  - voice model load failure → `VoiceInitFailure` → `InitFailed`;
+  - interior NUL in `segment.content` (cannot cross the C FFI
+    boundary as a `CString`) → `TransportUnreachable` →
+    `Unreachable`;
+  - `generate_with_config` returns `None` (engine process died
+    — killed/OOM) → `ProcessDeath` → `Unreachable`;
+  - delivered rate ≠ 22 050 Hz → `RateDeviation` → `RateMismatch`.
+
+### 7.1 `ort` deviation record (exception 4, `constitution.md:412-413`)
+
+`plan.md` (`:23`) and constitution exception 4 pin `ort`
+2.0.0-rc.13 for ONNX/NNAPI inference. The bound engine does
+**not** depend on the `ort` crate: `sherpa-onnx-sys` 1.13.8's
+build script downloads the prebuilt static archive
+`sherpa-onnx-v1.13.8-linux-x64-static-lib.tar.bz2`
+(k2-fsa/sherpa-onnx GitHub releases; recorded in
+`assets/voices/pt_BR-faber-medium/PROVENANCE.md`), which
+**bundles ONNX Runtime, espeak-ng and piper_phonemize as static
+libraries**. ONNX Runtime is therefore present in the dependency
+tree exactly once — the bundled copy — so exception 4's intent
+(offline ONNX inference with no second runtime) is preserved
+with one runtime instead of two, and the `ort` RC's
+pre-recorded stability risk is avoided entirely. Risks recorded:
+(a) the native archive is fetched from GitHub at *build* time
+(not crates.io); the voice *model* assets, unlike the native
+archive, are embedded in-repo; (b) the prebuilt archive is
+per-platform — this host exercises the x64-linux archive, and
+the Android arm64 build (gate 9) exercises the corresponding
+`android-arm64` archive of the same v1.13.8 release. No
+non-crates.io *Rust* source is introduced; `sherpa-onnx`
+1.13.8 is the constitution-pinned crates.io registry version
+(latest stable of the pinned line).
 
 ---
 
@@ -591,7 +656,7 @@ re-declares `EngineError`, `SsmlLevel`, `AdapterCapabilities` or its own
 
 ## 10. Explicitly out of scope (do not implement)
 
-- `AudioChunk` / `DocumentSegment`-to-player delivery structs — delivery is the integration stage's contract (`003-contract-edit`); the byte budget and boundary invariant are what this feature discharges.
+- ~~`AudioChunk` / `DocumentSegment`-to-player delivery structs — delivery is the integration stage's contract (`003-contract-edit`).~~ **Superseded 2026-10-09 (T043):** `src/audio_chunk.rs` implements `AudioChunk` / `DeliveryError` / `deliver` / `MAX_PRE_ROLL_MS` and they are re-exported at the crate root (`src/lib.rs:84`). The delivery unit is in scope and implemented; what remains deferred is the `player`-side wiring of it (T045/T046 — blocked on this host, see the Phase 5 record).
 - `T016` engine trait, `trait_.rs`, any marker trait.
 - `snap_to_boundary` (in scope at v1 — the boundary-kind-agnostic snap; not deferred), sentence-level alignment, `BoundaryKind::Sentence`.
 - `SC-044` active fallback switch, consent acquisition surface, cloud tiers, Edge fallback, a second voice.

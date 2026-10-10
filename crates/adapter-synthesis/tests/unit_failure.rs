@@ -50,17 +50,26 @@
 //! Rust rigor (`constitution.md:460-475`): `unwrap` / `expect` /
 //! `panic!` / `todo!` / `unimplemented!` / `dbg!` / `println!` /
 //! `eprintln!` are denied — including in tests — and no
-//! `#[allow]`/`#[expect]` suppression appears anywhere in this
-//! file. Every closed-set enum below is consumed by a wildcard-free
+//! `#[allow]` suppression appears anywhere in this file. The
+//! single `#[expect]` is the data-model E2 duration derivation
+//! (`buffer.len() as f64`) in §7 — the identical, sanctioned
+//! computation the delivery-unit tests freeze
+//! (`tests/audio_chunk.rs`; API_CONTRACT.md §0.1 entry 4).
+//! Every closed-set enum below is consumed by a wildcard-free
 //! exhaustive `match` (no `_ =>`): an added or removed variant
 //! breaks this test target's build instead of passing silently
 //! (Principle VII; `constitution.md:314-322`; constitution gate 7;
 //! mechanism-gate CHK031).
 
-use adapter_synthesis::chunk::{SourceRange, split_document, split_document_within};
+use adapter_synthesis::chunk::{
+    BoundaryKind, DocumentSegment, SourceRange, split_document, split_document_within,
+};
 use adapter_synthesis::failure::{
     EngineError, EngineFailure, FailureCondition, FailureReportError, MAX_CONDITION_DETAIL_CHARS,
     MAX_OFFER_MS,
+};
+use adapter_synthesis::format_check::{
+    DECLARED_CHANNELS, DECLARED_RATE_HZ, DECLARED_WIDTH_BITS, check_delivery,
 };
 use adapter_synthesis::reg::{REGISTERED_TIERS, is_selectable, registered_tiers};
 use adapter_synthesis::synth::synthesize;
@@ -607,77 +616,126 @@ fn sc_051_registration_makes_offline_default_the_sole_selectable_tier() {
 }
 
 // ---------------------------------------------------------------------------
-// 7. Synthesis fails closed, never silently (API_CONTRACT §7;
-//    R2 / R7; SC-035).
+// 7. Synthesis delivers real audio through the bound engine,
+//    and a reachable failure still names a closed-set member
+//    (API_CONTRACT §7; R2 / R7; SC-035; T044).
 // ---------------------------------------------------------------------------
 
 #[test]
-fn synthesis_fails_closed_with_a_named_init_failure() {
-    // API_CONTRACT §7: the Piper `faber` voice model is not bound
-    // in this design-phase crate, so initialisation cannot succeed
-    // and `synthesize` reports the named failure `InitFailed`
-    // (condition `VoiceInitFailure`) instead of returning an empty
-    // buffer. The failure carries a `session_position` derived
-    // from the segment's `resume_point` (falling back to the
-    // segment's `source_range` when no resume point is declared)
-    // and an offer within `MAX_OFFER_MS`.
+fn synthesis_delivers_real_audio_and_a_reachable_failure_names_its_condition() {
+    // T044 bound the real `offline_default` engine — `sherpa-onnx`
+    // 1.13.8 driving the embedded Piper pt-BR `faber` voice — so a
+    // well-formed segment synthesizes to a real, non-empty, mono-`f32`
+    // buffer at the declared 22 050 Hz. The design-phase pin (unbound
+    // model → unconditional `InitFailed`) does not survive binding: an
+    // `Err` for a well-formed segment would now be the silent branch
+    // this crate exists to prevent ("a silent branch is worse than a
+    // failed build", constitution.md:314-322).
     let source = "# Heading\n\nFirst paragraph.\n\nSecond paragraph.\n";
     let segments = split_document(source, "document-hash");
     assert!(
         !segments.is_empty(),
         "a non-empty document yields at least one segment"
     );
-    for segment in segments {
-        let result = synthesize(&segment);
-        match result {
+    for segment in &segments {
+        match synthesize(segment) {
             Ok(buffer) => {
-                // Negative assertion (R2 / R7 / SC-035): `Ok` here —
-                // with or without samples — is a defect. An empty
-                // buffer would be a *silent* success for a contract
-                // that demands a named failure over silence: a
-                // synthesis path that "succeeds" with no audio
-                // plays nothing and reports nothing, which is
-                // exactly the failure mode this crate exists to
-                // prevent ("a silent branch is worse than a failed
-                // build", constitution.md:314-322). The predicate
-                // is a runtime value, not a constant, so the
-                // assertion always fails without tripping the
-                // constant-assertion lint.
-                let silent_success = buffer.len() < usize::MAX;
                 assert!(
-                    !silent_success,
-                    "synthesize must fail closed with a named failure, not return Ok — an empty buffer would be a silent success (R2 / R7 / SC-035)"
+                    !buffer.is_empty(),
+                    "the bound engine must deliver a non-empty buffer for a well-formed segment"
+                );
+                // The delivered buffer round-trips through the derived
+                // duration (data-model E2): the delivery gate accepts
+                // exactly the duration derived from the buffer's own
+                // length, so the delivered audio conforms to the
+                // declared mono-`f32`-at-22 050 Hz shape.
+                #[expect(
+                    clippy::cast_precision_loss,
+                    reason = "data-model E2 mandates deriving duration_ms as pcm_data.len() / rate_hz * 1000; f64 has no lossless From<usize>, so the usize -> f64 cast is unavoidable — the identical computation is frozen by the delivery-unit tests (tests/audio_chunk.rs:231-232, :516-518); sanctioned by API_CONTRACT.md §0.1 entry 4"
+                )]
+                let duration_ms = buffer.len() as f64 / f64::from(DECLARED_RATE_HZ) * 1000.0;
+                assert_eq!(
+                    check_delivery(
+                        DECLARED_RATE_HZ,
+                        DECLARED_CHANNELS,
+                        DECLARED_WIDTH_BITS,
+                        buffer.len(),
+                        duration_ms
+                    ),
+                    Ok(()),
+                    "the delivered buffer must conform to the declared mono-f32-at-22 050 Hz shape"
                 );
             }
             Err(failure) => {
-                assert_eq!(
-                    failure.variant,
-                    EngineError::InitFailed,
-                    "an unbound voice model is a named InitFailed, never silence"
-                );
-                assert_eq!(
-                    failure.condition,
-                    FailureCondition::VoiceInitFailure,
-                    "the named failure carries its observing condition"
-                );
+                // Negative assertion (R2 / R7 / SC-035): a well-formed
+                // segment cannot fail through the bound engine. The
+                // predicate is a runtime value, not a constant, so the
+                // assertion always fails without tripping the
+                // constant-assertion lint.
+                let well_formed_segment_may_fail = failure.offer_expires_in_ms <= MAX_OFFER_MS;
                 assert!(
-                    failure.offer_expires_in_ms <= MAX_OFFER_MS,
-                    "the failure offer expires within MAX_OFFER_MS (FR-023a / FR-032c / FR-041)"
-                );
-                assert_eq!(
-                    failure.tier_at_failure,
-                    EngineTier::OfflineDefault,
-                    "the failure carries the sole registered tier (R11)"
-                );
-                let expected_position = match segment.resume_point {
-                    Some(resume_point) => resume_point,
-                    None => segment.source_range,
-                };
-                assert_eq!(
-                    failure.session_position, expected_position,
-                    "session_position is the segment's resume_point, or its source_range when none is declared — echoed, never computed"
+                    !well_formed_segment_may_fail,
+                    "a well-formed segment must synthesize through the bound engine, not fail closed: {failure:?}"
                 );
             }
+        }
+    }
+
+    // The fail-closed mechanism itself stays reachable: a segment
+    // carrying an interior NUL cannot be marshalled across the C FFI
+    // boundary, so synthesis refuses with the named `Unreachable`
+    // (condition `TransportUnreachable`) — a closed-set member with a
+    // bounded offer and the segment's echoed position — rather than
+    // letting the dependency panic on `CString::new` (R2/R7; SC-035).
+    let unreachable_segment = DocumentSegment {
+        content: "Parágrafo com\0um NUL interior.".to_owned(),
+        source_range: SourceRange::whole_lines(1, 1),
+        boundary_kind: BoundaryKind::Paragraph,
+        segment_index: 0,
+        resume_point: Some(SourceRange::whole_lines(1, 1)),
+    };
+    let expected_position = match unreachable_segment.resume_point {
+        Some(resume_point) => resume_point,
+        None => unreachable_segment.source_range,
+    };
+    match synthesize(&unreachable_segment) {
+        Ok(buffer) => {
+            // Negative assertion (R2 / R7 / SC-035): `Ok` here —
+            // with or without samples — is a defect. An interior NUL
+            // must be refused before the FFI boundary; a success would
+            // mean unmarshalable text crossed it. The predicate is a
+            // runtime value, not a constant, so the assertion always
+            // fails without tripping the constant-assertion lint.
+            let silent_transport_success = buffer.len() < usize::MAX;
+            assert!(
+                !silent_transport_success,
+                "an interior NUL must be refused with a named failure, not carried across the FFI boundary"
+            );
+        }
+        Err(failure) => {
+            assert_eq!(
+                failure.variant,
+                EngineError::Unreachable,
+                "an interior NUL is a named Unreachable, never silence"
+            );
+            assert_eq!(
+                failure.condition,
+                FailureCondition::TransportUnreachable,
+                "the named failure carries its observing condition"
+            );
+            assert!(
+                failure.offer_expires_in_ms <= MAX_OFFER_MS,
+                "the failure offer expires within MAX_OFFER_MS (FR-023a / FR-032c / FR-041)"
+            );
+            assert_eq!(
+                failure.tier_at_failure,
+                EngineTier::OfflineDefault,
+                "the failure carries the sole registered tier (R11)"
+            );
+            assert_eq!(
+                failure.session_position, expected_position,
+                "session_position is the segment's resume_point, or its source_range when none is declared — echoed, never computed"
+            );
         }
     }
 }

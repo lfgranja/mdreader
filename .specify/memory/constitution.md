@@ -1,6 +1,43 @@
 <!--
   SYNC IMPACT REPORT
   ===================
+  Amended: 2026-10-06
+  Version change: 1.2.0 -> 1.3.0
+
+  Bump rationale: **MINOR.** One new constraint clause is added to the Tauri Platform Contract
+  (Audio Focus / Driving-Safety section) to record a deliberate deviation from Android's
+  documented ducking best practice (ADR-001). No principle is added, removed, or redefined;
+  no existing MUST is weakened or replaced; the deviation is explicitly reversible by deleting
+  the clause. Not MAJOR (no principle change, no architecture reversal), not PATCH
+  (new governance content, not a wording clarification).
+
+  Modified constraints:
+    - **Tauri Platform Contract — Audio Focus / Driving-Safety** (line ~466): a new
+      bullet "Deliberate deviation from Android ducking best practice (ADR-001)" records that
+      transient focus loss ducks to ~20% and continues rather than pausing, with the
+      platform recommendation (`setWillPauseWhenDucked(true)`) cited by source, the
+      product rationale (continuity over interruption in the commute) stated, and the
+      reversibility affirmed (delete clause -> adopt default; no other governance change).
+
+  Principles modified: none.
+  Sections added: none (existing section extended; no new named section).
+  Sections removed: none.
+  Renamed sections: none.
+
+  Deferred / non-constitution (from conversation, not this file):
+    - Naming / brand decision (product title, domain, INPI, GitHub reserve): deferred to
+      `/speckit.specify` or manual follow-up; not a governance change.
+    - Monetization architecture (pricing tiers, Play Billing integration, COGS model):
+      deferred; requires feature-level decision, not constitution amendment.
+    - ADR-001 audit trail in Exceptions Log: should be added at next amendment cycle,
+      not required for this clause insertion.
+
+  Scope discipline: this amendment touches this file only. No crate, contract, gate script,
+  or spec artifact was modified.
+-->
+<!--
+  SYNC IMPACT REPORT (v1.2.0 — preserved)
+  ===================
   Amended: 2026-10-01
   Version change: 1.1.0 -> 1.2.0
 
@@ -463,9 +500,23 @@ only what the Android platform requires a Java or Kotlin type for.
   self-bootstrap from the `Application` or the Activity, which is a non-standard lifecycle and
   interacts with Android 14+ restrictions on starting a foreground service from the background.
 - **Required components**: `FOREGROUND_SERVICE` and `FOREGROUND_SERVICE_MEDIA_PLAYBACK`
-  permissions; a `MediaSession`; `AudioFocusRequest` with `AUDIOFOCUS_GAIN`, ducking on transient
-  loss and pausing on permanent loss; handling of `ACTION_AUDIO_BECOMING_NOISY` so that unplugging
-  headphones pauses rather than playing out of a speaker.
+  permissions; a `MediaSession`; `AudioFocusRequest` with `AUDIOFOCUS_GAIN`; handling of
+  `ACTION_AUDIO_BECOMING_NOISY` so that unplugging headphones pauses rather than playing
+  out of a speaker.
+- **Deliberate deviation from Android ducking best practice (ADR-001 — Audio Focus).**
+  The Android documentation (`developer.android.com/media/optimize/audio-focus`) states
+  that automatic ducking *"isn't useful when playing spoken content, such as in an audio
+  book app"* and recommends `setWillPauseWhenDucked(true)` (pause rather than duck) for
+  spoken-word apps. This project deliberately chooses the opposite: transient focus loss
+  (`AUDIOFOCUS_LOSS_TRANSIENT` / `AUDIOFOCUS_LOSS_TRANSIENT_MAY_DUCK`) causes the
+  document to duck to ~20% of normal volume and continue reading, never pausing, with
+  rewind-on-resume of 5% capped at 30 s (restarting at the sentence boundary the cursor
+  lands in). Rationale: a brief navigation prompt or notification chime must not chop a
+  sentence mid-flow during a commute; the product's contract with the driver is
+  continuity, not interruption. The platform recommendation is noted, the deviation is
+  conscious, and it is reversible by removing this clause and adopting the platform
+  default without changing any other governance rule. See the Exceptions Log entry
+  for the audit trail.
 - **Android Auto is out of scope for now.** Auto requires a browsing-capable
   `MediaLibraryService` and has no TTS category, so a Markdown reader does not qualify. This is
   recorded as a deliberate deferral, not an oversight.
@@ -631,4 +682,4 @@ Where this constitution and a convenience conflict, this constitution wins and t
 either changed or proposed as an amendment. Where this constitution and the reference stack
 conflict, the maintainer decides, and the decision is logged.
 
-**Version**: 1.2.0 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-01
+**Version**: 1.3.0 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-06

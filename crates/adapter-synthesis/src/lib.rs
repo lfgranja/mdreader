@@ -4,6 +4,8 @@
 
 use engine_core::closed::EngineTier;
 
+pub use engine_core::trait_::{AlignmentGranularity, SsmlLevel};
+
 #[cfg(target_os = "android")]
 pub mod android_assets;
 pub mod audio_chunk;
@@ -23,36 +25,6 @@ pub mod synth;
 /// `standin_b`) are fixtures and are never selectable while this
 /// non-`test_double` adapter is registered (`closed.rs`:398-406).
 pub const REGISTERED_TIER: EngineTier = EngineTier::OfflineDefault;
-
-/// Closed SSML capability level (no catch-all; Principle VII).
-///
-/// The closed set is exactly `None | Partial | Full` — no
-/// `Other`/`Unknown` variant exists.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SsmlLevel {
-    /// No SSML rendering (the `offline_default` declaration:
-    /// sherpa-onnx + Piper does not honor SSML).
-    None,
-    /// Partial SSML (reserved for a future cloud engine).
-    Partial,
-    /// Full SSML (reserved for a future engine with full SSML).
-    Full,
-}
-
-/// Closed resume-granularity level (no catch-all; Principle VII).
-///
-/// The closed set is exactly `None | Word | Sentence` — no
-/// `Other`/`Unknown` variant exists. `Sentence` is deferred to
-/// v2 (Piper exposes no sentence-boundary events).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AlignmentGranularity {
-    /// Paragraph/heading boundary only (v1 declaration).
-    None,
-    /// Word boundary (reserved).
-    Word,
-    /// Sentence boundary (deferred to v2).
-    Sentence,
-}
 
 /// Declared adapter capabilities (FR-024c).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

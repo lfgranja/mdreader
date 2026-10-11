@@ -186,12 +186,51 @@ pub mod commands {
             .app_data_dir()
             .map(|dir| dir.join("voices").join("pt_BR-faber-medium"))
             .unwrap_or_default();
+        let (data_files, data_espeak_is_dir, data_espeak_files, data_onnx_bytes) =
+            inventory(&data_voice);
         serde_json::json!({
             "resource_dir": resource_dir,
             "model_present": voice.join("pt_BR-faber-medium.onnx").exists(),
             "tokens_present": voice.join("tokens.txt").exists(),
             "espeak_present": voice.join("espeak-ng-data").exists(),
             "data_model_present": data_voice.join("pt_BR-faber-medium.onnx").exists(),
+            "data_tokens_present": data_voice.join("tokens.txt").exists(),
+            "data_files_total": data_files,
+            "data_espeak_is_dir": data_espeak_is_dir,
+            "data_espeak_files": data_espeak_files,
+            "data_onnx_bytes": data_onnx_bytes,
         })
+    }
+
+    /// Count the extracted tree: total files, whether espeak-ng-data
+    /// is a real dir, files inside it, and the model byte size.
+    /// Read-only; capped so a huge tree cannot stall IPC.
+    fn inventory(voice: &std::path::Path) -> (usize, bool, usize, u64) {
+        let mut total = 0;
+        let mut stack = vec![voice.to_path_buf()];
+        while let Some(dir) = stack.pop() {
+            let entries = match std::fs::read_dir(&dir) {
+                Ok(entries) => entries,
+                Err(_) => continue,
+            };
+            for entry in entries.flatten().take(2000) {
+                total += 1;
+                if entry.path().is_dir() {
+                    stack.push(entry.path());
+                }
+                if total > 5000 {
+                    break;
+                }
+            }
+        }
+        let espeak = voice.join("espeak-ng-data");
+        let espeak_is_dir = espeak.is_dir();
+        let espeak_files = std::fs::read_dir(&espeak)
+            .map(|entries| entries.count())
+            .unwrap_or(0);
+        let onnx_bytes = std::fs::metadata(voice.join("pt_BR-faber-medium.onnx"))
+            .map(|meta| meta.len())
+            .unwrap_or(0);
+        (total, espeak_is_dir, espeak_files, onnx_bytes)
     }
 }

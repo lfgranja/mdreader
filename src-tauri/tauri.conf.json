@@ -25,6 +25,9 @@
   "bundle": {
     "android": {
       "minSdkVersion": 26
+    },
+    "resources": {
+      "../crates/adapter-synthesis/assets/voices/pt_BR-faber-medium": "voices/pt_BR-faber-medium"
     }
   }
 }

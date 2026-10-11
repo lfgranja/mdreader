@@ -41,22 +41,23 @@ oldest-first trim recorded as a trim event, best-effort writes that never interr
 rewind math, rate ladder, fingerprinting, trim bounds, closed-set exhaustiveness); automated
 manifest check (SC-006: `<service mediaPlayback>` + permissions present in built manifest);
 automated no-logic-in-shell check (SC-035); on-device 10/10 trials for lock-screen, focus,
-routing, latency (≤3 s play-to-audio), and two-stand-in-engine failover (SC-051).
+routing, latency (≤10 s cold-start play-to-audio at the transducer), and two-stand-in-engine failover (SC-051).
 
 **Target Platform**: Android 10 (API 29) minimum through Android 14+ (API 34, FGS-start
 restrictions); `aarch64-linux-android`; headless Linux CI plus on-device gate 9
 (`cargo tauri android build --target aarch64`).
 
-**Reference device** (normative for FR-027, FR-019c): mid-range arm64, 4x Cortex-A78-class
-cores, 6 GB RAM or equivalent, document already parsed. All "10 out of 10 trials" latency
-criteria (SC-009, SC-054, SC-050-idle-resume) are measured on this class of device; a
-faster device passing is conforming, a slower device failing is not evidence of failure.
+**Reference device** (normative for FR-027, FR-019c): Redmi 2201117TY (Redmi Note 11),
+Snapdragon 680 (`bengal`), 4x Cortex-A73 + 4x Cortex-A53, ~5.8 GB RAM, Android 13 / API 33,
+document already parsed. All "10 out of 10 trials" latency criteria (SC-009, SC-054,
+SC-050-idle-resume) are measured on this phone; every verdict counts as-is against the
+amended bound, with no device-class asterisk. (Amended 2026-10-11 per `003-reference-device`; prior class text superseded, preserved in git history.)
 
 **Project Type**: Mobile app (Tauri) backed by a Cargo-workspace modular monolith of focused
 library crates (`player`, `session`, `diag`, `engine-core`, `doc-structure`), each CLI-drivable per
 Principles I–II.
 
-**Performance Goals**: Audible audio ≤3 s after Play (mid-range arm64, parsed document);
+**Performance Goals**: Audible audio ≤10 s after Play on the reference phone (cold start);
 headphone-pull pause ≤1 s; skip displacement exactly ±5 s; rate change effective ≤2 s;
 pre-roll ≤60 s and drained while idle; replay after kill ≤30 s; transient rewind
 5%-of-pause capped at 30 s with sentence snap never exceeding the cap.

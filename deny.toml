@@ -1,6 +1,7 @@
 [advisories]
 yanked = "deny"
 
+[bans]
 deny = [
     { name = "tts-rs" },
     { name = "onnx" },
@@ -41,4 +42,4 @@ allow = [
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
-require-registry-index = "https://github.com/rust-lang/crates.io-index"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

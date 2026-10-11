@@ -80,12 +80,6 @@ impl SampleQueue {
     fn len(&self) -> usize {
         self.samples.len()
     }
-
-    /// Whether the queue holds no samples.
-    #[must_use]
-    fn is_empty(&self) -> bool {
-        self.samples.is_empty()
-    }
 }
 
 /// The CPAL backend driver.
@@ -304,7 +298,7 @@ mod tests {
     #[test]
     fn an_empty_queue_yields_silence_and_zero_consumed() {
         let mut queue = SampleQueue::default();
-        assert!(queue.is_empty());
+        assert_eq!(queue.len(), 0);
         let mut out = [1.0_f32; 4];
         let consumed = queue.consume_into(&mut out);
         assert_eq!(consumed, 0);
@@ -320,7 +314,7 @@ mod tests {
         let consumed = queue.consume_into(&mut out);
         assert_eq!(consumed, 3);
         assert_eq!(out, [0.5, -0.25, 0.125, 0.0, 0.0]);
-        assert!(queue.is_empty());
+        assert_eq!(queue.len(), 0);
     }
 
     #[test]

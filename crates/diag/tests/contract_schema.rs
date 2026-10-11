@@ -274,7 +274,7 @@ fn the_contract_schema_declares_the_required_root_fields() -> Result<(), Box<dyn
     // And the floor holds on a concrete record: dropping a required field
     // from a valid sample makes it invalid.
     let mut missing = base_event("session_start", 0.0);
-    missing
+    let _ = missing
         .as_object_mut()
         .ok_or_else(|| "base event is not an object".to_string())?
         .remove("position_secs");

@@ -157,3 +157,17 @@ Consequences recorded for the next agent: (i) stage 2 unblocks only on the refer
 **Adaptation pointer (not implemented)**: warm the engine before the press — load the model at app start and pre-synthesize the first segment at document open (pre-roll `FR-015a` already begins on the press; moving load+first-inference ahead of it leaves only stream start + device conversion in the measured window). Watchdog: named `InitFailed`-style timeout if first-audible exceeds the bound. Both are future tasks, not claimed here.
 
 **Stage-2 status after this addendum**: EXECUTED — FAIL on below-reference hardware; gate as a whole remains NOT PASSED. Prior BLOCKED verdict is superseded by this measurement for the executed portion only; the reference-device measurement is still outstanding.
+
+---
+
+## Addendum 2, 2026-10-11 — Bound + device class amended; stage 2 re-verdict PASS
+
+**Maintainer acceptance**: explicit ("vamos manter a classe de referência como sendo o meu aparelho mesmo, e o gate em <=10s, pode ser?"). Recorded in the committing commit per the Amendment Procedure.
+
+**Amendments** (see `spec.md:115` Amendment 2026-10-11):
+- Cold-start bound: ≤3 s → **≤10 s**. Warm resume stays ≤4 s (`SC-020`).
+- Reference-device class: `001/plan.md:50-53` (4× A78, 6 GB) → **maintainer's Redmi 2201117TY** (Snapdragon 680, 4× A73 + 4× A53, ~5.8 GB, API 33) for this feature's gate. `001/plan.md:50-53` itself untouched (001-owned; alignment follow-up, not done here).
+
+**Stage-2 re-verdict: PASS** — 5/5 cold-start runs at 9 s satisfy 9 ≤ 10 on the amended reference device. The prior FAIL-under-≤3 s measurement is preserved above, not rewritten; what changed is the bar, by maintainer decision, with rationale recorded (single-user project; 9 s feels fine in real use).
+
+**Pre-roll/watchdog adaptation** (`spec.md:17`): no longer mandated by a failure — the gate passes as amended. Pre-roll remains available as a future latency improvement (9 s → lower), not a gate obligation. `SC-044` stays `DEFERRED`; all other stages unchanged.

@@ -11,6 +11,7 @@ use std::sync::Mutex;
 
 use player::backend::CpalBackend;
 use player::cli::PlaybackSession;
+use tauri::Manager;
 
 /// Shared app state: one playback session, one lazily-opened
 /// audio backend.
@@ -29,6 +30,20 @@ pub fn run() {
             session: Mutex::new(PlaybackSession::new()),
             backend: Mutex::new(None),
         })
+        .setup(|_app| {
+            // Voice assets ship inside the APK: extract them to a
+            // real filesystem path before the first synthesis. Hosts
+            // use the manifest tree; nothing to do there.
+            #[cfg(target_os = "android")]
+            {
+                if let Ok(data) = _app.path().app_data_dir() {
+                    if let Ok(voice) = adapter_synthesis::android_assets::extract_voices(&data) {
+                        adapter_synthesis::synth::set_asset_dir(voice);
+                    }
+                }
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commands::register_android_plugin,
             commands::run_mobile_plugin
@@ -42,7 +57,7 @@ pub mod commands {
 
     use super::{AppState, CpalBackend};
     use player::cli::ShellVerb;
-    use tauri::{State, command};
+    use tauri::{AppHandle, Manager, State, command};
 
     /// Declared sample rate of the engine handoff (mono f32).
     const DECLARED_RATE_HZ: f64 = 22_050.0;
@@ -65,10 +80,12 @@ pub mod commands {
     pub fn run_mobile_plugin(
         action: String,
         document: Option<String>,
+        app: AppHandle,
         state: State<'_, AppState>,
     ) -> Result<serde_json::Value, String> {
         match action.as_str() {
             "play" => play(document.unwrap_or_default(), &state),
+            "diagnose" => Ok(diagnose(&app)),
             "pause" => {
                 if let Ok(backend) = state.backend.lock() {
                     if let Some(backend) = backend.as_ref() {
@@ -148,5 +165,72 @@ pub mod commands {
             "position_secs": snapshot.position_secs,
             "transport": snapshot.transport.to_string(),
         }))
+    }
+
+    /// Report the packaged voice-asset state: the resolved resource
+    /// dir and whether each required file is present. Read-only;
+    /// never touches playback.
+    fn diagnose(app: &AppHandle) -> serde_json::Value {
+        let resource_dir = app
+            .path()
+            .resource_dir()
+            .map(|path| path.to_string_lossy().into_owned())
+            .unwrap_or_else(|e| format!("unresolvable: {e}"));
+        let voice = app
+            .path()
+            .resource_dir()
+            .map(|dir| dir.join("voices").join("pt_BR-faber-medium"))
+            .unwrap_or_default();
+        let data_voice = app
+            .path()
+            .app_data_dir()
+            .map(|dir| dir.join("voices").join("pt_BR-faber-medium"))
+            .unwrap_or_default();
+        let (data_files, data_espeak_is_dir, data_espeak_files, data_onnx_bytes) =
+            inventory(&data_voice);
+        serde_json::json!({
+            "resource_dir": resource_dir,
+            "model_present": voice.join("pt_BR-faber-medium.onnx").exists(),
+            "tokens_present": voice.join("tokens.txt").exists(),
+            "espeak_present": voice.join("espeak-ng-data").exists(),
+            "data_model_present": data_voice.join("pt_BR-faber-medium.onnx").exists(),
+            "data_tokens_present": data_voice.join("tokens.txt").exists(),
+            "data_files_total": data_files,
+            "data_espeak_is_dir": data_espeak_is_dir,
+            "data_espeak_files": data_espeak_files,
+            "data_onnx_bytes": data_onnx_bytes,
+        })
+    }
+
+    /// Count the extracted tree: total files, whether espeak-ng-data
+    /// is a real dir, files inside it, and the model byte size.
+    /// Read-only; capped so a huge tree cannot stall IPC.
+    fn inventory(voice: &std::path::Path) -> (usize, bool, usize, u64) {
+        let mut total = 0;
+        let mut stack = vec![voice.to_path_buf()];
+        while let Some(dir) = stack.pop() {
+            let entries = match std::fs::read_dir(&dir) {
+                Ok(entries) => entries,
+                Err(_) => continue,
+            };
+            for entry in entries.flatten().take(2000) {
+                total += 1;
+                if entry.path().is_dir() {
+                    stack.push(entry.path());
+                }
+                if total > 5000 {
+                    break;
+                }
+            }
+        }
+        let espeak = voice.join("espeak-ng-data");
+        let espeak_is_dir = espeak.is_dir();
+        let espeak_files = std::fs::read_dir(&espeak)
+            .map(|entries| entries.count())
+            .unwrap_or(0);
+        let onnx_bytes = std::fs::metadata(voice.join("pt_BR-faber-medium.onnx"))
+            .map(|meta| meta.len())
+            .unwrap_or(0);
+        (total, espeak_is_dir, espeak_files, onnx_bytes)
     }
 }

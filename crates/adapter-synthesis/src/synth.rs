@@ -9,7 +9,10 @@
 //! The voice assets are embedded in the repo
 //! (`assets/voices/pt_BR-faber-medium/`, CC0 — see
 //! `PROVENANCE.md`) and loaded through paths resolved at compile
-//! time from `CARGO_MANIFEST_DIR`; nothing is fetched from the
+//! time from the voice asset dir — the compile-time
+//! `CARGO_MANIFEST_DIR` tree on hosts, or the runtime override
+//! set via [`set_asset_dir`] where assets ship packaged (Android);
+//! nothing is fetched from the
 //! network at synthesis time (Principle IX). The native library
 //! itself comes from `sherpa-onnx-sys`'s prebuilt static archive,
 //! which bundles ONNX Runtime, `espeak-ng` and
@@ -40,6 +43,7 @@
 //! adapter-computed (segment-resume.md CHK030; the `player` is the
 //! sole playback authority, `constitution.md:486-490`).
 
+use std::path::PathBuf;
 use std::sync::OnceLock;
 
 use sherpa_onnx::{
@@ -55,25 +59,46 @@ use crate::format_check::{
     DECLARED_CHANNELS, DECLARED_RATE_HZ, DECLARED_WIDTH_BITS, check_delivery,
 };
 
+/// Runtime override for the voice asset directory.
+///
+/// Hosts that cannot use the compile-time manifest path set this
+/// once at startup: on Android the voice files ship inside the APK
+/// and resolve through the Tauri resource dir, so the bridge calls
+/// this during setup before the first [`synthesize`]. The first
+/// call wins; later calls are ignored. Unset means the embedded
+/// `assets/voices/pt_BR-faber-medium/` tree beside
+/// `CARGO_MANIFEST_DIR` (host CLI, tests).
+pub fn set_asset_dir(dir: PathBuf) {
+    let _ignored = ASSET_DIR_OVERRIDE.set(dir);
+}
+
+/// Override storage for [`set_asset_dir`].
+static ASSET_DIR_OVERRIDE: OnceLock<PathBuf> = OnceLock::new();
+
+/// The voice asset dir: the runtime override when set, else the
+/// compile-time manifest tree.
+fn asset_dir() -> PathBuf {
+    ASSET_DIR_OVERRIDE.get().cloned().unwrap_or_else(|| {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/voices/pt_BR-faber-medium")
+    })
+}
+
 /// The Piper `faber` VITS model — mono, 22 050 Hz, CC0
 /// (`MODEL_CARD`; blake3 recorded in `PROVENANCE.md`).
-const MODEL_PATH: &str = concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/assets/voices/pt_BR-faber-medium/pt_BR-faber-medium.onnx",
-);
+fn model_path() -> PathBuf {
+    asset_dir().join("pt_BR-faber-medium.onnx")
+}
 
 /// The token map the `faber` model was trained with.
-const TOKENS_PATH: &str = concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/assets/voices/pt_BR-faber-medium/tokens.txt",
-);
+fn tokens_path() -> PathBuf {
+    asset_dir().join("tokens.txt")
+}
 
 /// The espeak-ng data tree the Piper phonemizer resolves pt-BR
 /// phonemes against at synthesis time.
-const ESPEAK_DATA_DIR: &str = concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/assets/voices/pt_BR-faber-medium/espeak-ng-data",
-);
+fn espeak_data_dir() -> PathBuf {
+    asset_dir().join("espeak-ng-data")
+}
 
 /// Build the `sherpa-onnx` VITS configuration for the embedded
 /// `faber` voice. The inference parameters mirror the model's own
@@ -93,9 +118,9 @@ fn voice_config() -> OfflineTtsConfig {
         model: OfflineTtsModelConfig {
             num_threads: 1,
             vits: OfflineTtsVitsModelConfig {
-                model: Some(MODEL_PATH.to_owned()),
-                tokens: Some(TOKENS_PATH.to_owned()),
-                data_dir: Some(ESPEAK_DATA_DIR.to_owned()),
+                model: Some(model_path().to_string_lossy().into_owned()),
+                tokens: Some(tokens_path().to_string_lossy().into_owned()),
+                data_dir: Some(espeak_data_dir().to_string_lossy().into_owned()),
                 noise_scale: 0.667,
                 noise_scale_w: 0.8,
                 length_scale: 1.0,

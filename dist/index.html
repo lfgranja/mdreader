@@ -33,6 +33,7 @@ Segundo parágrafo para validar a segmentação em dois blocos.</textarea>
     <button id="btnPlay" onclick="doPlay()">▶ Play</button>
     <button onclick="doPause()">⏸ Pause</button>
     <button onclick="doStop()">⏹ Stop</button>
+    <button onclick="doDiag()">🔍 Diag</button>
   </div>
   <div class="status" id="status">Status: pronto — pressione Play</div>
   <div class="status" id="position">Posição: 0.0 s</div>
@@ -85,6 +86,15 @@ Segundo parágrafo para validar a segmentação em dois blocos.</textarea>
       var res = await tauriInvoke('run_mobile_plugin', { action: 'stop' });
       setStatus('Status: ' + res.status);
       document.getElementById('position').textContent = 'Posição: 0.0 s';
+    } catch (e) {
+      setStatus('Status: FALHA — ' + (e && e.message ? e.message : e), 'error');
+    }
+  }
+
+  async function doDiag() {
+    try {
+      var res = await tauriInvoke('run_mobile_plugin', { action: 'diagnose' });
+      setStatus('Diag:\nresource_dir: ' + res.resource_dir + '\nmodel: ' + res.model_present + '\ntokens: ' + res.tokens_present + '\nespeak: ' + res.espeak_present + '\ndata_model: ' + res.data_model_present + '\ndata_tokens: ' + res.data_tokens_present + '\ndata_files: ' + res.data_files_total + '\nespeak_is_dir: ' + res.data_espeak_is_dir + '\nespeak_files: ' + res.data_espeak_files + '\nonnx_bytes: ' + res.data_onnx_bytes);
     } catch (e) {
       setStatus('Status: FALHA — ' + (e && e.message ? e.message : e), 'error');
     }

@@ -1,1 +1,24 @@
-{"productName":"mdreader","version":"0.1.0","identifier":"app.mdreader","build":{},"app":{"windows":[{"fullscreen":false}],"security":{"csp":null}}}
+{
+  "productName": "mdreader",
+  "version": "0.1.0",
+  "identifier": "app.mdreader",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "",
+    "beforeDevCommand": ""
+  },
+  "app": {
+    "windows": [
+      {
+        "fullscreen": false,
+        "title": "mdreader",
+        "width": 800,
+        "height": 600
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  }
+}

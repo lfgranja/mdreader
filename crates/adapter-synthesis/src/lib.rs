@@ -4,6 +4,8 @@
 
 use engine_core::closed::EngineTier;
 
+#[cfg(target_os = "android")]
+pub mod android_assets;
 pub mod audio_chunk;
 pub mod capabilities;
 pub mod chunk;

@@ -30,16 +30,16 @@ pub fn run() {
             session: Mutex::new(PlaybackSession::new()),
             backend: Mutex::new(None),
         })
-        .setup(|app| {
-            // Voice assets ship inside the package on mobile: point
-            // the adapter at the extracted resource tree before the
-            // first synthesis. On hosts the manifest tree applies.
-            if let Ok(resource_dir) = app.path().resource_dir() {
-                let voice = resource_dir
-                    .join("voices")
-                    .join("pt_BR-faber-medium");
-                if voice.join("pt_BR-faber-medium.onnx").exists() {
-                    adapter_synthesis::synth::set_asset_dir(voice);
+        .setup(|_app| {
+            // Voice assets ship inside the APK: extract them to a
+            // real filesystem path before the first synthesis. Hosts
+            // use the manifest tree; nothing to do there.
+            #[cfg(target_os = "android")]
+            {
+                if let Ok(data) = _app.path().app_data_dir() {
+                    if let Ok(voice) = adapter_synthesis::android_assets::extract_voices(&data) {
+                        adapter_synthesis::synth::set_asset_dir(voice);
+                    }
                 }
             }
             Ok(())
@@ -181,11 +181,17 @@ pub mod commands {
             .resource_dir()
             .map(|dir| dir.join("voices").join("pt_BR-faber-medium"))
             .unwrap_or_default();
+        let data_voice = app
+            .path()
+            .app_data_dir()
+            .map(|dir| dir.join("voices").join("pt_BR-faber-medium"))
+            .unwrap_or_default();
         serde_json::json!({
             "resource_dir": resource_dir,
             "model_present": voice.join("pt_BR-faber-medium.onnx").exists(),
             "tokens_present": voice.join("tokens.txt").exists(),
             "espeak_present": voice.join("espeak-ng-data").exists(),
+            "data_model_present": data_voice.join("pt_BR-faber-medium.onnx").exists(),
         })
     }
 }

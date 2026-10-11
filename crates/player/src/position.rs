@@ -165,7 +165,8 @@ impl PositionClock {
                 match best {
                     None => best = Some(b),
                     Some(prev) if b > prev => best = Some(b),
-                    _ => {}
+                    // Guard failed (b <= prev): keep the existing best (no-op).
+                    Some(_) => {}
                 }
             }
         }
@@ -195,11 +196,12 @@ mod tests {
     }
 
     #[test]
-    fn on_audible_progress_advances_by_exactly_elapsed() {
+    fn on_audible_progress_advances_by_exactly_elapsed() -> Result<(), PlayerError> {
         let mut clock = PositionClock::new(0.0);
-        let new_pos = clock.on_audible_progress(3.5).unwrap();
+        let new_pos = clock.on_audible_progress(3.5)?;
         assert_eq!(new_pos, 3.5);
         assert_eq!(clock.position_secs(), 3.5);
+        Ok(())
     }
 
     #[test]
@@ -258,11 +260,12 @@ mod tests {
     }
 
     #[test]
-    fn stored_basis_tracks_last_audible_progress() {
+    fn stored_basis_tracks_last_audible_progress() -> Result<(), PlayerError> {
         let mut clock = PositionClock::new(0.0);
-        let _ = clock.on_audible_progress(5.0).unwrap();
+        let _ = clock.on_audible_progress(5.0)?;
         assert_eq!(clock.stored_basis(), 5.0);
-        let _ = clock.on_audible_progress(3.0).unwrap();
+        let _ = clock.on_audible_progress(3.0)?;
         assert_eq!(clock.stored_basis(), 8.0);
+        Ok(())
     }
 }

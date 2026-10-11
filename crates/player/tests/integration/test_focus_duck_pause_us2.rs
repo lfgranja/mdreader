@@ -168,8 +168,7 @@ fn call_or_alarm_pauses_and_states_the_fr041_reason() {
         "a silence pause holds full gain — nothing stays ducked (FR-013a)"
     );
     assert_eq!(
-        FOCUS_PAUSE_REASON,
-        "Leitura pausada — outro app usando o áudio",
+        FOCUS_PAUSE_REASON, "Leitura pausada — outro app usando o áudio",
         "the stated pause reason must match the FR-041 form verbatim"
     );
     assert!(
@@ -414,8 +413,7 @@ fn test_focus_duck_pause_us2() {
     let silenced = tracker.apply(FocusIntent::SilenceDemanding);
     assert_eq!(silenced.transport, Some(TransportState::Paused));
     assert_eq!(
-        FOCUS_PAUSE_REASON,
-        "Leitura pausada — outro app usando o áudio",
+        FOCUS_PAUSE_REASON, "Leitura pausada — outro app usando o áudio",
         "the silence pause must state the FR-041 reason verbatim"
     );
     let _regained = tracker.apply(FocusIntent::FocusRegained);

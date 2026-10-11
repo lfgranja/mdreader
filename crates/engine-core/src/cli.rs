@@ -239,10 +239,7 @@ fn execute(cli: Cli, stdin: &mut dyn Read, stdout: &mut dyn Write) -> Result<(),
                 DeclaredFormat::CHANNELS,
                 DeclaredFormat::SAMPLE_WIDTH_BITS,
             )?;
-            write_payload(
-                stdout,
-                &stream_payload(position_secs, budget, cli.format)?,
-            )
+            write_payload(stdout, &stream_payload(position_secs, budget, cli.format)?)
         }
     }
 }
@@ -360,6 +357,7 @@ fn capabilities_payload(format: OutputFormat) -> Result<String, CliError> {
         capability: "declared_capabilities",
         ssml_levels: [SsmlLevel::None, SsmlLevel::Partial, SsmlLevel::Full]
             .iter()
+            .copied()
             .map(SsmlLevel::as_wire_str)
             .collect(),
         alignment_granularities: [
@@ -368,6 +366,7 @@ fn capabilities_payload(format: OutputFormat) -> Result<String, CliError> {
             AlignmentGranularity::Sentence,
         ]
         .iter()
+        .copied()
         .map(AlignmentGranularity::as_wire_str)
         .collect(),
     };
@@ -382,7 +381,11 @@ fn capabilities_payload(format: OutputFormat) -> Result<String, CliError> {
 /// pitch-preserving inside the engine and the delivered rate
 /// stays the declared 22050 Hz on all seven rungs (FR-043,
 /// SC-034).
-fn set_rate_payload(rung: PlaybackRate, rate: f64, format: OutputFormat) -> Result<String, CliError> {
+fn set_rate_payload(
+    rung: PlaybackRate,
+    rate: f64,
+    format: OutputFormat,
+) -> Result<String, CliError> {
     let _accepted = rung;
     let payload = SetRatePayload {
         capability: "set_rate",
@@ -537,7 +540,9 @@ mod tests {
         assert!(outcome.is_ok(), "capabilities failed");
         let payload = stdout_json(&stdout, &stderr);
         assert_eq!(
-            payload.get("capability").and_then(serde_json::Value::as_str),
+            payload
+                .get("capability")
+                .and_then(serde_json::Value::as_str),
             Some("declared_capabilities")
         );
         assert_eq!(
@@ -557,7 +562,9 @@ mod tests {
             assert!(outcome.is_ok(), "set-rate {rate} failed");
             let payload = stdout_json(&stdout, &stderr);
             assert_eq!(
-                payload.get("capability").and_then(serde_json::Value::as_str),
+                payload
+                    .get("capability")
+                    .and_then(serde_json::Value::as_str),
                 Some("set_rate")
             );
             assert_eq!(
@@ -589,7 +596,9 @@ mod tests {
         assert!(outcome.is_ok(), "stream failed");
         let payload = stdout_json(&stdout, &stderr);
         assert_eq!(
-            payload.get("capability").and_then(serde_json::Value::as_str),
+            payload
+                .get("capability")
+                .and_then(serde_json::Value::as_str),
             Some("stream")
         );
         assert_eq!(payload.get("position_secs"), Some(&serde_json::json!(12.5)));
@@ -610,10 +619,7 @@ mod tests {
         assert!(outcome.is_ok(), "stream with stdin position failed");
         let payload = stdout_json(&stdout, &stderr);
         assert_eq!(payload.get("position_secs"), Some(&serde_json::json!(7.5)));
-        assert_eq!(
-            payload.get("frame_count"),
-            Some(&serde_json::json!(44_100))
-        );
+        assert_eq!(payload.get("frame_count"), Some(&serde_json::json!(44_100)));
     }
 
     #[test]
@@ -642,13 +648,9 @@ mod tests {
 
     #[test]
     fn human_format_renders_without_json() {
-        let (stdout, stderr, outcome) =
-            drive(&["--format", "human", "capabilities"], "");
+        let (stdout, stderr, outcome) = drive(&["--format", "human", "capabilities"], "");
         assert!(outcome.is_ok(), "human capabilities failed");
-        assert!(
-            stderr.is_empty(),
-            "stderr was not empty on a success path"
-        );
+        assert!(stderr.is_empty(), "stderr was not empty on a success path");
         let text = String::from_utf8_lossy(&stdout);
         assert!(
             text.contains("capability: declared_capabilities"),

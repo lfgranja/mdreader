@@ -6,7 +6,7 @@
 
 use clap::{Parser, Subcommand};
 use player::cli::{PlaybackSession, ShellVerb};
-use std::process;
+use std::io::{self, Write};
 
 #[derive(Parser, Debug)]
 #[command(name = "player")]
@@ -48,9 +48,11 @@ enum Commands {
     EngineTier,
 }
 
-fn main() {
+fn main() -> io::Result<()> {
     let cli = Cli::parse();
     let mut session = PlaybackSession::new();
+    let stdout = io::stdout();
+    let mut out = stdout.lock();
 
     match cli.command {
         Commands::Play => {
@@ -82,25 +84,28 @@ fn main() {
         }
         Commands::Position => {
             let snap = session.snapshot();
-            println!(
+            writeln!(
+                out,
                 "{{\"transport\":\"{:?}\",\"position_secs\":{}}}",
                 snap.transport, snap.position_secs
-            );
-            return;
+            )?;
+            return Ok(());
         }
         Commands::State => {
             let snap = session.snapshot();
-            println!("{{\"transport\":\"{:?}\"}}", snap.transport);
-            return;
+            writeln!(out, "{{\"transport\":\"{:?}\"}}", snap.transport)?;
+            return Ok(());
         }
         Commands::EngineTier => {
-            println!("{{\"engine_tier\":\"offline_default\"}}");
-            return;
+            writeln!(out, "{{\"engine_tier\":\"offline_default\"}}")?;
+            return Ok(());
         }
     }
     let snap = session.snapshot();
-    println!(
+    writeln!(
+        out,
         "{{\"transport\":\"{:?}\",\"position_secs\":{},\"rate\":{:?},\"engine_id\":\"{}\"}}",
         snap.transport, snap.position_secs, snap.rate, snap.engine_id
-    );
+    )?;
+    Ok(())
 }

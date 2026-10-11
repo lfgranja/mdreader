@@ -178,6 +178,13 @@ fn driving_action_vec_strategy() -> impl Strategy<Value = Vec<DrivingAction>> {
 struct RecordEntry {
     transport: TransportState,
     position_secs: f64,
+    /// Whether this entry lands a user-initiated skip-backward
+    /// repositioning (FR-018). A skip-back legitimately moves the
+    /// position backward while staying `Playing`, so it ends the
+    /// prior entry's advance window instead of violating it. This is
+    /// a simulation seam, not a diagnostic-record field: it marks
+    /// which entries the SC-005 scan must treat as repositionings.
+    repositioned: bool,
 }
 
 /// The enders of SC-005: a completion, a stop, a pause, a device
@@ -204,8 +211,10 @@ fn is_terminal(state: TransportState) -> bool {
 /// The SC-005 scan: every `transport:"playing"` entry must be
 /// followed, in the same session, by a later entry carrying a
 /// strictly greater `position_secs`, except where an ender entry
-/// intervenes first (the advance legitimately ended). The final
-/// entry's window is open — a hard kill cuts the record mid-session
+/// intervenes first (the advance legitimately ended) or where a
+/// skip-backward repositioning lands first (FR-018: the user moved
+/// the cursor back on purpose, ending the prior window and opening
+/// a new one at the earlier point). The final entry's window is open — a hard kill cuts the record mid-session
 /// with no session_end entry (FR-004, SC-007) — so only entries
 /// with a later entry can violate. Returns the indices of the
 /// violating playing entries; an empty result is the conforming
@@ -228,6 +237,10 @@ fn sc005_violations(record: &[RecordEntry]) -> Vec<usize> {
         for follower in followers {
             if follower.position_secs > entry.position_secs {
                 conform = true; // a later entry shows the advance
+                break;
+            }
+            if follower.repositioned {
+                conform = true; // a skip-back repositioned the cursor on purpose (FR-018)
                 break;
             }
             if is_ender(follower.transport) {
@@ -257,10 +270,10 @@ fn drive(action: DrivingAction, session: &mut PlaybackSession) {
             let _rejected = session.execute(ShellVerb::Stop);
         }
         DrivingAction::Complete => {
-            let _rejected = session.execute(ShellVerb::Stop);
+            let _rejected = session.execute(ShellVerb::Complete);
         }
         DrivingAction::Interrupt => {
-            let _rejected = session.execute(ShellVerb::Stop);
+            let _rejected = session.execute(ShellVerb::Interrupt);
         }
         DrivingAction::SkipForward => {
             let _rejected = session.execute(ShellVariant::skip_forward());
@@ -295,6 +308,7 @@ fn simulate(actions: &[DrivingAction], hard_kill: bool) -> Vec<RecordEntry> {
     let mut record = vec![RecordEntry {
         transport: start.transport,
         position_secs: start.position_secs,
+        repositioned: false,
     }];
     for action in actions {
         let before = session.snapshot();
@@ -304,6 +318,10 @@ fn simulate(actions: &[DrivingAction], hard_kill: bool) -> Vec<RecordEntry> {
             record.push(RecordEntry {
                 transport: after.transport,
                 position_secs: after.position_secs,
+                // A recorded skip-back entry always moved strictly
+                // backward (a clamped no-op records nothing), so the
+                // marker is exactly the backward-repositioning set.
+                repositioned: matches!(action, DrivingAction::SkipBack),
             });
         }
     }
@@ -319,6 +337,7 @@ fn simulate(actions: &[DrivingAction], hard_kill: bool) -> Vec<RecordEntry> {
             record.push(RecordEntry {
                 transport: after.transport,
                 position_secs: after.position_secs,
+                repositioned: false,
             });
         }
     }

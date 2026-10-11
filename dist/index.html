@@ -5,34 +5,90 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>mdreader — Playback Shell</title>
 <style>
-  body { font-family: system-ui, sans-serif; background: #111827; color: #f3f4f6; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-  .card { background: #1f2937; padding: 2rem; border-radius: 1rem; max-width: 420px; width: 90%; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
-  h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
-  h2 { font-size: 1rem; color: #9ca3af; margin: 0 0 1rem; }
-  .controls button { font-size: 1.2rem; padding: 0.75rem 1.5rem; margin: 0.25rem; border: none; border-radius: 0.5rem; background: #2563eb; color: white; cursor: pointer; }
-  .status { margin-top: 1rem; font-family: ui-monospace, monospace; font-size: 0.85rem; color: #d1d5db; }
+  body { font-family: system-ui, sans-serif; background: #111827; color: #f3f4f6; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 1rem; box-sizing: border-box; }
+  .card { background: #1f2937; padding: 2rem; border-radius: 1rem; max-width: 480px; width: 100%; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+  h1 { font-size: 1.5rem; margin: 0 0 0.5rem; }
+  h2 { font-size: 1rem; color: #9ca3af; margin: 0 0 1rem; font-weight: normal; }
+  textarea { width: 100%; min-height: 120px; border-radius: 0.5rem; border: 1px solid #374151; background: #111827; color: #f3f4f6; padding: 0.75rem; font-size: 0.9rem; box-sizing: border-box; resize: vertical; }
+  .controls { margin-top: 1rem; }
+  .controls button { font-size: 1.1rem; padding: 0.75rem 1.25rem; margin: 0.25rem; border: none; border-radius: 0.5rem; background: #2563eb; color: white; cursor: pointer; }
+  .controls button:disabled { background: #4b5563; cursor: wait; }
+  .status { margin-top: 1rem; font-family: ui-monospace, monospace; font-size: 0.85rem; color: #d1d5db; white-space: pre-wrap; word-break: break-word; }
+  .error { color: #f87171; }
+  .ok { color: #4ade80; }
 </style>
 </head>
 <body>
 <div class="card">
   <h1>mdreader</h1>
-  <h2 id="section">Seção: —</h2>
+  <h2 id="section">Motor offline (sherpa-onnx + Piper faber) via Rust</h2>
+  <textarea id="doc"># Teste de bancada
+
+Olá, este é um teste do sintetizador offline. Se você está ouvindo isso, o pipeline funciona.
+
+## Segunda seção
+
+Segundo parágrafo para validar a segmentação em dois blocos.</textarea>
   <div class="controls">
-    <button onclick="postPlay()">▶ Play</button>
-    <button onclick="postPause()">⏸ Pause</button>
-    <button onclick="postStop()">⏹ Stop</button>
-    <button onclick="postSkipFwd()">⏩ +5s</button>
-    <button onclick="postSkipBack()">⏪ -5s</button>
+    <button id="btnPlay" onclick="doPlay()">▶ Play</button>
+    <button onclick="doPause()">⏸ Pause</button>
+    <button onclick="doStop()">⏹ Stop</button>
   </div>
-  <div class="status" id="status">Status: Pronto — pressione Play</div>
+  <div class="status" id="status">Status: pronto — pressione Play</div>
   <div class="status" id="position">Posição: 0.0 s</div>
 </div>
 <script>
-  function postPlay()  { document.getElementById('status').textContent = 'Status: Playing'; }
-  function postPause() { document.getElementById('status').textContent = 'Status: Paused'; }
-  function postStop()  { document.getElementById('status').textContent = 'Status: Stopped'; document.getElementById('position').textContent = 'Posição: 0.0 s'; }
-  function postSkipFwd() { const p = parseFloat(document.getElementById('position').textContent.replace(/[^0-9.]/g,'')); document.getElementById('position').textContent = 'Posição: ' + (p+5.0).toFixed(1) + ' s'; }
-  function postSkipBack() { const p = parseFloat(document.getElementById('position').textContent.replace(/[^0-9.]/g,'')); document.getElementById('position').textContent = 'Posição: ' + Math.max(0, p-5.0).toFixed(1) + ' s'; }
+  function tauriInvoke(cmd, args) {
+    var t = window.__TAURI__;
+    if (t && t.core && typeof t.core.invoke === 'function') return t.core.invoke(cmd, args);
+    if (t && typeof t.invoke === 'function') return t.invoke(cmd, args);
+    return Promise.reject(new Error('bridge Tauri indisponível (fora do WebView?)'));
+  }
+
+  function setStatus(text, cls) {
+    var el = document.getElementById('status');
+    el.textContent = text;
+    el.className = 'status' + (cls ? ' ' + cls : '');
+  }
+
+  function setBusy(busy) { document.getElementById('btnPlay').disabled = busy; }
+
+  async function doPlay() {
+    var doc = document.getElementById('doc').value;
+    setBusy(true);
+    setStatus('Status: sintetizando...');
+    var t0 = performance.now();
+    try {
+      var res = await tauriInvoke('run_mobile_plugin', { action: 'play', document: doc });
+      var dt = ((performance.now() - t0) / 1000).toFixed(2);
+      setStatus('Status: ' + res.status + ' (ipc ' + dt + ' s)\nsegmentos: ' + res.segments + '\nsamples: ' + res.pcm_samples + '\nduração: ' + Number(res.duration_secs).toFixed(2) + ' s', 'ok');
+      document.getElementById('position').textContent = 'Posição: ' + Number(res.position_secs).toFixed(1) + ' s';
+    } catch (e) {
+      setStatus('Status: FALHA — ' + (e && e.message ? e.message : e), 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function doPause() {
+    try {
+      var res = await tauriInvoke('run_mobile_plugin', { action: 'pause' });
+      setStatus('Status: ' + res.status);
+      document.getElementById('position').textContent = 'Posição: ' + Number(res.position_secs).toFixed(1) + ' s';
+    } catch (e) {
+      setStatus('Status: FALHA — ' + (e && e.message ? e.message : e), 'error');
+    }
+  }
+
+  async function doStop() {
+    try {
+      var res = await tauriInvoke('run_mobile_plugin', { action: 'stop' });
+      setStatus('Status: ' + res.status);
+      document.getElementById('position').textContent = 'Posição: 0.0 s';
+    } catch (e) {
+      setStatus('Status: FALHA — ' + (e && e.message ? e.message : e), 'error');
+    }
+  }
 </script>
 </body>
 </html>

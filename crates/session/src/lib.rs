@@ -25,7 +25,10 @@ pub fn resume_offer(_stored_offset: Option<f64>, session_end_kind: Option<u8>) -
     match session_end_kind {
         Some(2) => ResumeChoice::ExplicitResume, // interrupted
         Some(0) | Some(1) => ResumeChoice::DeliberatePause, // paused/stopped
-        _ => ResumeChoice::StartOver,
+        // Unknown codes (3..=255) and no stored kind both fall back
+        // to start-over (FR-032d); arms stay exhaustive with no wildcard.
+        Some(3..=u8::MAX) => ResumeChoice::StartOver,
+        None => ResumeChoice::StartOver,
     }
 }
 

@@ -382,3 +382,56 @@ fn late_transient_after_permanent_loss_authorizes_nothing() {
         "the authoritative state stays the permanent loss"
     );
 }
+
+/// Escalation duck→silence clears the duck-restore flag (FR-014
+/// latest-event-wins, T094): the silence pause holds at full gain,
+/// never re-ducks, never compounds a transient resume.
+#[test]
+fn duck_then_silence_clears_duck_restore_and_holds_paused_at_full_gain() {
+    let flags = supersede_flags(
+        FocusOutcome::DuckableTransient,
+        FocusOutcome::SilenceDemanding,
+    );
+    assert!(
+        flags.clear_duck_restore_flag,
+        "escalation duck→silence must clear the duck-restore flag (FR-014 latest-event-wins)"
+    );
+    assert!(
+        flags.clear_resume_flag,
+        "escalation duck→silence must clear the transient resume flag — no compounding"
+    );
+    let mut tracker = FocusTracker::new();
+    let _regained = tracker.apply(FocusIntent::FocusRegained);
+    let _ducked = tracker.apply(FocusIntent::DuckableTransient);
+    assert!(
+        tracker.duck_restore_due,
+        "a duckable transient must owe a gain restore before escalation"
+    );
+    let decision = tracker.apply(FocusIntent::SilenceDemanding);
+    assert_eq!(
+        decision.transport,
+        Some(TransportState::Paused),
+        "escalation duck→silence must pause"
+    );
+    assert_eq!(
+        decision.gain, FULL_GAIN,
+        "escalation duck→silence must hold full gain"
+    );
+    assert!(
+        !tracker.duck_restore_due,
+        "escalation duck→silence must clear the duck-restore flag — gain is restored, not re-ducked"
+    );
+    assert!(
+        !tracker.resume_due,
+        "escalation duck→silence must clear the transient resume flag — no compounding"
+    );
+    assert!(
+        !tracker.ducked,
+        "escalation duck→silence must un-duck: the paused state holds at full gain"
+    );
+    assert_eq!(
+        tracker.current,
+        Some(FocusOutcome::SilenceDemanding),
+        "the authoritative state after escalation is the silence-demanding loss"
+    );
+}

@@ -172,7 +172,7 @@ Adapter splits Markdown at `Paragraph` / `Heading` boundaries (`FR-024a`); each 
 
 - Adapter registers only in `OfflineDefault` (`constitution.md` §TTS Engine Registry).
 - No `CloudDefault`, `CloudEscalation`, `EvaluatedFallback` registered at v1 (`SC-044` deferred; `constitution.md:643` Exception 8).
-- `test_double` fixtures (`standin_a`, `standin_b`) remain fixtures only; **not selectable** because adapter (non-standin) registered (`001/spec.md:89`; `closed.rs:305-312`).
+- `test_double` fixtures (`standin_a`, `standin_b`) remain fixtures only; **not selectable** because adapter (non-standin) registered (`001/spec.md:89`; `closed.rs:398-406`).
 
 ### 6.2 Selector invariant (`SC-051` / `spec.md:85`)
 

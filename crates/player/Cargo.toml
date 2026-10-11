@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 cpal = "0.18.2"
+adapter-synthesis = { path = "../adapter-synthesis" }
 doc-structure = { path = "../doc-structure" }
 engine-core = { path = "../engine-core" }
 thiserror = { workspace = true }

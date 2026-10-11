@@ -19,5 +19,11 @@ thiserror = { workspace = true }
 [dev-dependencies]
 proptest = { workspace = true }
 
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
+ndk = "0.9"
+ndk-context = "0.1"
+ndk-sys = "0.6"
+
 [lints]
 workspace = true

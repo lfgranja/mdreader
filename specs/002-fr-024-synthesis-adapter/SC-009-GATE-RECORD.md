@@ -131,3 +131,43 @@ Verdict: the discharge-readiness assessment **can be written on this host** — 
 **SC-009: BLOCKED (named blocker — reference device required); stages 1, 3, 4 partially dischargeable on host; stage 2 not executable here. Not a pass, not a deferral.**
 
 Consequences recorded for the next agent: (i) stage 2 unblocks only on the reference device of `001/plan.md:50-53` with a gate-9 Android build and the press→first-audible harness wired to the transducer endpoint; (ii) T044 owns the three stale-premise test rewrites (`unit_failure::synthesis_fails_closed_with_a_named_init_failure`, `cli_protocol::synthesize_subcommand_fails_closed_with_nothing_on_stdout`, and the `synthesis_never_leaks_document_prose_into_stdout` proptest's case count/timeout budget) before V1''/T055 can attest green; (iii) the T036 host blockers B1/B2 remain unrepaired and are 001/workspace-config owned.
+
+---
+
+## Addendum 2026-10-11 — Stage 2 EXECUTED on hardware (FAIL, named result)
+
+**Recorder**: orchestrator session (user-operated device). Method: in-app Play press → first audible at the phone speaker, stopwatch-operated, 5 cold-start runs (app force-closed between runs, screen on, in-app button — lock-screen path not yet implemented, so the press event is the WebView button, not the notification).
+
+**Device** (below reference class — see caveat):
+- Model Redmi 2201117TY (Redmi Note 11), SoC Snapdragon 680 (`bengal`: 4× Cortex-A73 + 4× A53 — no A78 core), 5.8 GB RAM, Android 13 (API 33)
+- Reference class per `001/plan.md:50-53`: 4× Cortex-A78-class, 6 GB RAM. This device is slower on both axes.
+
+**Results** (press→first-audible, cold start):
+
+| Run | 1 | 2 | 3 | 4 | 5 |
+|-----|---|---|---|---|---|
+| s   | 9 | 9 | 9 | 9 | 9 |
+
+**Verdict: FAIL — bound ≤3 s exceeded 3×, 5/5 runs, zero variance.**
+
+**Reading of the number**: the 9.0 s consistency across cold starts points at a one-time-per-launch cost (63 MB model load + first single-threaded ONNX inference on small cores), not run-to-run variance. The pipeline itself is proven working on device (audible pt-BR speech, correct segments); only the latency bound is unmet.
+
+**Device-class caveat** (this record's own Stage-1 rule, line 38): "a faster device passing is conforming, a slower device failing is not evidence of failure". This device is below the reference class, so the FAIL does not by itself prove the gate unpassable on reference hardware — but it is a measured result, not an absent input, and per `spec.md:17` a failed benchmark mandates **pre-roll/watchdog adaptation, never silent deferral**.
+
+**Adaptation pointer (not implemented)**: warm the engine before the press — load the model at app start and pre-synthesize the first segment at document open (pre-roll `FR-015a` already begins on the press; moving load+first-inference ahead of it leaves only stream start + device conversion in the measured window). Watchdog: named `InitFailed`-style timeout if first-audible exceeds the bound. Both are future tasks, not claimed here.
+
+**Stage-2 status after this addendum**: EXECUTED — FAIL on below-reference hardware; gate as a whole remains NOT PASSED. Prior BLOCKED verdict is superseded by this measurement for the executed portion only; the reference-device measurement is still outstanding.
+
+---
+
+## Addendum 2, 2026-10-11 — Bound + device class amended; stage 2 re-verdict PASS
+
+**Maintainer acceptance**: explicit ("vamos manter a classe de referência como sendo o meu aparelho mesmo, e o gate em <=10s, pode ser?"). Recorded in the committing commit per the Amendment Procedure.
+
+**Amendments** (see `spec.md:115` Amendment 2026-10-11):
+- Cold-start bound: ≤3 s → **≤10 s**. Warm resume stays ≤4 s (`SC-020`).
+- Reference-device class: `001/plan.md:50-53` (4× A78, 6 GB) → **maintainer's Redmi 2201117TY** (Snapdragon 680, 4× A73 + 4× A53, ~5.8 GB, API 33) for this feature's gate. `001/plan.md:50-53` itself untouched (001-owned; alignment follow-up, not done here).
+
+**Stage-2 re-verdict: PASS** — 5/5 cold-start runs at 9 s satisfy 9 ≤ 10 on the amended reference device. The prior FAIL-under-≤3 s measurement is preserved above, not rewritten; what changed is the bar, by maintainer decision, with rationale recorded (single-user project; 9 s feels fine in real use).
+
+**Pre-roll/watchdog adaptation** (`spec.md:17`): no longer mandated by a failure — the gate passes as amended. Pre-roll remains available as a future latency improvement (9 s → lower), not a gate obligation. `SC-044` stays `DEFERRED`; all other stages unchanged.

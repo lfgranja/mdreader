@@ -1,59 +1,135 @@
-//! CPAL playback backend (T026).
+//! CPAL playback backend.
 //!
-//! Rust owns synthesis and PCM playback (cpal 0.18.2, AAudio).
-//! Exact-request 22050 Hz / PCM-float / mono. Device-format
-//! conversion happens in Rust. Refusal → named `EngineError`.
+//! Rust owns synthesis and PCM playback. The backend requests
+//! exactly mono `f32` at 22 050 Hz; when the device cannot serve
+//! that shape the construction fails closed with a named
+//! [`BackendError`] — never a silent resample.
+//!
+//! Synthesized audio enters through [`CpalBackend::enqueue_pcm`]
+//! and is consumed by the output-stream callback in FIFO order;
+//! the remainder of a short buffer is silence (`0.0`). The
+//! position clock advances only by samples actually consumed
+//! while the stream runs.
 
-use crate::engine_core::closed::EngineError;
-use crate::engine_core::format::{DeclaredFormat, check_handoff};
-use crate::position::{PositionClock, PlayerError};
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{BuildStreamError, Device, SampleFormat, SampleRate, StreamConfig, SupportedStreamConfigRange};
+use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
+
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use cpal::{SampleFormat, StreamConfig};
+use engine_core::closed::EngineError;
+use engine_core::format::{DeclaredFormat, check_handoff};
 use thiserror::Error;
-use tracing::{debug, error, info, instrument, warn};
+use tracing::{error, info, instrument};
+
+use crate::position::PositionClock;
 
 /// Errors from the CPAL backend.
+///
+/// Every variant is a named, surfaced failure — the backend never
+/// fails silently.
 #[derive(Debug, Error)]
 pub enum BackendError {
-    /// No suitable audio device found.
+    /// No default output device was available.
     #[error("no audio device available: {0}")]
     NoDevice(String),
-    /// Failed to build the output stream.
+    /// The output stream could not be built.
     #[error("failed to build stream: {0}")]
-    BuildStream(#[from] BuildStreamError),
-    /// The device refused the requested format.
-    #[error("device refused the requested format: {0}")]
+    BuildStream(#[from] cpal::Error),
+    /// The device refused the declared handoff shape.
+    #[error("device refused the declared shape: {0}")]
     DeviceRefused(String),
-    /// The device was lost during playback.
-    #[error("device lost: {0}")]
-    DeviceLost(String),
-    /// The handoff format does not match the declared shape.
-    #[error("handoff format mismatch: {0}")]
+    /// The handoff shape check named a deviation.
+    #[error("handoff format mismatch: {0:?}")]
     HandoffMismatch(EngineError),
     /// Playback start was refused.
     #[error("playback start refused: {0}")]
     StartRefused(String),
 }
 
+/// FIFO of mono `f32` samples at the declared rate, shared with
+/// the stream callback.
+#[derive(Debug, Default)]
+struct SampleQueue {
+    /// Buffered samples not yet consumed by the callback.
+    samples: VecDeque<f32>,
+}
+
+impl SampleQueue {
+    /// Append synthesized samples to the tail.
+    fn push(&mut self, pcm: &[f32]) {
+        self.samples.extend(pcm.iter().copied());
+    }
+
+    /// Move up to `out.len()` samples into `out`, filling the
+    /// remainder with silence. Returns the consumed count.
+    fn consume_into(&mut self, out: &mut [f32]) -> usize {
+        let mut consumed = 0;
+        for slot in out.iter_mut() {
+            if let Some(sample) = self.samples.pop_front() {
+                *slot = sample;
+                consumed += 1;
+            } else {
+                *slot = 0.0;
+            }
+        }
+        consumed
+    }
+
+    /// Buffered sample count.
+    #[must_use]
+    fn len(&self) -> usize {
+        self.samples.len()
+    }
+
+    /// Whether the queue holds no samples.
+    #[must_use]
+    fn is_empty(&self) -> bool {
+        self.samples.is_empty()
+    }
+}
+
 /// The CPAL backend driver.
 ///
-/// Owns the output stream and the position clock. Delivers mono
-/// f32 at 22050 Hz to the engine, and converts the device's native
-/// format to/from the declared handoff shape.
+/// Owns the output stream, the sample queue, and the position
+/// clock. The declared rate is a constant of the contract, so the
+/// elapsed-time divisor never drifts from it.
 pub struct CpalBackend {
+    /// The running output stream (`None` is unrepresentable after
+    /// [`CpalBackend::new`] succeeds; the option exists so
+    /// [`Drop`] can pause exactly once).
     stream: Option<cpal::Stream>,
+    /// Samples waiting for the callback.
+    queue: Arc<Mutex<SampleQueue>>,
+    /// Audible-progress clock.
     position_clock: Arc<Mutex<PositionClock>>,
-    device_name: String,
+    /// The stream sample rate (always the declared rate).
     sample_rate: u32,
 }
 
+impl std::fmt::Debug for CpalBackend {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CpalBackend")
+            .field("queue", &self.queue)
+            .field("position_clock", &self.position_clock)
+            .field("sample_rate", &self.sample_rate)
+            .finish_non_exhaustive()
+    }
+}
+
 impl CpalBackend {
-    /// Create a new backend with the default output device.
+    /// Open the default output device at exactly the declared
+    /// handoff shape and build (not yet start) the stream.
     ///
-    /// Requests exactly 22050 Hz, mono, f32. If the device cannot
-    /// satisfy this exactly, the closest supported format is used and
-    /// Rust performs the conversion.
+    /// # Errors
+    ///
+    /// * [`BackendError::NoDevice`] when no default output device
+    ///   exists or its configs cannot be listed.
+    /// * [`BackendError::DeviceRefused`] when no supported config
+    ///   offers mono `f32` covering 22 050 Hz.
+    /// * [`BackendError::HandoffMismatch`] when the negotiated
+    ///   shape deviates from the declaration.
+    /// * [`BackendError::BuildStream`] when the stream cannot be
+    ///   built.
     #[instrument]
     pub fn new() -> Result<Self, BackendError> {
         let host = cpal::default_host();
@@ -61,60 +137,64 @@ impl CpalBackend {
             .default_output_device()
             .ok_or_else(|| BackendError::NoDevice("no default output device".to_string()))?;
 
-        let device_name = device
-            .name()
-            .unwrap_or_else(|_| "unknown".to_string());
-
-        info!(device = %device_name, "selected output device");
-
-        // Inspect supported configs to find one compatible with our
-        // declared handoff shape (mono f32 @ 22050 Hz).
+        let mut negotiated: Option<StreamConfig> = None;
         let supported = device
             .supported_output_configs()
             .map_err(|e| BackendError::NoDevice(format!("failed to query configs: {e}")))?;
-
-        let mut best_config: Option<SupportedStreamConfigRange> = None;
         for config in supported {
-            if config.channels() == 1
-                && config.min_sample_rate().0 <= DeclaredFormat::SAMPLE_RATE
-                && config.max_sample_rate().0 >= DeclaredFormat::SAMPLE_RATE
+            if config.channels() == DeclaredFormat::CHANNELS
                 && config.sample_format() == SampleFormat::F32
+                && config.min_sample_rate() <= DeclaredFormat::SAMPLE_RATE
+                && config.max_sample_rate() >= DeclaredFormat::SAMPLE_RATE
             {
-                best_config = Some(config);
+                negotiated = Some(config.with_sample_rate(DeclaredFormat::SAMPLE_RATE).config());
                 break;
             }
         }
+        let config = negotiated.ok_or_else(|| {
+            BackendError::DeviceRefused(
+                "no supported config offers mono f32 at 22050 Hz".to_string(),
+            )
+        })?;
 
-        let config = best_config
-            .ok_or_else(|| {
-                BackendError::DeviceRefused(
-                    "no supported config matching mono f32 @ 22050 Hz".to_string(),
-                )
-            })?
-            .with_sample_rate(SampleRate(DeclaredFormat::SAMPLE_RATE));
-
-        // Verify the handoff format matches our declaration.
+        // The width is 32 by construction: only `F32` configs
+        // reach this point, and `Vec<f32>` is the only sample
+        // carrier the queue accepts.
         check_handoff(
-            config.sample_rate().0,
-            config.channels(),
-            config.sample_format().sample_size() * 8,
+            config.sample_rate,
+            config.channels,
+            DeclaredFormat::SAMPLE_WIDTH_BITS,
         )
         .map_err(BackendError::HandoffMismatch)?;
 
-        let sample_rate = config.sample_rate().0;
+        let sample_rate = config.sample_rate;
+        let queue = Arc::new(Mutex::new(SampleQueue::default()));
         let position_clock = Arc::new(Mutex::new(PositionClock::new(0.0)));
 
-        let clock_clone = Arc::clone(&position_clock);
+        let queue_cb = Arc::clone(&queue);
+        let clock_cb = Arc::clone(&position_clock);
         let stream = device
             .build_output_stream(
-                &config.into(),
+                config,
                 move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
-                    // Engine fills the buffer with mono f32 @ 22050 Hz.
-                    // This callback runs on the audio thread.
-                    let mut clock = clock_clone.lock().unwrap();
-                    let elapsed = data.len() as f64 / sample_rate as f64;
-                    if elapsed > 0.0 {
-                        let _ = clock.on_audible_progress(elapsed);
+                    let consumed = if let Ok(mut q) = queue_cb.lock() {
+                        q.consume_into(data)
+                    } else {
+                        for slot in data.iter_mut() {
+                            *slot = 0.0;
+                        }
+                        0
+                    };
+                    if consumed > 0 {
+                        #[expect(
+                            clippy::cast_precision_loss,
+                            reason = "elapsed time needs f64 division; a >2^53-sample callback buffer \
+                                      (over 6 millennia of audio at 22 050 Hz) is unreachable in memory"
+                        )]
+                        let elapsed = consumed as f64 / f64::from(sample_rate);
+                        if let Ok(mut clock) = clock_cb.lock() {
+                            let _ignored = clock.on_audible_progress(elapsed);
+                        }
                     }
                 },
                 |err| error!(error = %err, "audio stream error"),
@@ -122,21 +202,42 @@ impl CpalBackend {
             )
             .map_err(BackendError::BuildStream)?;
 
-        info!(sample_rate, channels = config.channels(), "stream built");
+        info!(sample_rate, "stream built at declared shape");
 
         Ok(Self {
             stream: Some(stream),
+            queue,
             position_clock,
-            device_name,
             sample_rate,
         })
     }
 
-    /// Start playback.
-    #[instrument]
+    /// Append synthesized mono `f32` samples at the declared rate
+    /// to the playback queue.
+    pub fn enqueue_pcm(&self, pcm: Vec<f32>) {
+        if let Ok(mut queue) = self.queue.lock() {
+            queue.push(&pcm);
+        }
+    }
+
+    /// Buffered sample count not yet consumed by the stream.
+    #[must_use]
+    pub fn buffered_samples(&self) -> usize {
+        self.queue.lock().map(|q| q.len()).unwrap_or(0)
+    }
+
+    /// Start (or resume) playback.
+    ///
+    /// # Errors
+    ///
+    /// [`BackendError::StartRefused`] when the stream refuses to
+    /// start.
+    #[instrument(skip(self))]
     pub fn play(&self) -> Result<(), BackendError> {
         if let Some(stream) = &self.stream {
-            stream.play().map_err(|e| BackendError::StartRefused(e.to_string()))?;
+            stream
+                .play()
+                .map_err(|e| BackendError::StartRefused(e.to_string()))?;
             info!("playback started");
             Ok(())
         } else {
@@ -144,56 +245,50 @@ impl CpalBackend {
         }
     }
 
-    /// Pause playback.
-    #[instrument]
+    /// Pause playback, keeping the queue and position.
+    #[instrument(skip(self))]
     pub fn pause(&self) {
         if let Some(stream) = &self.stream {
-            let _ = stream.pause();
+            let _ignored = stream.pause();
             info!("playback paused");
         }
     }
 
-    /// Stop playback and reset position.
-    #[instrument]
+    /// Stop playback, drop queued audio, and reset position.
+    #[instrument(skip(self))]
     pub fn stop(&self) {
         if let Some(stream) = &self.stream {
-            let _ = stream.pause();
+            let _ignored = stream.pause();
+        }
+        if let Ok(mut queue) = self.queue.lock() {
+            queue.samples.clear();
         }
         if let Ok(mut clock) = self.position_clock.lock() {
             *clock = PositionClock::new(0.0);
         }
-        info!("playback stopped, position reset");
+        info!("playback stopped, queue cleared, position reset");
     }
 
-    /// Get a reference to the position clock.
-    #[must_use]
-    pub fn position_clock(&self) -> Arc<Mutex<PositionClock>> {
-        Arc::clone(&self.position_clock)
-    }
-
-    /// Get the current playback position in seconds.
+    /// Current playback position in seconds.
     #[must_use]
     pub fn position_secs(&self) -> f64 {
         self.position_clock
             .lock()
-            .unwrap()
-            .position_secs()
+            .map(|clock| clock.position_secs())
+            .unwrap_or(0.0)
     }
 
-    /// Get the stored basis (kill-replay basis) in seconds.
+    /// The stream sample rate (always the declared rate).
     #[must_use]
-    pub fn stored_basis(&self) -> f64 {
-        self.position_clock
-            .lock()
-            .unwrap()
-            .stored_basis()
+    pub const fn sample_rate(&self) -> u32 {
+        self.sample_rate
     }
 }
 
 impl Drop for CpalBackend {
     fn drop(&mut self) {
         if let Some(stream) = self.stream.take() {
-            let _ = stream.pause();
+            let _ignored = stream.pause();
         }
     }
 }
@@ -203,10 +298,42 @@ mod tests {
     use super::*;
 
     #[test]
+    fn an_empty_queue_yields_silence_and_zero_consumed() {
+        let mut queue = SampleQueue::default();
+        assert!(queue.is_empty());
+        let mut out = [1.0_f32; 4];
+        let consumed = queue.consume_into(&mut out);
+        assert_eq!(consumed, 0);
+        assert_eq!(out, [0.0; 4]);
+    }
+
+    #[test]
+    fn queued_samples_come_out_fifo_with_silence_tail() {
+        let mut queue = SampleQueue::default();
+        queue.push(&[0.5, -0.25, 0.125]);
+        assert_eq!(queue.len(), 3);
+        let mut out = [0.0_f32; 5];
+        let consumed = queue.consume_into(&mut out);
+        assert_eq!(consumed, 3);
+        assert_eq!(out, [0.5, -0.25, 0.125, 0.0, 0.0]);
+        assert!(queue.is_empty());
+    }
+
+    #[test]
+    fn consumption_shorter_than_queued_leaves_the_rest() {
+        let mut queue = SampleQueue::default();
+        queue.push(&[1.0, 2.0, 3.0, 4.0]);
+        let mut out = [0.0_f32; 2];
+        let consumed = queue.consume_into(&mut out);
+        assert_eq!(consumed, 2);
+        assert_eq!(out, [1.0, 2.0]);
+        assert_eq!(queue.len(), 2);
+    }
+
+    #[test]
     #[ignore = "requires audio hardware"]
     fn backend_creation_succeeds_on_host() {
         let backend = CpalBackend::new();
-        // On headless CI this may fail, but locally it should succeed.
         assert!(backend.is_ok() || backend.is_err());
     }
 }

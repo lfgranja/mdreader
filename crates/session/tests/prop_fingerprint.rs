@@ -53,8 +53,8 @@ proptest! {
         // The fingerprint is a function of content alone, so hashing the same
         // bytes twice — as happens when a document is read again after a move
         // or rename — yields the identical digest.
-        let first = session::fingerprint::fingerprint(&content);
-        let second = session::fingerprint::fingerprint(&content);
+        let first = session::fingerprint(&content);
+        let second = session::fingerprint(&content);
         prop_assert_eq!(
             first,
             second,
@@ -75,9 +75,9 @@ proptest! {
         // edited document is a different document — its fingerprint no longer
         // matches, so the stored position becomes unreachable and no resume
         // is offered for the changed content).
-        let original = session::fingerprint::fingerprint(&content);
+        let original = session::fingerprint(&content);
         content[bit_index / 8] ^= 1 << (bit_index % 8);
-        let edited = session::fingerprint::fingerprint(&content);
+        let edited = session::fingerprint(&content);
         prop_assert_ne!(
             original,
             edited,
@@ -106,8 +106,8 @@ fn identical_bytes_at_two_paths_share_the_stored_position() -> Result<(), Box<dy
     let at_original = std::fs::read(&original_path)?;
     let at_renamed = std::fs::read(&renamed_path)?;
 
-    let key_from_original = session::fingerprint::fingerprint(&at_original);
-    let key_from_renamed = session::fingerprint::fingerprint(&at_renamed);
+    let key_from_original = session::fingerprint(&at_original);
+    let key_from_renamed = session::fingerprint(&at_renamed);
 
     assert_eq!(
         key_from_original, key_from_renamed,
@@ -136,8 +136,8 @@ fn the_fingerprint_of_a_path_is_stable_across_repeated_reads()
     let second_read = std::fs::read(&path)?;
 
     assert_eq!(
-        session::fingerprint::fingerprint(&first_read),
-        session::fingerprint::fingerprint(&second_read),
+        session::fingerprint(&first_read),
+        session::fingerprint(&second_read),
         "repeated reads of the same path produced different fingerprints"
     );
     Ok(())

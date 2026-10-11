@@ -56,7 +56,7 @@ fn t059_plan_for_none_none_is_plaintext_paragraph_never_fullssml() {
 
 // (c) test_double non-selectable when adapter registered.
 // Contract: adapter-handoff.md §6.2 / adapter-capabilities.md §4.1 /
-// closed.rs 305-312 (SC-051 invariant).
+// closed.rs 398-406 (SC-051 invariant).
 #[test]
 fn t059_test_double_non_selectable_when_adapter_registered() {
     // Adapter registered at OfflineDefault (not a fixture).

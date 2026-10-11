@@ -1,11 +1,11 @@
 [package]
 name = "player"
+license = "MIT"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 cpal = "0.18.2"
-adapter-synthesis = { path = "../adapter-synthesis" }
 doc-structure = { path = "../doc-structure" }
 engine-core = { path = "../engine-core" }
 thiserror = { workspace = true }
@@ -27,6 +27,7 @@ proptest = { workspace = true }
 tempfile = { workspace = true }
 session = { path = "../session" }
 diag = { path = "../diag" }
+adapter-synthesis = { path = "../adapter-synthesis" }
 
 [[test]]
 name = "test_focus_duck_pause_us2"

@@ -5,7 +5,7 @@
 //! headless (Principle II) through [`cli`], which mirrors the
 //! [`trait_::Engine`] trait operations over text. The
 //! modules: [`closed`] (T014, the closed-set vocabulary),
-//! [`format`] (T015, the declared engine→shell
+//! [`crate::format`] (T015, the declared engine→shell
 //! handoff format), [`trait_`] (T016, the engine trait and
 //! capability declaration), [`cli`] (T017, the text-I/O
 //! protocol over the trait operations), and the stand-in engines

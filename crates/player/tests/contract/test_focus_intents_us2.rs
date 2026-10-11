@@ -142,7 +142,7 @@ const WIRE: [(FocusIntent, &str); 9] = [
     (FocusIntent::DuckableTransient, "duckable_transient"),
     (FocusIntent::SilenceDemanding, "silence_demanding"),
     (FocusIntent::PermanentLoss, "permanent_loss"),
-    (FocusIntent::FocusRegained, "focus_regained"),
+    (FocusIntent::FocusRegained, "regained"),
     (FocusIntent::BecomingNoisy, "becoming_noisy"),
     (FocusIntent::DeviceAppeared, "device_appeared"),
     (FocusIntent::DeviceDisappeared, "device_disappeared"),

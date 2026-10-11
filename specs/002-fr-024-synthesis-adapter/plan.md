@@ -46,7 +46,7 @@ FR-024 — synthesis adapter for `001-android-media-shell`: integrate `sherpa-on
 
 **Post-Phase-1 re-check criteria** (to confirm after design artifacts):
 - Adapter contract shapes match `crates/engine-core/src/format.rs` + `closed.rs` (verified in `research.md` §2).
-- `SC-051` mechanism passes with adapter registered in `offline_default` (`standin_a`/`standin_b` not selectable per `001/spec.md:89` / `closed.rs:305-312`).
+- `SC-051` mechanism passes with adapter registered in `offline_default` (`standin_a`/`standin_b` not selectable per `001/spec.md:89` / `closed.rs:398-406`).
 - No new `AdapterFailed` variant; bad Markdown remains document/parse layer (`spec.md:85` / C4-A); `diag` unchanged.
 - `CLARIFICATION_BATCH.md` mapping (`C1–C4`) preserved at `spec.md:85` (condition→variant table); `spec.md:138` fixed from stale `133`; `SC-044` stays `DEFERRED` (`constitution.md:643`).
 - Byte-budget test can be written against adapter split logic (≤5000 bytes / chunk — `constitution.md:353` / gate 8 shell).

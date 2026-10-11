@@ -102,7 +102,7 @@ Not a data object stored per chunk; it is the registration context for adapter s
 | `OfflineDefault` | **Registered** (`sherpa-onnx` + Piper) | **Yes** | Constitution §TTS Engine Registry; Principle IX; only tier at v1 |
 | `CloudDefault` | Not registered | No | Requires consent + network; deferred (`SC-044`) |
 | `CloudEscalation` | Not registered | No | Deferred |
-| `TestDouble` (`standin_a`, `standin_b`) | Fixtures only | **No** when adapter registered (`001/spec.md:89`; `closed.rs:305-312`) | Only selectable when *no* non-standin adapter registered |
+| `TestDouble` (`standin_a`, `standin_b`) | Fixtures only | **No** when adapter registered (`001/spec.md:89`; `closed.rs:398-406`) | Only selectable when *no* non-standin adapter registered |
 | `EvaluatedFallback` (Edge / `msedge-tts`) | Not registered | No | Consent-gated fallback; deferred (`SC-044`; `constitution.md` §XI exception) |
 
 **Selection invariant** (`SC-051` / `spec.md:85`):

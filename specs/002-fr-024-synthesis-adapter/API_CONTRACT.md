@@ -458,7 +458,7 @@ pub const REGISTERED_TIERS: [EngineTier; 1] = [EngineTier::OfflineDefault];
 /// Whether `tier` may be selected while this adapter is registered.
 /// Exhaustive 5-arm match; `TestDouble` is `false` because the stand-ins
 /// are fixtures and are never selectable while a non-`test_double` adapter
-/// is registered (`001/spec.md:89`; `closed.rs`:305-312).
+/// is registered (`001/spec.md:89`; `closed.rs`:398-406).
 #[must_use] pub const fn is_selectable(tier: EngineTier) -> bool;
 ```
 

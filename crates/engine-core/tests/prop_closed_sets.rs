@@ -486,7 +486,7 @@ fn every_declared_wire_string_is_produced_by_exactly_one_variant() {
     // within each set, which is only possible if each variant maps to its own
     // wire form (the compile-time exhaustive matches already prove the variant
     // sets are exactly as specified).
-    fn distinct<T: Copy + PartialEq>(entries: &[(T, &str)]) -> bool {
+    fn distinct<T: Copy + PartialEq, W: PartialEq>(entries: &[(T, W)]) -> bool {
         for (i, (_, a)) in entries.iter().enumerate() {
             for (_, b) in entries.iter().skip(i + 1) {
                 if a == b {
@@ -497,9 +497,11 @@ fn every_declared_wire_string_is_produced_by_exactly_one_variant() {
         true
     }
 
-    assert!(distinct(
-        &RATE_RUNGS.iter().map(|(r, v)| (*r, "")).collect::<Vec<_>>()
-    ));
+    // The rate rungs serialize as their JSON numbers (closed.rs
+    // `PlaybackRate::value`), so distinctness is checked over the real
+    // wire numbers — all seven are exact binary fractions, so `==` is
+    // exact and no tolerance is involved (FR-019).
+    assert!(distinct(&RATE_RUNGS));
     assert!(distinct(&TRANSPORT_STATES));
     assert!(distinct(&FOCUS_OUTCOMES));
     assert!(distinct(&ENGINE_ERRORS));

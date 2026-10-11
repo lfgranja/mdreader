@@ -176,11 +176,7 @@ pub fn resolve_resume(input: &ResumeInput<'_>) -> ResumeResult {
             }
         }
         if let Some(gap) = next_gap {
-            if gap <= raw_cursor {
-                gap
-            } else {
-                cap_point
-            }
+            if gap <= raw_cursor { gap } else { cap_point }
         } else {
             cap_point
         }

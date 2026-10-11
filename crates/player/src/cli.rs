@@ -272,24 +272,24 @@ mod tests {
     #[test]
     fn play_transitions_to_playing() {
         let mut session = PlaybackSession::new();
-        let snap = session.execute(ShellVerb::Play).unwrap();
-        assert_eq!(snap.transport, TransportState::Playing);
+        let result = session.execute(ShellVerb::Play);
+        assert!(matches!(result, Ok(ref snap) if snap.transport == TransportState::Playing));
     }
 
     #[test]
     fn pause_transitions_to_paused() {
         let mut session = PlaybackSession::new();
-        let _ = session.execute(ShellVerb::Play).unwrap();
-        let snap = session.execute(ShellVerb::Pause).unwrap();
-        assert_eq!(snap.transport, TransportState::Paused);
+        assert!(session.execute(ShellVerb::Play).is_ok());
+        let result = session.execute(ShellVerb::Pause);
+        assert!(matches!(result, Ok(ref snap) if snap.transport == TransportState::Paused));
     }
 
     #[test]
     fn stop_resets_position() {
         let mut session = PlaybackSession::new();
-        let _ = session.execute(ShellVerb::Play).unwrap();
+        assert!(session.execute(ShellVerb::Play).is_ok());
         session.on_audible_progress(10.0);
-        let _ = session.execute(ShellVerb::Stop).unwrap();
+        assert!(session.execute(ShellVerb::Stop).is_ok());
         assert_eq!(session.snapshot().position_secs, 0.0);
     }
 
@@ -301,7 +301,7 @@ mod tests {
         assert_eq!(session.snapshot().position_secs, 0.0);
 
         // Now playing — progress advances.
-        let _ = session.execute(ShellVerb::Play).unwrap();
+        assert!(session.execute(ShellVerb::Play).is_ok());
         session.on_audible_progress(5.0);
         assert_eq!(session.snapshot().position_secs, 5.0);
     }
@@ -309,15 +309,15 @@ mod tests {
     #[test]
     fn skip_forward_moves_five_seconds() {
         let mut session = PlaybackSession::new();
-        let _ = session.execute(ShellVerb::Play).unwrap();
-        let _ = session.execute(ShellVerb::SkipForward).unwrap();
+        assert!(session.execute(ShellVerb::Play).is_ok());
+        assert!(session.execute(ShellVerb::SkipForward).is_ok());
         assert_eq!(session.snapshot().position_secs, SKIP_STEP_SECS);
     }
 
     #[test]
     fn skip_back_clamps_at_zero() {
         let mut session = PlaybackSession::new();
-        let _ = session.execute(ShellVerb::SkipBackward).unwrap();
+        assert!(session.execute(ShellVerb::SkipBackward).is_ok());
         assert_eq!(session.snapshot().position_secs, 0.0);
     }
 
@@ -326,7 +326,7 @@ mod tests {
         let mut session = PlaybackSession::new();
         // Walk to R4_0
         for _ in 0..10 {
-            let _ = session.execute(ShellVerb::RateUp).unwrap();
+            assert!(session.execute(ShellVerb::RateUp).is_ok());
         }
         assert_eq!(session.snapshot().rate, PlaybackRate::R4_0);
     }
@@ -335,7 +335,7 @@ mod tests {
     fn rate_down_saturates_at_r0_75() {
         let mut session = PlaybackSession::new();
         for _ in 0..10 {
-            let _ = session.execute(ShellVerb::RateDown).unwrap();
+            assert!(session.execute(ShellVerb::RateDown).is_ok());
         }
         assert_eq!(session.snapshot().rate, PlaybackRate::R0_75);
     }
@@ -343,7 +343,7 @@ mod tests {
     #[test]
     fn external_start_is_playing() {
         let mut session = PlaybackSession::new();
-        let _ = session.execute(ShellVerb::ExternalStart).unwrap();
-        assert_eq!(session.snapshot().transport, TransportState::Playing);
+        let result = session.execute(ShellVerb::ExternalStart);
+        assert!(matches!(result, Ok(ref snap) if snap.transport == TransportState::Playing));
     }
 }

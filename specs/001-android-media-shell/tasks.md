@@ -329,3 +329,21 @@ Foundation → +US1 (locked playback, MVP) → +US2 (focus, P1 core) → +US3 (r
 - Every test path is inside a package (`crates/*/tests/…`). A suite at a root `tests/<dir>/` path would never be compiled, so no such path may reappear.
 - MVP scope: Phases 1+2+3 (T001–T031) = workspace + locked playback.
 - Verification tasks T084–T087 are the SOLE attestation of success. Agent claims attest nothing.
+
+---
+
+## Phase 9: Convergence
+
+**Purpose**: Remediation for gaps found by `/speckit.converge` (4 read-only audit streams, 2026-10-11) that have NO owning task among T001–T087. Findings already covered by unchecked tasks (all of US1 impl T019–T031, US3 T042–T048, US4 T049–T066, US5 T067–T079, Foundation T001–T018, Phase 8 T080–T087) are NOT duplicated here — `/speckit.implement` completes them in place. Fixed during the converge session itself (no task needed): `expected-tests.txt` regeneration, T034/T035 cargo-target wiring, `MediaMirror.kt` purity-comment reword. TDD order applies: test-first where a behavior is asserted, clean-session implementation, `[P]` waves, atomic commits, verification-only attestation.
+
+- [ ] T088 Remove the two catch-all match arms in shipped sources per Constitution VII (contradicts)
+- [ ] T089 Remove every `unwrap()`/`println!` from shipped sources per Rust rigor deny-lints (contradicts)
+- [ ] T090 Move the 16-name deny list into a `[bans]` table so `cargo deny check bans` enforces it per Constitution IV (contradicts)
+- [ ] T091 Unify the focus-regained wire string across contract, Kotlin mirror, Rust enum, and contract test per contracts/shell-ipc.md (contradicts)
+- [ ] T092 Resolve the FR-015 granularity conflict (spec paragraph/heading snap vs tasks sentence snap) and align code plus tests to the resolution per spec.md (contradicts)
+- [ ] T093 Forward the audio-focus grant answer from the Kotlin mirror to Rust and replace the silent `else→null` drop with a named failure per FR-013b (missing)
+- [ ] T094 Clear the stale duck-restore flag on duck→silence-demanding transitions per spec.md latest-event-wins (partial)
+- [ ] T095 Unify the three pre-roll buffer implementations behind the single cap constant per FR-015a and Constitution VII (contradicts)
+- [ ] T096 Review or remove the `player/src/consume.rs` FR-024c traceability claim per tasks.md (unrequested)
+- [ ] T097 Review or remove unrequested CLI verbs, modules, and the duplicate scaffold service per contracts/shell-ipc.md (unrequested)
+- [ ] T098 Record the T036 BLOCKING-gate evidence (US2 tests were RED pre-implementation) and mark the gate per tasks.md (missing)

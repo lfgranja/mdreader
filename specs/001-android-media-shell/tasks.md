@@ -119,8 +119,8 @@
 
 - [X] T037 [P] [US2] Implement rewind/snap engine in `crates/player/src/rewind.rs` (FR-015 formula + snap + hard cap + cumulative supersede clock reading `first_yield_ms` (never reset at supersede; record carries `supersedes_ts_ms` link); depends on NOTHING except closed vocabulary — parallel-safe after gate T036)
 - [X] T038 [P] [US2] Implement focus classifier in `crates/player/src/focus.rs` (yield per FR-012; closed outcomes, 15–25% gain factor per FR-013, `AUDIOFOCUS_GAIN` + `USAGE_MEDIA` + `CONTENT_TYPE_SPEECH` + `setWillPauseWhenDucked(true)` + `setAcceptsDelayedFocusGain(true)` assumptions, FR-013b deferred/refused arms, FR-014 latest-event-wins)
-- [ ] T039 [P] [US2] Implement pre-roll ring buffer in `crates/player/src/buffer.rs` (≤60 s engine-delivered audio, never advances position, empty while idle, refill on Play, abandon at end per FR-015a, FR-015b, FR-015c; rate change re-prepares without shifting position)
-- [ ] T040 [US2] Implement Kotlin focus mirror in `android-shell/src/main/kotlin/app/mdreader/FocusMirror.kt` (`AudioFocusRequest.Builder(AUDIOFOCUS_GAIN)`, `OnAudioFocusChangeListener`, forwards classified intents to Rust, applies NOTHING locally; SC-035 allowlist entry only; depends on T038 contract)
+- [X] T039 [P] [US2] Implement pre-roll ring buffer in `crates/player/src/buffer.rs` (≤60 s engine-delivered audio, never advances position, empty while idle, refill on Play, abandon at end per FR-015a, FR-015b, FR-015c; rate change re-prepares without shifting position)
+- [X] T040 [US2] Implement Kotlin focus mirror in `android-shell/src/main/kotlin/app/mdreader/FocusMirror.kt` (`AudioFocusRequest.Builder(AUDIOFOCUS_GAIN)`, `OnAudioFocusChangeListener`, forwards classified intents to Rust, applies NOTHING locally; SC-035 allowlist entry only; depends on T038 contract)
 - [ ] T041 [US2] US2 GREEN gate: T032–T035 now pass with `cargo nextest run -p player` + integration/contract suites green. Regenerate `scripts/expected-tests.txt`; commit updated list (I2).
 
 **Checkpoint**: US1 + US2 both independently functional; duck-vs-pause differs observably.

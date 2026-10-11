@@ -74,6 +74,9 @@ pub enum FocusIntent {
     PermanentLoss,
     /// Focus returned: authorizes resume via the rewind engine
     /// (FR-015; resume math lives in `crate::rewind`).
+    /// Wire form is `regained` per contracts/shell-ipc.md (not the
+    /// `snake_case` default `focus_regained`).
+    #[serde(rename = "regained")]
     FocusRegained,
     /// Headphone-removal/noisy signal: pause, ≤1 s bound owned by
     /// the routing machine (FR-016; T046 owns timing).

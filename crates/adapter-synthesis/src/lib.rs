@@ -21,7 +21,7 @@ pub mod synth;
 /// The sole selectable tier at v1 (`contracts/adapter-handoff.md`
 /// §6.1; SC-051). The `test_double` stand-ins (`engine_core::standin_a` /
 /// `standin_b`) are fixtures and are never selectable while this
-/// non-`test_double` adapter is registered (`closed.rs`:305-312).
+/// non-`test_double` adapter is registered (`closed.rs`:398-406).
 pub const REGISTERED_TIER: EngineTier = EngineTier::OfflineDefault;
 
 /// Closed SSML capability level (no catch-all; Principle VII).

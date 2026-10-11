@@ -42,7 +42,7 @@ pub const fn registered_tiers() -> &'static [EngineTier] {
 /// v1 (`SC-044` deferred), and [`EngineTier::TestDouble`]
 /// is `false` because the stand-ins are fixtures and are
 /// never selectable while a non-`test_double` adapter is
-/// registered (`001/spec.md:89`; `closed.rs`:305-312).
+/// registered (`001/spec.md:89`; `closed.rs`:398-406).
 // §4 requires five distinct arms — never a grouped
 // wildcard, never an underscore arm. `CloudDefault`,
 // `CloudEscalation` and `EvaluatedFallback`

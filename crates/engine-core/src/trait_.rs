@@ -350,7 +350,10 @@ mod tests {
                 BoundaryKind::Sentence => "sentence",
             }
         }
-        for (kind, wire) in [(BoundaryKind::Word, "word"), (BoundaryKind::Sentence, "sentence")] {
+        for (kind, wire) in [
+            (BoundaryKind::Word, "word"),
+            (BoundaryKind::Sentence, "sentence"),
+        ] {
             assert_eq!(kind.as_wire_str(), wire);
             assert_eq!(wire_of(kind), wire);
             assert_eq!(

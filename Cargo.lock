@@ -1553,6 +1553,7 @@ dependencies = [
  "engine-core",
  "ndk",
  "proptest",
+ "redb",
  "serde",
  "serde_json",
  "session",

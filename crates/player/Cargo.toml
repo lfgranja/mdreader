@@ -25,6 +25,10 @@ ndk = "0.9"
 [dev-dependencies]
 proptest = { workspace = true }
 tempfile = { workspace = true }
+# Direct redb access for the bookmark round-trip tests
+# (session::BOOKMARKS is a redb table; the crate itself does not
+# re-export the redb types the round-trip needs).
+redb = "2.6.0"
 session = { path = "../session" }
 diag = { path = "../diag" }
 adapter-synthesis = { path = "../adapter-synthesis" }
@@ -34,16 +38,23 @@ name = "test_focus_duck_pause_us2"
 path = "tests/integration/test_focus_duck_pause_us2.rs"
 
 [[test]]
+name = "test_session_recovery_us1"
+path = "tests/integration/test_session_recovery_us1.rs"
+
+[[test]]
 name = "test_focus_intents_us2"
 path = "tests/contract/test_focus_intents_us2.rs"
 
-# US1/US3/US4/US5 targets (test_session_recovery_us1,
-# test_external_start_us1, test_routing_us3,
+[[test]]
+name = "test_external_start_us1"
+path = "tests/integration/test_external_start_us1.rs"
+
+# US3/US4/US5 targets (test_routing_us3,
 # test_removal_signals_us3, test_lockscreen_us4,
 # test_shell_ipc_us4, test_failover_us5) stay unwired until
-# their test tasks (T019–T022b, T042–T044, T049–T055,
-# T067–T071) land the files — wiring a missing path breaks
-# every workspace build (this commit's first attempt proved it).
+# their test tasks (T042–T044, T049–T055, T067–T071) land
+# the files — wiring a missing path breaks every workspace
+# build (this commit's first attempt proved it).
 
 [lints]
 workspace = true

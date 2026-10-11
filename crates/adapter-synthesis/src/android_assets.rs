@@ -48,14 +48,25 @@ pub enum ExtractError {
 /// * [`ExtractError::Io`] when a write fails.
 pub fn extract_voices(data_dir: &Path) -> Result<PathBuf, ExtractError> {
     let out = data_dir.join("voices").join("pt_BR-faber-medium");
-    if out.join(MARKER_FILE).exists() && out.join(MODEL_FILE).exists() {
+    if is_fresh(&out) {
         return Ok(out);
     }
+    // Clear a stale partial tree (e.g. a previous run that stored a
+    // subdirectory as an empty file); the copy below rebuilds it.
+    let _ignored = std::fs::remove_dir_all(&out);
     std::fs::create_dir_all(&out).map_err(|e| ExtractError::Io(e.to_string()))?;
     let manager = asset_manager().map_err(ExtractError::Handles)?;
     copy_dir(&manager, ASSET_ROOT, &out)?;
     std::fs::write(out.join(MARKER_FILE), "1").map_err(|e| ExtractError::Io(e.to_string()))?;
     Ok(out)
+}
+
+/// A tree is fresh when the marker, the model, and the espeak data
+/// dir (a real dir, not an empty file) all exist.
+fn is_fresh(out: &Path) -> bool {
+    out.join(MARKER_FILE).exists()
+        && out.join(MODEL_FILE).exists()
+        && out.join("espeak-ng-data").is_dir()
 }
 
 /// Attach to the JVM and wrap the activity `AssetManager`.
@@ -91,9 +102,13 @@ fn asset_manager() -> Result<ndk::asset::AssetManager, String> {
 
 /// Copy one asset dir into `out_dir`, recursing into subdirs.
 ///
-/// An entry that opens as a file is copied byte-for-byte; an entry
-/// that only opens as a dir is recursed into; anything else is a
-/// named failure — never silently skipped.
+/// Directory test comes first: `open()` on a directory yields an
+/// empty asset, so opening as a file first would store a subdir as
+/// an empty file and never recurse. An entry whose `open_dir`
+/// yields at least one name is a dir; anything else is copied as a
+/// file; an entry that is neither is a named failure — never
+/// silently skipped. (Trees with truly empty subdirs would store
+/// them as empty files; the packaged voice tree has none.)
 fn copy_dir(
     manager: &ndk::asset::AssetManager,
     asset_path: &str,
@@ -110,17 +125,21 @@ fn copy_dir(
         let full = format!("{asset_path}/{name}");
         let full_c =
             CString::new(full.as_str()).map_err(|_| ExtractError::OpenAsset(full.clone()))?;
-        if let Some(mut asset) = manager.open(&full_c) {
+        let is_dir = manager
+            .open_dir(&full_c)
+            .map(|listed| listed.count() > 0)
+            .unwrap_or(false);
+        if is_dir {
+            let sub = out_dir.join(&name);
+            std::fs::create_dir_all(&sub).map_err(|e| ExtractError::Io(e.to_string()))?;
+            copy_dir(manager, &full, &sub)?;
+        } else if let Some(mut asset) = manager.open(&full_c) {
             let mut bytes = Vec::new();
             let _byte_count = asset
                 .read_to_end(&mut bytes)
                 .map_err(|e| ExtractError::Io(e.to_string()))?;
             std::fs::write(out_dir.join(&name), &bytes)
                 .map_err(|e| ExtractError::Io(e.to_string()))?;
-        } else if manager.open_dir(&full_c).is_some() {
-            let sub = out_dir.join(&name);
-            std::fs::create_dir_all(&sub).map_err(|e| ExtractError::Io(e.to_string()))?;
-            copy_dir(manager, &full, &sub)?;
         } else {
             return Err(ExtractError::OpenAsset(full));
         }

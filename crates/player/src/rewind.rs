@@ -25,7 +25,7 @@
 //! every superseding record links back through `supersedes_ts_ms`
 //! (two ordered entries, never a merged rewrite — T035).
 
-use adapter_synthesis::AlignmentGranularity;
+use engine_core::trait_::AlignmentGranularity;
 
 use crate::position::{REWIND_CAP_SECS, REWIND_FRACTION};
 

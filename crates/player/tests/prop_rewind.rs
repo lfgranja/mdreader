@@ -41,7 +41,7 @@
 
 use proptest::prelude::*;
 
-use adapter_synthesis::AlignmentGranularity;
+use engine_core::trait_::AlignmentGranularity;
 use player::position::{REWIND_CAP_SECS, REWIND_FRACTION};
 use player::rewind::{ResumeInput, cursor, resolve_resume, supersede};
 

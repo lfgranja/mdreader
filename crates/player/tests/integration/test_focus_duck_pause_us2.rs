@@ -32,8 +32,8 @@
 //! reason string itself IS asserted verbatim here because the surface layer
 //! (T065) renders exactly this constant.
 
-use adapter_synthesis::AlignmentGranularity;
 use engine_core::closed::TransportState;
+use engine_core::trait_::AlignmentGranularity;
 use player::focus::{
     DUCK_GAIN, DUCK_GAIN_MAX, DUCK_GAIN_MIN, FULL_GAIN, FocusIntent, FocusOutcome, FocusTracker,
     apply_duck, supersede_flags,

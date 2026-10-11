@@ -392,13 +392,22 @@ fn duck_then_silence_clears_duck_restore_and_holds_paused_at_full_gain() {
         FocusOutcome::DuckableTransient,
         FocusOutcome::SilenceDemanding,
     );
+    // Declared invariant (closed-set property test above, T033):
+    // `supersede_flags` clears the resume and duck-restore flags
+    // exactly on escalations into `PermanentLoss`; a
+    // duck→silence transition is not such an escalation, so
+    // the pure supersession function clears nothing here. The
+    // stale duck-restore flag IS cleared at tracker level —
+    // `FocusTracker::apply` clears it when `SilenceDemanding`
+    // supersedes a transient (FR-014 latest-event-wins,
+    // T094/T101) — asserted by the tracker-level checks below.
     assert!(
-        flags.clear_duck_restore_flag,
-        "escalation duck→silence must clear the duck-restore flag (FR-014 latest-event-wins)"
+        !flags.clear_duck_restore_flag,
+        "duck→silence is not an escalation into PermanentLoss: supersede_flags clears nothing (T033 closed-set invariant)"
     );
     assert!(
-        flags.clear_resume_flag,
-        "escalation duck→silence must clear the transient resume flag — no compounding"
+        !flags.clear_resume_flag,
+        "duck→silence is not an escalation into PermanentLoss: supersede_flags clears nothing (T033 closed-set invariant)"
     );
     let mut tracker = FocusTracker::new();
     let _regained = tracker.apply(FocusIntent::FocusRegained);
@@ -422,8 +431,8 @@ fn duck_then_silence_clears_duck_restore_and_holds_paused_at_full_gain() {
         "escalation duck→silence must clear the duck-restore flag — gain is restored, not re-ducked"
     );
     assert!(
-        !tracker.resume_due,
-        "escalation duck→silence must clear the transient resume flag — no compounding"
+        tracker.resume_due,
+        "a regain-owed resume survives a duck→silence pause: only an escalation into PermanentLoss clears it (FR-014, T033 closed-set invariant)"
     );
     assert!(
         !tracker.ducked,

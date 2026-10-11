@@ -330,6 +330,11 @@ impl FocusTracker {
                 if flags.clear_duck_restore_flag {
                     self.duck_restore_due = false;
                 }
+                // Clear stale duck-restore flag when silence-demanding
+                // supersedes a transient per spec.md latest-event-wins (FR-013 / T091/T101)
+                if next == FocusOutcome::SilenceDemanding {
+                    self.duck_restore_due = false;
+                }
             }
             self.current = Some(next);
             if next == FocusOutcome::DuckableTransient {

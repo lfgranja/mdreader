@@ -1,6 +1,6 @@
 [workspace]
-members = ["crates/player", "crates/session", "crates/diag", "crates/engine-core", "crates/doc-structure", "crates/adapter-synthesis"]
-exclude = ["src-tauri"]
+members = ["crates/player", "crates/session", "crates/diag", "crates/engine-core", "crates/doc-structure", "crates/adapter-synthesis", "src-tauri"]
+exclude = []
 resolver = "3"
 
 [workspace.dependencies]

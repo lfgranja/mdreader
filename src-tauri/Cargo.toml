@@ -8,11 +8,17 @@ edition = "2024"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [dependencies]
-tauri = { version = "=3.0.0-alpha.3", features = [] }
-tauri-runtime-wry = { version = "=3.0.0-alpha.3", features = [] }
+# Tauri 2.12.1 — the constitution's pinned app-shell
+# version (Tauri Platform Contract; Principle IV).
+# 3.0.0-alpha.3 is a pre-release the constitution
+# explicitly rejects ("not to be taken"), so the pin
+# is an exact stable version with no recorded exception.
+tauri = { version = "=2.12.1", features = [] }
 player = { path = "../crates/player" }
 adapter-synthesis = { path = "../crates/adapter-synthesis" }
 serde_json = "1.0.132"
 
 [build-dependencies]
-tauri-build = { version = "=3.0.0-alpha.3", features = [] }
+# tauri-build carries its own version line (latest
+# stable 2.7.2), independent of the tauri 2.12.1 pin.
+tauri-build = { version = "=2.7.2", features = [] }

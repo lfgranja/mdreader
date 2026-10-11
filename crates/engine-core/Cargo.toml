@@ -14,5 +14,14 @@ clap = { workspace = true, features = ["derive"] }
 [dev-dependencies]
 proptest = { workspace = true }
 
+# US1 contract test target (T022): Cargo does not
+# auto-discover tests under `tests/contract/`, so the
+# target is wired here — the same pattern the `player`
+# crate uses for its `tests/contract/` and
+# `tests/integration/` targets.
+[[test]]
+name = "test_engine_handoff_us1"
+path = "tests/contract/test_engine_handoff_us1.rs"
+
 [lints]
 workspace = true

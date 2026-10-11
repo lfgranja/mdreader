@@ -147,7 +147,11 @@ impl CpalBackend {
                 && config.min_sample_rate() <= DeclaredFormat::SAMPLE_RATE
                 && config.max_sample_rate() >= DeclaredFormat::SAMPLE_RATE
             {
-                negotiated = Some(config.with_sample_rate(DeclaredFormat::SAMPLE_RATE).config());
+                negotiated = Some(
+                    config
+                        .with_sample_rate(DeclaredFormat::SAMPLE_RATE)
+                        .config(),
+                );
                 break;
             }
         }

@@ -11,15 +11,15 @@ Normative sources: `spec.md` (FR-024/024a/024b/024c), `data-model.md` (E1–E5, 
 
 1. **No `_ =>` arm anywhere in `crates/adapter-synthesis/src/`** — constitution gate 7 (`constitution.md:614`) and Principle VII (`constitution.md:314-317`). Every `match` over a closed-set enum enumerates every arm explicitly. Adding a wildcard is a verification failure, not a style choice.
 2. **`missing_docs`, `missing_debug_implementations`, `unreachable_pub`, `unused_results`, `unsafe_code` are `deny`**; `clippy::all` + `clippy::pedantic` are `deny`; `clippy::nursery` + `clippy::cargo` are `warn`. Every public item carries a `///` doc comment and a `#[derive(Debug, ...)]`.
-3. **`unwrap` / `expect` / `panic!` / `todo!` / `unimplemented!` / `dbg!` / `println!` / `eprintln!` are `deny` — in tests too.** `#[allow]` is `deny` workspace-wide and is never permitted here. `#[expect(lint, reason = "…")]` is the **only** permitted suppression, per the workspace rule in `AGENTS.md`; it must carry a reason and must be justified in a comment. It is permitted **only where this frozen contract's own normative text mandates a shape that the `deny`-level `clippy::pedantic` set rejects** — there are exactly six such places, all enumerated in §0.1. Everywhere else, write `match`, `let Ok(x) = … else { … }`, or `prop_assert!`. **Amendment 2026-10-08:** this rule previously read "no `#[expect]`/`#[allow]` suppression … and must not gain one", which made this contract self-inconsistent — §3 and §4 mandate one explicit match arm per closed-set member (so `clippy::match_same_arms` fires) and §6 mandates `pcm_sample_count as f64` (so `clippy::cast_precision_loss` fires), while the workspace denies both lints and forbade the only sanctioned remedy. The workspace `AGENTS.md` rule (`#[expect(lint, reason = "…")]` as the single permitted suppression) governs.
+3. **`unwrap` / `expect` / `panic!` / `todo!` / `unimplemented!` / `dbg!` / `println!` / `eprintln!` are `deny` — in tests too.** `#[allow]` is `deny` workspace-wide and is never permitted here. `#[expect(lint, reason = "…")]` is the **only** permitted suppression, per the workspace rule in `AGENTS.md`; it must carry a reason and must be justified in a comment. It is permitted **only where this frozen contract's own normative text mandates a shape that the `deny`-level `clippy::pedantic` set rejects** — there are exactly seven such places, all enumerated in §0.1. Everywhere else, write `match`, `let Ok(x) = … else { … }`, or `prop_assert!`. **Amendment 2026-10-08:** this rule previously read "no `#[expect]`/`#[allow]` suppression … and must not gain one", which made this contract self-inconsistent — §3 and §4 mandate one explicit match arm per closed-set member (so `clippy::match_same_arms` fires) and §6 mandates `pcm_sample_count as f64` (so `clippy::cast_precision_loss` fires), while the workspace denies both lints and forbade the only sanctioned remedy. The workspace `AGENTS.md` rule (`#[expect(lint, reason = "…")]` as the single permitted suppression) governs.
 4. **No new `EngineError` variant.** The set is re-exported from `engine_core::closed`; a second list would drift (`FR-044`). `crates/engine-core` is not modified.
 5. **No phantom trait, no `trait_.rs`, no `format()` / `fail()` method, no marker trait** (`spec.md` Assumption 3; `contracts/adapter-capabilities.md` §5).
 6. **No second authority over playback.** The adapter splits and declares; `player` remains the sole authority for position/buffering/transport (`constitution.md:486-490`). The adapter never converts audio to the device format.
 7. **Bad Markdown is a document-layer concern, not an `EngineError`** (R8; `spec.md:85`).
 
-### 0.1 The six sanctioned suppressions (§0 rule 3)
+### 0.1 The seven sanctioned suppressions (§0 rule 3)
 
-Exactly six `#[expect]` attributes exist in this crate, each mandated by this contract's own normative text and each carrying a `reason`:
+Exactly seven `#[expect]` attributes exist in this crate, each mandated by this contract's own normative text and each carrying a `reason`:
 
 | # | Location | Lint | Why the contract mandates the shape the lint rejects |
 |---|---|---|---|
@@ -27,9 +27,10 @@ Exactly six `#[expect]` attributes exist in this crate, each mandated by this co
 | 2 | `reg.rs` — `is_selectable()` | `clippy::match_same_arms` | §4 requires five distinct arms. Three of them (`CloudDefault`, `CloudEscalation`, `EvaluatedFallback`) legitimately return the same `false`, because all three are unregistered at v1 with distinct reasons (`SC-044` deferred, consent deferred, evaluated-fallback deferred). The reasons belong in doc comments, not in duplicated arm bodies. |
 | 3 | `format_check.rs` — `check_delivery()` | `clippy::cast_precision_loss` | §6 mandates comparing `pcm_sample_count as f64` against `(duration_ms / 1000.0) * DECLARED_RATE_HZ`. `f64` has no lossless `From<usize>`, so the cast is unavoidable; narrowing to `u32` first would be lossy for a >4-billion-sample buffer and would disagree with the frozen test's identical computation at the half-sample boundary. |
 | 4 | `audio_chunk.rs:239`, `synth.rs:246`, `tests/unit_failure.rs` — the data-model E2 duration derivation | `clippy::cast_precision_loss` | §6 (and data-model E2, which §6 freezes) mandates deriving `duration_ms` as `pcm_data.len() / rate_hz * 1000` — a `usize -> f64` cast with no lossless `f64::From<usize>`. The identical computation appears at three sites: `audio_chunk.rs:239` (registered 2026-10-09; the suppression landed with T043 unregistered and is registered here retroactively), `synth.rs:246` (T044 — the engine's pre-gate derivation), and `tests/unit_failure.rs` (T044 — the delivery-gate round-trip the updated §7 test performs). All three are measured against the same half-sample band entry 3 sanctions, all freeze the identical expression the delivery-unit tests pin (`tests/audio_chunk.rs:231-232, :516-518`), and a >2^53-sample buffer (over 2.8 years of audio at 22 050 Hz) is unreachable in memory. |
+| 5 | `src/android_assets.rs:77` — `asset_manager()` (T077) | `unsafe_code` | Android-only JNI boundary: `from_raw` wraps the VM pointer the runtime initialized and `from_ptr` wraps the `AssetManager` the activity returned; no safe API crosses the JVM boundary. The `jni`/`ndk`/`ndk-context`/`ndk-sys` deps are Android-cfg-gated (`Cargo.toml:22-26`), so host builds never compile this module (constitution §1.4.0 portability). |
 | 7 | `crates/engine-core/src/closed.rs` — `EngineTier::is_selectable()` (T060 wire) | `clippy::match_same_arms` | §4 / SC-051 requires five distinct arms (`OfflineDefault` true; `CloudDefault`, `CloudEscalation`, `EvaluatedFallback` false — unregistered at v1 with distinct deferral reasons `SC-044`/consent/evaluated; `TestDouble` false — fixtures never selectable while adapter registered per `001/spec.md:89`). The reasons live in doc comments, not duplicated bodies. Cross-crate mirror of adapter `reg.rs`: `is_selectable` (entry 2). Registered in `API_CONTRACT.md` §0.1 (T060). |
 
-No eighth suppression is sanctioned. If a future change needs one, that is a coordinated edit to this section — not a local decision.
+No ninth suppression is sanctioned. If a future change needs one, that is a coordinated edit to this section — not a local decision.
 
 ### 0.2 Sanctioned additions to the frozen surface (registered 2026-10-09)
 
@@ -457,7 +458,7 @@ pub const REGISTERED_TIERS: [EngineTier; 1] = [EngineTier::OfflineDefault];
 /// Whether `tier` may be selected while this adapter is registered.
 /// Exhaustive 5-arm match; `TestDouble` is `false` because the stand-ins
 /// are fixtures and are never selectable while a non-`test_double` adapter
-/// is registered (`001/spec.md:89`; `closed.rs`:305-312).
+/// is registered (`001/spec.md:89`; `closed.rs`:398-406).
 #[must_use] pub const fn is_selectable(tier: EngineTier) -> bool;
 ```
 

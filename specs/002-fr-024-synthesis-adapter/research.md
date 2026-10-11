@@ -135,7 +135,7 @@ Before any adapter file is written:
 
 1. Confirm `pulldown-cmark` reachability at integration stage; if unreachable → document-layer validation maintained, adapter split deferred to parser introduction (not blocking v1 design).
 2. Confirm `crates/engine-core/src/lib.rs` exposes `closed` + `format` (verified above); confirm no phantom `trait_` created.
-3. Confirm `SC-051` mechanism passes with adapter registered (`offline_default` only; standins `standin_a`/`standin_b` not selectable — verified by `001/spec.md:89` / `closed.rs:305-312`).
+3. Confirm `SC-051` mechanism passes with adapter registered (`offline_default` only; standins `standin_a`/`standin_b` not selectable — verified by `001/spec.md:89` / `closed.rs:398-406`).
 4. Confirm byte-budget test (`≤5000` bytes / chunk) can be written against adapter split logic (`constitution.md:8` / gate 8 shell).
 5. Confirm `cargo fmt`, `cargo clippy -- -D warnings`, `cargo deny` on adapter crate meet Principle IV / Rust rigor (no exceptions needed; `ort` RC already registered).
 

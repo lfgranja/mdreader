@@ -198,7 +198,7 @@ cargo deny check advisories licenses bans sources             # FAILS, exit 1 â€
 cargo audit                                                   # PASSES, exit 0 (240 crate dependencies, no vulnerabilities)
 
 # 3. Confirm source evidence still matches (re-check after any edits)
-grep -n 'enum EngineError' crates/engine-core/src/closed.rs        # :245
+grep -n 'enum EngineError' crates/engine-core/src/closed.rs        # :260
 grep -n 'SAMPLE_RATE\|CHANNELS' crates/engine-core/src/format.rs   # :27, :29
 grep -n 'standin_a\|standin_b' crates/engine-core/src/lib.rs       # :19-20
 

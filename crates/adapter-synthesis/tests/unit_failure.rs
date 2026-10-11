@@ -562,7 +562,7 @@ fn sc_051_registration_makes_offline_default_the_sole_selectable_tier() {
     // CHK031). Only `offline_default` is selectable: the
     // `test_double` stand-ins are fixtures and are never selectable
     // while a non-`test_double` adapter is registered
-    // (001/spec.md:89; closed.rs:305-312), and the cloud and
+    // (001/spec.md:89; closed.rs:398-406), and the cloud and
     // evaluated tiers are unregistered until SC-044 lands a second
     // real engine.
     for tier in EngineTier::ORDER {

@@ -1,6 +1,6 @@
 //! Append-only JSONL diagnostic-record writer (T073).
 //!
-//! One [`RecordEvent`] per line, serialized with `serde_json`.
+//! One [`crate::writer::RecordEvent`] per line, serialized with `serde_json`.
 //! The writer is validation-free by design: the committed contract
 //! schema (`specs/001-android-media-shell/contracts/diagnostic-record.schema.json`)
 //! validates, per FR-039, FR-044, and FR-045.
@@ -10,7 +10,7 @@
 //! drifting list). Each one-to-one pair carries exhaustive `From`
 //! conversions in both directions with no wildcard arm (Principle
 //! VII), so adding a variant on either side breaks the build until
-//! the other side is coordinated. [`FocusValue`] is the union of
+//! the other side is coordinated. [`crate::writer::FocusValue`] is the union of
 //! [`engine_core::closed::FocusOutcome`] and
 //! [`engine_core::closed::FocusRegained`] with identical wire
 //! strings; it has no total `From` mapping because `regained` is a
@@ -237,10 +237,7 @@ impl DiagnosticWriter {
     ///
     /// Returns [`DiagError::Io`] when the file cannot be opened.
     pub fn open(path: &Path) -> Result<Self, DiagError> {
-        let handle = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(path)?;
+        let handle = OpenOptions::new().create(true).append(true).open(path)?;
         Ok(Self { handle })
     }
 

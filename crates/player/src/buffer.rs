@@ -1,5 +1,16 @@
 //! Pre-roll ring buffer (T039; FR-015a / FR-015b / FR-015c).
 //!
+//! Holds at most [`crate::position::PREROLL_CAP_SECS`] (60 s) of
+//! engine-delivered audio and never more (FR-015a).
+//!
+//! **Unified cap**: This type, the [`PreRollRing`] in `skip.rs`,
+//! and the [`PreRollBuffer`] in `transport.rs` all depend on the
+//! single [`crate::position::PREROLL_CAP_SECS`] constant — there
+//! is no second cap value that can drift (Principle VII / FR-044;
+//! the minimal `crate::transport::PreRollBuffer` shape reads the
+//! same constant). The three types have different APIs but guarantee
+//! the same 60-second bound.
+//!
 //! Once the reader has acted to hear audio — a Play or resume press,
 //! or playback beginning — the pipeline keeps preparing audio ahead
 //! of the playback point without playing it ([`PreRollBuffer::on_play_pressed`]

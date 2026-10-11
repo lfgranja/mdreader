@@ -19,6 +19,10 @@ const ASSET_ROOT: &str = "voices/pt_BR-faber-medium";
 const MODEL_FILE: &str = "pt_BR-faber-medium.onnx";
 /// Marker file proving a complete extraction.
 const MARKER_FILE: &str = ".extracted";
+/// Build-time manifest: every voice file relative to [`ASSET_ROOT`],
+/// one per line. Directory listing on device proved unreliable, so
+/// the copy follows this list instead of walking the asset tree.
+const MANIFEST: &str = include_str!(concat!(env!("OUT_DIR"), "/voice_manifest.txt"));
 
 /// Why voice extraction failed.
 #[derive(Debug, thiserror::Error)]
@@ -100,49 +104,38 @@ fn asset_manager() -> Result<ndk::asset::AssetManager, String> {
     }
 }
 
-/// Copy one asset dir into `out_dir`, recursing into subdirs.
+/// Copy every manifest file from the APK into `out_dir`,
+/// recreating parent dirs.
 ///
-/// Directory test comes first: `open()` on a directory yields an
-/// empty asset, so opening as a file first would store a subdir as
-/// an empty file and never recurse. An entry whose `open_dir`
-/// yields at least one name is a dir; anything else is copied as a
-/// file; an entry that is neither is a named failure — never
-/// silently skipped. (Trees with truly empty subdirs would store
-/// them as empty files; the packaged voice tree has none.)
+/// Files are opened by explicit path: `open()` on files is proven
+/// on device, while nested directory listing is not, so no listing
+/// call participates. A file that will not open is a named failure —
+/// never silently skipped.
 fn copy_dir(
     manager: &ndk::asset::AssetManager,
     asset_path: &str,
     out_dir: &Path,
 ) -> Result<(), ExtractError> {
-    let dir_name =
-        CString::new(asset_path).map_err(|_| ExtractError::OpenAsset(asset_path.to_owned()))?;
-    let dir = manager
-        .open_dir(&dir_name)
-        .ok_or_else(|| ExtractError::OpenAsset(asset_path.to_owned()))?;
-    let entries: Vec<CString> = dir.collect();
-    for entry in &entries {
-        let name = entry.to_string_lossy().into_owned();
-        let full = format!("{asset_path}/{name}");
+    for relative in MANIFEST.lines() {
+        let relative = relative.trim();
+        if relative.is_empty() {
+            continue;
+        }
+        let full = format!("{asset_path}/{relative}");
         let full_c =
             CString::new(full.as_str()).map_err(|_| ExtractError::OpenAsset(full.clone()))?;
-        let is_dir = manager
-            .open_dir(&full_c)
-            .map(|listed| listed.count() > 0)
-            .unwrap_or(false);
-        if is_dir {
-            let sub = out_dir.join(&name);
-            std::fs::create_dir_all(&sub).map_err(|e| ExtractError::Io(e.to_string()))?;
-            copy_dir(manager, &full, &sub)?;
-        } else if let Some(mut asset) = manager.open(&full_c) {
-            let mut bytes = Vec::new();
-            let _byte_count = asset
-                .read_to_end(&mut bytes)
-                .map_err(|e| ExtractError::Io(e.to_string()))?;
-            std::fs::write(out_dir.join(&name), &bytes)
-                .map_err(|e| ExtractError::Io(e.to_string()))?;
-        } else {
-            return Err(ExtractError::OpenAsset(full));
+        let mut asset = manager
+            .open(&full_c)
+            .ok_or_else(|| ExtractError::OpenAsset(full.clone()))?;
+        let mut bytes = Vec::new();
+        let _byte_count = asset
+            .read_to_end(&mut bytes)
+            .map_err(|e| ExtractError::Io(e.to_string()))?;
+        let dest = out_dir.join(relative);
+        if let Some(parent) = dest.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| ExtractError::Io(e.to_string()))?;
         }
+        std::fs::write(&dest, &bytes).map_err(|e| ExtractError::Io(e.to_string()))?;
     }
     Ok(())
 }

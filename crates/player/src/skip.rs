@@ -24,19 +24,25 @@ pub struct PreRollRing {
 }
 
 impl PreRollRing {
-    /// The hard pre-roll cap (FR-015a): 60 s.
-    pub const MAX_SECS: f64 = 60.0;
+    /// The hard pre-roll cap (FR-015a): single home is
+    /// [`crate::position::PREROLL_CAP_SECS`]; this alias never drifts
+    /// (Constitution VII / FR-015a). Delegation to
+    /// [`crate::buffer::PreRollBuffer`] was considered but rejected:
+    /// that type tracks buffered seconds with Play-gating, while this
+    /// ring tracks per-sample PCM capacity — different API, so an
+    /// alias preserves behavior exactly.
+    pub const MAX_SECS: f64 = crate::position::PREROLL_CAP_SECS;
     /// The declared handoff sample rate (FR-024 / FR-033): 22 050 Hz.
     pub const SAMPLE_RATE: u32 = 22050;
 
     /// Create an empty ring with capacity for the full 60 s cap.
     #[expect(
         clippy::cast_precision_loss,
-        reason = "SAMPLE_RATE (22 050) and MAX_SECS (60.0) are exact values; their product is an exact f64 integer"
+        reason = "SAMPLE_RATE (22 050) and MAX_SECS (PREROLL_CAP_SECS) are exact values; their product is an exact f64 integer"
     )]
     #[expect(
         clippy::cast_possible_truncation,
-        reason = "the product 60.0 × 22 050 = 1 323 000 is an exact integer, far below usize range"
+        reason = "the product PREROLL_CAP_SECS × 22 050 = 1 323 000 is an exact integer, far below usize range"
     )]
     pub fn new() -> Self {
         Self {

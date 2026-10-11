@@ -200,8 +200,10 @@ pub struct PreRollBuffer {
 }
 
 impl PreRollBuffer {
-    /// The hard pre-roll cap (FR-015a): 60 s.
-    pub const MAX: f64 = 60.0;
+    /// The hard pre-roll cap (FR-015a): single home is
+    /// [`crate::position::PREROLL_CAP_SECS`]; this alias never drifts
+    /// (Constitution VII / FR-015a).
+    pub const MAX: f64 = crate::position::PREROLL_CAP_SECS;
     /// Create an empty pre-roll buffer at the cap.
     pub fn new() -> Self {
         Self {

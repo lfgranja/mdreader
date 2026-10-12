@@ -32,6 +32,17 @@ expiry (FR-023a); a foregrounded offer is never converted early, so FR-032c's 3-
 visibility MUST is unchanged. Reachable from the CLI as `foreground on|off` (Principle II), so
 the SC-020 foreground/background split is drivable in CI without an emulator.
 
+Residency intents (Kotlin → Rust, classified at the boundary): `ResidentStop | SwipeAway |
+DocumentEnd` → wire strings `resident_stop | swipe_away | document_end`. `resident_stop`
+ends residency while PRESERVING the stored bookmark (the session stays resumable) —
+distinct from the transport `Stop`, which discards it (FR-009a against FR-032).
+`swipe_away` pauses first under the FR-028e fallback when audio was still playing,
+preserves the bookmark, and ends residency. `document_end` tears residency down at the
+document's end (FR-032f): a completed document has no resumable position, so nothing
+remains resident and no resume is offered (FR-032e, SC-045, SC-049). An unrecognised
+platform lifecycle value classifies as the diagnostic `lifecycle_unmapped`, never
+absorbed.
+
 ## Failure/refusal statements (Rust → shell)
 
 Short lock-screen string + full in-app reason; document-title-only, no body text

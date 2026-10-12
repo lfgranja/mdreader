@@ -10,6 +10,12 @@
 #   - `<service android:foregroundServiceType="mediaPlayback">`
 #   - `android.permission.FOREGROUND_SERVICE`
 #   - `android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK`
+#   - `android.permission.POST_NOTIFICATIONS` (FR-021 /
+#     T030b: the permission-state gate observes the
+#     notification permission's granted/denied state and
+#     routes denial to the in-app statement — a
+#     declaration the gate can only observe if the
+#     manifest declares it)
 #
 # The manifest is hand-edited (the plugin API does not exist in
 # Tauri 2: `mobile::update_manifest` and `registerService` are
@@ -51,5 +57,7 @@ require_pattern 'the FOREGROUND_SERVICE permission' \
   'android\.permission\.FOREGROUND_SERVICE"'
 require_pattern 'the FOREGROUND_SERVICE_MEDIA_PLAYBACK permission' \
   'android\.permission\.FOREGROUND_SERVICE_MEDIA_PLAYBACK"'
+require_pattern 'the POST_NOTIFICATIONS permission (FR-021 / T030b)' \
+  'android\.permission\.POST_NOTIFICATIONS"'
 
 printf 'check-manifest: PASS (%s)\n' "$MANIFEST"

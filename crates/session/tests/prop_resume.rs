@@ -788,6 +788,7 @@ proptest! {
 /// so the stored position is shared. This is the
 /// deterministic core of the R1 property, with real
 /// files on disk.
+#[test]
 fn identical_bytes_at_two_paths_share_one_fingerprint() -> Result<(), Box<dyn std::error::Error>> {
     let dir = tempfile::tempdir()?;
     let original_path = dir.path().join("comete-estrada.md");
@@ -819,6 +820,7 @@ fn identical_bytes_at_two_paths_share_one_fingerprint() -> Result<(), Box<dyn st
 /// position with no offer: the entry is gone, so
 /// the reopen is a lookup miss and the machine
 /// opens nothing.
+#[test]
 fn a_terminal_end_reopens_at_the_first_spoken_position_with_no_offer()
 -> Result<(), Box<dyn std::error::Error>> {
     let dir = tempfile::tempdir()?;
@@ -876,6 +878,7 @@ fn a_terminal_end_reopens_at_the_first_spoken_position_with_no_offer()
     clippy::float_cmp,
     reason = "the positions 40.0 and 0.0 and the boundary lists are exact binary fractions on the quarter-second grid, so == is the correct comparison; a tolerance would admit an off-boundary re-anchor"
 )]
+#[test]
 fn a_position_with_no_boundary_at_or_before_it_falls_back_to_the_document_start()
 -> Result<(), Box<dyn std::error::Error>> {
     // An empty timeline: nothing precedes the position.
@@ -920,6 +923,7 @@ fn a_position_with_no_boundary_at_or_before_it_falls_back_to_the_document_start(
 /// through the store — the ladder is the complete
 /// set of rates, so `last_rate` can hold nothing
 /// else.
+#[test]
 fn every_ladder_rung_round_trips_through_the_store() -> Result<(), Box<dyn std::error::Error>> {
     let dir = tempfile::tempdir()?;
     let path = store_path(dir.path());
@@ -943,6 +947,7 @@ fn every_ladder_rung_round_trips_through_the_store() -> Result<(), Box<dyn std::
 /// reports `None`, and the call-site default is the
 /// normal-speed rung `1.0` (the schema's "default
 /// `1.0` on first use").
+#[test]
 fn the_last_rate_defaults_to_normal_speed_on_first_use() -> Result<(), Box<dyn std::error::Error>> {
     let dir = tempfile::tempdir()?;
     let path = store_path(dir.path());

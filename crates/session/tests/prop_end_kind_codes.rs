@@ -95,13 +95,16 @@ fn end_kind_strategy() -> impl Strategy<Value = SessionEnd> {
 /// A stored position carrying any member of the closed
 /// session-end set.
 fn any_position_strategy() -> impl Strategy<Value = StoredPosition> {
-    (offset_strategy(), first_yield_strategy(), end_kind_strategy()).prop_map(
-        |(offset_secs, first_yield_ms, end_kind)| StoredPosition {
+    (
+        offset_strategy(),
+        first_yield_strategy(),
+        end_kind_strategy(),
+    )
+        .prop_map(|(offset_secs, first_yield_ms, end_kind)| StoredPosition {
             offset_secs,
             first_yield_ms,
             end_kind,
-        },
-    )
+        })
 }
 
 /// The terminal session-end kinds: `stopped` and
@@ -187,8 +190,7 @@ proptest! {
 /// variants sharing one code) would surface here as a
 /// mismatched read-back.
 #[test]
-fn all_four_end_kinds_carry_distinct_discriminants(
-) -> Result<(), Box<dyn std::error::Error>> {
+fn all_four_end_kinds_carry_distinct_discriminants() -> Result<(), Box<dyn std::error::Error>> {
     let dir = tempfile::tempdir()?;
     let path = store_path(dir.path());
     let mut store = BookmarkStore::open(&path)?;
@@ -199,12 +201,7 @@ fn all_four_end_kinds_carry_distinct_discriminants(
         SessionEnd::Completed,
         SessionEnd::Interrupted,
     ];
-    let fingerprints: [[u8; 32]; 4] = [
-        [1; 32],
-        [2; 32],
-        [3; 32],
-        [4; 32],
-    ];
+    let fingerprints: [[u8; 32]; 4] = [[1; 32], [2; 32], [3; 32], [4; 32]];
     for (fingerprint, end_kind) in fingerprints.iter().zip(variants) {
         let stored = StoredPosition {
             offset_secs: 120.0,
@@ -232,8 +229,7 @@ fn all_four_end_kinds_carry_distinct_discriminants(
 /// Together with the terminal-no-offer guard above, this pins
 /// the full four-way offer table of storage-schema.md.
 #[test]
-fn retained_end_kinds_keep_their_canonical_offer_forms(
-) -> Result<(), Box<dyn std::error::Error>> {
+fn retained_end_kinds_keep_their_canonical_offer_forms() -> Result<(), Box<dyn std::error::Error>> {
     let fingerprint = [9; 32];
 
     // A deliberate pause opens the 3-second continue offer
@@ -273,19 +269,7 @@ fn retained_end_kinds_keep_their_canonical_offer_forms(
     Ok(())
 }
 
-// T113 deletes this test together with the legacy
-// `session::resume_offer` function. It is the ONLY test in
-// this file that touches the legacy surface; every guard
-// above uses the canonical `OfferMachine` / store API.
-// RED today: code `2` is the canonical `Completed` end
-// (store.rs `end_kind_to_code`), and a completed document
-// must never be offered resume — yet the legacy mapping
-// returns `ExplicitResume` for it (the SC-019 violation).
-#[test]
-fn legacy_code_2_completed_must_not_offer_explicit_resume() {
-    assert_eq!(
-        session::resume_offer(Some(120.0), Some(2)),
-        session::ResumeChoice::StartOver,
-        "legacy code 2 (canonical Completed) offered ExplicitResume (SC-019)"
-    );
-}
+// T113 removed the legacy `session::resume_offer` surface together
+// with the red test that pinned its SC-019 violation (code `2` is
+// the canonical `Completed` end and must never be offered resume).
+// The guards above pin the canonical `OfferMachine` / store API.

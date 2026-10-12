@@ -64,12 +64,14 @@
 //! beyond the 30 s hard ceiling (FR-004: the bound is a hard ceiling,
 //! not a target).
 
-use engine_core::closed::TransportState;
+use engine_core::closed::{SessionEnd, TransportState};
 use player::cli::{PlaybackSession, ShellVerb};
 use player::position::{PositionClock, REWIND_CAP_SECS, REWIND_FRACTION};
 use player::resume::{ResumeChoice, resume_offer_window};
 use session::{
-    BOOKMARKS, ResumeChoice as StoredResumeChoice, clear_bookmark, fingerprint, resume_offer,
+    BOOKMARKS, clear_bookmark, fingerprint,
+    offer::{ExpiryOutcome, Offer, OfferMachine},
+    store::StoredPosition,
 };
 
 use proptest::prelude::*;
@@ -86,13 +88,11 @@ const OFFER_WINDOW_SECS: f64 = 3.0;
 /// Stored `end_kind` code for a session ended by a deliberate pause
 /// (data-model.md `StoredPosition`: `paused` ⇒ the FR-032c deliberate
 /// offer; the stored basis stays available for it).
+///
+/// Canonical codes live in `session::store` (`Paused→0, Stopped→1,
+/// Completed→2, Interrupted→3`); this file keeps raw-code constants
+/// only where it writes the `bookmarks` table directly (T113).
 const END_KIND_PAUSED: u8 = 0;
-
-/// Stored `end_kind` code for a session ended unexpectedly — service
-/// kill, power loss, permanent focus loss (data-model.md
-/// `StoredPosition`: `interrupted` ⇒ the FR-032d explicit-resume
-/// offer, never an auto-start).
-const END_KIND_INTERRUPTED: u8 = 2;
 
 /// A synthetic document for the bookmark round-trip — content bytes
 /// only, never document text (FR-045: the diagnostic and storage
@@ -359,11 +359,27 @@ fn an_interrupted_end_presents_an_explicit_resume_never_an_auto_start() {
     // The relaunch offer for an unexpected end is the explicit-resume
     // form — never the deliberate-pause auto-start default and never
     // a start-over discard (FR-030 / FR-031 / FR-032d / SC-011).
+    // Canonical offer path (T113): the stored end kind resolves
+    // through `OfferMachine`, keyed by `SessionEnd::Interrupted`
+    // (the legacy discriminant map and its `END_KIND_INTERRUPTED=2`
+    // constant are removed — canonical code is 3 per store.rs).
     let stored_basis = 120.0;
-    let choice = resume_offer(Some(stored_basis), Some(END_KIND_INTERRUPTED));
+    let mut machine = OfferMachine::new();
     assert_eq!(
-        choice,
-        StoredResumeChoice::ExplicitResume,
+        machine.on_session_end(
+            [0u8; 32],
+            Some(StoredPosition {
+                offset_secs: stored_basis,
+                first_yield_ms: 0,
+                end_kind: SessionEnd::Interrupted,
+            })
+        ),
+        None,
+        "an interrupted end opens no continue offer (FR-032d)"
+    );
+    assert_eq!(
+        machine.expire(),
+        ExpiryOutcome::ExplicitResume,
         "an interrupted end must offer an explicit resume control, never an auto-start (FR-030, FR-031, FR-032d, SC-011)"
     );
 
@@ -437,9 +453,22 @@ fn a_deliberate_pause_offers_continue_default_inside_the_three_second_window() {
     );
     // The stored-offer machine maps a paused end to the deliberate
     // offer, whose default is continue from the stored offset.
+    // Canonical offer path (T113): `SessionEnd::Paused` opens the
+    // continue offer carrying the stored offset (FR-032c).
+    let mut machine = OfferMachine::new();
     assert_eq!(
-        resume_offer(Some(120.0), Some(END_KIND_PAUSED)),
-        StoredResumeChoice::DeliberatePause,
+        machine.on_session_end(
+            [0u8; 32],
+            Some(StoredPosition {
+                offset_secs: 120.0,
+                first_yield_ms: 0,
+                end_kind: SessionEnd::Paused,
+            })
+        ),
+        Some(Offer::Continue {
+            offset_secs: 120.0,
+            first_yield_ms: 0,
+        }),
         "a paused end must offer the deliberate-pause continue form (FR-032c)"
     );
 }
@@ -476,7 +505,7 @@ fn a_pause_preserves_and_a_stop_discards_the_stored_basis() -> Result<(), Box<dy
     // The paused basis is available for the resume offer: the
     // bookmark reads back with the last spoken position and the
     // deliberate-pause end kind, and the offer machine maps it to the
-    // FR-032c deliberate offer.
+    // FR-032c deliberate offer. Canonical offer path (T113).
     let read_tx = db.begin_read()?;
     let stored = {
         let table = read_tx.open_table(BOOKMARKS)?;
@@ -489,9 +518,20 @@ fn a_pause_preserves_and_a_stop_discards_the_stored_basis() -> Result<(), Box<dy
         Some((stored_basis, first_yield_ms, END_KIND_PAUSED)),
         "the deliberate pause must preserve the stored basis in the bookmark table (FR-032a)"
     );
+    let mut machine = OfferMachine::new();
     assert_eq!(
-        resume_offer(stored.map(|entry| entry.0), stored.map(|entry| entry.2)),
-        StoredResumeChoice::DeliberatePause,
+        machine.on_session_end(
+            document_fp,
+            stored.map(|entry| StoredPosition {
+                offset_secs: entry.0,
+                first_yield_ms: entry.1,
+                end_kind: SessionEnd::Paused,
+            })
+        ),
+        Some(Offer::Continue {
+            offset_secs: stored_basis,
+            first_yield_ms,
+        }),
         "the preserved basis must be available for the deliberate-pause resume offer (FR-032c)"
     );
 
@@ -513,13 +553,13 @@ fn a_pause_preserves_and_a_stop_discards_the_stored_basis() -> Result<(), Box<dy
         discarded, None,
         "Stop must clear the stored basis from the bookmark table (FR-032)"
     );
+    // Canonical offer path (T113): no stored position opens nothing —
+    // a cleared basis is not resumable (FR-032).
+    let mut machine = OfferMachine::new();
     assert_eq!(
-        resume_offer(
-            discarded.map(|entry| entry.0),
-            discarded.map(|entry| entry.2)
-        ),
-        StoredResumeChoice::StartOver,
-        "a cleared basis must not be resumable — the offer falls back to start-over (FR-032)"
+        machine.on_session_end([0u8; 32], None),
+        None,
+        "a cleared basis must not be resumable — no offer opens without a stored position (FR-032)"
     );
 
     // An unreachable fingerprint (edited content — a different

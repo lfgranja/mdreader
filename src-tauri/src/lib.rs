@@ -212,7 +212,7 @@ pub mod commands {
     use player::cli::{SessionSnapshot, ShellVerb};
     use player::focus::{FocusClassification, FocusIntent, FocusOutcome};
     use player::routing::{RoutingDecision, RoutingSignal, RoutingTracker};
-    use player::surface::{SurfaceResolver, Heading};
+    use player::surface::{Heading, SurfaceResolver};
     use tauri::{AppHandle, Manager, State, command};
 
     /// Declared sample rate of the engine handoff (mono f32).
@@ -641,11 +641,11 @@ pub mod commands {
                 // the transient resume owed. Restores full
                 // gain (FULL_GAIN) on the backend.
                 let decision = apply_focus(state, FocusIntent::FocusRegained)?;
-                let mut gain_restored = false;
+                let mut restore_ok = false;
                 if let Ok(backend_guard) = state.backend.lock() {
                     if let Some(backend) = backend_guard.as_ref() {
                         if backend.set_gain(player::focus::FULL_GAIN).is_ok() {
-                            gain_restored = true;
+                            restore_ok = true;
                         }
                     }
                 }
@@ -658,7 +658,7 @@ pub mod commands {
                     "position_secs": snapshot.position_secs,
                     "changed": false,
                     "auto_resumed": false,
-                    "gain_restored": gain_restored,
+                    "gain_restored": restore_ok,
                 }))
             }
             IntentWire::BecomingNoisy => dispatch_noisy_intent(state),
@@ -712,7 +712,13 @@ pub mod commands {
             IntentWire::SwipeAway => {
                 // FR-028e fallback: pause first when audio
                 // still plays, preserve the bookmark.
-                pause_ack(state, "swipe_away", None, ShellVerb::Pause, Some("swipe_away".to_string()))
+                pause_ack(
+                    state,
+                    "swipe_away",
+                    None,
+                    ShellVerb::Pause,
+                    Some("swipe_away".to_string()),
+                )
             }
             IntentWire::DocumentEnd => dispatch_document_end(state),
             IntentWire::ControlUnmapped => ack_unmapped(state, "control_unmapped"),
@@ -919,10 +925,7 @@ pub mod commands {
     /// changes the session state. Reads the surface resolver
     /// and headings from AppState and emits a `MirrorState`
     /// snapshot via the `tauri::ipc::Channel`.
-    fn publish_current_state(
-        state: &State<'_, AppState>,
-        transient_reason: Option<String>,
-    ) {
+    fn publish_current_state(state: &State<'_, AppState>, transient_reason: Option<String>) {
         let resolver_guard = match state.surface_resolver.lock() {
             Ok(g) => g,
             Err(_) => return,
@@ -1033,7 +1036,15 @@ pub mod commands {
         let title = segments
             .iter()
             .find(|s| s.boundary_kind == adapter_synthesis::chunk::BoundaryKind::Heading)
-            .map(|s| s.content.lines().next().unwrap_or("").trim_start_matches('#').trim().to_string())
+            .map(|s| {
+                s.content
+                    .lines()
+                    .next()
+                    .unwrap_or("")
+                    .trim_start_matches('#')
+                    .trim()
+                    .to_string()
+            })
             .filter(|t| !t.is_empty())
             .unwrap_or_else(|| "Document".to_string());
 
@@ -1106,7 +1117,12 @@ pub mod commands {
         // Publish mirror snapshot after successful play start.
         crate::publish::publish_from_session(
             state,
-            &state.surface_resolver.lock().map_err(|e| e.to_string())?.as_ref().unwrap(),
+            &state
+                .surface_resolver
+                .lock()
+                .map_err(|e| e.to_string())?
+                .as_ref()
+                .unwrap(),
             &state.headings.lock().map_err(|e| e.to_string())?,
             None, // no transient reason for normal play start
         );
@@ -1511,17 +1527,17 @@ mod latch_persistence_tests {
     fn supersede_applies_on_the_held_tracker() -> Result<(), String> {
         let state = AppState::test_state();
         let mut tracker = state.focus_tracker.lock().map_err(|e| e.to_string())?;
-        let _ducked = tracker.apply(FocusIntent::DuckableTransient);
+        let _focus_result = tracker.apply(FocusIntent::DuckableTransient);
         assert!(
             tracker.ducked,
             "the duckable transient did not duck the held tracker"
         );
-        let _silenced = tracker.apply(FocusIntent::SilenceDemanding);
+        let _focus_result2 = tracker.apply(FocusIntent::SilenceDemanding);
         assert!(
             !tracker.duck_restore_due,
             "silence-demanding did not clear the held duck-restore flag (FR-014)"
         );
-        let _lost = tracker.apply(FocusIntent::PermanentLoss);
+        let _focus_result3 = tracker.apply(FocusIntent::PermanentLoss);
         assert!(
             !tracker.resume_due,
             "permanent loss did not clear the held resume flag (FR-014)"
@@ -1578,8 +1594,8 @@ mod latch_persistence_tests {
 /// playback logic in Kotlin (SC-035).
 pub mod publish {
     use super::AppState;
-    use player::surface::{MirrorState, Progress, SurfaceResolver, SurfaceSnapshot, Heading};
     use player::cli::SessionSnapshot;
+    use player::surface::{Heading, MirrorState, Progress, SurfaceResolver, SurfaceSnapshot};
     use serde_json::{Map, Value};
     use tauri::{AppHandle, State};
 
@@ -1643,9 +1659,13 @@ pub mod publish {
         };
 
         let progress = match surface.progress {
-            Progress::Determinate { position_secs, duration_secs } => {
-                Progress::Determinate { position_secs, duration_secs }
-            }
+            Progress::Determinate {
+                position_secs,
+                duration_secs,
+            } => Progress::Determinate {
+                position_secs,
+                duration_secs,
+            },
             Progress::Indeterminate => Progress::Indeterminate,
         };
 
@@ -1701,16 +1721,28 @@ pub mod publish {
         transient_reason: Option<String>,
     ) -> Value {
         let mut obj = Map::new();
-        let _ = obj.insert("transport".to_string(), Value::String(transport.to_string()));
-        let _ = obj.insert("position_secs".to_string(), serde_json::to_value(position_secs).unwrap());
+        let _ = obj.insert(
+            "transport".to_string(),
+            Value::String(transport.to_string()),
+        );
+        let _ = obj.insert(
+            "position_secs".to_string(),
+            serde_json::to_value(position_secs).unwrap(),
+        );
         if let Some(section) = section_title {
             let _ = obj.insert("section_title".to_string(), Value::String(section));
         }
         let progress = if determinate {
             Value::Object({
                 let mut m = Map::new();
-                let _ = m.insert("position_secs".to_string(), serde_json::to_value(position_secs).unwrap());
-                let _ = m.insert("duration_secs".to_string(), serde_json::to_value(120.0).unwrap());
+                let _ = m.insert(
+                    "position_secs".to_string(),
+                    serde_json::to_value(position_secs).unwrap(),
+                );
+                let _ = m.insert(
+                    "duration_secs".to_string(),
+                    serde_json::to_value(120.0).unwrap(),
+                );
                 let mut outer = Map::new();
                 let _ = outer.insert("determinate".to_string(), Value::Object(m));
                 outer

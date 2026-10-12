@@ -196,7 +196,8 @@ VOCAB='\b(transport|position_secs|position|rate|gain|duck|skip)\b'
 
 # The allowlist (T081): five Kotlin mirrors + four src-tauri shape/
 # delegation files, plus the Tauri bridge (src-tauri/src/lib.rs —
-# documented deviation above). Paths are exact; MediaMirror.kt lives
+# documented deviation above) and the publish contract test.
+# Paths are exact; MediaMirror.kt lives
 # at android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt and
 # the other four Kotlin files share that directory.
 ALLOWLIST=(
@@ -210,6 +211,7 @@ ALLOWLIST=(
   "$SRC_TAURI/src/failure.rs"
   "$SRC_TAURI/src/permissions.rs"
   "$SRC_TAURI/src/lib.rs"
+  "$SRC_TAURI/tests/test_publish_payload.rs"
 )
 
 is_allowlisted() {

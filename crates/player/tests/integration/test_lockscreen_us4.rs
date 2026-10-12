@@ -124,8 +124,7 @@ const REFUSAL_REASON_SERVICE_START_REFUSED: &str = "service_start_refused";
 /// pre-play gate states in-app; the in-app statement
 /// itself is rendered by the surface layer (T061) and is
 /// device-only on host.
-const FAILURE_REASON_NOTIFICATION_PERMISSION_DENIED: &str =
-    "notification_permission_denied";
+const FAILURE_REASON_NOTIFICATION_PERMISSION_DENIED: &str = "notification_permission_denied";
 
 /// The airplane-mode trial's continued-playback window, in
 /// seconds (FR-026): start plus 60 s of continued reading
@@ -993,11 +992,8 @@ fn status_view_rate_equals_the_lock_screen_rate_source() -> Result<(), Box<dyn E
     // progress carrying the session's position and the
     // known duration, with the most-recent-passed heading
     // as the section title (T051).
-    let resolver = SurfaceResolver::new(
-        Some(METADATA_TITLE.to_string()),
-        FILENAME.to_string(),
-        true,
-    );
+    let resolver =
+        SurfaceResolver::new(Some(METADATA_TITLE.to_string()), FILENAME.to_string(), true);
     let headings = [
         Heading {
             position_secs: 0.0,

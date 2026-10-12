@@ -475,36 +475,26 @@ fn assert_cell(
     result: &Result<SessionSnapshot, PlayerError>,
 ) {
     match expected(transport, verb) {
-        Expected::Land {
-            transport: landed,
-        } => {
+        Expected::Land { transport: landed } => {
             assert!(
                 matches!(result, Ok(snap) if snap.transport == landed),
                 "a {verb} press from {transport:?} must land on {landed:?} (FR-020)"
             );
             if let Ok(snap) = result {
-                assert_eq!(
-                    snap.rate, before.rate,
-                    "a {verb} press changes no rate"
-                );
+                assert_eq!(snap.rate, before.rate, "a {verb} press changes no rate");
                 assert!(
                     (snap.position_secs - before.position_secs).abs() <= POS_EPS_SECS,
                     "a {verb} press retains the stored position (FR-032a)"
                 );
             }
         }
-        Expected::LandDiscarding {
-            transport: landed,
-        } => {
+        Expected::LandDiscarding { transport: landed } => {
             assert!(
                 matches!(result, Ok(snap) if snap.transport == landed),
                 "a {verb} press from {transport:?} must land on {landed:?} (FR-020)"
             );
             if let Ok(snap) = result {
-                assert_eq!(
-                    snap.rate, before.rate,
-                    "a {verb} press changes no rate"
-                );
+                assert_eq!(snap.rate, before.rate, "a {verb} press changes no rate");
                 assert!(
                     snap.position_secs.abs() <= POS_EPS_SECS,
                     "a {verb} press discards the stored position (FR-032)"
@@ -522,10 +512,7 @@ fn assert_cell(
                         snap.rate, rate,
                         "a {verb} press moves the rate exactly one rung (FR-019)"
                     ),
-                    None => assert_eq!(
-                        snap.rate, before.rate,
-                        "a {verb} press changes no rate"
-                    ),
+                    None => assert_eq!(snap.rate, before.rate, "a {verb} press changes no rate"),
                 }
                 let expected_position = expected_position_after(verb, before.position_secs);
                 assert!(
@@ -697,9 +684,7 @@ fn transition_table_shape_follows_the_shell_ipc_contract() -> Result<(), Box<dyn
         ] {
             let mut session = session_in(transport);
             let result = session.execute(verb);
-            if transport == TransportState::Paused
-                || transport == TransportState::Interrupted
-            {
+            if transport == TransportState::Paused || transport == TransportState::Interrupted {
                 let resumed = result?;
                 assert_eq!(
                     resumed.transport,
@@ -834,8 +819,7 @@ fn transition_table_shape_follows_the_shell_ipc_contract() -> Result<(), Box<dyn
 /// consumes is a view of the `SessionSnapshot` —
 /// never a second clock.
 #[test]
-fn mirror_payload_carries_the_sessions_authoritative_position_only()
--> Result<(), Box<dyn Error>> {
+fn mirror_payload_carries_the_sessions_authoritative_position_only() -> Result<(), Box<dyn Error>> {
     // A session at a known position.
     let mut session = PlaybackSession::new();
     let _played = session.execute(ShellVerb::Play)?;
@@ -893,7 +877,8 @@ fn mirror_payload_carries_the_sessions_authoritative_position_only()
     // the session's own.
     let unknown = mirror_of(&snapshot, None);
     assert_eq!(
-        unknown.progress, Progress::Indeterminate,
+        unknown.progress,
+        Progress::Indeterminate,
         "a session without a duration at start resolves an indeterminate progress (T051)"
     );
     assert_eq!(
@@ -1080,8 +1065,7 @@ fn snapshot_and_mirror_serialize_to_snake_case_wire_keys() -> Result<(), Box<dyn
     // bare wire string.
     let indeterminate = mirror_of(&snapshot, None);
     let indeterminate_wire = serde_json::to_string(&indeterminate)?;
-    let indeterminate_value: serde_json::Value =
-        serde_json::from_str(&indeterminate_wire)?;
+    let indeterminate_value: serde_json::Value = serde_json::from_str(&indeterminate_wire)?;
     let indeterminate_object = indeterminate_value
         .as_object()
         .ok_or("the indeterminate mirror wire form must be a JSON object")?;

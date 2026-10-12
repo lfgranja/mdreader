@@ -283,6 +283,11 @@ fn session_in(state: TransportState) -> PlaybackSession {
             let _stopped = session.execute(ShellVerb::Stop);
         }
         TransportState::Completed => {
+            // The only legal route to the terminal state
+            // runs through Playing (Paused -> Play ->
+            // Complete); Complete is rejected from the
+            // fresh Paused default.
+            let _played = session.execute(ShellVerb::Play);
             let _completed = session.execute(ShellVerb::Complete);
         }
     }

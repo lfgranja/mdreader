@@ -1,6 +1,63 @@
 <!--
   SYNC IMPACT REPORT
   ===================
+  Amended: 2026-10-12
+  Version change: 1.4.0 -> 1.5.0
+
+  Bump rationale: MINOR. Two governance records are added,
+  neither of which adds, removes, or redefines a principle
+  or weakens a MUST: (1) the Licence Policy admits
+  CDLA-Permissive-2.0 — a permissive data license under
+  which webpki-roots (transitive via the rustls/webpki
+  chain the HTTPS client requires) ships Mozilla's CA root
+  certificates as data; the admission extends an existing
+  policy list with the same class of permissive data
+  license already admitted (CC0-1.0, CC-BY-4.0); (2)
+  Exceptions Log entry 10 waives advisory RUSTSEC-2024-0370
+  (proc-macro-error 1.0.4, unmaintained, no known
+  vulnerability, no CVE) — a compile-time-only proc-macro
+  dependency of tauri's Linux gtk chain, none of whose
+  code is linked into any shipped artifact. The Apache-2.0
+  WITH LLVM-exception entry in deny.toml is a pure sync
+  of the existing policy wording (the policy already
+  admitted "Apache-2.0 (with LLVM exception)"; deny.toml
+  lacked the exact SPDX expression). Reversible by deleting
+  the licence sentence, the log entry, and the ignore
+  block. Not MAJOR (no principle change, no MUST weakened),
+  not PATCH (new governance content).
+
+  Modified constraints:
+    - Licence Policy: CDLA-Permissive-2.0 admitted to the
+      closed allow list, with the webpki-roots data-license
+      justification.
+    - Exceptions Log: entry 10 appended (advisory waiver).
+    - deny.toml: licenses allow gains "Apache-2.0 WITH
+      LLVM-exception" (sync) and "CDLA-Permissive-2.0"
+      (new admission); advisories gain the RUSTSEC-2024-0370
+      ignore block mirroring entry 10.
+
+  Principles modified: none.
+  Sections added: none (one policy sentence, one log entry).
+  Sections removed: none.
+  Renamed sections: none.
+
+  Deferred / non-constitution:
+    - The stale footer version (1.3.0) is corrected to
+      1.5.0 in the same commit; the 1.4.0 amendment had
+      left it unsynced.
+    - Re-evaluation trigger for entry 10: when tauri
+      drops the proc-macro-error dependency.
+
+  Source evidence: cargo deny check advisories licenses
+  bans sources output on this workspace (2026-10-12):
+  target-lexicon-0.12.16 "Apache-2.0 WITH LLVM-exception"
+  rejected; webpki-roots 0.26.11 / 1.0.9
+  "CDLA-Permissive-2.0" rejected; proc-macro-error
+  1.0.4 RUSTSEC-2024-0370 unmaintained advisory.
+-->
+<!--
+  SYNC IMPACT REPORT
+  ===================
   Amended: 2026-10-10
   Version change: 1.3.0 -> 1.4.0
 
@@ -501,10 +558,16 @@ project" question, and removal requires the same test. `sherpa-onnx`, `ort`, `es
 the sanctioned protocol client for this project.
 
 ### Licence Policy
-Copyleft is **permitted**. `deny.toml` allows MIT, Apache-2.0 (with LLVM exception), BSD-2/3,
-ISC, Zlib, MPL-2.0, Unicode-3.0, GPL-3.0, LGPL-3.0, AGPL-3.0, CC0-1.0, and CC-BY-4.0. Copyleft is
+Copyleft is **permitted**. `deny.toml` allows MIT, Apache-2.0 (with LLVM exception),
+CDLA-Permissive-2.0, BSD-2/3, ISC, Zlib, MPL-2.0, Unicode-3.0, GPL-3.0, LGPL-3.0,
+AGPL-3.0, CC0-1.0, and CC-BY-4.0. Copyleft is
 admitted because `espeak-ng` is GPL-3.0 and is linked by `sherpa-onnx`; excluding it would have
-excluded the working offline engine.
+excluded the working offline engine. CDLA-Permissive-2.0 is admitted because
+`webpki-roots` (transitive via the rustls/webpki chain the HTTPS client requires)
+ships Mozilla's CA root certificates as data under it — a permissive data-sharing
+license with no copyleft and no attribution obligation beyond the license notice,
+consistent with the permissive data licenses already admitted (CC0-1.0, CC-BY-4.0);
+the crate is data, not executable logic.
 
 **Two axes, not one.** Crate licence and model-weight licence are audited separately, because
 they are different obligations. A permissive engine does not make its weights distributable:
@@ -717,6 +780,18 @@ drift. Each was authorized by the sole maintainer on 2026-10-01.
    constraint section added). Source evidence: specs/002-fr-024-synthesis-adapter/
    DEPENDENCY_PORTABILITY_RESEARCH.md (4 threads, cited, 2026-10-10); B2
    repair commits `a90d2b6`, `42b59d7`, `286009e` on 001-android-media-shell.
+10. **`proc-macro-error` advisory waived (RUSTSEC-2024-0370, 2026-10-12)** —
+    deviates from the advisory-free supply-chain gate (Principle IV). Author:
+    maintainer (2026-10-12), accepted in the commit that records it. Reason:
+    `proc-macro-error` 1.0.4 is a compile-time-only proc-macro dependency of
+    tauri's Linux gtk chain (via gtk-rs build machinery); none of its code is
+    linked into any shipped artifact — proc macros execute at compile time only.
+    The advisory is "unmaintained" status (maintainer unreachable, no commits
+    for 2 years, no releases for 4 years) with no known vulnerability and no
+    CVE; the crate's API is frozen; removal requires forking tauri's gtk chain.
+    Risk accepted as compile-time-only supply-chain surface. Re-evaluate when
+    tauri drops the dependency. Mechanical form: `[[advisories.ignore]]` in
+    `deny.toml` with the id and this reason.
 
 Any new deviation is added here in the same commit that introduces it, and is treated as a
 minor amendment.
@@ -758,4 +833,4 @@ Where this constitution and a convenience conflict, this constitution wins and t
 either changed or proposed as an amendment. Where this constitution and the reference stack
 conflict, the maintainer decides, and the decision is logged.
 
-**Version**: 1.3.0 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-06
+**Version**: 1.5.0 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-12

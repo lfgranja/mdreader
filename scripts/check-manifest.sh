@@ -67,7 +67,10 @@ manifest="$(tr '\n' ' ' < "$MANIFEST")"
 
 require_pattern() {
   local label="$1" pattern="$2"
-  if ! printf '%s' "$manifest" | grep -qE "$pattern"; then
+  # Full-consumption grep (no -q): under `pipefail` a `grep -q`
+  # early exit SIGPIPEs printf into a 141 false-negative — the
+  # same scheduling race fixed in check-shell-purity.sh §5 (T121).
+  if [ -z "$(printf '%s' "$manifest" | grep -E "$pattern" || true)" ]; then
     fail "manifest is missing $label (expected pattern: $pattern)"
   fi
 }

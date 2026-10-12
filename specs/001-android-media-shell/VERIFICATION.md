@@ -261,3 +261,51 @@ folds the asset inventory into it.
 
 Gates 1–7, 8-shell, and 9 are green on this host (exit 0). No criterion
 outside the executed evidence above is claimed as PASS.
+
+---
+
+## 11 · Phase-12 attestation (2026-10-12, T120–T121 — the ONLY tasks that attest Phase 12)
+
+Phase 12 closed the 8 converge findings (F1–F8) with 13 implementation
+tasks + 2 verification tasks. Host evidence, all green:
+
+- **T120**: `./scripts/verify.sh` exit 0 — gates 1–7 PASS, gate-8-shell
+  PASS (33 + 29 conformance), gate-8-full DEFERRED (owner=synthesis);
+  **543 run / 543 passed** (11 slow), 1 skipped — up 18 from the 525
+  baseline (skip_clamp, end_kind_codes ×4, canonical_guard ×5,
+  pitch_tolerance, bridge_dispatch ×4, shell_jni ×3; prop_pitch still
+  9/9). `expected-tests.txt` regenerated (47 → 51 entries, exactly
+  the 4 new integration targets, zero drift).
+- **T121**: `cargo tauri android build --target aarch64 --debug`
+  exit 0 (fresh universal APK 425 MB + .aab); the new
+  `scripts/check-apk-classes.sh` PASSes on it (MainActivity,
+  PlaybackService, all five mirrors, TauriActivity canary — plus an
+  explicit `ShellHost` presence check for T111's wiring);
+  `check-manifest.sh` + `check-shell-purity.sh` exit 0.
+- The §9 `diagnose` observation is now narrower: `diagnose` is
+  documented in `contracts/shell-ipc.md` as a read-only query outside
+  the closed verb set (T027 precedent); voice-asset surface ownership
+  itself stays routed to the 002 feature. The bridge dispatches the
+  full 12-verb set through the same backend fns as the CLI
+  (Principle II), and the Kotlin mirrors are instantiated with their
+  sinks wired to it (T111) — but lock-screen-control *behavior*
+  (US1-AC2, all US4 scenarios) remains trial-deferred to API-29+
+  hardware alongside the other 47 trial SCs.
+
+**Gate determinism fix (same commit wave):** `check-shell-purity.sh`
+§5 failed different tokens on identical inputs across runs (FR-035,
+then FR-020/SC-032, then SC-050b) — a `printf … | grep -qE` early-exit
+SIGPIPE race under `set -euo pipefail` (141 false-negative; the same
+bug class as the `check-apk-classes.sh` pipeline caught during its
+own self-test). Fixed by full-consumption grep at the 3 §5 sites +
+the identical site in `check-manifest.sh`; 5/5 consecutive runs now
+exit 0 with identical counts (135 resolved, 1 exempted, 0
+unresolved). A gate that flakes is not a gate (Principle V).
+
+**Carried to the next converge (found, not owned by any T001–T121
+task):** duck-gain application (the 0.20 factor is validated but
+applied nowhere — `CpalBackend` has no gain API); latch persistence
+(`AppState` holds no `OfferMachine`/`FocusTracker`, `session` is not
+a `src-tauri` dep); Rust→shell publish transport (sinks live,
+publish awaits it); normative FR-033/±3c stragglers in
+`crates/adapter-synthesis` (audio_chunk.rs:102, failure.rs:62).

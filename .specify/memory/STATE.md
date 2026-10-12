@@ -1,4 +1,4 @@
-# Session state — 001-android-media-shell (Phase 8 COMPLETE — T084–T087 attested)
+# Session state — 001-android-media-shell (Phase 12 COMPLETE — T120–T121 attested)
 
 Updated: 2026-10-12 (verification wave landed; ONLY T084–T087
 attest success).
@@ -51,7 +51,11 @@ attest success).
   9/9.
 
 ## Next
-1. On-device trials (T-01–T-48, each 10/10) + FR-026
+1. Phase-12 follow-ups (no owning task; next converge): duck-gain
+   application (no backend gain API), latch persistence (no session
+   dep/state field), Rust→shell publish transport, adapter-synthesis
+   FR-033/±3c stragglers — recorded in VERIFICATION.md §11.
+2. On-device trials (T-01–T-48, each 10/10) + FR-026
    offline start + SC-051 failover drill + the SC-010
    locked visual check + SC-037 manual-absence walk +
    the §3 record pulls — on a CI host with an API-29+

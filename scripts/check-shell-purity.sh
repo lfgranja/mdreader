@@ -463,7 +463,11 @@ token_resolves() {
   local tok="$1" sc family member task
   resolution_path=''
   # Tier 1 (direct): the literal token on a test-task line.
-  if printf '%s\n' "$TEST_TASK_LINES" | grep -qE "$tok([^0-9a-z]|$)"; then
+  # Full-consumption grep (no -q): under `pipefail` a `grep -q`
+  # early exit SIGPIPEs printf into a 141 false-negative — a
+  # scheduling race that failed different tokens on identical
+  # inputs (T121 post-mortem).
+  if [ -n "$(printf '%s\n' "$TEST_TASK_LINES" | grep -E "$tok([^0-9a-z]|$)" || true)" ]; then
     resolution_path='Tier 1: literal token on a test-task line'
     return 0
   fi
@@ -475,7 +479,7 @@ token_resolves() {
   if printf '%s' "$tok" | grep -qE '^FR-'; then
     while IFS= read -r sc; do
       [ -z "$sc" ] && continue
-      if printf '%s\n' "$TEST_TASK_LINES" | grep -qE "$sc([^0-9a-z]|$)"; then
+      if [ -n "$(printf '%s\n' "$TEST_TASK_LINES" | grep -E "$sc([^0-9a-z]|$)" || true)" ]; then
         resolution_path="Tier 2: cited by $sc, which appears on a test-task line"
         return 0
       fi
@@ -491,7 +495,7 @@ token_resolves() {
     family="${tok#FR-}"
     while IFS= read -r sc; do
       [ -z "$sc" ] && continue
-      if printf '%s\n' "$TEST_TASK_LINES" | grep -qE "$sc([^0-9a-z]|$)"; then
+      if [ -n "$(printf '%s\n' "$TEST_TASK_LINES" | grep -E "$sc([^0-9a-z]|$)" || true)" ]; then
         member="$(printf '%s\n' "$SC_BLOCKS" | grep "^$sc	" | grep -oE "FR-${family}[a-z]?" | head -n 1)"
         task="$(printf '%s\n' "$TEST_TASK_LINES" | grep -E "$sc([^0-9a-z]|$)" | grep -oE 'T[0-9]+[a-z]*' | head -n 1)"
         resolution_path="Tier 2b: family member $member cited by $sc on test-task $task"

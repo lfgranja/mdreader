@@ -391,6 +391,10 @@ fn frame_count(max_secs: f64) -> usize {
 /// rejection (Principle VII — every failure is named, never
 /// silent).
 #[derive(Debug)]
+#[expect(
+    dead_code,
+    reason = "the payloads wrap the closed EngineError and BufferError sets at the pipeline's failure seams (press_play/begin_pre_roll); this suite asserts the success paths — the failure paths are the engine-core and buffer suites' subjects — so the wrapped errors are provenance read by no assertion, and a derived Debug impl is intentionally ignored by dead-code analysis"
+)]
 enum PipelineError {
     /// The engine named a failure (the closed
     /// [`EngineError`] set).
@@ -1016,7 +1020,7 @@ proptest! {
         let (takeover_engine, takeover_position) =
             taken_over.unwrap_or_default();
         prop_assert_eq!(
-            takeover_engine, FALLBACK_ENGINE_ID,
+            takeover_engine.as_str(), FALLBACK_ENGINE_ID,
             "the expired offer must take over on stand-in B (SC-051)"
         );
         prop_assert_eq!(

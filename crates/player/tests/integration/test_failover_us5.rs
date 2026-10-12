@@ -558,7 +558,7 @@ fn service_kill_pauses_at_position_without_auto_audio() {
 #[test]
 fn foregrounded_deliberate_reopen_auto_starts_within_the_sc020_budget() {
     let mut offer = OfferMachine::new();
-    offer.on_session_end(DRILL_FINGERPRINT, Some(drill_position(SessionEnd::Paused)));
+    let _ = offer.on_session_end(DRILL_FINGERPRINT, Some(drill_position(SessionEnd::Paused)));
     offer.on_foregrounded();
     // The latch is not the conversion: the foreground flag
     // is read at expiry ONLY, never converting an open
@@ -612,7 +612,7 @@ fn backgrounded_deliberate_reopen_expires_without_auto_audio() -> Result<(), Box
     let mut store = BookmarkStore::open(&path)?;
     store.put(&DRILL_FINGERPRINT, drill_position(SessionEnd::Paused))?;
     let mut offer = OfferMachine::new();
-    offer.on_session_end(DRILL_FINGERPRINT, Some(drill_position(SessionEnd::Paused)));
+    let _ = offer.on_session_end(DRILL_FINGERPRINT, Some(drill_position(SessionEnd::Paused)));
     offer.on_backgrounded();
     // SC-020's tail: where the application is not in the
     // foreground when the window expires, no audio begins
@@ -703,7 +703,7 @@ fn reader_activation_and_start_over_inside_the_window() {
     // window: the open offer continues from the stored
     // position immediately (FR-032c).
     let mut activated = OfferMachine::new();
-    activated.on_session_end(DRILL_FINGERPRINT, Some(drill_position(SessionEnd::Paused)));
+    let _ = activated.on_session_end(DRILL_FINGERPRINT, Some(drill_position(SessionEnd::Paused)));
     let continued = activated.continue_offer();
     match &continued {
         Some(Offer::Continue { offset_secs, .. }) => {
@@ -724,7 +724,7 @@ fn reader_activation_and_start_over_inside_the_window() {
     // FR-032f): reading begins from the first spoken
     // position — exactly 0.0.
     let mut restarted = OfferMachine::new();
-    restarted.on_session_end(DRILL_FINGERPRINT, Some(drill_position(SessionEnd::Paused)));
+    let _ = restarted.on_session_end(DRILL_FINGERPRINT, Some(drill_position(SessionEnd::Paused)));
     let started_over = restarted.start_over();
     match &started_over {
         ExpiryOutcome::AutoStart { offset_secs } => {

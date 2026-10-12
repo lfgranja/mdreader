@@ -30,6 +30,9 @@
 //! closed `resume_offer` / `ResumeChoice` /
 //! `SessionEnd` vocabulary.
 
+/// The session text-I/O protocol (T063): the CLI
+/// surface every driver shares (Principle II).
+pub mod cli;
 pub mod fingerprint;
 pub mod offer;
 pub mod store;

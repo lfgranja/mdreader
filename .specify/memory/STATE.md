@@ -6,11 +6,14 @@ Updated: 2026-10-11 (post-checkpoint continuation).
 - Wave 1 LANDED: T057, T061c, T065, T073, T058–T060 (`57bb525`), T075 (`247ecbb`).
 - Phase-11 test fixes landed: T070 (`91f2f4e`), prop_resume `#[test]` (`195437d`),
   prop_fallback E0382 clones (`6e08db8`).
-- Wave 2 RUNNING (5 background agents, disjoint files):
-  T061 surface.rs · T063 session cli/main · T065b status_view.rs ·
-  T074 diag scan/cli/main · T076 recovery.rs.
-- LANDED: T064 Residency.kt (`0ad77cc`) + shell-ipc.md residency
-  intent set (coordinated closed-set edit).
+- Wave 2 RUNNING (3 background agents, disjoint files):
+  T061 surface.rs · T063 session cli/main · T076 recovery.rs.
+- LANDED: T064 Residency.kt (`0ad77cc`) + shell-ipc.md
+  residency intent set; T074 diag scanners + CLI
+  (`1f3d72f`, diag 26/26); T065b status view
+  (`99e71c4`, src-tauri 30/30; frontend binding on
+  disk at gitignored src-tauri/dist/index.html —
+  deviation recorded).
 - After wave 2: verify each agent's suite, orchestrator fixes any test-vs-impl
   mismatch, commit atomically (stage ONLY task-owned files), check off tasks.md.
 

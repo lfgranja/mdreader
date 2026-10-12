@@ -325,7 +325,7 @@ proptest! {
         let selectable = selector.selectable();
         let expected = expected_selectable(&registry, &[], |id| selector.consent(id));
         prop_assert_eq!(
-            selectable,
+            selectable.clone(),
             expected,
             "the selectable engines did not follow the declared ascending order"
         );
@@ -476,8 +476,8 @@ proptest! {
         let initial = selector.selectable();
         let (actual, expected) = drive_full_descent(&registry, &mut selector);
         prop_assert_eq!(
-            actual,
-            expected,
+            actual.clone(),
+            expected.clone(),
             "the descent offer sequence diverged from the declared fallback order"
         );
         // The descent ended because nothing remained: the
@@ -551,7 +551,7 @@ proptest! {
                 let repeated_offer = selector.on_failure(&default_engine.engine_id);
                 prop_assert_eq!(
                     first_offer,
-                    repeated_offer,
+                    repeated_offer.clone(),
                     "the repeated failure did not re-offer the same remaining engines"
                 );
                 let oracle = expected_selectable(
@@ -562,7 +562,7 @@ proptest! {
                 .into_iter()
                 .next();
                 prop_assert_eq!(
-                    repeated_offer,
+                    repeated_offer.clone(),
                     oracle,
                     "the re-offer did not name the first remaining engine in the declared order"
                 );

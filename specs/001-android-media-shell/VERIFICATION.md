@@ -179,6 +179,50 @@ installed SDK 36 — no platform download was required. The pinned
 the manifest are untouched; `gen/` is git-ignored build output. Gate 9 then
 passed (exit 0, device artifact produced).
 
+**Gate-9 regression found and fixed (2026-10-12, `ff6da8b`)**: inspecting
+the produced `app-universal-debug.apk` showed its dex carried only
+`R`/`BuildConfig` — **no app classes at all** (no `MainActivity`, no
+`PlaybackService`, none of the five mirrors): the app would crash on
+launch, so the exit-0 artifact was hollow. Two causes, both latent
+because `android-shell/` had never been part of any Gradle source set
+(the exact dead-code hazard T028b names):
+
+1. The alpha-CLI-generated `app/build.gradle.kts` applied no Kotlin
+   plugin — it was written for AGP 9's built-in Kotlin, which the
+   toolchain fix disabled (`android.builtInKotlin=false`), silently
+   leaving the `:app` module without a Kotlin compiler. (The Oct 11
+   release APK, built before the realignment, still carried the
+   classes; the post-realignment debug APK did not.) Fixed by matching
+   the tauri-cli 2.12.1 template: `import
+   org.jetbrains.kotlin.gradle.dsl.JvmTarget`,
+   `id("org.jetbrains.kotlin.android")` in the plugins block,
+   `compileOptions` Java 1.8, and
+   `kotlin { compilerOptions { jvmTarget = JvmTarget.JVM_1_8 } }`
+   (host-local gen edit).
+2. T028b's wiring had never been applied. `app/build.gradle.kts` now
+   adds `android-shell/src/main/kotlin` as a `main` sourceSet
+   (host-local gen edit), and the stray duplicate copy of
+   `PlaybackService.kt` under `gen/.../java/app/mdreader/` (identical
+   to `android-shell`'s, from the 347a493 experiment) was removed —
+   with both roots in the source set it would be a duplicate class.
+3. The first real compile of the mirrors caught a latent defect:
+   `MediaMirror.kt:714` referenced `Notification.CATEGORY_MEDIA`, which
+   does not exist in the Android framework (verified against the
+   android-36 platform `android.jar`); MediaStyle notifications use
+   `CATEGORY_TRANSPORT` (API 21+, minSdk 29 satisfied).
+
+Re-verified after the fix: `compileUniversalDebugKotlin` and
+`compileUniversalReleaseKotlin` both BUILD SUCCESSFUL; the gate-9 re-run
+(`cargo tauri android build --target aarch64 --debug`) exited 0 and the
+universalDebug dex now contains `MainActivity`, `PlaybackService`,
+`FocusMirror`, `MediaMirror`, `Residency`, `RoutingMirror` plus the
+generated Tauri plumbing, with `lib/arm64-v8a/libsrc_tauri.so`
+unchanged; `check-shell-purity.sh` and `check-manifest.sh` both exit 0;
+`verify.sh` re-run exit 0 (525 run / 525 passed, 1 skipped). The
+tracked-file part of the fix is the `MediaMirror.kt` one-line category
+correction; the gen wiring is git-ignored host-local build config,
+recorded here and in the commit message.
+
 ---
 
 ## 9 · Observation (non-blocking, recorded for the 002 feature)

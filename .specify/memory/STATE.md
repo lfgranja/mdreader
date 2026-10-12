@@ -28,6 +28,23 @@ attest success).
   evidence), 2 PARTIAL (SC-010, SC-037 host legs PASS,
   device legs deferred), 47 trial-SC deferred + FR-026,
   SC-044 + gate-8-full DEFERRED (owner=synthesis).
+- **Gate-9 regression found + fixed** (ff6da8b): the
+  post-realignment debug APK's dex carried no app
+  classes (hollow artifact — no MainActivity). Cause:
+  the alpha-generated app module applied no Kotlin
+  plugin while android.builtInKotlin=false, and T028b's
+  android-shell source-set wiring had never been
+  applied. Fixed per the tauri-cli 2.12.1 template
+  (KGP application + JvmTarget + compileOptions, host-
+  local gen edits) + android-shell sourceSet wiring;
+  MediaMirror.kt CATEGORY_MEDIA (nonexistent) →
+  CATEGORY_TRANSPORT. Re-verified: both APK variants
+  contain MainActivity + PlaybackService + all five
+  mirrors; verify.sh re-run exit 0 (525/525, 1 skip).
+- **Ledger reconciled** (2c2724b): T001–T018, T028a-
+  stub, T028b checked off post-hoc (deliverables
+  re-verified present); T055b adjudicated NOT REQUIRED
+  (SC-015 passed; contingency never triggered).
 - Workspace: `cargo nextest run --workspace` — **525
   passed (7 slow), 1 skipped**; `cargo nextest run
   -p diag` 26/26; `prop_surface` 11/11; `prop_pitch`
@@ -75,7 +92,13 @@ attest success).
   template's tested combination (AGP 9.3.1 + KGP 2.2.10
   + Gradle 9.6.1 + android.builtInKotlin=false +
   android.newDsl=false) — host-local, git-ignored gen/
-  only; pinned tauri = 2.12.1 untouched.
+  only; pinned tauri = 2.12.1 untouched. The app
+  module now ALSO applies org.jetbrains.kotlin.android
+  (template parity — without it, builtInKotlin=false
+  leaves the :app module with no Kotlin compiler and
+  the APK ships no app classes) and compiles
+  android-shell/src/main/kotlin as a main sourceSet
+  (T028b wiring, ff6da8b).
 - `cargo clippy` workspace-wide fails on pre-existing
   root-Cargo.toml lint-group priority errors (clippy
   1.98 `nursery`/`cargo`, Cargo.toml:26/27) +

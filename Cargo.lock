@@ -1006,6 +1006,9 @@ dependencies = [
 [[package]]
 name = "doc-structure"
 version = "0.1.0"
+dependencies = [
+ "proptest",
+]
 
 [[package]]
 name = "dom_query"

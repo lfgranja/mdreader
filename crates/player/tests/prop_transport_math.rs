@@ -89,8 +89,11 @@ use proptest::prelude::*;
 use engine_core::closed::{PlaybackRate, TransportState};
 use engine_core::format::{DeclaredFormat, check_handoff};
 use engine_core::standin_a::StandinA;
+use player::buffer::PreRollBuffer;
 use player::cli::{PlaybackSession, ShellVariant, ShellVerb};
 use player::position::{PositionClock, REWIND_CAP_SECS, REWIND_FRACTION, SKIP_STEP_SECS};
+use player::rate::{LADDER, RATE_EFFECTIVE_BOUND_SECS, step_down, step_up};
+use player::skip::{apply_skip_exact, rate_change_effective_time};
 
 /// Positions on the exact quarter-second grid `k × 0.25` ∈ [0, 3600].
 fn position_strategy() -> impl Strategy<Value = f64> {
@@ -789,5 +792,653 @@ fn a_negative_start_is_clamped_to_the_declared_floor() {
         clock.position_secs(),
         0.0,
         "the position clock carried a negative start below the declared floor"
+    );
+}
+
+// ============================================================================
+// T049 — US4 skip + ladder invariants (Phase-11 test-first append).
+//
+// Invariants under test (tasks.md T049, verbatim): "skip =
+// exactly ±5.0 s vs press-time position, clamp at
+// [0.0, duration], forward-to-end → paused end-state;
+// ladder closed 7 rungs, one step per press, saturate
+// both ends never wrap/fail; rate change effective ≤2 s;
+// position unchanged by rate change; pre-roll re-prepared
+// at new rate; FAIL before implementation".
+//
+// Spec anchors: FR-018 (skip moves the position by
+// exactly 5 s — forward for skip-forward, backward for
+// skip-backward — measured against the position at the
+// moment the control was pressed, clamped to
+// [0.0, duration]; a forward skip that reaches or passes
+// the end lands at the end in a PAUSED end-state —
+// completion is document-end only, never a skip), FR-019
+// (the closed seven-rung ladder
+// 0.75|1.0|1.25|1.5|1.75|2.0|4.0; each press moves
+// exactly one rung; a press at either end saturates —
+// never wraps, never fails, never off-ladder), FR-019a
+// (a rate change is effective within 2 s), FR-019b (the
+// default rate is 1.0), and FR-043 (a rate change is a
+// pitch-preserving time-stretch inside the engine, never
+// a local stretch; the position is unchanged by a rate
+// change; the pre-roll is re-prepared at the new rate).
+//
+// Expected API contract for T057 (the production code
+// this test gates — it does not exist yet, which is the
+// required red state):
+// - `player::rate` — `LADDER: [PlaybackRate; 7]` (the
+//   closed ladder, ascending), `step_up(rung) ->
+//   PlaybackRate` (one rung up, saturating at `R4_0`),
+//   `step_down(rung) -> PlaybackRate` (one rung down,
+//   saturating at `R0_75`), and
+//   `RATE_EFFECTIVE_BOUND_SECS: f64 = 2.0` (FR-019a).
+// - `PlaybackSession::with_duration(duration_secs) ->
+//   Self` — a session whose known duration bounds every
+//   skip (FR-018) and fixes determinate progress
+//   (FR-028c) — and `duration_secs(&self) ->
+//   Option<f64>` (`Some` for a `with_duration` session,
+//   `None` for `new()`, whose skips clamp at the 0.0
+//   floor only and never reach an end-state).
+// - Skip verb semantics: `SkipForward` lands at
+//   `min(press_time + 5.0, duration)` and, when that
+//   reaches the duration, lands the transport on
+//   `Paused` (the end-state); `SkipBackward` lands at
+//   `max(press_time - 5.0, 0.0)` and never changes the
+//   transport. Rate verbs change exactly one rung, leave
+//   `position_secs` untouched, and clear the pre-roll
+//   buffer (it must be re-prepared at the new rate,
+//   FR-043).
+//
+// Oracle note: the unclamped ±5.0 s core is
+// `apply_skip_exact` (`player::skip`); the session-level
+// oracle additionally clamps at the session's duration
+// ceiling. The one-step ladder oracles are this file's
+// own `rate_up_from`/`rate_down_from` — exhaustive
+// matches over the same closed seven-rung set, with no
+// catch-all arm. Every position and duration below is
+// generated on the quarter-second grid (`k × 0.25`), an
+// exact binary-fraction grid, so all comparisons are
+// bit-exact — a tolerance would wrongly admit an
+// off-step skip (FR-018 demands *exactly* ±5.0 s).
+//
+// Format note: every `prop_assert*!` message uses
+// explicit positional arguments (`{}`, `arg`), never
+// implicit named captures (`{var}`) — proptest builds
+// the message through `concat!`, and rustc rejects
+// implicit captures in macro-expanded format strings.
+// ============================================================================
+
+/// A session duration and a press-time position, both on
+/// the quarter-second grid, the position always within
+/// `[0.0, duration]` — the press-time state a skip verb
+/// is pressed from (FR-018 measures the skip against the
+/// position at the moment the control was pressed).
+fn duration_and_press_time_strategy() -> impl Strategy<Value = (f64, f64)> {
+    (0u64..=14_400, 0u64..=14_400).prop_map(|(duration_quarters, press_quarters)| {
+        let press = press_quarters.min(duration_quarters);
+        (duration_quarters as f64 * 0.25, press as f64 * 0.25)
+    })
+}
+
+/// A session duration and a press-time position whose
+/// forward skip reaches or passes the end:
+/// `press + 5.0 >= duration` (20 quarters = 5.0 s of
+/// headroom below the duration), on the quarter-second
+/// grid.
+fn end_reaching_press_strategy() -> impl Strategy<Value = (f64, f64)> {
+    (0u64..=14_400)
+        .prop_flat_map(|duration_quarters| {
+            let floor = duration_quarters.saturating_sub(20);
+            (Just(duration_quarters), floor..=duration_quarters)
+        })
+        .prop_map(|(duration_quarters, press_quarters)| {
+            (
+                duration_quarters as f64 * 0.25,
+                press_quarters as f64 * 0.25,
+            )
+        })
+}
+
+/// The session-level skip oracle (FR-018): the unclamped
+/// ±5.0 s core (`apply_skip_exact`, whose own 0.0-floor
+/// clamp is part of the contract) further clamped at the
+/// session's duration ceiling — the document end bounds
+/// every skip on a `with_duration` session.
+fn session_skip_landing(press_time_secs: f64, delta_secs: f64, duration_secs: f64) -> f64 {
+    apply_skip_exact(press_time_secs, delta_secs).min(duration_secs)
+}
+
+/// Drive a `with_duration` session to a press-time
+/// position: the Play press opens playback and the
+/// audible-progress tick moves the authoritative clock to
+/// exactly `press_time_secs`, leaving the session
+/// `Playing` — the state a skip or rate press is issued
+/// in.
+fn playing_at_position(session: &mut PlaybackSession, press_time_secs: f64) {
+    let _played = session.execute(ShellVerb::Play);
+    session.on_audible_progress(press_time_secs);
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(64))]
+
+    #[expect(
+        clippy::float_cmp,
+        reason = "press, SKIP_STEP_SECS and duration are exact binary fractions on the quarter-second grid; the >= test decides whether the skip reaches the end (FR-018), and a tolerance would misclassify a boundary landing"
+    )]
+    #[test]
+    fn skip_verbs_move_exactly_five_seconds_against_the_press_time(
+        (duration, press) in duration_and_press_time_strategy(),
+        forward in prop_oneof![Just(true), Just(false)],
+    ) {
+        // P1 (FR-018): exactly ±5.0 s measured against the
+        // press-time position, clamped to [0.0, duration] —
+        // never dependent on document structure.
+        let mut session = PlaybackSession::with_duration(duration);
+        prop_assert_eq!(
+            session.duration_secs(),
+            Some(duration),
+            "a with_duration session did not report its known duration"
+        );
+        playing_at_position(&mut session, press);
+        let verb = if forward {
+            ShellVariant::skip_forward()
+        } else {
+            ShellVariant::skip_back()
+        };
+        let delta = if forward {
+            SKIP_STEP_SECS
+        } else {
+            -SKIP_STEP_SECS
+        };
+        let expected = session_skip_landing(press, delta, duration);
+        let landed = session.execute(verb);
+        prop_assert!(
+            landed.is_ok(),
+            "a {} skip from press-time {} was rejected",
+            if forward { "forward" } else { "backward" },
+            press
+        );
+        let snapshot = session.snapshot();
+        prop_assert_eq!(
+            snapshot.position_secs,
+            expected,
+            "a {} skip from press-time {} did not land at exactly the clamped ±5.0 s point {}",
+            if forward { "forward" } else { "backward" },
+            press,
+            expected
+        );
+        // The clamp at both ends: the landing never leaves
+        // [0.0, duration].
+        prop_assert!(
+            snapshot.position_secs >= 0.0,
+            "the skip landed below the 0.0 floor (FR-018)"
+        );
+        prop_assert!(
+            snapshot.position_secs <= duration,
+            "the skip landed past the duration ceiling {} (FR-018)",
+            duration
+        );
+        // A skip is not a transport control: only a forward
+        // skip that reaches the end lands the paused
+        // end-state.
+        let reaches_the_end = forward && press + SKIP_STEP_SECS >= duration;
+        if reaches_the_end {
+            prop_assert_eq!(
+                snapshot.transport,
+                TransportState::Paused,
+                "a forward skip reaching the end did not land the paused end-state (FR-018)"
+            );
+        } else {
+            prop_assert_eq!(
+                snapshot.transport,
+                TransportState::Playing,
+                "a skip that does not reach the end changed the transport (FR-018)"
+            );
+        }
+    }
+
+    #[test]
+    fn a_forward_skip_that_reaches_the_end_lands_paused_at_the_duration(
+        (duration, press) in end_reaching_press_strategy(),
+    ) {
+        // P2 (FR-018): a forward skip that reaches or passes
+        // the end lands at exactly the duration in the
+        // PAUSED end-state — never Completed (completion is
+        // document-end only) and never still Playing.
+        let mut session = PlaybackSession::with_duration(duration);
+        playing_at_position(&mut session, press);
+        let landed = session.execute(ShellVariant::skip_forward());
+        prop_assert!(
+            landed.is_ok(),
+            "a forward skip reaching the end from {} was rejected",
+            press
+        );
+        let snapshot = session.snapshot();
+        prop_assert_eq!(
+            snapshot.position_secs,
+            duration,
+            "a forward skip reaching the end from {} did not land at exactly the duration {}",
+            press,
+            duration
+        );
+        prop_assert_eq!(
+            snapshot.transport,
+            TransportState::Paused,
+            "the end-state of a forward skip that reaches the end is Paused, not {:?}",
+            snapshot.transport
+        );
+        prop_assert!(
+            snapshot.transport != TransportState::Completed,
+            "a skip reached the end but reported Completed — completion is document-end only (FR-018)"
+        );
+        prop_assert!(
+            snapshot.transport != TransportState::Playing,
+            "a skip that reached the end left the transport Playing (FR-018)"
+        );
+    }
+
+    #[test]
+    fn the_rate_ladder_is_closed_and_moves_exactly_one_rung(rung in rate_strategy()) {
+        // P3 (FR-019): the ladder is closed at exactly seven
+        // rungs; each press moves exactly one rung; a press
+        // at either end saturates — never wraps, never
+        // fails, never off-ladder. The one-step oracles
+        // enumerate all seven rungs explicitly (no
+        // catch-all), so the saturation cells
+        // (`R4_0.step_up() == R4_0`, `R0_75.step_down() ==
+        // R0_75`) are asserted as the ordinary end cells.
+        let up = step_up(rung);
+        let down = step_down(rung);
+        prop_assert!(
+            LADDER.contains(&up),
+            "step_up({:?}) left the closed seven-rung ladder (FR-019)",
+            rung
+        );
+        prop_assert!(
+            LADDER.contains(&down),
+            "step_down({:?}) left the closed seven-rung ladder (FR-019)",
+            rung
+        );
+        prop_assert_eq!(
+            up,
+            rate_up_from(rung),
+            "step_up({:?}) did not move exactly one rung up the ladder (FR-019)",
+            rung
+        );
+        prop_assert_eq!(
+            down,
+            rate_down_from(rung),
+            "step_down({:?}) did not move exactly one rung down the ladder (FR-019)",
+            rung
+        );
+    }
+
+    #[test]
+    fn consecutive_rate_presses_move_one_rung_per_press_and_saturate(presses in 0usize..=30) {
+        // P4 (FR-019): N consecutive presses from the
+        // default rung (`R1_0`, FR-019b) land exactly
+        // `min(R1_0 + N, R4_0)` rungs up — never skipping a
+        // rung, never wrapping. The oracle folds the pure
+        // one-step move, so a session that jumps a rung,
+        // wraps, or fails a press diverges from it.
+        let mut session = PlaybackSession::with_duration(3600.0);
+        let mut expected = PlaybackRate::R1_0;
+        for press in 1..=presses {
+            let stepped = session.execute(ShellVerb::RateUp);
+            prop_assert!(
+                stepped.is_ok(),
+                "RateUp press {} was rejected — a ladder press never fails (FR-019)",
+                press
+            );
+            expected = step_up(expected);
+        }
+        prop_assert_eq!(
+            session.snapshot().rate,
+            expected,
+            "{} consecutive RateUp presses did not land on min(R1_0 + N, R4_0) (FR-019)",
+            presses
+        );
+    }
+
+    #[test]
+    fn a_rate_change_is_effective_within_the_bound_and_never_moves_the_position(
+        (rung, press) in (rate_strategy(), position_strategy()),
+    ) {
+        // P5 (FR-019a / FR-043): the rate change is
+        // effective within the 2.0 s bound at every rung;
+        // the position is bit-identical before and after a
+        // rate verb (the stretch is the engine's
+        // pitch-preserving contract op, never a local
+        // stretch); the session's rate equals the expected
+        // rung.
+        let effective = rate_change_effective_time(rung);
+        prop_assert!(
+            effective <= RATE_EFFECTIVE_BOUND_SECS,
+            "the rate change at {:?} took {} s, past the {} s effective bound (FR-019a)",
+            rung,
+            effective,
+            RATE_EFFECTIVE_BOUND_SECS
+        );
+        let mut session = walked_to(rung);
+        let _played = session.execute(ShellVerb::Play);
+        session.on_audible_progress(press);
+        let _paused = session.execute(ShellVerb::Pause);
+        let before = session.snapshot();
+        let changed = session.execute(ShellVerb::RateUp);
+        prop_assert!(
+            changed.is_ok(),
+            "the RateUp press from {:?} was rejected (FR-019)",
+            rung
+        );
+        let after = session.snapshot();
+        prop_assert_eq!(
+            after.position_secs,
+            before.position_secs,
+            "the position moved from {} to {} across a rate change — a rate change never moves the position (FR-043)",
+            before.position_secs,
+            after.position_secs
+        );
+        prop_assert_eq!(
+            after.rate,
+            step_up(rung),
+            "the rate change from {:?} did not land on exactly one rung up (FR-019)",
+            rung
+        );
+    }
+
+    #[test]
+    fn a_rate_change_discards_the_pre_roll_so_it_is_re_prepared_at_the_new_rate(
+        (rung, delivered) in (rate_strategy(), progress_strategy()),
+    ) {
+        // P6 (FR-043): the pre-roll is re-prepared at the
+        // new rate — audio held at the old rung is
+        // discarded, never played at a mismatched rate. The
+        // session does not expose its pre-roll buffer, so
+        // the property is asserted through the buffer type
+        // directly (`player::buffer::PreRollBuffer`): the
+        // rate verb's buffer-side effect is the
+        // re-preparation at the new rung.
+        let mut buffer = PreRollBuffer::new();
+        buffer.on_play_pressed();
+        let filled = buffer.push_delivered(delivered);
+        prop_assert!(
+            filled.is_ok(),
+            "a {} s pre-roll delivery while preparing was rejected",
+            delivered
+        );
+        prop_assert!(
+            !buffer.is_empty(),
+            "the pre-roll held no audio after a {} s delivery",
+            delivered
+        );
+        let new_rung = step_up(rung);
+        buffer.reprepare_for_rate(new_rung);
+        prop_assert!(
+            buffer.is_empty(),
+            "the pre-roll was not discarded by the rate change — stale audio would play at a mismatched rate (FR-043)"
+        );
+        prop_assert_eq!(
+            buffer.buffered_secs(),
+            0.0,
+            "the pre-roll still held {} s after the rate change (FR-043)",
+            buffer.buffered_secs()
+        );
+        prop_assert_eq!(
+            buffer.prepared_rate(),
+            new_rung,
+            "the pre-roll was not re-prepared at the new rung {:?} (FR-043)",
+            new_rung
+        );
+    }
+}
+
+/// The closed ladder is exactly the seven declared rungs,
+/// ascending (FR-019) — the closed set every ladder
+/// operation saturates within.
+#[test]
+fn the_ladder_is_exactly_the_seven_declared_rungs_ascending() {
+    assert_eq!(
+        LADDER.len(),
+        7,
+        "the ladder did not hold exactly seven rungs (FR-019)"
+    );
+    assert_eq!(
+        LADDER,
+        [
+            PlaybackRate::R0_75,
+            PlaybackRate::R1_0,
+            PlaybackRate::R1_25,
+            PlaybackRate::R1_5,
+            PlaybackRate::R1_75,
+            PlaybackRate::R2_0,
+            PlaybackRate::R4_0,
+        ],
+        "the ladder did not match the declared ascending rungs (FR-019)"
+    );
+}
+
+/// The rate-change effective bound is exactly 2.0 s
+/// (FR-019a), and every rung's effective time sits within
+/// it.
+#[expect(
+    clippy::float_cmp,
+    reason = "RATE_EFFECTIVE_BOUND_SECS (2.0) and every rung's effective time are exact binary fractions; == and <= are the correct assertions and a tolerance would admit a drifted bound"
+)]
+#[test]
+fn the_rate_change_effective_bound_is_exactly_two_seconds() {
+    assert_eq!(
+        RATE_EFFECTIVE_BOUND_SECS, 2.0,
+        "the rate-change effective bound drifted from 2.0 s (FR-019a)"
+    );
+    for rung in LADDER {
+        assert!(
+            rate_change_effective_time(rung) <= RATE_EFFECTIVE_BOUND_SECS,
+            "the rate change at {:?} exceeded the effective bound (FR-019a)",
+            rung
+        );
+    }
+}
+
+/// A `with_duration` session reports its known duration,
+/// and a default session reports none — the FR-028c
+/// determinacy input and the FR-018 clamp ceiling.
+#[expect(
+    clippy::float_cmp,
+    reason = "the declared duration 3600.0 is an exact binary fraction; == is exact and a tolerance would admit a drifted duration"
+)]
+#[test]
+fn a_with_duration_session_reports_its_known_duration() {
+    let known = PlaybackSession::with_duration(3600.0);
+    assert_eq!(
+        known.duration_secs(),
+        Some(3600.0),
+        "a with_duration session did not report its known duration"
+    );
+    let unknown = PlaybackSession::new();
+    assert_eq!(
+        unknown.duration_secs(),
+        None,
+        "a default session reported a duration — the total is unknown until declared (FR-028c)"
+    );
+}
+
+/// Skip forward lands exactly 5.0 s past the press time
+/// (FR-018), leaving the transport `Playing`.
+#[expect(
+    clippy::float_cmp,
+    reason = "the press time 100.0 and SKIP_STEP_SECS 5.0 are exact binary fractions; == is exact and a tolerance would admit an off-step skip"
+)]
+#[test]
+fn skip_forward_lands_exactly_five_seconds_past_the_press_time() {
+    let mut session = PlaybackSession::with_duration(3600.0);
+    playing_at_position(&mut session, 100.0);
+    let landed = session.execute(ShellVariant::skip_forward());
+    assert!(landed.is_ok(), "a forward skip from 100.0 s was rejected");
+    assert_eq!(
+        session.snapshot().position_secs,
+        105.0,
+        "a forward skip from 100.0 s did not land at exactly 105.0 s (FR-018)"
+    );
+    assert_eq!(
+        session.snapshot().transport,
+        TransportState::Playing,
+        "a forward skip short of the end must leave the transport Playing (FR-018)"
+    );
+}
+
+/// Skip backward lands exactly 5.0 s before the press
+/// time (FR-018), never changing the transport.
+#[expect(
+    clippy::float_cmp,
+    reason = "the press time 100.0 and SKIP_STEP_SECS 5.0 are exact binary fractions; == is exact and a tolerance would admit an off-step skip"
+)]
+#[test]
+fn skip_backward_lands_exactly_five_seconds_before_the_press_time() {
+    let mut session = PlaybackSession::with_duration(3600.0);
+    playing_at_position(&mut session, 100.0);
+    let landed = session.execute(ShellVariant::skip_back());
+    assert!(landed.is_ok(), "a backward skip from 100.0 s was rejected");
+    assert_eq!(
+        session.snapshot().position_secs,
+        95.0,
+        "a backward skip from 100.0 s did not land at exactly 95.0 s (FR-018)"
+    );
+    assert_eq!(
+        session.snapshot().transport,
+        TransportState::Playing,
+        "a backward skip never changes the transport (FR-018)"
+    );
+}
+
+/// The backward skip clamps at the 0.0 floor (FR-018).
+#[expect(
+    clippy::float_cmp,
+    reason = "the press time 3.0, the 5.0 s step and the 0.0 floor are exact binary fractions; == is exact"
+)]
+#[test]
+fn skip_backward_clamps_at_the_zero_floor() {
+    let mut session = PlaybackSession::with_duration(3600.0);
+    playing_at_position(&mut session, 3.0);
+    let _landed = session.execute(ShellVariant::skip_back());
+    assert_eq!(
+        session.snapshot().position_secs,
+        0.0,
+        "a backward skip from 3.0 s did not clamp at the 0.0 floor (FR-018)"
+    );
+}
+
+/// The forward skip clamps at the duration ceiling
+/// (FR-018).
+#[expect(
+    clippy::float_cmp,
+    reason = "the duration 100.0, the press time 98.0 and the 5.0 s step are exact binary fractions; == is exact"
+)]
+#[test]
+fn skip_forward_clamps_at_the_duration_ceiling() {
+    let mut session = PlaybackSession::with_duration(100.0);
+    playing_at_position(&mut session, 98.0);
+    let _landed = session.execute(ShellVariant::skip_forward());
+    assert_eq!(
+        session.snapshot().position_secs,
+        100.0,
+        "a forward skip from 98.0 s in a 100.0 s document did not clamp at the duration ceiling (FR-018)"
+    );
+}
+
+/// A forward skip that reaches the end lands the paused
+/// end-state at exactly the duration — never Completed,
+/// never Playing (FR-018: completion is document-end
+/// only).
+#[expect(
+    clippy::float_cmp,
+    reason = "the duration 100.0 and the press time 97.0 are exact binary fractions; == is exact"
+)]
+#[test]
+fn a_forward_skip_that_reaches_the_end_lands_the_paused_end_state() {
+    let mut session = PlaybackSession::with_duration(100.0);
+    playing_at_position(&mut session, 97.0);
+    let landed = session.execute(ShellVariant::skip_forward());
+    assert!(
+        landed.is_ok(),
+        "a forward skip reaching the end was rejected"
+    );
+    let snapshot = session.snapshot();
+    assert_eq!(
+        snapshot.position_secs, 100.0,
+        "a forward skip reaching the end did not land at exactly the duration (FR-018)"
+    );
+    assert_eq!(
+        snapshot.transport,
+        TransportState::Paused,
+        "the end-state of a forward skip that reaches the end is Paused (FR-018)"
+    );
+    assert!(
+        snapshot.transport != TransportState::Completed,
+        "a skip reported Completed — completion is document-end only (FR-018)"
+    );
+}
+
+/// Both ladder ends saturate — a press at either end
+/// stays at that end, never wrapping, never failing
+/// (FR-019).
+#[test]
+fn the_ladder_saturates_at_both_ends() {
+    assert_eq!(
+        step_up(PlaybackRate::R4_0),
+        PlaybackRate::R4_0,
+        "step_up at the fastest rung must saturate at R4_0 (FR-019)"
+    );
+    assert_eq!(
+        step_down(PlaybackRate::R0_75),
+        PlaybackRate::R0_75,
+        "step_down at the slowest rung must saturate at R0_75 (FR-019)"
+    );
+    let mut up = PlaybackSession::with_duration(3600.0);
+    for _ in 0..10 {
+        let _stepped = up.execute(ShellVerb::RateUp);
+    }
+    assert_eq!(
+        up.snapshot().rate,
+        PlaybackRate::R4_0,
+        "ten RateUp presses must saturate at R4_0 (FR-019)"
+    );
+    let mut down = PlaybackSession::with_duration(3600.0);
+    for _ in 0..10 {
+        let _stepped = down.execute(ShellVerb::RateDown);
+    }
+    assert_eq!(
+        down.snapshot().rate,
+        PlaybackRate::R0_75,
+        "ten RateDown presses must saturate at R0_75 (FR-019)"
+    );
+}
+
+/// The 2.0x → 4.0x step: 4.0x is exactly one rung past
+/// 2.0x, and the two-step walk 1.75x → 2.0x → 4.0x ends
+/// at the fastest rung (FR-019).
+#[test]
+fn the_two_step_to_quadruple_ends_at_the_fastest_rung() {
+    assert_eq!(
+        step_up(PlaybackRate::R2_0),
+        PlaybackRate::R4_0,
+        "one step past 2.0x is 4.0x (FR-019)"
+    );
+    let mut session = PlaybackSession::with_duration(3600.0);
+    for _ in 0..3 {
+        let _stepped = session.execute(ShellVerb::RateUp);
+    }
+    assert_eq!(
+        session.snapshot().rate,
+        PlaybackRate::R1_75,
+        "three RateUp presses from the default must land on 1.75x (FR-019)"
+    );
+    for _ in 0..2 {
+        let _stepped = session.execute(ShellVerb::RateUp);
+    }
+    assert_eq!(
+        session.snapshot().rate,
+        PlaybackRate::R4_0,
+        "the two-step walk 1.75x → 2.0x → 4.0x must end at 4.0x (FR-019)"
     );
 }

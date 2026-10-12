@@ -11,5 +11,6 @@ pub mod focus;
 pub mod position;
 pub mod resume;
 pub mod rewind;
+pub mod routing;
 pub mod skip;
 pub mod transport;

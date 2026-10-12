@@ -6,6 +6,7 @@ edition = "2024"
 
 [dependencies]
 cpal = "0.18.2"
+diag = { path = "../diag" }
 doc-structure = { path = "../doc-structure" }
 engine-core = { path = "../engine-core" }
 thiserror = { workspace = true }
@@ -30,7 +31,6 @@ tempfile = { workspace = true }
 # re-export the redb types the round-trip needs).
 redb = "2.6.0"
 session = { path = "../session" }
-diag = { path = "../diag" }
 adapter-synthesis = { path = "../adapter-synthesis" }
 
 [[test]]

@@ -83,30 +83,51 @@
 //!     pub fn choose(&mut self, engine_id: &str) -> Result<RecoveryDecision, player::cli::PlayerError>;
 //! }
 //!
-//! // crates/session/src/offer.rs (T060)
-//! #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-//! pub enum OfferOutcome {
+//! // crates/session/src/offer.rs (T060) — the canonical
+//! // shape pinned by the dedicated session suites
+//! // (prop_offer.rs / prop_resume.rs):
+//! #[derive(Debug, Clone, PartialEq)]
+//! pub enum Offer {
+//!     /// Continue from the stored position — the
+//!     /// deliberate-pause offer (FR-032c), carrying
+//!     /// the stored offset and the FR-015 interval
+//!     /// start.
+//!     Continue { offset_secs: f64, first_yield_ms: u64 },
+//!     /// The start-over alternative (FR-032c).
+//!     StartOver,
+//! }
+//! #[derive(Debug, Clone, PartialEq)]
+//! pub enum ExpiryOutcome {
 //!     /// Reading begins from the stored position — the
 //!     /// auto-start of a foregrounded deliberate-pause
-//!     /// offer at expiry (SC-020), or the reader's own
-//!     /// activation inside the window.
-//!     AutoStart { from_position_secs: f64 },
-//!     /// No audio begins: an explicit-resume control is all
-//!     /// the session offers (unexpected end per SC-021, or
-//!     /// a backgrounded expiry per FR-032d).
-//!     ExplicitResume { from_position_secs: f64 },
-//!     /// Start over from 0.0; the stored position is
-//!     /// discarded (FR-023 / FR-032f).
-//!     StartOver,
+//!     /// offer at expiry (SC-020), or the start-over
+//!     /// first-spoken-position start.
+//!     AutoStart { offset_secs: f64 },
+//!     /// No audio begins: an explicit-resume control is
+//!     /// all the session offers (unexpected end per
+//!     /// SC-021, or a backgrounded expiry per FR-032d).
+//!     ExplicitResume,
+//!     /// Nothing is open — no outcome (the window never
+//!     /// outlives its session).
+//!     NoOffer,
 //! }
 //! #[derive(Debug, Default)]
 //! pub struct OfferMachine { /* private */ }
 //! impl OfferMachine {
 //!     pub fn new() -> Self;
-//!     /// The session ended with `end_kind` at `position_secs`:
-//!     /// the offer form is resolved SOLELY from the stored
-//!     /// end kind (FR-032c / FR-032d / FR-032f).
-//!     pub fn on_session_end(&mut self, end_kind: session::SessionEnd, position_secs: f64);
+//!     /// The session ended with `stored` under
+//!     /// `fingerprint`: the offer form is resolved
+//!     /// SOLELY from the stored end kind — a
+//!     /// deliberate `Paused` opens the 3 s continue
+//!     /// offer, an `Interrupted` end opens no offer
+//!     /// (the explicit-resume requirement stands),
+//!     /// `Stopped`/`Completed` never open one
+//!     /// (FR-032c / FR-032d / FR-032f).
+//!     pub fn on_session_end(
+//!         &mut self,
+//!         fingerprint: [u8; 32],
+//!         stored: Option<session::store::StoredPosition>,
+//!     ) -> Option<Offer>;
 //!     /// Latch the application as foregrounded (the
 //!     /// `AppForegrounded` intent); read at expiry ONLY,
 //!     /// never converting an open offer early (FR-032c).
@@ -114,13 +135,19 @@
 //!     /// Latch the application as backgrounded (the
 //!     /// `AppBackgrounded` intent); read at expiry ONLY.
 //!     pub fn on_backgrounded(&mut self);
-//!     /// Resolve the offer at the 3 s expiry, reading the
-//!     /// latched foreground flag (FR-032c / SC-020).
-//!     pub fn expire(&mut self) -> OfferOutcome;
-//!     /// The reader activates the offer inside the window.
-//!     pub fn continue_offer(&mut self) -> OfferOutcome;
-//!     /// The reader chooses start-over (FR-032f).
-//!     pub fn start_over(&mut self) -> OfferOutcome;
+//!     /// Resolve the offer at the 3 s expiry, reading
+//!     /// the latched foreground flag (FR-032c / SC-020).
+//!     pub fn expire(&mut self) -> ExpiryOutcome;
+//!     /// The open offer, if any — the reader's
+//!     /// activation inside the window.
+//!     pub fn continue_offer(&mut self) -> Option<Offer>;
+//!     /// The reader chooses start-over (FR-032f):
+//!     /// reading begins at the first spoken position,
+//!     /// `AutoStart { offset_secs: 0.0 }`.
+//!     pub fn start_over(&mut self) -> ExpiryOutcome;
+//!     /// Document completion teardown (FR-032b /
+//!     /// FR-032e / FR-032f): no offer remains.
+//!     pub fn on_completion(&mut self);
 //! }
 //! ```
 //!
@@ -139,9 +166,11 @@
 //! is what makes the SC-020 foreground/background split
 //! CI-drivable without an emulator (contracts/shell-ipc.md).
 
+use std::error::Error;
+
 use proptest::prelude::*;
 
-use engine_core::closed::{EngineError, EngineTier, PlaybackRate, TransportState};
+use engine_core::closed::{EngineError, EngineTier, PlaybackRate, SessionEnd, TransportState};
 use engine_core::fallback::{EngineDescriptor, EngineOffer};
 use engine_core::standin_a::StandinA;
 use engine_core::standin_b::StandinB;
@@ -150,8 +179,8 @@ use player::cli::{PlaybackSession, ShellVerb};
 use player::position::{REWIND_CAP_SECS, REWIND_FRACTION};
 use player::recovery::{RecoveryDecision, RecoveryMachine};
 use player::rewind::cursor;
-use session::SessionEnd;
-use session::offer::{OfferMachine, OfferOutcome};
+use session::offer::{ExpiryOutcome, Offer, OfferMachine};
+use session::store::{BookmarkStore, StoredPosition};
 
 /// The last spoken position of the failover drills, in
 /// seconds: the mid-document position the SC-051 drill
@@ -181,6 +210,24 @@ const SC020_OFFER_TO_AUDIO_SECS: f64 = 4.0;
 /// (the same convention `test_focus_duck_pause_us2.rs`
 /// uses).
 const POS_EPS_SECS: f64 = 0.001;
+
+/// The document fingerprint of a drill session: a
+/// fixed 32-byte key (every drill machine is fresh,
+/// so the drills never collide fingerprints).
+const DRILL_FINGERPRINT: [u8; 32] = [7_u8; 32];
+
+/// The stored position a drill session leaves
+/// behind: the last spoken position on the FR-015
+/// supersede clock (a zero `first_yield_ms` — the
+/// drills never advance it), under the given end
+/// kind.
+fn drill_position(end_kind: SessionEnd) -> StoredPosition {
+    StoredPosition {
+        offset_secs: LAST_SPOKEN_SECS,
+        first_yield_ms: 0,
+        end_kind,
+    }
+}
 
 /// Embedded device fixture: the service-kill / power-loss
 /// trial (3 ordered steps).
@@ -511,7 +558,7 @@ fn service_kill_pauses_at_position_without_auto_audio() {
 #[test]
 fn foregrounded_deliberate_reopen_auto_starts_within_the_sc020_budget() {
     let mut offer = OfferMachine::new();
-    offer.on_session_end(SessionEnd::Paused, LAST_SPOKEN_SECS);
+    offer.on_session_end(DRILL_FINGERPRINT, Some(drill_position(SessionEnd::Paused)));
     offer.on_foregrounded();
     // The latch is not the conversion: the foreground flag
     // is read at expiry ONLY, never converting an open
@@ -521,14 +568,14 @@ fn foregrounded_deliberate_reopen_auto_starts_within_the_sc020_budget() {
     // exception SC-012 names.
     let expired = offer.expire();
     match &expired {
-        OfferOutcome::AutoStart { from_position_secs } => {
+        ExpiryOutcome::AutoStart { offset_secs } => {
             assert_eq!(
-                *from_position_secs, LAST_SPOKEN_SECS,
+                *offset_secs, LAST_SPOKEN_SECS,
                 "the auto-start continues from the stored position (FR-032c / SC-020)"
             );
         }
-        OfferOutcome::ExplicitResume { .. } | OfferOutcome::StartOver => {
-            let auto_started = matches!(expired, OfferOutcome::AutoStart { .. });
+        ExpiryOutcome::ExplicitResume | ExpiryOutcome::NoOffer => {
+            let auto_started = matches!(expired, ExpiryOutcome::AutoStart { .. });
             assert!(
                 auto_started,
                 "a foregrounded deliberate-pause offer must auto-start at expiry (SC-020), got {expired:?}"
@@ -555,29 +602,44 @@ fn foregrounded_deliberate_reopen_auto_starts_within_the_sc020_budget() {
 /// the background — no audio begins until the user activates
 /// resume.
 #[test]
-fn backgrounded_deliberate_reopen_expires_without_auto_audio() {
+fn backgrounded_deliberate_reopen_expires_without_auto_audio() -> Result<(), Box<dyn Error>> {
+    // The stored position the explicit-resume control
+    // reads: the drill's last spoken position under the
+    // deliberate-pause end kind, held by the bookmark
+    // store under the document's fingerprint.
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("bookmarks.redb");
+    let mut store = BookmarkStore::open(&path)?;
+    store.put(&DRILL_FINGERPRINT, drill_position(SessionEnd::Paused))?;
     let mut offer = OfferMachine::new();
-    offer.on_session_end(SessionEnd::Paused, LAST_SPOKEN_SECS);
+    offer.on_session_end(DRILL_FINGERPRINT, Some(drill_position(SessionEnd::Paused)));
     offer.on_backgrounded();
     // SC-020's tail: where the application is not in the
     // foreground when the window expires, no audio begins
     // until the user activates resume (FR-032c / FR-032d).
     let expired = offer.expire();
     match &expired {
-        OfferOutcome::ExplicitResume { from_position_secs } => {
+        ExpiryOutcome::ExplicitResume => {
+            // The silent expiry keeps the stored position
+            // for the explicit resume control (SC-020): the
+            // control resumes from the position the store
+            // still holds under the fingerprint.
+            let kept = store.get(&DRILL_FINGERPRINT)?;
             assert_eq!(
-                *from_position_secs, LAST_SPOKEN_SECS,
-                "the silent expiry keeps the stored position for the explicit resume control (SC-020)"
+                kept.map(|stored| stored.offset_secs),
+                Some(LAST_SPOKEN_SECS),
+                "the silent expiry dropped the stored position the explicit resume control reads (SC-020)"
             );
         }
-        OfferOutcome::AutoStart { .. } | OfferOutcome::StartOver => {
-            let explicit = matches!(expired, OfferOutcome::ExplicitResume { .. });
+        ExpiryOutcome::AutoStart { .. } | ExpiryOutcome::NoOffer => {
+            let explicit = matches!(expired, ExpiryOutcome::ExplicitResume);
             assert!(
                 explicit,
                 "a backgrounded expiry must not auto-start (SC-020 / FR-032d), got {expired:?}"
             );
         }
     }
+    Ok(())
 }
 
 /// F5c (SC-021 / FR-032d): reopening a document left by an
@@ -586,29 +648,50 @@ fn backgrounded_deliberate_reopen_expires_without_auto_audio() {
 /// foreground. The foreground latch never converts an
 /// unexpected-end offer to an auto-start.
 #[test]
-fn unexpected_end_never_auto_starts_even_in_the_foreground() {
+fn unexpected_end_never_auto_starts_even_in_the_foreground() -> Result<(), Box<dyn Error>> {
+    // The stored position the explicit-resume control
+    // reads: the drill's last spoken position under the
+    // interrupted end kind, held by the bookmark store
+    // under the document's fingerprint.
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("bookmarks.redb");
+    let mut store = BookmarkStore::open(&path)?;
+    store.put(&DRILL_FINGERPRINT, drill_position(SessionEnd::Interrupted))?;
     let mut offer = OfferMachine::new();
-    offer.on_session_end(SessionEnd::Interrupted, LAST_SPOKEN_SECS);
+    // An unexpected end opens no continue offer — the
+    // offer form is resolved solely from the stored end
+    // kind (storage-schema.md).
+    let opened = offer.on_session_end(
+        DRILL_FINGERPRINT,
+        Some(drill_position(SessionEnd::Interrupted)),
+    );
+    assert!(
+        opened.is_none(),
+        "an unexpected end opened a continue offer (FR-032d)"
+    );
     offer.on_foregrounded();
     // SC-021: an unexpected end (a power-off, a battery
     // death, a network loss, an interrupted session) offers
     // an explicit resume control and nothing more.
     let expired = offer.expire();
     match &expired {
-        OfferOutcome::ExplicitResume { from_position_secs } => {
+        ExpiryOutcome::ExplicitResume => {
+            let kept = store.get(&DRILL_FINGERPRINT)?;
             assert_eq!(
-                *from_position_secs, LAST_SPOKEN_SECS,
-                "the unexpected-end offer carries the stored position for the explicit resume control (SC-021)"
+                kept.map(|stored| stored.offset_secs),
+                Some(LAST_SPOKEN_SECS),
+                "the unexpected-end offer dropped the stored position the explicit resume control reads (SC-021)"
             );
         }
-        OfferOutcome::AutoStart { .. } | OfferOutcome::StartOver => {
-            let explicit = matches!(expired, OfferOutcome::ExplicitResume { .. });
+        ExpiryOutcome::AutoStart { .. } | ExpiryOutcome::NoOffer => {
+            let explicit = matches!(expired, ExpiryOutcome::ExplicitResume);
             assert!(
                 explicit,
                 "an unexpected end never auto-starts, even in the foreground (SC-021 / FR-032d), got {expired:?}"
             );
         }
     }
+    Ok(())
 }
 
 /// F5d (FR-032c / FR-032f): the reader's own actions
@@ -617,20 +700,20 @@ fn unexpected_end_never_auto_starts_even_in_the_foreground() {
 #[test]
 fn reader_activation_and_start_over_inside_the_window() {
     // The reader activates the offer inside the 3 s
-    // window: reading begins from the stored position
-    // immediately (FR-032c).
+    // window: the open offer continues from the stored
+    // position immediately (FR-032c).
     let mut activated = OfferMachine::new();
-    activated.on_session_end(SessionEnd::Paused, LAST_SPOKEN_SECS);
+    activated.on_session_end(DRILL_FINGERPRINT, Some(drill_position(SessionEnd::Paused)));
     let continued = activated.continue_offer();
     match &continued {
-        OfferOutcome::AutoStart { from_position_secs } => {
+        Some(Offer::Continue { offset_secs, .. }) => {
             assert_eq!(
-                *from_position_secs, LAST_SPOKEN_SECS,
+                *offset_secs, LAST_SPOKEN_SECS,
                 "the reader's activation continues from the stored position (FR-032c)"
             );
         }
-        OfferOutcome::ExplicitResume { .. } | OfferOutcome::StartOver => {
-            let auto_started = matches!(continued, OfferOutcome::AutoStart { .. });
+        Some(Offer::StartOver) | None => {
+            let auto_started = matches!(continued, Some(Offer::Continue { .. }));
             assert!(
                 auto_started,
                 "activating the offer inside the window must continue from the stored position (FR-032c), got {continued:?}"
@@ -638,14 +721,20 @@ fn reader_activation_and_start_over_inside_the_window() {
         }
     }
     // Start-over discards the stored position (FR-023 /
-    // FR-032f).
+    // FR-032f): reading begins from the first spoken
+    // position — exactly 0.0.
     let mut restarted = OfferMachine::new();
-    restarted.on_session_end(SessionEnd::Paused, LAST_SPOKEN_SECS);
+    restarted.on_session_end(DRILL_FINGERPRINT, Some(drill_position(SessionEnd::Paused)));
     let started_over = restarted.start_over();
     match &started_over {
-        OfferOutcome::StartOver => {}
-        OfferOutcome::AutoStart { .. } | OfferOutcome::ExplicitResume { .. } => {
-            let discarded = matches!(started_over, OfferOutcome::StartOver);
+        ExpiryOutcome::AutoStart { offset_secs } => {
+            assert_eq!(
+                *offset_secs, 0.0,
+                "start-over must begin from the first spoken position, 0.0 (FR-032f)"
+            );
+        }
+        ExpiryOutcome::ExplicitResume | ExpiryOutcome::NoOffer => {
+            let discarded = matches!(started_over, ExpiryOutcome::AutoStart { .. });
             assert!(
                 discarded,
                 "start-over must discard the stored position (FR-032f), got {started_over:?}"
@@ -696,7 +785,7 @@ fn power_loss_replay_stays_within_the_30s_cap() {
 /// fixture order, driven through the Rust state machines
 /// with the outcome each `result` token records.
 #[test]
-fn service_kill_power_loss_fixture_replay() {
+fn service_kill_power_loss_fixture_replay() -> Result<(), Box<dyn Error>> {
     let lines: Vec<&str> = FIXTURE_SERVICE_KILL_POWER_LOSS.lines().collect();
     assert_eq!(
         lines.len(),
@@ -759,20 +848,35 @@ fn service_kill_power_loss_fixture_replay() {
     // `position_offer: true`): an unexpected end offers an
     // explicit resume control and produces no audio at all
     // until the user activates resume (SC-021 / FR-032d) —
-    // even with the application in the foreground.
+    // even with the application in the foreground. The
+    // position the control reads stays in the bookmark
+    // store under the document's fingerprint.
+    let reopen_dir = tempfile::tempdir()?;
+    let reopen_path = reopen_dir.path().join("bookmarks.redb");
+    let mut reopen_store = BookmarkStore::open(&reopen_path)?;
+    reopen_store.put(&DRILL_FINGERPRINT, drill_position(SessionEnd::Interrupted))?;
     let mut offer = OfferMachine::new();
-    offer.on_session_end(SessionEnd::Interrupted, LAST_SPOKEN_SECS);
+    let opened = offer.on_session_end(
+        DRILL_FINGERPRINT,
+        Some(drill_position(SessionEnd::Interrupted)),
+    );
+    assert!(
+        opened.is_none(),
+        "an unexpected-end reopen opened a continue offer (SC-021 → explicit_resume_not_auto_audio)"
+    );
     offer.on_foregrounded();
     let reopened = offer.expire();
     match &reopened {
-        OfferOutcome::ExplicitResume { from_position_secs } => {
+        ExpiryOutcome::ExplicitResume => {
+            let kept = reopen_store.get(&DRILL_FINGERPRINT)?;
             assert_eq!(
-                *from_position_secs, LAST_SPOKEN_SECS,
-                "the reopen offer carries the last spoken position (SC-021 → explicit_resume_not_auto_audio)"
+                kept.map(|stored| stored.offset_secs),
+                Some(LAST_SPOKEN_SECS),
+                "the reopen dropped the stored position the explicit resume control reads (SC-021 → explicit_resume_not_auto_audio)"
             );
         }
-        OfferOutcome::AutoStart { .. } | OfferOutcome::StartOver => {
-            let explicit = matches!(reopened, OfferOutcome::ExplicitResume { .. });
+        ExpiryOutcome::AutoStart { .. } | ExpiryOutcome::NoOffer => {
+            let explicit = matches!(reopened, ExpiryOutcome::ExplicitResume);
             assert!(
                 explicit,
                 "an unexpected-end reopen must never auto-start (SC-021 → explicit_resume_not_auto_audio), got {reopened:?}"
@@ -816,6 +920,7 @@ fn service_kill_power_loss_fixture_replay() {
         replay_secs > 0.0,
         "the replay must not land at the document start (the fixture records document_start=false)"
     );
+    Ok(())
 }
 
 proptest! {

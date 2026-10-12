@@ -21,6 +21,7 @@ use engine_core::format::{DeclaredFormat, check_handoff};
 use thiserror::Error;
 use tracing::{error, info, instrument};
 
+use crate::focus::FULL_GAIN;
 use crate::position::PositionClock;
 
 /// Errors from the CPAL backend.
@@ -44,14 +45,36 @@ pub enum BackendError {
     /// Playback start was refused.
     #[error("playback start refused: {0}")]
     StartRefused(String),
+    /// The gain factor was outside `[0.0, 1.0]` — never applied;
+    /// the previous gain stands.
+    #[error("gain must be within [0.0, 1.0], got {0}")]
+    InvalidGain(f32),
 }
 
 /// FIFO of mono `f32` samples at the declared rate, shared with
 /// the stream callback.
-#[derive(Debug, Default)]
+///
+/// Carries the output gain factor (the FR-013 duck actuator):
+/// every audible sample is scaled by it on the way out, so a
+/// duck or restore applies to already-queued audio too. The
+/// silence written for an empty queue stays `0.0` regardless
+/// of the gain.
+#[derive(Debug)]
 struct SampleQueue {
     /// Buffered samples not yet consumed by the callback.
     samples: VecDeque<f32>,
+    /// Output gain in `[0.0, 1.0]`; full gain by default, so a
+    /// fresh queue is bit-identical to the unscaled path.
+    gain: f32,
+}
+
+impl Default for SampleQueue {
+    fn default() -> Self {
+        Self {
+            samples: VecDeque::new(),
+            gain: FULL_GAIN,
+        }
+    }
 }
 
 impl SampleQueue {
@@ -60,13 +83,33 @@ impl SampleQueue {
         self.samples.extend(pcm.iter().copied());
     }
 
-    /// Move up to `out.len()` samples into `out`, filling the
+    /// The currently applied output gain.
+    fn gain(&self) -> f32 {
+        self.gain
+    }
+
+    /// Set the output gain, accepting `[0.0, 1.0]` and rejecting
+    /// negatives, factors above `1.0`, infinities, and `NaN`
+    /// with the offending factor carried in the error. A
+    /// rejection leaves the previous gain untouched.
+    fn set_gain(&mut self, factor: f32) -> Result<(), BackendError> {
+        if factor.is_finite() && (0.0..=1.0).contains(&factor) {
+            self.gain = factor;
+            Ok(())
+        } else {
+            Err(BackendError::InvalidGain(factor))
+        }
+    }
+
+    /// Move up to `out.len()` samples into `out`, scaling each
+    /// audible sample by the current gain and filling the
     /// remainder with silence. Returns the consumed count.
     fn consume_into(&mut self, out: &mut [f32]) -> usize {
+        let gain = self.gain;
         let mut consumed = 0;
         for slot in out.iter_mut() {
             if let Some(sample) = self.samples.pop_front() {
-                *slot = sample;
+                *slot = sample * gain;
                 consumed += 1;
             } else {
                 *slot = 0.0;
@@ -224,6 +267,40 @@ impl CpalBackend {
         self.queue.lock().map(|q| q.len()).unwrap_or(0)
     }
 
+    /// Set the output gain factor (the FR-013 duck actuator).
+    ///
+    /// Every factor in `[0.0, 1.0]` — including silence `0.0`,
+    /// the nominal duck factor (`0.20`) and full gain (`1.0`)
+    /// — is accepted and scales every subsequently consumed
+    /// sample, including audio already queued. A rejected
+    /// factor leaves the previous gain untouched.
+    ///
+    /// # Errors
+    ///
+    /// [`BackendError::InvalidGain`] carrying the offending
+    /// factor when it is negative, above `1.0`, infinite, or
+    /// `NaN` — or when the queue lock is poisoned (unreachable
+    /// while panics are denied); the previous gain stands in
+    /// every rejection case.
+    pub fn set_gain(&self, factor: f32) -> Result<(), BackendError> {
+        if let Ok(mut queue) = self.queue.lock() {
+            queue.set_gain(factor)
+        } else {
+            Err(BackendError::InvalidGain(factor))
+        }
+    }
+
+    /// The currently applied output gain: full gain (`1.0`) on
+    /// a fresh backend, otherwise the last accepted
+    /// [`set_gain`](Self::set_gain) factor, echoed exactly.
+    #[must_use]
+    pub fn gain(&self) -> f32 {
+        self.queue
+            .lock()
+            .map(|queue| queue.gain())
+            .unwrap_or(FULL_GAIN)
+    }
+
     /// Start (or resume) playback.
     ///
     /// # Errors
@@ -294,6 +371,7 @@ impl Drop for CpalBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::focus::DUCK_GAIN;
 
     #[test]
     fn an_empty_queue_yields_silence_and_zero_consumed() {
@@ -326,6 +404,122 @@ mod tests {
         assert_eq!(consumed, 2);
         assert_eq!(out, [1.0, 2.0]);
         assert_eq!(queue.len(), 2);
+    }
+
+    #[expect(
+        clippy::float_cmp,
+        reason = "the default gain must be exactly FULL_GAIN; == pins the 1.0 default and a tolerance would admit drift"
+    )]
+    #[test]
+    fn a_fresh_queue_reads_full_gain() {
+        let queue = SampleQueue::default();
+        assert_eq!(queue.gain(), FULL_GAIN);
+    }
+
+    #[test]
+    fn unity_gain_leaves_samples_bit_identical() {
+        let mut queue = SampleQueue::default();
+        queue.push(&[0.5, -0.25, 0.125]);
+        let mut out = [0.0_f32; 5];
+        let consumed = queue.consume_into(&mut out);
+        assert_eq!(consumed, 3);
+        assert_eq!(out, [0.5, -0.25, 0.125, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn duck_gain_scales_audible_samples_within_epsilon() {
+        let mut queue = SampleQueue::default();
+        assert!(queue.set_gain(DUCK_GAIN).is_ok());
+        queue.push(&[1.0, -0.5, 0.25]);
+        let mut out = [0.0_f32; 5];
+        let consumed = queue.consume_into(&mut out);
+        assert_eq!(consumed, 3);
+        let expected = [0.2_f32, -0.1, 0.05, 0.0, 0.0];
+        for (index, (got, want)) in out.iter().zip(expected.iter()).enumerate() {
+            let drift = (*got - *want).abs();
+            assert!(
+                drift <= 1e-6,
+                "sample {index} drifted by {drift}: got {got}, want {want}"
+            );
+        }
+    }
+
+    #[test]
+    fn duck_gain_leaves_silence_silent() {
+        let mut queue = SampleQueue::default();
+        assert!(queue.set_gain(DUCK_GAIN).is_ok());
+        let mut out = [1.0_f32; 4];
+        let consumed = queue.consume_into(&mut out);
+        assert_eq!(consumed, 0);
+        assert_eq!(out, [0.0; 4]);
+    }
+
+    #[expect(
+        clippy::float_cmp,
+        reason = "boundary gains must echo bit-for-bit and rejections must leave the stored gain bit-for-bit intact; == pins the echo/unchanged laws and a tolerance would admit drift"
+    )]
+    #[test]
+    fn boundary_gains_are_accepted_and_echoed() {
+        let mut queue = SampleQueue::default();
+        for factor in [0.0_f32, DUCK_GAIN, FULL_GAIN] {
+            assert!(
+                queue.set_gain(factor).is_ok(),
+                "gain factor {factor} inside [0.0, 1.0] was rejected"
+            );
+            assert_eq!(
+                queue.gain(),
+                factor,
+                "gain did not echo the accepted factor {factor}"
+            );
+        }
+    }
+
+    #[expect(
+        clippy::float_cmp,
+        reason = "a rejection must leave the stored gain bit-for-bit intact; == pins the unchanged law and a tolerance would admit drift"
+    )]
+    #[test]
+    fn invalid_gains_are_rejected_with_gain_unchanged() {
+        let mut queue = SampleQueue::default();
+        assert!(queue.set_gain(0.5).is_ok());
+        for factor in [
+            -1.0_f32,
+            -10.0,
+            1.000_001,
+            10.0,
+            f32::INFINITY,
+            f32::NEG_INFINITY,
+            f32::NAN,
+        ] {
+            assert!(
+                matches!(queue.set_gain(factor), Err(BackendError::InvalidGain(_))),
+                "gain factor {factor} outside [0.0, 1.0] was not rejected with the named InvalidGain error"
+            );
+            assert_eq!(
+                queue.gain(),
+                0.5,
+                "a rejected gain factor {factor} moved the stored gain"
+            );
+        }
+    }
+
+    #[test]
+    fn rejection_carries_the_offending_factor() {
+        let mut queue = SampleQueue::default();
+        assert!(
+            matches!(
+                queue.set_gain(-0.5),
+                Err(BackendError::InvalidGain(got)) if (got + 0.5).abs() <= f32::EPSILON
+            ),
+            "rejection did not carry the offending factor"
+        );
+        assert!(
+            matches!(
+                queue.set_gain(f32::NAN),
+                Err(BackendError::InvalidGain(got)) if got.is_nan()
+            ),
+            "NaN rejection did not carry the offending factor"
+        );
     }
 
     #[test]

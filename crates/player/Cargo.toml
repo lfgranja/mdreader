@@ -49,10 +49,21 @@ path = "tests/contract/test_focus_intents_us2.rs"
 name = "test_external_start_us1"
 path = "tests/integration/test_external_start_us1.rs"
 
-# US3/US4/US5 targets (test_routing_us3,
-# test_removal_signals_us3, test_lockscreen_us4,
+[[test]]
+name = "prop_routing"
+path = "tests/prop_routing.rs"
+
+[[test]]
+name = "test_routing_us3"
+path = "tests/integration/test_routing_us3.rs"
+
+[[test]]
+name = "test_removal_signals_us3"
+path = "tests/contract/test_removal_signals_us3.rs"
+
+# US4/US5 targets (test_lockscreen_us4,
 # test_shell_ipc_us4, test_failover_us5) stay unwired until
-# their test tasks (T042–T044, T049–T055, T067–T071) land
+# their test tasks (T049–T055, T067–T071) land
 # the files — wiring a missing path breaks every workspace
 # build (this commit's first attempt proved it).
 

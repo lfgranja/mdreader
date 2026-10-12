@@ -208,11 +208,9 @@ pub mod commands {
 
     use super::permissions::{self, PermissionSnapshot};
     use super::{AppState, CpalBackend};
-    use crate::publish;
     use player::cli::{SessionSnapshot, ShellVerb};
     use player::focus::{FocusClassification, FocusIntent, FocusOutcome};
     use player::routing::{RoutingDecision, RoutingSignal, RoutingTracker};
-    use player::surface::{Heading, SurfaceResolver};
     use tauri::{AppHandle, Manager, State, command};
 
     /// Declared sample rate of the engine handoff (mono f32).
@@ -1616,7 +1614,7 @@ pub mod publish {
     /// (should not happen on a healthy Tauri setup).
     #[tauri::command]
     pub fn register_publish_listener(
-        app: AppHandle,
+        _app: AppHandle,
         state: State<'_, AppState>,
     ) -> Result<(), String> {
         // Create a channel with a no-op on_message handler.

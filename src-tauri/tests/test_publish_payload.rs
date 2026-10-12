@@ -39,13 +39,7 @@ use src_tauri::publish::publish_mirror;
 #[test]
 fn publish_payload_carries_exactly_the_five_contract_keys_for_each_transport() {
     // Test every transport state with a known position and section.
-    let transports = [
-        "playing",
-        "paused",
-        "stopped",
-        "completed",
-        "interrupted",
-    ];
+    let transports = ["playing", "paused", "stopped", "completed", "interrupted"];
 
     for transport in transports {
         let position_secs = 30.0;
@@ -77,7 +71,9 @@ fn publish_payload_carries_exactly_the_five_contract_keys_for_each_transport() {
         );
         assert_eq!(
             obj.get("position_secs"),
-            Some(&Value::Number(serde_json::Number::from_f64(position_secs).unwrap())),
+            Some(&Value::Number(
+                serde_json::Number::from_f64(position_secs).unwrap()
+            )),
             "position_secs key must be the authoritative position"
         );
         assert!(
@@ -98,11 +94,15 @@ fn publish_payload_carries_exactly_the_five_contract_keys_for_each_transport() {
         let det = progress.get("determinate").unwrap();
         assert_eq!(
             det.get("position_secs"),
-            Some(&Value::Number(serde_json::Number::from_f64(position_secs).unwrap()))
+            Some(&Value::Number(
+                serde_json::Number::from_f64(position_secs).unwrap()
+            ))
         );
         assert_eq!(
             det.get("duration_secs"),
-            Some(&Value::Number(serde_json::Number::from_f64(duration_secs).unwrap()))
+            Some(&Value::Number(
+                serde_json::Number::from_f64(duration_secs).unwrap()
+            ))
         );
 
         // Verify no extra keys (especially no body text, rate, voice, etc.)
@@ -121,7 +121,7 @@ fn publish_payload_carries_exactly_the_five_contract_keys_for_each_transport() {
 #[test]
 fn publish_payload_section_title_absent_before_first_heading() {
     let position_secs = 5.0;
-    let duration_secs = 120.0;
+    let _duration_secs = 120.0;
 
     // This call will fail until T133 implements publish_mirror.
     let payload = publish_mirror(
@@ -154,7 +154,7 @@ fn publish_payload_indeterminate_progress_when_duration_unknown() {
         position_secs,
         Some("Chapter 1".to_string()),
         false, // indeterminate
-        None, // no transient reason
+        None,  // no transient reason
     );
 
     let obj = payload.as_object().expect("payload must be a JSON object");
@@ -169,7 +169,7 @@ fn publish_payload_indeterminate_progress_when_duration_unknown() {
 #[test]
 fn publish_payload_transient_reason_present_only_for_transient_pause() {
     let position_secs = 30.0;
-    let duration_secs = 120.0;
+    let _duration_secs = 120.0;
 
     // With transient reason (focus loss, FR-041).
     let with_reason = publish_mirror(
@@ -180,7 +180,11 @@ fn publish_payload_transient_reason_present_only_for_transient_pause() {
         Some("outro app usando o áudio".to_string()),
     );
     let obj = with_reason.as_object().unwrap();
-    assert_eq!(obj.len(), 5, "payload with transient reason must have 5 keys");
+    assert_eq!(
+        obj.len(),
+        5,
+        "payload with transient reason must have 5 keys"
+    );
     assert!(
         obj.get("transient_reason").is_some(),
         "transient_reason must be present for focus-loss pause"
@@ -199,7 +203,11 @@ fn publish_payload_transient_reason_present_only_for_transient_pause() {
         None,
     );
     let obj = without_reason.as_object().unwrap();
-    assert_eq!(obj.len(), 4, "resident pause payload must have 4 keys (no transient_reason)");
+    assert_eq!(
+        obj.len(),
+        4,
+        "resident pause payload must have 4 keys (no transient_reason)"
+    );
     assert!(
         obj.get("transient_reason").is_none(),
         "transient_reason must be absent for resident pause"
@@ -209,7 +217,7 @@ fn publish_payload_transient_reason_present_only_for_transient_pause() {
 #[test]
 fn publish_payload_never_carries_body_text_or_extra_fields() {
     let position_secs = 30.0;
-    let duration_secs = 120.0;
+    let _duration_secs = 120.0;
 
     // This call will fail until T133 implements publish_mirror.
     let payload = publish_mirror(
@@ -260,13 +268,7 @@ fn publish_payload_transport_enum_matches_contract_case_mapping() {
 
     for (input_transport, expected_wire) in transports {
         // This call will fail until T133 implements publish_mirror.
-        let payload = publish_mirror(
-            input_transport,
-            30.0,
-            None,
-            true,
-            None,
-        );
+        let payload = publish_mirror(input_transport, 30.0, None, true, None);
         let transport_value = payload.get("transport").unwrap();
         assert_eq!(
             transport_value,

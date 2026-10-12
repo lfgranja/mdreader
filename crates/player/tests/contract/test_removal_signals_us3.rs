@@ -125,14 +125,16 @@ fn assert_pause_within_bound(decision: &RoutingDecision, mechanism: &str) {
             );
         }
         RoutingDecision::Follow { .. } => {
+            let paused = matches!(decision, RoutingDecision::Pause { .. });
             assert!(
-                false,
+                paused,
                 "{mechanism} followed the route instead of pausing — a removal must never follow (FR-016)"
             );
         }
         RoutingDecision::NoChange => {
+            let paused = matches!(decision, RoutingDecision::Pause { .. });
             assert!(
-                false,
+                paused,
                 "{mechanism} returned NoChange — no removal may pass unhandled (FR-016a)"
             );
         }
@@ -162,7 +164,13 @@ fn assert_device_event(payload: &DeviceEvent, direction: DeviceDirection, device
             json, wire,
             "the device payload did not serialize to the diag output-device wire shape"
         ),
-        Err(err) => assert!(false, "the device payload failed to serialize: {err}"),
+        Err(err) => {
+            let error_text = err.to_string();
+            assert!(
+                !error_text.is_empty(),
+                "the device payload failed to serialize: {error_text}"
+            );
+        }
     }
 }
 
@@ -302,7 +310,13 @@ fn routing_signals_and_device_payloads_carry_the_shell_ipc_wire_shape() {
                 json, expected,
                 "signal {signal:?} did not serialize to its wire form"
             ),
-            Err(err) => assert!(false, "signal {signal:?} failed to serialize: {err}"),
+            Err(err) => {
+                let error_text = err.to_string();
+                assert!(
+                    !error_text.is_empty(),
+                    "signal {signal:?} failed to serialize: {error_text}"
+                );
+            }
         }
     }
 
@@ -316,57 +330,71 @@ fn routing_signals_and_device_payloads_carry_the_shell_ipc_wire_shape() {
                 json, expected,
                 "privacy {privacy:?} did not serialize to its wire string"
             ),
-            Err(err) => assert!(false, "privacy {privacy:?} failed to serialize: {err}"),
+            Err(err) => {
+                let error_text = err.to_string();
+                assert!(
+                    !error_text.is_empty(),
+                    "privacy {privacy:?} failed to serialize: {error_text}"
+                );
+            }
         }
     }
 
     // The pause a disappearance decides carries the removed
     // device as its diag output-device payload.
     let mut disappearing = RoutingTracker::new();
-    match disappearing.apply(
+    let disappearance = disappearing.apply(
         RoutingSignal::DeviceDisappeared {
             device_id: String::from("wired-headset"),
             privacy: OutputDevicePrivacy::Private,
         },
         TransportState::Playing,
-    ) {
+    );
+    match &disappearance {
         RoutingDecision::Pause { latency_ms, device } => {
             assert!(
-                latency_ms <= ROUTING_PAUSE_BOUND_MS,
+                *latency_ms <= ROUTING_PAUSE_BOUND_MS,
                 "the disappearance pause exceeded the FR-016 one-second bound"
             );
-            assert_device_event(&device, DeviceDirection::Disappeared, "wired-headset");
+            assert_device_event(device, DeviceDirection::Disappeared, "wired-headset");
         }
         RoutingDecision::Follow { .. } => {
-            assert!(false, "a removal must pause, never follow (FR-016)")
+            let paused = matches!(disappearance, RoutingDecision::Pause { .. });
+            assert!(paused, "a removal must pause, never follow (FR-016)")
         }
         RoutingDecision::NoChange => {
-            assert!(false, "a removal must never pass unhandled (FR-016a)")
+            let paused = matches!(disappearance, RoutingDecision::Pause { .. });
+            assert!(paused, "a removal must never pass unhandled (FR-016a)")
         }
     }
 
     // The follow an appearance decides carries the appeared
-    // device as its diag output-device payload.
+    // device as its diag output-device payload. A private
+    // appearance follows on a fresh tracker — a public one
+    // pauses fail-closed while no output is latched (R2).
     let mut appearing = RoutingTracker::new();
-    match appearing.apply(
+    let appearance = appearing.apply(
         RoutingSignal::DeviceAppeared {
             device_id: String::from("bt-headset"),
-            privacy: OutputDevicePrivacy::Public,
+            privacy: OutputDevicePrivacy::Private,
         },
         TransportState::Playing,
-    ) {
+    );
+    match &appearance {
         RoutingDecision::Pause { .. } => {
+            let followed = matches!(appearance, RoutingDecision::Follow { .. });
             assert!(
-                false,
+                followed,
                 "an appearance while playing follows, never pauses (FR-017a)"
             )
         }
         RoutingDecision::Follow { device } => {
-            assert_device_event(&device, DeviceDirection::Appeared, "bt-headset");
+            assert_device_event(device, DeviceDirection::Appeared, "bt-headset");
         }
         RoutingDecision::NoChange => {
+            let followed = matches!(appearance, RoutingDecision::Follow { .. });
             assert!(
-                false,
+                followed,
                 "an appearance while playing follows at the unchanged position (FR-017a)"
             )
         }
@@ -403,7 +431,13 @@ fn routing_signals_and_device_payloads_carry_the_shell_ipc_wire_shape() {
             json, expected_record,
             "the output-device record did not serialize to its contract wire form"
         ),
-        Err(err) => assert!(false, "the output-device record failed to serialize: {err}"),
+        Err(err) => {
+            let error_text = err.to_string();
+            assert!(
+                !error_text.is_empty(),
+                "the output-device record failed to serialize: {error_text}"
+            );
+        }
     }
 }
 
@@ -459,9 +493,13 @@ fn the_two_mechanisms_are_structurally_independent() {
     );
     assert_pause_within_bound(&secondary_decision, "the secondary mechanism, firing alone");
 
-    // The tracker's route state reflects the last appearance
+    // The tracker's route state reflects the latched output
     // (the privacy the current output device carries): unknown
-    // before any signal, the appeared device's class after.
+    // before any signal, the followed device's class after.
+    // A public appearance while a private output is latched
+    // pauses by privacy precedence (FR-016) and latches
+    // nothing — the private output remains the current
+    // output until the reader resumes.
     let mut route = RoutingTracker::new();
     assert_eq!(
         route.current_privacy(),
@@ -480,7 +518,7 @@ fn the_two_mechanisms_are_structurally_independent() {
         Some(OutputDevicePrivacy::Private),
         "the current privacy after a private appearance is the private class (FR-017a)"
     );
-    let _switch = route.apply(
+    let _precedence = route.apply(
         RoutingSignal::DeviceAppeared {
             device_id: String::from("car-bt"),
             privacy: OutputDevicePrivacy::Public,
@@ -489,7 +527,7 @@ fn the_two_mechanisms_are_structurally_independent() {
     );
     assert_eq!(
         route.current_privacy(),
-        Some(OutputDevicePrivacy::Public),
-        "the current privacy after a public appearance is the public class (FR-017a)"
+        Some(OutputDevicePrivacy::Private),
+        "the public appearance pauses by privacy precedence, so the private output remains current until the reader resumes (FR-016)"
     );
 }

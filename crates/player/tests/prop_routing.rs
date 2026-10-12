@@ -131,9 +131,9 @@ fn matched_privacy(device_id: &str) -> OutputDevicePrivacy {
 
 /// A removal signal with the device's real class attached.
 fn disappeared_matched_strategy() -> impl Strategy<Value = RoutingSignal> {
-    device_id_strategy().prop_map(|device_id| RoutingSignal::DeviceDisappeared {
-        device_id,
-        privacy: matched_privacy(&device_id),
+    device_id_strategy().prop_map(|device_id| {
+        let privacy = matched_privacy(&device_id);
+        RoutingSignal::DeviceDisappeared { device_id, privacy }
     })
 }
 
@@ -415,7 +415,10 @@ fn reference_decision(
 /// `BecomingNoisy` unlatches (the route went noisy); a
 /// privacy-precedence pause leaves the private output
 /// latched — it remains the current output until the
-/// reader resumes (FR-016).
+/// reader resumes (FR-016); and an appearance while not
+/// playing latches the reconnected device even though its
+/// decision is a no-op (R3 — the explicit resume happens
+/// through the device the reader reconnected, FR-017).
 fn reference_latch_after(
     signal: &RoutingSignal,
     decision: &ReferenceDecision,
@@ -427,10 +430,23 @@ fn reference_latch_after(
             device_id: device_id.clone(),
             privacy: *privacy,
         }),
-        // A no-op, and a privacy-precedence pause, leave
-        // the latch where it was.
-        (RoutingSignal::DeviceAppeared { .. }, ReferenceDecision::Pause { .. })
-        | (_, ReferenceDecision::NoChange) => previous,
+        // A privacy-precedence pause leaves the latch where
+        // it was: the private output remains the current
+        // output until the reader resumes (FR-016).
+        (RoutingSignal::DeviceAppeared { .. }, ReferenceDecision::Pause { .. }) => previous,
+        // An appearance while not playing (R3): the decision
+        // is a no-op, but the reconnected device is latched
+        // so the explicit resume happens through it (FR-017).
+        // While playing, an appearance never decides
+        // `NoChange`, so this arm is the non-playing case.
+        (RoutingSignal::DeviceAppeared { device_id, privacy }, ReferenceDecision::NoChange) => {
+            Some(DeviceLatch {
+                device_id: device_id.clone(),
+                privacy: *privacy,
+            })
+        }
+        // Every other no-op leaves the latch where it was.
+        (_, ReferenceDecision::NoChange) => previous,
         // The route went noisy: no device remains latched.
         (RoutingSignal::BecomingNoisy, ReferenceDecision::Pause { .. }) => None,
         // A removal unlatches only the removed device, and
@@ -654,6 +670,23 @@ proptest! {
     ) {
         let mut tracker = RoutingTracker::new();
         let mut session = SimSession::playing_on("wired", OutputDevicePrivacy::Private);
+        // Latch the private route the way a session opens:
+        // the appearing headset is followed, so the tracker
+        // and the session model agree on the opening latch
+        // (R6) before the first generated step.
+        let opening = tracker.apply(
+            RoutingSignal::DeviceAppeared {
+                device_id: "wired".to_string(),
+                privacy: OutputDevicePrivacy::Private,
+            },
+            session.transport,
+        );
+        prop_assert_eq!(
+            decision_kind(&opening),
+            DecisionKind::Follow,
+            "the opening appearance must follow the wired headset (FR-017a)"
+        );
+        session.apply_decision(&opening);
         for step in steps {
             match step {
                 Step::Audible { secs } => {
@@ -731,6 +764,23 @@ proptest! {
     ) {
         let mut tracker = RoutingTracker::new();
         let mut session = SimSession::playing_on("wired", OutputDevicePrivacy::Private);
+        // Latch the private route the way a session opens:
+        // the appearing headset is followed, so the tracker
+        // and the session model agree on the opening latch
+        // (R6) before the first generated signal.
+        let opening = tracker.apply(
+            RoutingSignal::DeviceAppeared {
+                device_id: "wired".to_string(),
+                privacy: OutputDevicePrivacy::Private,
+            },
+            session.transport,
+        );
+        prop_assert_eq!(
+            decision_kind(&opening),
+            DecisionKind::Follow,
+            "the opening appearance must follow the wired headset (FR-017a)"
+        );
+        session.apply_decision(&opening);
         let mut pause_count = 0u64;
         for signal in signals {
             let position_before = session.position_secs;
@@ -778,15 +828,33 @@ proptest! {
     }
 
     /// R3 / FR-017: while not playing, every signal is a
-    /// no-op — never an auto-resume, and never a latch
+    /// no-op — never an auto-resume, never a transport
     /// change: an already-silent session absorbs removals
-    /// and appearances alike.
+    /// and appearances alike. An appearance still latches
+    /// the reconnected device (R3), so the explicit resume
+    /// happens through it (FR-017).
     #[test]
     fn every_non_playing_state_absorbs_every_signal(
         (state, signal) in (non_playing_state_strategy(), routing_signal_strategy())
     ) {
         let mut tracker = RoutingTracker::new();
         let mut session = SimSession::in_state(state);
+        // Latch the private route the way a session opens:
+        // the opening appearance is followed while playing,
+        // so the tracker holds the latch the session model
+        // opens with (R6) before the generated signal.
+        let opening = tracker.apply(
+            RoutingSignal::DeviceAppeared {
+                device_id: "wired".to_string(),
+                privacy: OutputDevicePrivacy::Private,
+            },
+            TransportState::Playing,
+        );
+        prop_assert_eq!(
+            decision_kind(&opening),
+            DecisionKind::Follow,
+            "the opening appearance must follow the wired headset (FR-017a)"
+        );
         let position_before = session.position_secs;
         let reference = reference_decision(&signal, session.transport, session.current.as_ref());
         let previous_latch = session.current.take();
@@ -815,7 +883,7 @@ proptest! {
         prop_assert_eq!(
             tracker.current_privacy(),
             session.current.as_ref().map(|latch| latch.privacy),
-            "a signal while not playing must not change the latched privacy (R6)"
+            "the tracker latched a different privacy than the session model (R6)"
         );
     }
 }
@@ -1073,6 +1141,26 @@ fn coincidence_with_appearance_first_pauses_by_privacy_precedence() {
 fn public_to_public_appearance_follows_at_the_unchanged_position() {
     let mut tracker = RoutingTracker::new();
     let mut session = SimSession::playing_on("car-bt", OutputDevicePrivacy::Public);
+    // Latch the public route the way a session opens:
+    // the car Bluetooth appears while the session is not
+    // yet playing — R3 latches an appearance in every
+    // state — and the reader then resumes through it. A
+    // fresh tracker holds no latch, so a public
+    // appearance while playing pauses fail-closed (R2):
+    // the public→public follow this test pins needs the
+    // car Bluetooth latched first.
+    let opening = tracker.apply(
+        RoutingSignal::DeviceAppeared {
+            device_id: "car-bt".to_string(),
+            privacy: OutputDevicePrivacy::Public,
+        },
+        TransportState::Paused,
+    );
+    assert_eq!(
+        decision_kind(&opening),
+        DecisionKind::NoChange,
+        "the opening appearance while not playing is a no-op that latches the route (R3 / FR-017)"
+    );
     session.tick_audible(7.25);
     let decision = tracker.apply(
         RoutingSignal::DeviceAppeared {

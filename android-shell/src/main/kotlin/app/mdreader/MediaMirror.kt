@@ -1,9 +1,824 @@
 package app.mdreader
 
-/** MediaSession mirror only — never a second source of truth (FR-003 / FR-042).
- * Reflects Rust playback module state; computes nothing. Notification content:
- * title + most-recent-passed section title + progress (FR-028 / FR-029).
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.media.session.MediaSession
+import android.media.session.PlaybackState
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
+
+/**
+ * MediaSession + notification mirror (FR-003, FR-028 series,
+ * FR-029, FR-028e, FR-042; SC-035).
+ *
+ * Mirrors the Rust-published session state onto the platform
+ * MediaSession and the one media notification surface, and
+ * forwards every control event back to Rust as a closed verb
+ * wire string through [forwardVerb]. The mirror is derived,
+ * never a second clock (SC-035 / FR-003): it holds no
+ * position, rate or transport state of its own and computes
+ * nothing — the only arithmetic in the class is the seconds
+ * to millis unit conversion the platform APIs require
+ * (PlaybackState and the notification progress report
+ * millis), applied to the published position_secs and to
+ * the determinate progress, never to an estimate.
+ *
+ * Notification content is exactly the FR-028 series: the
+ * document title (metadata title else the stable filename
+ * placeholder — FR-029), the most-recent-passed section
+ * title (FR-028b/FR-028c/FR-028d), and the progress
+ * indication (FR-028a) — never document body text, never
+ * elapsed or remaining time, never rate, never voice. The
+ * rate is deliberately not mirrored: the published mirror
+ * state carries none (the rate ladder is a Rust concern and
+ * the rate never appears on this surface), so the
+ * platform's required PlaybackState speed field is set to
+ * the neutral 1.0f — the field is present because the
+ * platform requires it, not because the mirror knows a
+ * rate. The single setPlaybackState call carries the built
+ * state object, never a computed position.
+ *
+ * Dismissal (FR-028e) is decided by the Rust resolver
+ * (player::surface::SurfaceResolver::dismissal); this
+ * class applies only the platform mechanics of the
+ * classification it is handed: NonDismissable renders the
+ * ongoing surface — setOngoing(true), so pausing is the
+ * only route to dismissal while audio plays —, AutoDismiss
+ * renders the transient surface that dismisses itself at
+ * the handed window (the 3 s of TRANSIENT_DISMISS_MS — a
+ * stated failure reason under FR-037 or a focus-loss
+ * pause reason under FR-041), and Dismissable renders the
+ * resident pause surface — dismissable, never
+ * auto-dismissed, its resume control surviving until the
+ * reader chooses a way out.
+ *
+ * Control routing: the MediaSession callback forwards each
+ * platform control event to Rust through [forwardVerb] as
+ * the closed verb wire string (onPlay to play, onPause to
+ * pause, onStop to stop, onSkipToNext to skip_forward5s,
+ * onSkipToPrevious to skip_back5s), never honoured
+ * locally; the rate and voice controls have no
+ * MediaSession callback route, so they ride the
+ * notification's action buttons as broadcast PendingIntents
+ * classified at the boundary (the Residency idiom). An
+ * unrecognised platform control is forwarded as the
+ * diagnostic control_unmapped, never absorbed; an
+ * unrecognised transport wire string renders STATE_ERROR,
+ * never a healthy state.
+ *
+ * The exactly-one surface invariant is structural: one
+ * fixed notification id, one surface reference nulled at
+ * teardown, so a second media surface can never exist. The
+ * swipe-away delete intent is supplied by the host — the
+ * same Residency.swipeAwayIntent token the host attaches
+ * to the playing surface, so that where a platform or OEM
+ * build permits dismissal regardless of the ongoing flag,
+ * the gesture reaches Rust and pauses first (FR-028e).
+ *
+ * @param context service context used to post and dismiss
+ * the media surface and to register the control receiver.
+ * @param forwardVerb sink receiving one verb wire string
+ * per control event; the caller relays it to Rust
+ * uninterpreted.
  */
-class MediaMirror {
-    // Delegation targets only — shapes/getters, never computation; see T081 for the denied shape list in check-shell-purity.sh
+class MediaMirror(
+    private val context: Context,
+    private val forwardVerb: (String) -> Unit
+) {
+
+    /**
+     * The progress indication (FR-028a) as published on the
+     * wire — the externally-tagged T061 variant in the
+     * contract's snake_case wire form: a determinate session
+     * carries the published position and the marked document
+     * extent (never an estimate), and an indeterminate
+     * session carries no total for its whole session.
+     */
+    sealed class Progress {
+        /** The total spoken length was known at session
+         * start (FR-028a). */
+        data class Determinate(
+            /** The session's authoritative position, in
+             * seconds — the published position_secs,
+             * mirrored, never computed. */
+            val positionSecs: Double,
+            /** The marked document extent, in seconds —
+             * never an estimate. */
+            val durationSecs: Double
+        ) : Progress()
+
+        /** The total spoken length was unknown at session
+         * start — the whole session stays indeterminate
+         * (FR-028a). */
+        object Indeterminate : Progress()
+    }
+
+    /**
+     * The dismissal policy of the surface (FR-028e) — the
+     * T061 classification, mirrored here only as the shape
+     * the mirror consumes. The decision is Rust's
+     * (player::surface::SurfaceResolver::dismissal); the
+     * mirror applies the platform mechanics of whatever
+     * classification it is handed.
+     */
+    sealed class Dismissal {
+        /** The surface cannot be dismissed — the ongoing
+         * state while audio plays (FR-028e: pausing is the
+         * only route to dismissal while a document plays). */
+        object NonDismissable : Dismissal()
+
+        /** The surface dismisses itself after the handed
+         * window — the transient-reason surface (a failure
+         * reason under FR-037 or a focus-loss pause reason
+         * under FR-041). */
+        data class AutoDismiss(
+            /** The window after which the surface dismisses
+             * itself, in milliseconds. */
+            val afterMs: Long
+        ) : Dismissal()
+
+        /** The surface may be dismissed by the reader but is
+         * never dismissed automatically — the resident
+         * surface after a pause, whose paused state and
+         * resume control remain until the reader chooses a
+         * way out (FR-028e). */
+        object Dismissable : Dismissal()
+    }
+
+    /**
+     * The Rust-published mirror state (contracts/
+     * shell-ipc.md) — the wire form the mirror consumes:
+     * the session's authoritative transport and position,
+     * the resolved surface content, the progress indication
+     * fixed at session start, the stated reason of a
+     * transient surface, and the dismissal classification.
+     * The mirror holds no state of its own; every publish
+     * replaces the previous render.
+     */
+    data class MirrorState(
+        /** The transport wire string — the closed
+         * five-member wire set (playing, paused, stopped,
+         * completed, interrupted). */
+        val transport: String,
+        /** The session's authoritative position, in seconds
+         * — the published position_secs, mirrored, never
+         * computed. */
+        val positionSecs: Double,
+        /** The surface title (FR-029): the document
+         * metadata title, or the filename as the stable
+         * placeholder. */
+        val title: String,
+        /** The most-recent-passed section title
+         * (FR-028b/FR-028c/FR-028d), or null before the
+         * first heading and for a heading-less document —
+         * never forward-looking, never document body text. */
+        val sectionTitle: String?,
+        /** The progress indication (FR-028a). */
+        val progress: Progress,
+        /** The stated reason of a transient surface — a
+         * failure reason under FR-037 or a focus-loss pause
+         * reason under FR-041 — or null for a surface
+         * without one. The short lock-screen statement
+         * (contracts/shell-ipc.md). */
+        val transientReason: String?,
+        /** The dismissal classification (FR-028e), decided
+         * by the Rust resolver. */
+        val dismissal: Dismissal
+    )
+
+    /** Wire verb strings of the closed verb set
+     * (contracts/shell-ipc.md) and the transport wire
+     * strings of the closed transport set. */
+    companion object {
+        /** Wire verb for the Play control — the session's
+         * onPlay route and the resident surface's resume
+         * control (the same closed verb; Rust applies the
+         * resume semantics against the stored bookmark). */
+        const val VERB_PLAY = "play"
+
+        /** Wire verb for the Pause control (the session's
+         * onPause route). */
+        const val VERB_PAUSE = "pause"
+
+        /** Wire verb for the Stop control (the session's
+         * onStop route). */
+        const val VERB_STOP = "stop"
+
+        /** Wire verb for the skip-forward control (the
+         * session's onSkipToNext route). */
+        const val VERB_SKIP_FORWARD_5S = "skip_forward5s"
+
+        /** Wire verb for the skip-back control (the
+         * session's onSkipToPrevious route). */
+        const val VERB_SKIP_BACK_5S = "skip_back5s"
+
+        /** Wire verb for the rate-up control (a notification
+         * action button — no MediaSession callback route). */
+        const val VERB_RATE_UP = "rate_up"
+
+        /** Wire verb for the rate-down control (a
+         * notification action button). */
+        const val VERB_RATE_DOWN = "rate_down"
+
+        /** Wire verb for the cycle-voice-next control (a
+         * notification action button; FR-018b). */
+        const val VERB_CYCLE_VOICE_NEXT = "cycle_voice_next"
+
+        /** Wire verb for the cycle-voice-prev control (a
+         * notification action button; FR-018b). */
+        const val VERB_CYCLE_VOICE_PREV = "cycle_voice_prev"
+
+        /** Diagnostic verb for an unrecognised platform
+         * control action; never absorbed. */
+        const val VERB_CONTROL_UNMAPPED = "control_unmapped"
+
+        /** Wire transport string for the playing state. */
+        const val TRANSPORT_PLAYING = "playing"
+
+        /** Wire transport string for the paused state. */
+        const val TRANSPORT_PAUSED = "paused"
+
+        /** Wire transport string for the stopped state. */
+        const val TRANSPORT_STOPPED = "stopped"
+
+        /** Wire transport string for the completed state —
+         * playback reached its end, the terminal no-audio
+         * state. */
+        const val TRANSPORT_COMPLETED = "completed"
+
+        /** Wire transport string for the interrupted state
+         * — a live resumable state. */
+        const val TRANSPORT_INTERRUPTED = "interrupted"
+
+        /** The transient auto-dismiss window (FR-028e) —
+         * the T061 constant, mirrored here for the
+         * contract's documentation. The window actually
+         * applied is the one handed in the dismissal
+         * classification, which Rust fixes at this value. */
+        const val TRANSIENT_DISMISS_MS = 3000L
+
+        /** Notification channel of the media surface. */
+        private const val CHANNEL_ID = "mdreader_media"
+
+        /** Notification channel display name. */
+        private const val CHANNEL_NAME = "Media"
+
+        /** MediaSession tag — the platform's session
+         * identifier for this application's playback. */
+        private const val SESSION_TAG = "mdreader_media"
+
+        /** Notification id of the single media surface. One
+         * id is one surface: every publish replaces the
+         * previous render instead of adding a second
+         * notification, and teardown cancels exactly this
+         * id. Distinct from the resident surface id
+         * (Residency) so the host can reconcile which
+         * surface carries a resident pause — the two are
+         * never both up for the same session. */
+        private const val NOTIFICATION_ID = 2
+
+        /** Broadcast action of the resume control on a
+         * resident-pause surface. */
+        private const val ACTION_RESUME = "app.mdreader.RESUME"
+
+        /** Broadcast action of the rate-up control. */
+        private const val ACTION_RATE_UP = "app.mdreader.RATE_UP"
+
+        /** Broadcast action of the rate-down control. */
+        private const val ACTION_RATE_DOWN = "app.mdreader.RATE_DOWN"
+
+        /** Broadcast action of the cycle-voice-next control. */
+        private const val ACTION_CYCLE_VOICE_NEXT =
+            "app.mdreader.CYCLE_VOICE_NEXT"
+
+        /** Broadcast action of the cycle-voice-prev control. */
+        private const val ACTION_CYCLE_VOICE_PREV =
+            "app.mdreader.CYCLE_VOICE_PREV"
+
+        /** Request code of the resume control. */
+        private const val REQUEST_RESUME = 0
+
+        /** Request code of the rate-up control. */
+        private const val REQUEST_RATE_UP = 1
+
+        /** Request code of the rate-down control. */
+        private const val REQUEST_RATE_DOWN = 2
+
+        /** Request code of the cycle-voice-next control. */
+        private const val REQUEST_CYCLE_VOICE_NEXT = 3
+
+        /** Request code of the cycle-voice-prev control. */
+        private const val REQUEST_CYCLE_VOICE_PREV = 4
+
+        /** Request code of the application launch target. */
+        private const val REQUEST_LAUNCH = 5
+
+        /**
+         * The neutral PlaybackState speed — the platform's
+         * required speed field set to 1.0f because the
+         * published mirror state deliberately carries no
+         * rate (the rate ladder is a Rust concern and the
+         * rate never appears on this surface — FR-028
+         * series). The field is present because the platform
+         * requires it, not because the mirror knows a rate.
+         */
+        private const val NEUTRAL_SPEED = 1.0f
+
+        /** Seconds per millisecond — the unit conversion
+         * factor the platform APIs require (PlaybackState
+         * and the notification progress report millis). */
+        private const val MILLIS_PER_SECOND = 1000.0
+
+        /** Label of the resume control. */
+        private const val RESUME_LABEL = "Resume"
+
+        /** Label of the rate-up control. */
+        private const val RATE_UP_LABEL = "Rate +"
+
+        /** Label of the rate-down control. */
+        private const val RATE_DOWN_LABEL = "Rate -"
+
+        /** Label of the cycle-voice-next control. */
+        private const val VOICE_NEXT_LABEL = "Voice next"
+
+        /** Label of the cycle-voice-prev control. */
+        private const val VOICE_PREV_LABEL = "Voice prev"
+
+        /**
+         * The session's action mask — the closed transport
+         * control set the MediaSession exposes to the
+         * platform's media controls (play, pause, stop, skip
+         * forward 5 s, skip back 5 s). The rate and voice
+         * controls are not transport actions: they ride the
+         * notification's action buttons, classified at the
+         * boundary.
+         */
+        private val CONTROL_ACTIONS: Long =
+            PlaybackState.ACTION_PLAY or
+                PlaybackState.ACTION_PAUSE or
+                PlaybackState.ACTION_STOP or
+                PlaybackState.ACTION_SKIP_TO_NEXT or
+                PlaybackState.ACTION_SKIP_TO_PREVIOUS
+    }
+
+    /** The platform MediaSession this mirror reflects state
+     * into and receives control events from. Released at
+     * [teardown]. */
+    private val mediaSession = MediaSession(context, SESSION_TAG)
+
+    /**
+     * The session's control callback: each platform control
+     * event is forwarded to Rust through [forwardVerb] as
+     * the closed verb wire string the moment the platform
+     * delivers it, never honoured locally. The five
+     * transport controls route here; the rate and voice
+     * controls route through the notification's action
+     * buttons (see [surfaceActions]).
+     */
+    private val sessionCallback = object : MediaSession.Callback() {
+        override fun onPlay() {
+            forwardVerb(VERB_PLAY)
+        }
+
+        override fun onPause() {
+            forwardVerb(VERB_PAUSE)
+        }
+
+        override fun onStop() {
+            forwardVerb(VERB_STOP)
+        }
+
+        override fun onSkipToNext() {
+            forwardVerb(VERB_SKIP_FORWARD_5S)
+        }
+
+        override fun onSkipToPrevious() {
+            forwardVerb(VERB_SKIP_BACK_5S)
+        }
+    }
+
+    /**
+     * The notification-action receiver: the rate, voice and
+     * resume control buttons arrive here as broadcasts, and
+     * each is classified at the boundary into its closed
+     * verb wire string and forwarded to Rust through
+     * [forwardVerb] the moment the platform delivers it. Any
+     * other platform action is forwarded as the diagnostic
+     * [VERB_CONTROL_UNMAPPED], never absorbed.
+     */
+    private val controlReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            forwardVerb(
+                when (intent.action) {
+                    ACTION_RESUME -> VERB_PLAY
+                    ACTION_RATE_UP -> VERB_RATE_UP
+                    ACTION_RATE_DOWN -> VERB_RATE_DOWN
+                    ACTION_CYCLE_VOICE_NEXT -> VERB_CYCLE_VOICE_NEXT
+                    ACTION_CYCLE_VOICE_PREV -> VERB_CYCLE_VOICE_PREV
+                    else -> VERB_CONTROL_UNMAPPED
+                }
+            )
+        }
+    }
+
+    /** Handler on the main thread — the auto-dismiss
+     * schedule of a transient surface (FR-028e). */
+    private val handler = Handler(Looper.getMainLooper())
+
+    /** The pending auto-dismiss of the transient surface:
+     * withdraws the surface at the handed window. */
+    private val autoDismiss = Runnable { withdrawSurface() }
+
+    /**
+     * The single media surface — the one notification this
+     * mirror has posted (the structural form of the
+     * exactly-one invariant: one reference, replaced by
+     * every publish, nulled at teardown, so a second media
+     * surface can never exist).
+     */
+    private var surface: Notification? = null
+
+    /** Whether the control receiver is currently
+     * registered. */
+    private var registered = false
+
+    init {
+        mediaSession.setFlags(
+            MediaSession.FLAG_HANDLES_MEDIA_BUTTONS or
+                MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS
+        )
+        mediaSession.setCallback(sessionCallback)
+    }
+
+    /**
+     * Reflects one Rust-published mirror state onto the
+     * MediaSession and the media surface (FR-003, FR-028
+     * series, FR-028e).
+     *
+     * The session's playback state is the published
+     * transport and position — the position being the
+     * published position_secs converted to millis, a unit
+     * conversion for the platform API, never a computation
+     * — at the neutral speed, with the closed transport
+     * action mask. The surface carries the document title,
+     * the section title and the progress (FR-028 series)
+     * and applies the platform mechanics of the handed
+     * dismissal classification: an ongoing surface while
+     * playing (setOngoing(true) — FR-028e), a transient
+     * surface that dismisses itself at the handed window,
+     * or a resident-pause surface that is dismissable
+     * without being auto-dismissed, its resume control
+     * surviving. A torn-down transport (stopped,
+     * completed) withdraws the surface — the Rust resolver
+     * classifies a torn-down state so that any residual
+     * surface is dismissable precisely because a torn-down
+     * state has nothing left to keep on the surface (the
+     * FR-032f teardown dismisses the notification), and a
+     * stopped document must offer no control that
+     * silently begins nothing (FR-010, FR-032f); the full
+     * teardown (residency, session) is the host's act
+     * through [teardown].
+     *
+     * @param state the Rust-published mirror state (the
+     * wire form of contracts/shell-ipc.md with the T061
+     * surface shapes).
+     * @param deleteIntent the host-supplied swipe-away
+     * delete intent — the same Residency.swipeAwayIntent
+     * token the host attaches to the playing surface, so
+     * that where a platform or OEM build permits
+     * dismissal regardless of the ongoing flag, the
+     * gesture reaches Rust and pauses first (FR-028e).
+     * Null omits the delete intent.
+     *
+     * Safe to call again: a second call replaces the
+     * previous render — the same notification id, the same
+     * single surface reference — and cancels any pending
+     * auto-dismiss of the superseded surface.
+     */
+    fun publish(state: MirrorState, deleteIntent: PendingIntent? = null) {
+        registerControlReceiver()
+        mediaSession.isActive = true
+        val mirrored = PlaybackState.Builder()
+            .setState(
+                playbackConstantOf(state.transport),
+                positionMillisOf(state.positionSecs),
+                NEUTRAL_SPEED
+            )
+            .setActions(CONTROL_ACTIONS)
+            .build()
+        mediaSession.setPlaybackState(mirrored)
+        val manager =
+            context.getSystemService(NotificationManager::class.java)
+                ?: return
+        ensureChannel(manager)
+        if (
+            state.transport == TRANSPORT_STOPPED ||
+            state.transport == TRANSPORT_COMPLETED
+        ) {
+            withdrawSurface()
+            return
+        }
+        handler.removeCallbacks(autoDismiss)
+        val ongoing = state.dismissal is Dismissal.NonDismissable
+        val built = buildSurface(state, ongoing, deleteIntent)
+        manager.notify(NOTIFICATION_ID, built)
+        surface = built
+        val transient = state.dismissal as? Dismissal.AutoDismiss
+        if (transient != null) {
+            handler.postDelayed(autoDismiss, transient.afterMs)
+        }
+    }
+
+    /**
+     * Releases the mirror: cancels any pending
+     * auto-dismiss, dismisses the one media notification,
+     * unregisters the control receiver, nulls the single
+     * surface reference and releases the MediaSession, so
+     * zero media surfaces remain and no control event is
+     * forwarded afterwards (FR-028e, FR-032f, SC-049).
+     * The host invokes this when the session ends — the
+     * classified teardown event — and the FR-032f document
+     * end is its primary path. Applies nothing locally:
+     * playback state remains owned by Rust alone (FR-042,
+     * SC-035). Safe to call again: a second call releases
+     * nothing.
+     */
+    fun teardown() {
+        handler.removeCallbacks(autoDismiss)
+        val manager = context.getSystemService(NotificationManager::class.java)
+        if (manager != null) {
+            manager.cancel(NOTIFICATION_ID)
+        }
+        unregisterControlReceiver()
+        surface = null
+        mediaSession.release()
+    }
+
+    /**
+     * Withdraws the media surface: cancels any pending
+     * auto-dismiss and dismisses the one notification, so
+     * no media surface remains. The torn-down transports
+     * (stopped, completed) withdraw here — a torn-down
+     * state has nothing left to keep on the surface
+     * (FR-032f, FR-010) — and the transient surface
+     * withdraws itself at the handed window (FR-028e).
+     * The session itself is released only at [teardown] —
+     * the host's act. Safe to call again: a second call
+     * cancels nothing.
+     */
+    private fun withdrawSurface() {
+        handler.removeCallbacks(autoDismiss)
+        val manager = context.getSystemService(NotificationManager::class.java)
+        if (manager != null) {
+            manager.cancel(NOTIFICATION_ID)
+        }
+        surface = null
+    }
+
+    /**
+     * The PlaybackState constant for a published transport
+     * wire string — the closed five-member wire set:
+     * playing mirrors STATE_PLAYING; paused and
+     * interrupted mirror STATE_PAUSED (interrupted is a
+     * live resumable state); stopped and completed mirror
+     * STATE_STOPPED — completed is playback having reached
+     * its end, the terminal no-audio state, which the
+     * platform represents as stopped. Any other value
+     * renders STATE_ERROR and is never absorbed: the
+     * platform's error state is the rendering of a wire
+     * value the closed set does not cover, never a silent
+     * mapping to a healthy state.
+     */
+    private fun playbackConstantOf(transport: String): Int =
+        when (transport) {
+            TRANSPORT_PLAYING -> PlaybackState.STATE_PLAYING
+            TRANSPORT_PAUSED -> PlaybackState.STATE_PAUSED
+            TRANSPORT_INTERRUPTED -> PlaybackState.STATE_PAUSED
+            TRANSPORT_STOPPED -> PlaybackState.STATE_STOPPED
+            TRANSPORT_COMPLETED -> PlaybackState.STATE_STOPPED
+            else -> PlaybackState.STATE_ERROR
+        }
+
+    /**
+     * The published position converted from seconds to
+     * milliseconds — the unit conversion the platform API
+     * requires (PlaybackState reports its position in
+     * millis). A conversion of the published position_secs
+     * and nothing else: no position is computed, estimated
+     * or derived from any other input (FR-003, SC-035).
+     */
+    private fun positionMillisOf(positionSecs: Double): Long =
+        (positionSecs * MILLIS_PER_SECOND).toLong()
+
+    /**
+     * The notification action buttons of a surface
+     * (contracts/shell-ipc.md): the rate and voice
+     * controls ride the notification's actions as broadcast
+     * PendingIntents classified at the boundary — they
+     * have no MediaSession callback route — while the
+     * transport controls (play, pause, stop, skip) reach
+     * Rust through the MediaSession callback from the
+     * lock-screen and media-control surfaces the session
+     * token attaches.
+     *
+     * A resident pause adds the resume control — the same
+     * closed verb as the session's onPlay — so the paused
+     * surface keeps a control that still produces audio
+     * (FR-028e: its resume control survives). A transient
+     * surface carries none: it dismisses itself at the
+     * window, and its resume path is the session's paused
+     * state on the lock screen (FR-030).
+     */
+    private fun surfaceActions(dismissal: Dismissal): List<Notification.Action> {
+        val rateAndVoice = listOf(
+            Notification.Action.Builder(
+                null, RATE_UP_LABEL,
+                verbPendingIntent(ACTION_RATE_UP, REQUEST_RATE_UP)
+            ).build(),
+            Notification.Action.Builder(
+                null, RATE_DOWN_LABEL,
+                verbPendingIntent(ACTION_RATE_DOWN, REQUEST_RATE_DOWN)
+            ).build(),
+            Notification.Action.Builder(
+                null, VOICE_NEXT_LABEL,
+                verbPendingIntent(
+                    ACTION_CYCLE_VOICE_NEXT,
+                    REQUEST_CYCLE_VOICE_NEXT
+                )
+            ).build(),
+            Notification.Action.Builder(
+                null, VOICE_PREV_LABEL,
+                verbPendingIntent(
+                    ACTION_CYCLE_VOICE_PREV,
+                    REQUEST_CYCLE_VOICE_PREV
+                )
+            ).build()
+        )
+        return when (dismissal) {
+            is Dismissal.NonDismissable -> rateAndVoice
+            is Dismissal.AutoDismiss -> emptyList()
+            is Dismissal.Dismissable ->
+                listOf(
+                    Notification.Action.Builder(
+                        null, RESUME_LABEL,
+                        verbPendingIntent(ACTION_RESUME, REQUEST_RESUME)
+                    ).build()
+                ) + rateAndVoice
+        }
+    }
+
+    /**
+     * Builds the media surface: the document title
+     * (FR-029), the section title — or, on a transient
+     * surface, the stated reason, which is the short
+     * lock-screen statement (contracts/shell-ipc.md,
+     * FR-037/FR-041) —, the progress indication (FR-028a),
+     * the handed dismissal mechanics (FR-028e), and the
+     * surface's action buttons. The surface is declared
+     * public so the title and section title reach the lock
+     * screen (FR-028b), and it is a media-category surface
+     * carrying the session token, so the platform's media
+     * controls drive the session's closed transport
+     * controls. Content is exactly the FR-028 series —
+     * never document body text, never elapsed or remaining
+     * time, never rate, never voice.
+     */
+    private fun buildSurface(
+        state: MirrorState,
+        ongoing: Boolean,
+        deleteIntent: PendingIntent?
+    ): Notification {
+        val launch = launchPendingIntent()
+        val text = state.transientReason ?: state.sectionTitle
+        val form = state.progress
+        val icon =
+            if (state.transport == TRANSPORT_PLAYING) {
+                android.R.drawable.ic_media_play
+            } else {
+                android.R.drawable.ic_media_pause
+            }
+        fun configure(builder: Notification.Builder): Notification.Builder {
+            val configured = builder
+                .setSmallIcon(icon)
+                .setContentTitle(state.title)
+                .setContentIntent(launch)
+                .setOngoing(ongoing)
+                .setVisibility(Notification.VISIBILITY_PUBLIC)
+                .setCategory(Notification.CATEGORY_MEDIA)
+                .setStyle(
+                    Notification.MediaStyle()
+                        .setMediaSession(mediaSession.sessionToken)
+                )
+                .setDeleteIntent(deleteIntent)
+            if (text != null) {
+                configured.setContentText(text)
+            }
+            when (form) {
+                is Progress.Determinate ->
+                    configured.setProgress(
+                        (form.durationSecs * MILLIS_PER_SECOND).toInt(),
+                        (form.positionSecs * MILLIS_PER_SECOND).toInt(),
+                        false
+                    )
+                is Progress.Indeterminate ->
+                    configured.setProgress(0, 0, true)
+            }
+            for (action in surfaceActions(state.dismissal)) {
+                configured.addAction(action)
+            }
+            return configured
+        }
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            configure(Notification.Builder(context, CHANNEL_ID)).build()
+        } else {
+            @Suppress("DEPRECATION")
+            configure(Notification.Builder(context)).build()
+        }
+    }
+
+    /**
+     * Creates the media notification channel if the platform
+     * requires one and it does not exist yet (API 26+;
+     * below the API-29 floor of SC-032 the platform
+     * requires none).
+     */
+    private fun ensureChannel(manager: NotificationManager) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (manager.getNotificationChannel(CHANNEL_ID) == null) {
+                manager.createNotificationChannel(
+                    NotificationChannel(
+                        CHANNEL_ID, CHANNEL_NAME,
+                        NotificationManager.IMPORTANCE_LOW
+                    )
+                )
+            }
+        }
+    }
+
+    /** Registers the control receiver for the resume,
+     * rate and voice control broadcasts. Safe to call
+     * again: a second call registers nothing. */
+    private fun registerControlReceiver() {
+        if (registered) {
+            return
+        }
+        val filter = IntentFilter(ACTION_RESUME)
+        filter.addAction(ACTION_RATE_UP)
+        filter.addAction(ACTION_RATE_DOWN)
+        filter.addAction(ACTION_CYCLE_VOICE_NEXT)
+        filter.addAction(ACTION_CYCLE_VOICE_PREV)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.registerReceiver(
+                controlReceiver, filter, Context.RECEIVER_NOT_EXPORTED
+            )
+        } else {
+            context.registerReceiver(controlReceiver, filter)
+        }
+        registered = true
+    }
+
+    /** Unregisters the control receiver. Safe to call
+     * again: a second call unregisters nothing. */
+    private fun unregisterControlReceiver() {
+        if (!registered) {
+            return
+        }
+        context.unregisterReceiver(controlReceiver)
+        registered = false
+    }
+
+    /**
+     * Builds the PendingIntent for one control broadcast:
+     * an explicit in-app broadcast whose action classifies
+     * the control at the boundary (contracts/shell-ipc.md
+     * case mapping) — the Residency idiom.
+     */
+    private fun verbPendingIntent(action: String, requestCode: Int): PendingIntent {
+        val intent = Intent(action).setPackage(context.packageName)
+        return PendingIntent.getBroadcast(
+            context, requestCode, intent, PendingIntent.FLAG_IMMUTABLE
+        )
+    }
+
+    /**
+     * Builds the tap target of the surface: the application
+     * launch intent, so a tap opens the application — the
+     * reader's route to choosing another document.
+     */
+    private fun launchPendingIntent(): PendingIntent? =
+        context.packageManager
+            .getLaunchIntentForPackage(context.packageName)
+            ?.let {
+                PendingIntent.getActivity(
+                    context, REQUEST_LAUNCH, it,
+                    PendingIntent.FLAG_IMMUTABLE
+                )
+            }
 }

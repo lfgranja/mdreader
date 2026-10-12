@@ -5,3 +5,6 @@ pub mod writer;
 
 /// The no-prose / closed-set scanners (T074).
 pub mod scan;
+
+/// The read-only scan CLI (T074).
+pub mod cli;

@@ -711,7 +711,7 @@ class MediaMirror(
                 .setContentIntent(launch)
                 .setOngoing(ongoing)
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
-                .setCategory(Notification.CATEGORY_MEDIA)
+                .setCategory(Notification.CATEGORY_TRANSPORT)
                 .setStyle(
                     Notification.MediaStyle()
                         .setMediaSession(mediaSession.sessionToken)

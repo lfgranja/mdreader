@@ -11,14 +11,30 @@ use std::sync::Mutex;
 
 use player::backend::CpalBackend;
 use player::cli::PlaybackSession;
+use tauri::Manager;
+
+/// The permission-state gate (T030b): the pure,
+/// headless half of FR-008/FR-010/FR-021. The Kotlin
+/// shell reads the platform permissions and pushes the
+/// answer as a `PermissionSnapshot`; the startup and
+/// pre-play gates consume it. No Android API calls live
+/// here (Principle V).
+pub mod permissions;
 
 /// Shared app state: one playback session, one lazily-opened
-/// audio backend.
+/// audio backend, and the platform permission snapshot the
+/// Kotlin shell pushes.
 pub struct AppState {
     /// The single playback session (sole position authority).
     session: Mutex<PlaybackSession>,
     /// The audio backend, opened on first play.
     backend: Mutex<Option<CpalBackend>>,
+    /// The platform permission snapshot (T030b): pushed by
+    /// the Kotlin shell through `update_permissions`, read
+    /// by the startup and pre-play gates. The all-granted
+    /// host baseline holds until the first push (FR-008,
+    /// FR-010, FR-021).
+    permissions: Mutex<permissions::PermissionSnapshot>,
 }
 
 #[cfg_attr(target_os = "android", tauri::mobile_entry_point)]
@@ -27,6 +43,7 @@ pub fn run() {
         .manage(AppState {
             session: Mutex::new(PlaybackSession::new()),
             backend: Mutex::new(None),
+            permissions: Mutex::new(permissions::PermissionSnapshot::default()),
         })
         .setup(|_app| {
             // Voice assets ship inside the APK: extract them to a
@@ -40,11 +57,28 @@ pub fn run() {
                     }
                 }
             }
+            // Permission-state gate (T030b, FR-008/FR-010): the
+            // startup check runs once at boot against the snapshot
+            // the Kotlin shell pushes through `update_permissions`
+            // (the all-granted host baseline until it does). The
+            // outcome is recorded as a tracing event; a refusal
+            // carries the stated reason, and no playing state may
+            // ever follow it.
+            let app_state = _app.state::<AppState>();
+            let permissions = app_state.permissions.lock().map_err(|e| e.to_string())?;
+            match permissions::check_startup(&permissions) {
+                Ok(()) => tracing::info!("permission gate: startup check passed"),
+                Err(failure) => tracing::warn!(
+                    reason = failure.reason(),
+                    "permission gate: startup refused — stated reason, no playing state"
+                ),
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             commands::register_android_plugin,
-            commands::run_mobile_plugin
+            commands::run_mobile_plugin,
+            commands::update_permissions
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -53,6 +87,7 @@ pub fn run() {
 pub mod commands {
     //! Plugin commands exposed via IPC.
 
+    use super::permissions::{self, PermissionSnapshot};
     use super::{AppState, CpalBackend};
     use player::cli::ShellVerb;
     use tauri::{AppHandle, Manager, State, command};
@@ -66,6 +101,23 @@ pub mod commands {
         // Application/Activity and reaches Rust through
         // `run_mobile_plugin` below — never computing
         // position/rate/transport itself.
+    }
+
+    /// Push the platform permission answer (T030b).
+    ///
+    /// The Kotlin shell reads the platform permissions and
+    /// forwards the answer here — mirror-only, no decision:
+    /// the gates in `permissions` (`check_startup`,
+    /// `check_pre_play`) consume the snapshot (FR-008,
+    /// FR-010, FR-021).
+    #[command]
+    pub fn update_permissions(
+        state: State<'_, AppState>,
+        snapshot: PermissionSnapshot,
+    ) -> Result<(), String> {
+        let mut permissions = state.permissions.lock().map_err(|e| e.to_string())?;
+        *permissions = snapshot;
+        Ok(())
     }
 
     /// Execute one playback action over IPC.
@@ -82,7 +134,27 @@ pub mod commands {
         state: State<'_, AppState>,
     ) -> Result<serde_json::Value, String> {
         match action.as_str() {
-            "play" => play(document.unwrap_or_default(), &state),
+            "play" => {
+                // Permission-state gate (T030b, FR-008/FR-010):
+                // consult the pre-play check before any Play-class
+                // verb — `Play` is the one the bridge exposes
+                // today, and `ExternalStart`, `ResumeAtStored`,
+                // and `StartOver` (the verbs that can reach
+                // `Playing` in `player::cli::ShellVerb`) take
+                // the same gate when the bridge grows them. A
+                // refusal returns the stated-reason JSON error
+                // payload and executes nothing, so no playing
+                // state can ever be reported from a refused
+                // start (FR-010).
+                let permissions = state.permissions.lock().map_err(|e| e.to_string())?;
+                if let Err(failure) = permissions::check_pre_play(&permissions) {
+                    return Ok(serde_json::json!({
+                        "ok": false,
+                        "error": failure.reason(),
+                    }));
+                }
+                play(document.unwrap_or_default(), &state)
+            }
             "diagnose" => Ok(diagnose(&app)),
             "pause" => {
                 if let Ok(backend) = state.backend.lock() {

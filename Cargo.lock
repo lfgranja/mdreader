@@ -3906,9 +3906,11 @@ version = "0.1.0"
 dependencies = [
  "adapter-synthesis",
  "player",
+ "serde",
  "serde_json",
  "tauri",
  "tauri-build",
+ "tracing",
 ]
 
 [[package]]

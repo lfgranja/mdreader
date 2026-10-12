@@ -29,6 +29,14 @@ pub mod permissions;
 /// getters — never a second definition.
 pub mod surface;
 
+/// The minimal in-app status view (T065b): the
+/// read-only render of the stored `last_rate`, the
+/// transport/position mirror, and the current
+/// failure/focus reason with its expiry — through the
+/// T065 getters alone, with no playback logic and
+/// no second string definition.
+pub mod status_view;
+
 /// The engine-failure surface (T078): the named
 /// failure + alternatives rendering, conforming to
 /// the T065 reason shapes.

@@ -122,7 +122,9 @@ pub mod commands {
 
     use super::permissions::{self, PermissionSnapshot};
     use super::{AppState, CpalBackend};
-    use player::cli::ShellVerb;
+    use player::cli::{SessionSnapshot, ShellVerb};
+    use player::focus::{FocusIntent, FocusOutcome, classify as classify_focus_intent};
+    use player::routing::{RoutingDecision, RoutingSignal, RoutingTracker};
     use tauri::{AppHandle, Manager, State, command};
 
     /// Declared sample rate of the engine handoff (mono f32).
@@ -159,21 +161,202 @@ pub mod commands {
         Ok(())
     }
 
+    /// The classified bridge action (T110): every closed
+    /// shell-IPC wire string (`contracts/shell-ipc.md`)
+    /// parses to exactly one variant — a session verb, a
+    /// platform intent, or the read-only query. No
+    /// `PartialEq` is derived: the contract test pins the
+    /// seam with `matches!` only.
+    #[derive(Debug, Clone, Copy)]
+    pub enum BridgeAction {
+        /// A closed-set session verb, executed through
+        /// [`player::cli::PlaybackSession::execute`].
+        Verb(
+            /// The parsed session verb.
+            ShellVerb,
+        ),
+        /// A classified Kotlin→Rust platform intent,
+        /// routed by `dispatch_intent` to the nearest
+        /// existing machine entry point.
+        Intent(
+            /// The parsed platform intent.
+            IntentWire,
+        ),
+        /// The read-only voice-asset inventory query —
+        /// never a verb, never a state change.
+        Diagnose,
+    }
+
+    /// The closed Kotlin→Rust intent wire set (T110).
+    ///
+    /// The nine focus/routing/lifecycle intents of
+    /// [`player::focus::FocusIntent`], the three
+    /// residency intents (`contracts/shell-ipc.md`), and
+    /// the two diagnostic unmapped sentinels (never
+    /// absorbed, never errors, never state changes).
+    #[derive(Debug, Clone, Copy)]
+    pub enum IntentWire {
+        /// Transient loss that may duck (FR-013).
+        DuckableTransient,
+        /// Transient loss demanding silence (FR-013a).
+        SilenceDemanding,
+        /// Permanent loss: pause, never auto-resume (FR-014).
+        PermanentLoss,
+        /// Focus returned: authorizes resume, never
+        /// auto-starts (FR-015).
+        FocusRegained,
+        /// Headphone-removal/noisy signal: pause within
+        /// the routing bound (FR-016).
+        BecomingNoisy,
+        /// Output device appeared: follow at unchanged
+        /// position (FR-017a).
+        DeviceAppeared,
+        /// Output device disappeared: pause first,
+        /// explicit resume only (FR-016 / FR-017a).
+        DeviceDisappeared,
+        /// Lifecycle latch only: no playback decision,
+        /// read at offer expiry only (FR-032c / FR-023a).
+        AppForegrounded,
+        /// Lifecycle latch only: no playback decision
+        /// (FR-032c).
+        AppBackgrounded,
+        /// Ends residency preserving the bookmark —
+        /// distinct from the transport `Stop`, which
+        /// discards it (FR-009a).
+        ResidentStop,
+        /// Pauses first when playing, preserves the
+        /// bookmark, ends residency (FR-028e).
+        SwipeAway,
+        /// Tears residency down at the document's end:
+        /// a completed document has no resumable
+        /// position (FR-032f).
+        DocumentEnd,
+        /// Unrecognised control value: diagnostic ack,
+        /// never absorbed, never an error, never a
+        /// state change.
+        ControlUnmapped,
+        /// Unrecognised platform lifecycle value:
+        /// diagnostic ack, never absorbed, never an
+        /// error, never a state change.
+        LifecycleUnmapped,
+    }
+
+    /// Classify one shell-IPC wire string (T110): the
+    /// 12 closed verb wires to [`BridgeAction::Verb`],
+    /// the 14 intent wires to [`BridgeAction::Intent`],
+    /// and `diagnose` to [`BridgeAction::Diagnose`].
+    ///
+    /// The mapping is the normative `snake_case`
+    /// case-mapping (`contracts/shell-ipc.md`): `regained`
+    /// maps to focus-regained, and the voice/skip verbs
+    /// use their full wire spellings (`skip_forward5s`,
+    /// `cycle_voice_next`, …).
+    ///
+    /// # Errors
+    ///
+    /// Returns the named `unknown action` rejection for
+    /// any wire outside the closed set (wrong case,
+    /// kebab-case, empty, or invented) — a rejection,
+    /// never a playing state.
+    pub fn parse_action(action: &str) -> Result<BridgeAction, String> {
+        match action {
+            "play" => Ok(BridgeAction::Verb(ShellVerb::Play)),
+            "pause" => Ok(BridgeAction::Verb(ShellVerb::Pause)),
+            "stop" => Ok(BridgeAction::Verb(ShellVerb::Stop)),
+            "skip_forward5s" => Ok(BridgeAction::Verb(ShellVerb::SkipForward)),
+            "skip_back5s" => Ok(BridgeAction::Verb(ShellVerb::SkipBackward)),
+            "rate_up" => Ok(BridgeAction::Verb(ShellVerb::RateUp)),
+            "rate_down" => Ok(BridgeAction::Verb(ShellVerb::RateDown)),
+            "cycle_voice_next" => Ok(BridgeAction::Verb(ShellVerb::CycleVoiceNext)),
+            "cycle_voice_prev" => Ok(BridgeAction::Verb(ShellVerb::CycleVoicePrev)),
+            "resume_at_stored" => Ok(BridgeAction::Verb(ShellVerb::ResumeAtStored)),
+            "start_over" => Ok(BridgeAction::Verb(ShellVerb::StartOver)),
+            "choose_engine" => Ok(BridgeAction::Verb(ShellVerb::ChooseEngine)),
+            "duckable_transient" => Ok(BridgeAction::Intent(IntentWire::DuckableTransient)),
+            "silence_demanding" => Ok(BridgeAction::Intent(IntentWire::SilenceDemanding)),
+            "permanent_loss" => Ok(BridgeAction::Intent(IntentWire::PermanentLoss)),
+            "regained" => Ok(BridgeAction::Intent(IntentWire::FocusRegained)),
+            "becoming_noisy" => Ok(BridgeAction::Intent(IntentWire::BecomingNoisy)),
+            "device_appeared" => Ok(BridgeAction::Intent(IntentWire::DeviceAppeared)),
+            "device_disappeared" => Ok(BridgeAction::Intent(IntentWire::DeviceDisappeared)),
+            "app_foregrounded" => Ok(BridgeAction::Intent(IntentWire::AppForegrounded)),
+            "app_backgrounded" => Ok(BridgeAction::Intent(IntentWire::AppBackgrounded)),
+            "resident_stop" => Ok(BridgeAction::Intent(IntentWire::ResidentStop)),
+            "swipe_away" => Ok(BridgeAction::Intent(IntentWire::SwipeAway)),
+            "document_end" => Ok(BridgeAction::Intent(IntentWire::DocumentEnd)),
+            "control_unmapped" => Ok(BridgeAction::Intent(IntentWire::ControlUnmapped)),
+            "lifecycle_unmapped" => Ok(BridgeAction::Intent(IntentWire::LifecycleUnmapped)),
+            "diagnose" => Ok(BridgeAction::Diagnose),
+            _ => Err(format!("unknown action: {action}")),
+        }
+    }
+
     /// Execute one playback action over IPC.
+    ///
+    /// Every wire routes through [`parse_action`]: verbs
+    /// execute through the single session, intents route
+    /// to the nearest existing machine entry point, and
+    /// `diagnose` answers the read-only inventory.
     ///
     /// * `play` requires `document` (Markdown source): splits,
     ///   synthesizes, enqueues, and starts playback, returning
     ///   segment/sample counts and the session snapshot.
+    /// * `choose_engine` reads the optional `payload` engine
+    ///   id (absent wire payload stays absent: `None`).
     /// * `pause` / `stop` act on the live session and backend.
+    ///
+    /// # Errors
+    ///
+    /// Returns the named rejection for wires outside the
+    /// closed set and for illegal verb presses from the
+    /// current transport state — a rejection, never a
+    /// playing state.
     #[command]
     pub fn run_mobile_plugin(
         action: String,
         document: Option<String>,
+        payload: Option<String>,
         app: AppHandle,
         state: State<'_, AppState>,
     ) -> Result<serde_json::Value, String> {
-        match action.as_str() {
-            "play" => {
+        match parse_action(action.as_str()) {
+            Ok(BridgeAction::Verb(verb)) => dispatch_verb(verb, document, payload, &state),
+            Ok(BridgeAction::Intent(intent)) => dispatch_intent(intent, &state),
+            Ok(BridgeAction::Diagnose) => Ok(diagnose(&app)),
+            Err(reason) => Err(reason),
+        }
+    }
+
+    /// Execute one parsed session verb (T110): the same
+    /// [`player::cli::PlaybackSession::execute`] code path
+    /// every other driver calls (Principle II).
+    ///
+    /// * `Play` keeps its synthesis path (`play`) behind
+    ///   the pre-play permission gate.
+    /// * Every verb that can reach `Playing`
+    ///   (`Play | ResumeAtStored | StartOver |
+    ///   ExternalStart` per the closed transition table)
+    ///   takes the same pre-play gate: a refusal returns
+    ///   the stated-reason payload and executes nothing.
+    /// * `Pause` / `Stop` act on the backend as well as
+    ///   the session; every other verb needs no backend
+    ///   action.
+    /// * `ChooseEngine` is the session's same-state
+    ///   selection: the optional `payload` engine id is
+    ///   echoed in the reply, and the snapshot's
+    ///   authoritative `engine_id` answers which engine
+    ///   holds selection (the id-consuming fallback
+    ///   selector lives in engine-core, behind failures —
+    ///   `execute` takes no id argument, so there is no
+    ///   id path to thread beyond the echo).
+    fn dispatch_verb(
+        verb: ShellVerb,
+        document: Option<String>,
+        payload: Option<String>,
+        state: &State<'_, AppState>,
+    ) -> Result<serde_json::Value, String> {
+        match verb {
+            ShellVerb::Play => {
                 // Permission-state gate (T030b, FR-008/FR-010):
                 // consult the pre-play check before any Play-class
                 // verb — `Play` is the one the bridge exposes
@@ -192,10 +375,30 @@ pub mod commands {
                         "error": failure.reason(),
                     }));
                 }
-                play(document.unwrap_or_default(), &state)
+                play(document.unwrap_or_default(), state)
             }
-            "diagnose" => Ok(diagnose(&app)),
-            "pause" => {
+            ShellVerb::ResumeAtStored | ShellVerb::StartOver | ShellVerb::ExternalStart => {
+                // The same pre-play gate as `Play`: these are
+                // the remaining verbs that can reach `Playing`
+                // in the closed transition table, so a refusal
+                // executes nothing and reports no playing
+                // state (FR-010).
+                let permissions = state.permissions.lock().map_err(|e| e.to_string())?;
+                if let Err(failure) = permissions::check_pre_play(&permissions) {
+                    return Ok(serde_json::json!({
+                        "ok": false,
+                        "error": failure.reason(),
+                    }));
+                }
+                let mut session = state.session.lock().map_err(|e| e.to_string())?;
+                let snap = session.execute(verb).map_err(|e| e.to_string())?;
+                Ok(serde_json::json!({
+                    "status": snap.transport.to_string(),
+                    "position_secs": snap.position_secs,
+                    "transport": snap.transport.to_string(),
+                }))
+            }
+            ShellVerb::Pause => {
                 if let Ok(backend) = state.backend.lock() {
                     if let Some(backend) = backend.as_ref() {
                         backend.pause();
@@ -211,7 +414,7 @@ pub mod commands {
                     "transport": snap.transport.to_string(),
                 }))
             }
-            "stop" => {
+            ShellVerb::Stop => {
                 if let Ok(backend) = state.backend.lock() {
                     if let Some(backend) = backend.as_ref() {
                         backend.stop();
@@ -227,8 +430,359 @@ pub mod commands {
                     "transport": snap.transport.to_string(),
                 }))
             }
-            _ => Err(format!("unknown action: {action}")),
+            ShellVerb::SkipForward
+            | ShellVerb::SkipBackward
+            | ShellVerb::RateUp
+            | ShellVerb::RateDown
+            | ShellVerb::CycleVoiceNext
+            | ShellVerb::CycleVoicePrev => {
+                // Live-session controls: no permission gate
+                // (they can never reach `Playing`) and no
+                // backend action — the session owns the
+                // rate/skip/voice state. An illegal press
+                // from a torn-down session is the named
+                // rejection, never a playing state. The
+                // `status` mirrors the resulting transport,
+                // so a playing state is reported only from
+                // a session that actually plays (FR-005).
+                let mut session = state.session.lock().map_err(|e| e.to_string())?;
+                let snap = session.execute(verb).map_err(|e| e.to_string())?;
+                Ok(serde_json::json!({
+                    "status": snap.transport.to_string(),
+                    "position_secs": snap.position_secs,
+                    "transport": snap.transport.to_string(),
+                }))
+            }
+            ShellVerb::ChooseEngine => {
+                // A selection, not a transition: legal from
+                // every state, changing no transport or
+                // position (FR-005). The snapshot's
+                // `engine_id` is the authoritative answer;
+                // `requested_engine_id` echoes the wire
+                // payload (`None` renders `null`).
+                let mut session = state.session.lock().map_err(|e| e.to_string())?;
+                let snap = session
+                    .execute(ShellVerb::ChooseEngine)
+                    .map_err(|e| e.to_string())?;
+                Ok(serde_json::json!({
+                    "status": snap.transport.to_string(),
+                    "position_secs": snap.position_secs,
+                    "transport": snap.transport.to_string(),
+                    "engine_id": snap.engine_id,
+                    "requested_engine_id": payload,
+                }))
+            }
+            ShellVerb::Complete | ShellVerb::Interrupt => {
+                // Session-internal terminals with no bridge
+                // wire: reaching one here means the closed
+                // wire set drifted past `parse_action` — a
+                // named rejection, never a playing state.
+                Err(format!("verb '{verb}' has no bridge wire"))
+            }
         }
+    }
+
+    /// Route one parsed platform intent (T110) to the
+    /// nearest existing machine entry point — never a
+    /// new state machine, never silent absorb. Each arm
+    /// delegates to one leaf helper below; the helpers
+    /// carry the per-intent rationale.
+    ///
+    /// A silence demand meeting an already-silent or
+    /// terminal session acks the current mirror (the
+    /// T019 double-press convention for signals, R3) —
+    /// never an error, never a playing state.
+    fn dispatch_intent(
+        intent: IntentWire,
+        state: &State<'_, AppState>,
+    ) -> Result<serde_json::Value, String> {
+        match intent {
+            IntentWire::DuckableTransient => ack_duck(state),
+            IntentWire::SilenceDemanding => {
+                // FR-013a: pause immediately, never duck.
+                let decision = classify_focus_intent(FocusIntent::SilenceDemanding);
+                pause_ack(
+                    state,
+                    "silence_demanding",
+                    decision.outcome,
+                    ShellVerb::Interrupt,
+                )
+            }
+            IntentWire::PermanentLoss => {
+                // FR-014: pause, never auto-resume.
+                let decision = classify_focus_intent(FocusIntent::PermanentLoss);
+                pause_ack(
+                    state,
+                    "permanent_loss",
+                    decision.outcome,
+                    ShellVerb::Interrupt,
+                )
+            }
+            IntentWire::FocusRegained => {
+                // FR-015: authorizes resume via the rewind
+                // path — never an auto-start from the
+                // bridge.
+                let decision = classify_focus_intent(FocusIntent::FocusRegained);
+                let snapshot = snapshot_of(state)?;
+                Ok(serde_json::json!({
+                    "status": "focus_regained",
+                    "outcome": decision.outcome,
+                    "transport": snapshot.transport.to_string(),
+                    "position_secs": snapshot.position_secs,
+                    "changed": false,
+                    "auto_resumed": false,
+                }))
+            }
+            IntentWire::BecomingNoisy => dispatch_noisy_intent(state),
+            IntentWire::DeviceAppeared => {
+                // FR-017a: follow at the unchanged position.
+                // The routing arm needs device identity the
+                // wire lacks, so the follow-only focus
+                // classification answers.
+                let decision = classify_focus_intent(FocusIntent::DeviceAppeared);
+                let snapshot = snapshot_of(state)?;
+                Ok(serde_json::json!({
+                    "status": "device_appeared",
+                    "outcome": decision.outcome,
+                    "transport": snapshot.transport.to_string(),
+                    "position_secs": snapshot.position_secs,
+                    "changed": false,
+                }))
+            }
+            IntentWire::DeviceDisappeared => {
+                // FR-016: pause first, explicit resume only
+                // — without inventing a device id.
+                let decision = classify_focus_intent(FocusIntent::DeviceDisappeared);
+                pause_ack(
+                    state,
+                    "device_disappeared",
+                    decision.outcome,
+                    ShellVerb::Interrupt,
+                )
+            }
+            IntentWire::AppForegrounded => {
+                // FR-032c latch only: acknowledged statelessly.
+                Ok(ack_latch("app_foregrounded", FocusIntent::AppForegrounded))
+            }
+            IntentWire::AppBackgrounded => {
+                // FR-032c latch only, read at expiry only.
+                Ok(ack_latch("app_backgrounded", FocusIntent::AppBackgrounded))
+            }
+            IntentWire::ResidentStop => {
+                // FR-009a: ends residency PRESERVING the
+                // bookmark — never the discarding `Stop`.
+                pause_ack(state, "resident_stop", None, ShellVerb::Pause)
+            }
+            IntentWire::SwipeAway => {
+                // FR-028e fallback: pause first when audio
+                // still plays, preserve the bookmark.
+                pause_ack(state, "swipe_away", None, ShellVerb::Pause)
+            }
+            IntentWire::DocumentEnd => dispatch_document_end(state),
+            IntentWire::ControlUnmapped => ack_unmapped(state, "control_unmapped"),
+            IntentWire::LifecycleUnmapped => ack_unmapped(state, "lifecycle_unmapped"),
+        }
+    }
+
+    /// Best-effort backend pause shared by the
+    /// silence-demanding intent paths: mirrors the
+    /// pause/stop arms (a missing or poisoned backend
+    /// lock pauses nothing; the session verb below
+    /// still runs, so silence is never skipped).
+    fn pause_backend(state: &State<'_, AppState>) {
+        if let Ok(backend) = state.backend.lock() {
+            if let Some(backend) = backend.as_ref() {
+                backend.pause();
+            }
+        }
+    }
+
+    /// Best-effort backend stop behind a real document
+    /// completion: mirrors the stop arm. It runs only
+    /// after [`ShellVerb::Complete`] moves the session,
+    /// never ahead of it, so a retained pause keeps its
+    /// queued audio.
+    fn stop_backend(state: &State<'_, AppState>) {
+        if let Ok(backend) = state.backend.lock() {
+            if let Some(backend) = backend.as_ref() {
+                backend.stop();
+            }
+        }
+    }
+
+    /// The session's current mirror for read-only intent
+    /// acks: observing the snapshot changes nothing.
+    fn snapshot_of(state: &State<'_, AppState>) -> Result<SessionSnapshot, String> {
+        state
+            .session
+            .lock()
+            .map_err(|e| e.to_string())
+            .map(|session| session.snapshot())
+    }
+
+    /// Execute one session verb for a platform signal,
+    /// falling back to the current snapshot when the
+    /// press is illegal from the current state. Only
+    /// the illegal-transition failure is reachable here
+    /// (pause/interrupt/complete moves carry no position
+    /// math — an illegal press leaves transport and
+    /// position untouched, so the pre-read mirror is
+    /// the post-failure mirror), and an already-silent
+    /// or terminal session meets a silence demand with
+    /// an ack of its mirror — never an error, never a
+    /// playing state. The flag reports whether the verb
+    /// moved the session.
+    fn execute_or_current(
+        state: &State<'_, AppState>,
+        verb: ShellVerb,
+    ) -> Result<(SessionSnapshot, bool), String> {
+        let mut session = state.session.lock().map_err(|e| e.to_string())?;
+        let current = session.snapshot();
+        Ok(session
+            .execute(verb)
+            .map_or_else(|_| (current, false), |snapshot| (snapshot, true)))
+    }
+
+    /// Reply for a silence-demanding signal (T110): the
+    /// backend pause plus one session verb, with the
+    /// machine's outcome naming the applied decision and
+    /// the flag reporting whether the session moved.
+    /// The verb is [`ShellVerb::Interrupt`] for
+    /// unexpected silences (the verb whose own docs name
+    /// focus loss) and [`ShellVerb::Pause`] where the
+    /// bookmark must survive residency teardown.
+    fn pause_ack(
+        state: &State<'_, AppState>,
+        status: &'static str,
+        outcome: Option<FocusOutcome>,
+        verb: ShellVerb,
+    ) -> Result<serde_json::Value, String> {
+        pause_backend(state);
+        let (snapshot, changed) = execute_or_current(state, verb)?;
+        Ok(serde_json::json!({
+            "status": status,
+            "outcome": outcome,
+            "transport": snapshot.transport.to_string(),
+            "position_secs": snapshot.position_secs,
+            "changed": changed,
+        }))
+    }
+
+    /// Reply for the duckable transient (T110, FR-013):
+    /// ducking never changes the transport, so no
+    /// session verb runs in any state. The ~20% gain
+    /// half has no backend entry point (`CpalBackend`
+    /// exposes no gain control): it is reported
+    /// unapplied, never silently absorbed.
+    fn ack_duck(state: &State<'_, AppState>) -> Result<serde_json::Value, String> {
+        let decision = classify_focus_intent(FocusIntent::DuckableTransient);
+        let snapshot = snapshot_of(state)?;
+        Ok(serde_json::json!({
+            "status": "duckable_transient",
+            "outcome": decision.outcome,
+            "transport": snapshot.transport.to_string(),
+            "position_secs": snapshot.position_secs,
+            "changed": false,
+            "gain": decision.gain,
+            "gain_applied": false,
+        }))
+    }
+
+    /// Reply for a lifecycle latch intent (T110, FR-032c):
+    /// no playback decision — the bridge holds no
+    /// `OfferMachine` (the session crate is not a bridge
+    /// dependency), so the machine's latch verdict is
+    /// acknowledged statelessly and verbatim, and never
+    /// converts an open offer early.
+    fn ack_latch(status: &'static str, focus: FocusIntent) -> serde_json::Value {
+        let decision = classify_focus_intent(focus);
+        serde_json::json!({
+            "status": status,
+            "outcome": decision.outcome,
+            "changed": false,
+            "foregrounded": decision.foreground_latched,
+        })
+    }
+
+    /// Reply for an unmapped sentinel (T110): reported,
+    /// never absorbed, never an error, never a state
+    /// change — the mirror is observed only.
+    fn ack_unmapped(
+        state: &State<'_, AppState>,
+        status: &'static str,
+    ) -> Result<serde_json::Value, String> {
+        let snapshot = snapshot_of(state)?;
+        Ok(serde_json::json!({
+            "status": status,
+            "transport": snapshot.transport.to_string(),
+            "position_secs": snapshot.position_secs,
+            "absorbed": false,
+            "changed": false,
+        }))
+    }
+
+    /// Route the noisy signal (T110, FR-016): the routing
+    /// machine owns the ≤1 s bound, so it is consulted
+    /// at the live transport. A fresh tracker latches no
+    /// device, so the pause names the route itself, as
+    /// the machine documents for the unlatched case.
+    /// `Pause` pauses through the interrupt path;
+    /// `NoChange` acks the already-silent session (R3:
+    /// never an auto-resume).
+    fn dispatch_noisy_intent(state: &State<'_, AppState>) -> Result<serde_json::Value, String> {
+        let transport = snapshot_of(state)?.transport;
+        let mut tracker = RoutingTracker::new();
+        match tracker.apply(RoutingSignal::BecomingNoisy, transport) {
+            RoutingDecision::Pause { latency_ms, .. } => {
+                pause_backend(state);
+                let (snapshot, changed) = execute_or_current(state, ShellVerb::Interrupt)?;
+                Ok(serde_json::json!({
+                    "status": "becoming_noisy",
+                    "transport": snapshot.transport.to_string(),
+                    "position_secs": snapshot.position_secs,
+                    "changed": changed,
+                    "latency_ms": latency_ms,
+                }))
+            }
+            RoutingDecision::Follow { .. } => {
+                // Unreachable for a removal signal; kept
+                // for exhaustiveness (no catch-all arm).
+                let snapshot = snapshot_of(state)?;
+                Ok(serde_json::json!({
+                    "status": "becoming_noisy",
+                    "transport": snapshot.transport.to_string(),
+                    "position_secs": snapshot.position_secs,
+                    "changed": false,
+                }))
+            }
+            RoutingDecision::NoChange => {
+                let snapshot = snapshot_of(state)?;
+                Ok(serde_json::json!({
+                    "status": "becoming_noisy",
+                    "transport": snapshot.transport.to_string(),
+                    "position_secs": snapshot.position_secs,
+                    "changed": false,
+                }))
+            }
+        }
+    }
+
+    /// Route the document end (T110, FR-032f): teardown
+    /// through [`ShellVerb::Complete`], legal only from
+    /// `Playing` — any other state acks its mirror
+    /// unchanged, and the backend stops only behind a
+    /// real completion.
+    fn dispatch_document_end(state: &State<'_, AppState>) -> Result<serde_json::Value, String> {
+        let (snapshot, changed) = execute_or_current(state, ShellVerb::Complete)?;
+        if changed {
+            stop_backend(state);
+        }
+        Ok(serde_json::json!({
+            "status": "document_end",
+            "transport": snapshot.transport.to_string(),
+            "position_secs": snapshot.position_secs,
+            "changed": changed,
+        }))
     }
 
     /// Split, synthesize, enqueue, and start one document.

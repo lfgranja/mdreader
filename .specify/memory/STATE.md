@@ -6,9 +6,11 @@ Updated: 2026-10-11 (post-checkpoint continuation).
 - Wave 1 LANDED: T057, T061c, T065, T073, T058–T060 (`57bb525`), T075 (`247ecbb`).
 - Phase-11 test fixes landed: T070 (`91f2f4e`), prop_resume `#[test]` (`195437d`),
   prop_fallback E0382 clones (`6e08db8`).
-- Wave 2 RUNNING (6 background agents, disjoint files):
+- Wave 2 RUNNING (5 background agents, disjoint files):
   T061 surface.rs · T063 session cli/main · T065b status_view.rs ·
-  T074 diag scan/cli/main · T064 Residency.kt · T076 recovery.rs.
+  T074 diag scan/cli/main · T076 recovery.rs.
+- LANDED: T064 Residency.kt (`0ad77cc`) + shell-ipc.md residency
+  intent set (coordinated closed-set edit).
 - After wave 2: verify each agent's suite, orchestrator fixes any test-vs-impl
   mismatch, commit atomically (stage ONLY task-owned files), check off tasks.md.
 

@@ -77,7 +77,7 @@ use engine_core::closed::PlaybackRate;
 use engine_core::format::{DeclaredFormat, check_handoff};
 use engine_core::standin_a::StandinA;
 use engine_core::standin_b::StandinB;
-use engine_core::trait_::{Engine, StreamChunk, MAX_PREROLL_SECS};
+use engine_core::trait_::{Engine, MAX_PREROLL_SECS, StreamChunk};
 
 /// The SC-015 pitch-invariance bound: ±50 cents between the F0
 /// contour (and the spectral-peak contour) of the delivered audio
@@ -242,9 +242,7 @@ fn estimate_f0_hz(window: &[f32], sample_rate_hz: f64) -> Option<f64> {
     if crossings < 2 {
         return None;
     }
-    Some(
-        f64::from(crossings) / 2.0 * sample_rate_hz / f64::from(length),
-    )
+    Some(f64::from(crossings) / 2.0 * sample_rate_hz / f64::from(length))
 }
 
 /// The DFT magnitude of one bin (the direct DFT — no external

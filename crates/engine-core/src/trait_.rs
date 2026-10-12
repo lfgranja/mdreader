@@ -11,8 +11,9 @@
 //! The delivered audio shape is fixed by the specification, not by
 //! implementation: mono `f32` PCM resampled to exactly
 //! [`crate::format::DeclaredFormat::SAMPLE_RATE`] by the engine
-//! (FR-033). Any deviation is a named [`crate::closed::EngineError`]
-//! — never a silent resample or downmix (FR-035).
+//! (FR-019) (FR-033, superseded by FR-019). Any deviation is a named
+//! [`crate::closed::EngineError`]
+//! — never a silent resample or downmix (FR-035, SC-034).
 //!
 //! The synthesis adapter of the follow-up feature predates this
 //! trait and declares the same pair this trait names —

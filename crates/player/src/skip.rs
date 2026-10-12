@@ -31,7 +31,7 @@ pub fn skip_clamped(position: f64, direction: SkipDirection, duration: f64) -> f
 /// Refilled on Play; abandoned at session end.
 #[derive(Debug)]
 pub struct PreRollRing {
-    /// Buffered mono-`f32` PCM at the declared 22 050 Hz (FR-033).
+    /// Buffered mono-`f32` PCM at the declared 22 050 Hz (FR-019) (FR-033, superseded by FR-019).
     pub buffer: Vec<f32>,
     /// Ring capacity, in samples (`MAX_SECS × SAMPLE_RATE`).
     pub max_samples: usize,
@@ -46,7 +46,7 @@ impl PreRollRing {
     /// ring tracks per-sample PCM capacity — different API, so an
     /// alias preserves behavior exactly.
     pub const MAX_SECS: f64 = crate::position::PREROLL_CAP_SECS;
-    /// The declared handoff sample rate (FR-024 / FR-033): 22 050 Hz.
+    /// The declared handoff sample rate (FR-024 / FR-019) (FR-033, superseded by FR-019): 22 050 Hz.
     pub const SAMPLE_RATE: u32 = 22050;
 
     /// Create an empty ring with capacity for the full 60 s cap.

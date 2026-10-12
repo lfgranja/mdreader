@@ -9,7 +9,6 @@
 //! a semver bump, and a documentation update.
 
 use thiserror::Error;
-use tracing::instrument;
 
 /// The closed-set rate ladder (FR-019). The single
 /// authoritative definition lives in `engine-core`
@@ -86,8 +85,8 @@ pub fn rate_down_from(rate: PlaybackRate) -> PlaybackRate {
 ///
 /// # Compliance
 ///
-/// This type has exactly four Serialize/Deserialize variants
-/// (`Playing|Paused|Stopped|Completed`), all explicitly listed.
+/// This type has exactly five Serialize/Deserialize variants
+/// (`Playing|Paused|Stopped|Completed|Interrupted`), all explicitly listed.
 /// No `Other`/`Unknown` variant exists (Principle VII).
 pub use engine_core::closed::TransportState;
 
@@ -123,7 +122,7 @@ pub enum TransportError {
     /// # Failure
     ///
     /// This error is returned when `rewind_secs > 30.0`
-    /// or `target < 0.0` in `apply_rewind`. The rewind
+    /// or `target < 0.0` in the rewind application. The rewind
     /// amount is capped at 30.0 s per FR-004.
     #[error("Rewind exceeds 30 s cap")]
     RewindCapExceeded,
@@ -132,7 +131,7 @@ pub enum TransportError {
     /// # Failure
     ///
     /// This error is returned when the delta supplied to
-    /// `apply_skip` is not `5.0` or `-5.0`. The closed-set
+    /// the skip application is not `5.0` or `-5.0`. The closed-set
     /// rung ladder ensures exact ±5.0 s displacement.
     #[error("Skip displacement not exactly ±5.0 s")]
     SkipDisplacement,
@@ -143,44 +142,9 @@ pub enum TransportError {
     /// This error surfaces when the engine delivers audio
     /// at a rate different from the selected ladder rung.
     /// Mismatch = named `EngineError::RateMismatch`, never
-    /// silent resample (FR-033, FR-035).
+    /// silent resample (FR-019, FR-035) (FR-033, superseded by FR-019).
     #[error("Rate mismatch: engine delivered different rung")]
     RateMismatch,
-}
-
-/// Apply rewind / snap — called by Rust playback module (FR-002).
-///
-/// # Returns
-///
-/// `Ok(Position)` when the rewind is within the 30 s cap
-/// and the new position is ≥ 0.0.
-/// `Err(TransportError)` when the rewind would exceed the
-/// cap or move below floor 0.0.
-///
-/// # Failures
-///
-/// - `TransportError::RewindCapExceeded`: when `rewind_secs > 30.0`
-///   or clamping results in `target < 0.0` with non-zero
-///   rewind amount.
-/// - Never returns silence or substitutes format (FR-023:
-///   failure cannot be named as silence).
-#[instrument(skip(current))]
-#[must_use]
-pub fn apply_rewind(
-    current: Position,
-    paused_duration_secs: f64,
-) -> Result<Position, TransportError> {
-    let rewind_secs = (paused_duration_secs * 0.05).min(30.0);
-    let target = (current.secs - rewind_secs).max(0.0);
-    if target < 0.0 || rewind_secs > 30.0 {
-        return Err(TransportError::RewindCapExceeded);
-    }
-    // Sentence snap: fallback to nearest sentence boundary
-    // (document-structure resolves via doc-structure crate at resume)
-    Ok(Position {
-        secs: target,
-        transport: TransportState::Playing,
-    })
 }
 
 /// Skip direction — the closed two-member set (FR-018).
@@ -269,63 +233,5 @@ pub fn select_rate(current_rate: PlaybackRate, step: i8) -> PlaybackRate {
                 PlaybackRate::R4_0
             }
         }
-    }
-}
-
-/// Pre-roll buffer ≤60 s (FR-015a / FR-015b).
-/// Never advances position; emptied at session end.
-///
-/// # Compliance
-///
-/// The 60 s cap is the single [`crate::position::PREROLL_CAP_SECS`]
-/// constant — no second cap value can drift (Principle VII / FR-044).
-#[derive(Debug)]
-pub struct PreRollBuffer {
-    /// Maximum pre-roll, in seconds (the 60 s cap, FR-015a).
-    pub max_secs: f64,
-    /// Pre-roll currently buffered, in seconds.
-    pub current_secs: f64,
-}
-
-impl PreRollBuffer {
-    /// The hard pre-roll cap (FR-015a): single home is
-    /// [`crate::position::PREROLL_CAP_SECS`]; this alias never drifts
-    /// (Constitution VII / FR-015a).
-    pub const MAX: f64 = crate::position::PREROLL_CAP_SECS;
-    /// Create an empty pre-roll buffer at the cap.
-    pub fn new() -> Self {
-        Self {
-            max_secs: Self::MAX,
-            current_secs: 0.0,
-        }
-    }
-    /// Add delivered audio to the pre-roll buffer,
-    /// capped at [`Self::MAX`].
-    ///
-    /// # Errors
-    ///
-    /// This function does not return errors in the current
-    /// implementation: delivery is always non-negative per
-    /// FR-015a, and the cap saturates at MAX.
-    pub fn refill(&mut self, delivered: f64) {
-        self.current_secs = (self.current_secs + delivered).min(Self::MAX);
-    }
-    /// Empty the pre-roll buffer — the pipeline-side bound;
-    /// never advances position while idle (FR-015c).
-    ///
-    /// # Compliance
-    ///
-    /// Clearing the buffer does not advance position (FR-015c):
-    /// the buffer stores a duration only, touching no
-    /// [`crate::position::PositionClock`].
-    pub fn drain_while_idle(&mut self) {
-        // Pipeline-side bound — never advances position
-        self.current_secs = 0.0;
-    }
-}
-
-impl Default for PreRollBuffer {
-    fn default() -> Self {
-        Self::new()
     }
 }

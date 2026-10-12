@@ -13,11 +13,15 @@ diag::contract_schema
 diag::contract_schema_negative
 engine-core::prop_closed_sets
 engine-core::standin_shape
+engine-core::test_engine_handoff_us1
 player::prop_focus
+player::prop_lifecycle
 player::prop_resume_boundary
 player::prop_rewind
 player::prop_transport_math
 player::t069_adapter_declaration_consumption
+player::test_external_start_us1
 player::test_focus_duck_pause_us2
 player::test_focus_intents_us2
+player::test_session_recovery_us1
 session::prop_fingerprint

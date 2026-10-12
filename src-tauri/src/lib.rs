@@ -596,8 +596,17 @@ pub mod commands {
                 // FR-015: authorizes resume via the rewind
                 // path — never an auto-start from the
                 // bridge. Resolves the held loss and marks
-                // the transient resume owed.
+                // the transient resume owed. Restores full
+                // gain (FULL_GAIN) on the backend.
                 let decision = apply_focus(state, FocusIntent::FocusRegained)?;
+                let mut gain_restored = false;
+                if let Ok(backend_guard) = state.backend.lock() {
+                    if let Some(backend) = backend_guard.as_ref() {
+                        if backend.set_gain(player::focus::FULL_GAIN).is_ok() {
+                            gain_restored = true;
+                        }
+                    }
+                }
                 let snapshot = snapshot_of(state)?;
                 Ok(serde_json::json!({
                     "status": "focus_regained",
@@ -606,6 +615,7 @@ pub mod commands {
                     "position_secs": snapshot.position_secs,
                     "changed": false,
                     "auto_resumed": false,
+                    "gain_restored": gain_restored,
                 }))
             }
             IntentWire::BecomingNoisy => dispatch_noisy_intent(state),
@@ -670,9 +680,12 @@ pub mod commands {
     /// pause/stop arms (a missing or poisoned backend
     /// lock pauses nothing; the session verb below
     /// still runs, so silence is never skipped).
+    /// Also restores full gain (FULL_GAIN) so that a
+    /// paused session never resumes at a ducked level.
     fn pause_backend(state: &State<'_, AppState>) {
         if let Ok(backend) = state.backend.lock() {
             if let Some(backend) = backend.as_ref() {
+                let _ = backend.set_gain(player::focus::FULL_GAIN);
                 backend.pause();
             }
         }
@@ -682,10 +695,11 @@ pub mod commands {
     /// completion: mirrors the stop arm. It runs only
     /// after [`ShellVerb::Complete`] moves the session,
     /// never ahead of it, so a retained pause keeps its
-    /// queued audio.
+    /// queued audio. Restores full gain (FULL_GAIN).
     fn stop_backend(state: &State<'_, AppState>) {
         if let Ok(backend) = state.backend.lock() {
             if let Some(backend) = backend.as_ref() {
+                let _ = backend.set_gain(player::focus::FULL_GAIN);
                 backend.stop();
             }
         }
@@ -773,14 +787,21 @@ pub mod commands {
     /// Reply for the duckable transient (T110, FR-013):
     /// ducking never changes the transport, so no
     /// session verb runs in any state. The ~20% gain
-    /// half has no backend entry point (`CpalBackend`
-    /// exposes no gain control): it is reported
-    /// unapplied, never silently absorbed. Driven
-    /// through the held tracker (T125, FR-014), so the
-    /// ducked flag and duck-restore flag persist for the
-    /// silence escalation that may follow.
+    /// is applied to the backend (CpalBackend exposes
+    /// set_gain/gain since T123). Driven through the
+    /// held tracker (T125, FR-014), so the ducked flag
+    /// and duck-restore flag persist for the silence
+    /// escalation that may follow.
     fn ack_duck(state: &State<'_, AppState>) -> Result<serde_json::Value, String> {
         let decision = apply_focus(state, FocusIntent::DuckableTransient)?;
+        let mut applied = false;
+        if let Ok(backend_guard) = state.backend.lock() {
+            if let Some(backend) = backend_guard.as_ref() {
+                if backend.set_gain(decision.gain).is_ok() {
+                    applied = true;
+                }
+            }
+        }
         let snapshot = snapshot_of(state)?;
         Ok(serde_json::json!({
             "status": "duckable_transient",
@@ -789,7 +810,7 @@ pub mod commands {
             "position_secs": snapshot.position_secs,
             "changed": false,
             "gain": decision.gain,
-            "gain_applied": false,
+            "gain_applied": applied,
         }))
     }
 

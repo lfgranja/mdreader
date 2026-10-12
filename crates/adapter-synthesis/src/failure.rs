@@ -59,7 +59,9 @@ pub enum FailureCondition {
     /// closed set names no width-specific variant, because a
     /// width deviation is rate-shape per Principle VII.
     WidthDeviation,
-    /// The pitch tolerance (±3 cents at 2.0×) is violated →
+    /// The pitch tolerance
+    /// ([`engine_core::format::PITCH_TOLERANCE_CENTS`], the shared
+    /// SC-015 bound, 50 cents) is violated →
     /// [`EngineError::RateMismatch`].
     PitchToleranceViolation,
     /// The delivered channel count deviates from the declared

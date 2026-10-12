@@ -128,8 +128,8 @@ pub enum CliError {
     #[error("{0}")]
     Usage(String),
     /// The handoff-shape gate named a closed-set
-    /// [`crate::closed::EngineError`] deviation (FR-033,
-    /// FR-035).
+    /// [`crate::closed::EngineError`] deviation (FR-019,
+    /// FR-035) (FR-033, superseded by FR-019).
     #[error("verification failed: {0:?}")]
     Verification(crate::closed::EngineError),
     /// Reading stdin or writing a stream failed.

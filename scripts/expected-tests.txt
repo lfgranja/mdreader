@@ -16,6 +16,7 @@ diag::prop_record
 diag::prop_scanner_canary
 doc-structure::prop_headings
 engine-core
+engine-core::pitch_tolerance
 engine-core::prop_closed_sets
 engine-core::prop_fallback
 engine-core::prop_pitch
@@ -23,12 +24,14 @@ engine-core::standin_shape
 engine-core::test_engine_handoff_us1
 engine-core::test_standin_conformance_us5
 player
+player::prop_canonical_guard
 player::prop_focus
 player::prop_idle_drain
 player::prop_lifecycle
 player::prop_resume_boundary
 player::prop_rewind
 player::prop_routing
+player::prop_skip_clamp
 player::prop_surface
 player::prop_transport_math
 player::t069_adapter_declaration_consumption
@@ -41,6 +44,7 @@ player::test_removal_signals_us3
 player::test_routing_us3
 player::test_session_recovery_us1
 player::test_shell_ipc_us4
+session::prop_end_kind_codes
 session::prop_fingerprint
 session::prop_offer
 session::prop_resume

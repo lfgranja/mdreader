@@ -8,6 +8,7 @@ edition = "2024"
 redb = "2.6.0"
 blake3 = "1.6.0"
 doc-structure = { path = "../doc-structure" }
+engine-core = { path = "../engine-core" }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 serde = { workspace = true, features = ["derive"] }

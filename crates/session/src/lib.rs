@@ -1,21 +1,41 @@
-//! Session crate — redb bookmarks + blake3 fingerprint (FR-004 / FR-015 / FR-036 / FR-039).
-//! Single source of truth for position (FR-002 / FR-003).
+//! Session crate — the position authority's
+//! storage, fingerprint, and resume-offer flow
+//! (FR-002 / FR-003 / FR-004 / FR-015 / FR-019b /
+//! FR-031 / FR-032 series / FR-036 / FR-036a /
+//! FR-038 / FR-039 / FR-044).
+//!
+//! Single source of truth for position
+//! (FR-002 / FR-003). The canonical layout:
+//!
+//! - [`store`] (T058) — the redb bookmark store:
+//!   the `bookmarks` table (content fingerprint →
+//!   `{offset_secs, first_yield_ms, end_kind}`,
+//!   storage-schema.md) and the `settings`
+//!   table's `last_rate` (FR-019b).
+//! - [`fingerprint`] (T059) — the blake3-256
+//!   content fingerprint (FR-036 / FR-036a) and
+//!   the FR-038 re-anchor.
+//! - [`offer`] (T060) — the resume-offer state
+//!   machine (FR-032c / FR-032d / FR-032f), the
+//!   offer form resolved solely from the stored
+//!   end kind.
+//!
+//! The crate root keeps the legacy surface the US1
+//! recovery suite depends on: the raw `bookmarks`
+//! table definition, the raw-table
+//! `clear_bookmark`, the content `fingerprint`
+//! (re-exported from the [`fingerprint`] module —
+//! the module lives in the type namespace, the
+//! function in the value namespace), and the
+//! closed `resume_offer` / `ResumeChoice` /
+//! `SessionEnd` vocabulary.
 
-use blake3::Hasher;
-use redb::{Database, TableDefinition};
+pub mod fingerprint;
+pub mod offer;
+pub mod store;
 
-/// Bookmarks table: fingerprint → offset, paused-at, end_kind (FR-044).
-pub const BOOKMARKS: TableDefinition<&[u8; 32], (f64, u64, u8)> = TableDefinition::new("bookmarks");
-
-/// Fingerprint: blake3-256 of document bytes (FR-036 / FR-038).
-/// Same bytes → same 32-byte hash regardless of path; 1-bit change → different hash.
-pub fn fingerprint(data: &[u8]) -> [u8; 32] {
-    let mut hasher = Hasher::new();
-    // `update` returns `&mut Hasher` for chaining; the
-    // chained form is not used here (unused_results deny).
-    let _ = hasher.update(data);
-    *hasher.finalize().as_bytes()
-}
+pub use fingerprint::fingerprint;
+pub use store::{BOOKMARKS, clear_bookmark};
 
 /// Resume offer logic (FR-031 / FR-032 / FR-032c / FR-032d):
 /// — Deliberate-pause (stopped/paused): visible 3 s offer, continue-default + start-over.
@@ -59,18 +79,4 @@ pub enum SessionEnd {
     Completed,
     /// Session ended by interruption; resume offer applies.
     Interrupted,
-}
-
-/// Stored bookmark entry cleared only by Stop or document-end (FR-032f).
-/// Super-session is a sequence invariant (two ordered entries), not per-entry (see T035/T067).
-pub fn clear_bookmark(db: &Database, fp: &[u8; 32]) -> Result<(), redb::Error> {
-    let write_tx = db.begin_write()?;
-    {
-        let mut table = write_tx.open_table(BOOKMARKS)?;
-        // `remove` returns the previous value (an `Option`
-        // guard); no caller consumes it (unused_results deny).
-        let _ = table.remove(fp)?;
-    }
-    write_tx.commit()?;
-    Ok(())
 }

@@ -47,6 +47,17 @@ class FocusMirror(
         /** Wire event for focus returned. */
         const val INTENT_REGAINED = "regained"
 
+        /** Wire intent for the application coming to the
+         * foreground (contracts/shell-ipc.md; FR-032c latch
+         * only — no playback decision, read at offer
+         * expiry only). */
+        const val INTENT_APP_FOREGROUNDED = "app_foregrounded"
+
+        /** Wire intent for the application going to the
+         * background (contracts/shell-ipc.md; FR-032c latch
+         * only — no playback decision). */
+        const val INTENT_APP_BACKGROUNDED = "app_backgrounded"
+
         /** Wire value for a granted focus request (FocusGrant::Granted). */
         const val INTENT_GRANTED = "granted"
 

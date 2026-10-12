@@ -235,6 +235,21 @@ class MediaMirror(
          * notification action button; FR-018b). */
         const val VERB_CYCLE_VOICE_PREV = "cycle_voice_prev"
 
+        /** Wire verb for resuming at the stored bookmark
+         * (contracts/shell-ipc.md closed verb set; the
+         * session applies the resume semantics against the
+         * stored bookmark). */
+        const val VERB_RESUME_AT_STORED = "resume_at_stored"
+
+        /** Wire verb for discarding the bookmark and starting
+         * over (contracts/shell-ipc.md closed verb set). */
+        const val VERB_START_OVER = "start_over"
+
+        /** Wire verb for the engine-selection control
+         * (contracts/shell-ipc.md closed verb set; the
+         * session answers the authoritative engine id). */
+        const val VERB_CHOOSE_ENGINE = "choose_engine"
+
         /** Diagnostic verb for an unrecognised platform
          * control action; never absorbed. */
         const val VERB_CONTROL_UNMAPPED = "control_unmapped"

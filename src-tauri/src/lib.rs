@@ -21,6 +21,12 @@ use tauri::Manager;
 /// here (Principle V).
 pub mod permissions;
 
+/// The Kotlin-to-Rust shell channel (T111): the integer-code drain
+/// the `ShellHost` bootstrap posts through. Installed once in
+/// [`run`]; consulted (never constructed) by
+/// [`commands::register_android_plugin`].
+pub mod shell_jni;
+
 /// The shared reason shapes every surface renders
 /// (T065): short lock-screen strings, full in-app
 /// strings, and the reason expiry (3 s focus-loss
@@ -87,6 +93,16 @@ pub fn run() {
                     }
                 }
             }
+            // Shell JNI channel (T111, FR-002/FR-003): install
+            // the integer-code drain holding a clone of the
+            // application handle, so every Kotlin-posted verb or
+            // intent executes on AppState's OWN session through
+            // the single `run_mobile_plugin` dispatch — never a
+            // second session, never a duplicated code path. A
+            // spawn failure is recorded inside `install`; the
+            // sender stays installed, so later posts drop loudly
+            // instead of vanishing.
+            shell_jni::install(_app.app_handle().clone());
             // Permission-state gate (T030b, FR-008/FR-010): the
             // startup check runs once at boot against the snapshot
             // the Kotlin shell pushes through `update_permissions`
@@ -136,12 +152,30 @@ pub mod commands {
     /// the Application/Activity and reaches Rust through
     /// `run_mobile_plugin` below — never computing
     /// position, rate, or transport itself (SC-035).
+    ///
+    /// Self-bootstrap (T111): the platform creates the
+    /// service from the Application/Activity entry points
+    /// declared in the manifest (a structural requirement —
+    /// ActivityManager reflection forces the service class
+    /// into Kotlin), so no construction call from Rust or
+    /// the frontend precedes it. On creation the service
+    /// runs `ShellHost.init`, which builds the four mirrors
+    /// against the application context with sinks posting
+    /// integer codes to the `shell_jni` drain installed in
+    /// [`run`](crate::run). This body therefore performs no
+    /// construction of its own: it acknowledges the
+    /// registration and verifies the drain is live, so a
+    /// registration racing ahead of setup is recorded
+    /// loudly instead of vanishing.
     #[command]
     pub fn register_android_plugin() {
-        // The Kotlin PlaybackService self-bootstraps from the
-        // Application/Activity and reaches Rust through
-        // `run_mobile_plugin` below — never computing
-        // position/rate/transport itself.
+        if crate::shell_jni::channel_ready() {
+            tracing::info!("shell channel: plugin registered; drain live on AppState session");
+        } else {
+            tracing::warn!(
+                "shell channel: plugin registered before drain install; Kotlin posts will drop with diagnostics until setup runs"
+            );
+        }
     }
 
     /// Push the platform permission answer (T030b).

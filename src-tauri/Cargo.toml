@@ -34,3 +34,7 @@ tauri-build = { version = "=2.7.2", features = [] }
 # quietly opt out of the deny tables.
 [lints]
 workspace = true
+
+[[test]]
+name = "test_publish_payload"
+path = "tests/test_publish_payload.rs"

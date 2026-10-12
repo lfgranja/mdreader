@@ -1,87 +1,91 @@
-# Session state — 001-android-media-shell (US4/US5 complete; all gates GREEN)
+# Session state — 001-android-media-shell (Phase 8 COMPLETE — T084–T087 attested)
 
-Updated: 2026-10-12 (wave 3 landed; US4 + US5 gates attested).
+Updated: 2026-10-12 (verification wave landed; ONLY T084–T087
+attest success).
 
 ## Position
-- Wave 1 LANDED: T057, T061c, T065, T073, T058–T060
-  (`57bb525`), T075 (`247ecbb`).
-- Wave 2 LANDED: T064 Residency.kt (`0ad77cc`) +
-  shell-ipc.md residency intent set; T074 diag scanners +
-  CLI (`1f3d72f`); T065b status view (`99e71c4`); T063
-  session CLI (`aa3e10f`); T076 recovery machine
-  (`4b9f78b`); T061 surface resolver (`97030af`).
-- Wave 3 LANDED: T062 MediaMirror.kt (`3349fcf` —
-  7 accepted deviations adjudicated in the commit msg,
-  purity gate PASS, Kotlin compile carried to T086);
-  T078 failure.rs (`6da537d` — closed 1:1 taxonomy
-  mapping, T065 getters single-source, T076 decision
-  carried verbatim; 38/38 src-tauri).
-- Docs checkoffs: T062+T078 (`cc0a420`), T063+T074
-  (`9833aa7`), T061+T076 (`125d99c`).
-- Gates: **T066 US4 GREEN** (`0f900eb` — US4 suites
-  97/97; expected-tests.txt regenerated 27→47 entries:
-  44 package::target + 3 bare lib-binary entries,
-  decision recorded); **T079 US5 GREEN** (`a02d0d2` —
-  US5 suites 61/61; expected-tests.txt re-checked
-  identical, no diff to commit).
+- Phase 8 hardening wave LANDED: T080 (c824bfc),
+  T081 (46a2fed), T082 (e41c3dd), T083 (79277ae);
+  minSdk-29 restoration (c8991b1); governance
+  v1.5.0 (6d655bb); check-offs (466000b).
+- **T084 VERIFICATION GREEN** (b06efc8): `./scripts/verify.sh`
+  exit 0 — gates 1–7 PASS + gate-8-shell PASS +
+  gate-8-full DEFERRED (owner=synthesis); gate 9
+  `cargo tauri android build --target aarch64` exit 0
+  → app-universal-debug.apk (270 MB, arm64-v8a/
+  libsrc_tauri.so) + .aab.
+- **T085 quickstart validation** (8839aa5): every
+  host-checkable step PASS (§1 host gates, §2 manifest
+  + shell-purity + gate 9, §4 host legs); per-step
+  record in tasks.md.
+- **T086 human-review residue adjudication** (68bc18d):
+  all 149 allowlisted occurrences are type/getter/
+  delegation/doc-comment/test positions — zero
+  computations; on-device trials DEFERRED (hardware).
+- **T087 VERIFICATION.md** (this commit): per-criterion
+  verdict table for all 59 SCs — 6 host-PASS, 3
+  record-scan PASS (SC-005/012/019 with T068b canary
+  evidence), 2 PARTIAL (SC-010, SC-037 host legs PASS,
+  device legs deferred), 47 trial-SC deferred + FR-026,
+  SC-044 + gate-8-full DEFERRED (owner=synthesis).
 - Workspace: `cargo nextest run --workspace` — **525
-  passed (14 slow), 1 skipped**. Baseline before US4/US5
-  impl: 299+1.
-- All five story gates GREEN: T031, T041, T048, T066,
-  T079.
+  passed (7 slow), 1 skipped**; `cargo nextest run
+  -p diag` 26/26; `prop_surface` 11/11; `prop_pitch`
+  9/9.
 
 ## Next
-1. T081 (in flight): check-manifest.sh + check-shell-purity.sh
-   hardening (minSdk 29, 9-file allowlist, SC-057 registry
-   check, spec→test traceability).
-2. T084 host gates: `./scripts/verify.sh` full green run
-   (gates 1–7 PASS + gate-8-shell PASS + gate-8-full
-   DEFERRED) — the authoritative attestation run; gate 9
-   (cargo tauri android build --target aarch64) is
-   SDK-blocked on this host (ANDROID_HOME unset).
-3. T085 quickstart validation; T086 on-device (hardware-
-   blocked, document carried-forward); T087 VERIFICATION.md
-   attestation. ONLY T084–T087 attest success.
+1. On-device trials (T-01–T-48, each 10/10) + FR-026
+   offline start + SC-051 failover drill + the SC-010
+   locked visual check + SC-037 manual-absence walk +
+   the §3 record pulls — on a CI host with an API-29+
+   device (procedures + recording sheets ready in
+   tests/device/trials.md; verdicts tabulated in
+   VERIFICATION.md §5).
+2. SC-044 real-engine re-verification — owner: the
+   synthesis feature (002-fr-024-synthesis-adapter),
+   which also owns gate-8-full and the §9 observation
+   (the bridge's read-only `diagnose` voice-asset
+   inventory command sits outside the shell-IPC closed
+   verb set — document or fold in).
+3. FR-024a spec defect (dangling cross-reference,
+   spec.md:283 — no 001 definition, owned by 002):
+   define the requirement in 001 or remove the mention.
 
 ## Phase 8 landed
-- T080 (c824bfc): verify.sh gates 1–8 runner (two-way
-  target diff, lint-drift both directions, deny-list
-  name-boundary scan, comment-stripped closed-set scan,
-  gate-8-shell conformance mapping, gate-8-full DEFERRED
-  reporting) + src-tauri [lints] workspace = true
-  (build.rs doc, lib.rs run()/register_android_plugin()
-  docs, AppState Debug, .expect → unwrap_or_else).
+- T080 (c824bfc): verify.sh gates 1–8 runner +
+  src-tauri [lints] workspace = true fix chain.
+- T081 (46a2fed): check-manifest.sh (minSdk 29 across
+  three declaration forms) + check-shell-purity.sh
+  (5 sections; 149-occurrence residue inventory;
+  SC-057 registry check with the rust-player exemption;
+  three-tier traceability: 135 resolved, 1 exempted
+  (FR-024a), 0 unresolved). Negative tests 14/14.
 - T082 (e41c3dd): docs/architecture.md, ipc.md,
   fallback-order.md, diagnostic-record.md (873 lines).
 - T083 (79277ae): tests/device/README.md + trials.md
-  (48 trial procedures at 10/10 + routing sections).
-- Governance (6d655bb): constitution v1.4.0 → v1.5.0 —
-  CDLA-Permissive-2.0 admitted (webpki-roots data
-  license), Apache-2.0 WITH LLVM-exception synced into
-  deny.toml, RUSTSEC-2024-0370 waived (Exceptions Log
-  entry 10: compile-time-only proc macro in tauri's gtk
-  chain, no CVE). cargo deny all ok; cargo audit exit 0
-  (2 quality advisories as allowed warnings: entry-10
-  waiver + glib RUSTSEC-2024-0429, Linux-gtk-chain-only,
-  absent from the Android artifact).
+  (48 trial procedures + routing S-1–S-6).
+- Governance (6d655bb): constitution v1.5.0 supply-chain
+  sync.
 
 ## Watch-items
-- Kotlin compile verification SDK-gated (ANDROID_HOME
-  unset, kotlinc absent) — T062/T064 written to
-  established mirror patterns (Residency.kt idiom).
+- Gate-9 toolchain: the alpha-CLI-generated gen/android
+  carried AGP 9.0.0 + KGP 2.1.0 (incompatible — KGP
+  2.1.0 cannot coexist with AGP 9's built-in Kotlin
+  extension); realigned to the tauri-cli 2.12.1
+  template's tested combination (AGP 9.3.1 + KGP 2.2.10
+  + Gradle 9.6.1 + android.builtInKotlin=false +
+  android.newDsl=false) — host-local, git-ignored gen/
+  only; pinned tauri = 2.12.1 untouched.
 - `cargo clippy` workspace-wide fails on pre-existing
   root-Cargo.toml lint-group priority errors (clippy
   1.98 `nursery`/`cargo`, Cargo.toml:26/27) +
   engine-core cli.rs:220/327/389, trait_.rs:212 —
-  T080 scope; nextest gates unaffected.
-- src-tauri/Cargo.toml lacks `[lints] workspace =
-  true` — T080 lint-drift gate; test whether adding it
-  breaks the build before committing (pre-existing
-  `.expect` at src-tauri/src/lib.rs:97 would violate
-  `expect_used`).
+  pre-existing, outside the verify.sh gate set; nextest
+  gates unaffected.
 - nextest 0.9.133: `--workspace-type all` unsupported
-  — use `--workspace`; stop-on-first-failure per
-  binary — verify per-target for complete results.
+  — use `--workspace`; filter by `--test <target>`
+  (positional name filters do not match integration-test
+  binary names).
 - proptest 1.11: `prop_assert_eq!` moves operands —
   reused operands need `.clone()`/`.as_str()` at the
   assert site.

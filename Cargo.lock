@@ -3913,9 +3913,11 @@ name = "src-tauri"
 version = "0.1.0"
 dependencies = [
  "adapter-synthesis",
+ "engine-core",
  "player",
  "serde",
  "serde_json",
+ "session",
  "tauri",
  "tauri-build",
  "tracing",

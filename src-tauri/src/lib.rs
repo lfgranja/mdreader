@@ -49,8 +49,15 @@ pub mod status_view;
 pub mod failure;
 
 /// Shared app state: one playback session, one lazily-opened
-/// audio backend, and the platform permission snapshot the
-/// Kotlin shell pushes.
+/// audio backend, the platform permission snapshot the
+/// Kotlin shell pushes, and the held focus/offer machines
+/// (T125, FR-014 / FR-032c): every focus intent applies to
+/// the held [`player::focus::FocusTracker`] and every
+/// lifecycle latch writes the held
+/// [`session::offer::OfferMachine`], so supersede flags and
+/// the foreground latch survive the lock boundary and are
+/// read at offer expiry only — never a fresh machine per
+/// call.
 #[derive(Debug)]
 pub struct AppState {
     /// The single playback session (sole position authority).
@@ -63,6 +70,33 @@ pub struct AppState {
     /// host baseline holds until the first push (FR-008,
     /// FR-010, FR-021).
     permissions: Mutex<permissions::PermissionSnapshot>,
+    /// The held focus tracker (T125, FR-014): every focus
+    /// intent in [`commands::dispatch_intent`] applies
+    /// here, so latest-event-wins supersede and the
+    /// duck/resume flags persist across IPC calls.
+    pub(crate) focus_tracker: Mutex<player::focus::FocusTracker>,
+    /// The held resume-offer machine (T125, FR-032c /
+    /// FR-032d): the lifecycle latches write here and the
+    /// foreground latch is read at expiry only — never
+    /// converting an open offer early.
+    pub(crate) offer: Mutex<session::offer::OfferMachine>,
+}
+
+#[cfg(test)]
+impl AppState {
+    /// Fresh state for the latch-persistence tests: a new
+    /// session, no backend, the default (all-granted host
+    /// baseline) permissions, and fresh focus/offer
+    /// machines with the backgrounded latch.
+    pub(crate) fn test_state() -> Self {
+        Self {
+            session: Mutex::new(PlaybackSession::new()),
+            backend: Mutex::new(None),
+            permissions: Mutex::new(permissions::PermissionSnapshot::default()),
+            focus_tracker: Mutex::new(player::focus::FocusTracker::new()),
+            offer: Mutex::new(session::offer::OfferMachine::new()),
+        }
+    }
 }
 
 /// Run the Tauri application.
@@ -80,6 +114,8 @@ pub fn run() {
             session: Mutex::new(PlaybackSession::new()),
             backend: Mutex::new(None),
             permissions: Mutex::new(permissions::PermissionSnapshot::default()),
+            focus_tracker: Mutex::new(player::focus::FocusTracker::new()),
+            offer: Mutex::new(session::offer::OfferMachine::new()),
         })
         .setup(|_app| {
             // Voice assets ship inside the APK: extract them to a
@@ -139,7 +175,7 @@ pub mod commands {
     use super::permissions::{self, PermissionSnapshot};
     use super::{AppState, CpalBackend};
     use player::cli::{SessionSnapshot, ShellVerb};
-    use player::focus::{FocusIntent, FocusOutcome, classify as classify_focus_intent};
+    use player::focus::{FocusClassification, FocusIntent, FocusOutcome};
     use player::routing::{RoutingDecision, RoutingSignal, RoutingTracker};
     use tauri::{AppHandle, Manager, State, command};
 
@@ -533,8 +569,10 @@ pub mod commands {
         match intent {
             IntentWire::DuckableTransient => ack_duck(state),
             IntentWire::SilenceDemanding => {
-                // FR-013a: pause immediately, never duck.
-                let decision = classify_focus_intent(FocusIntent::SilenceDemanding);
+                // FR-013a: pause immediately, never duck —
+                // applied to the held tracker so the
+                // silence escalation persists (FR-014).
+                let decision = apply_focus(state, FocusIntent::SilenceDemanding)?;
                 pause_ack(
                     state,
                     "silence_demanding",
@@ -543,8 +581,10 @@ pub mod commands {
                 )
             }
             IntentWire::PermanentLoss => {
-                // FR-014: pause, never auto-resume.
-                let decision = classify_focus_intent(FocusIntent::PermanentLoss);
+                // FR-014: pause, never auto-resume — applied
+                // to the held tracker so the supersede
+                // flag-clearing persists.
+                let decision = apply_focus(state, FocusIntent::PermanentLoss)?;
                 pause_ack(
                     state,
                     "permanent_loss",
@@ -555,8 +595,9 @@ pub mod commands {
             IntentWire::FocusRegained => {
                 // FR-015: authorizes resume via the rewind
                 // path — never an auto-start from the
-                // bridge.
-                let decision = classify_focus_intent(FocusIntent::FocusRegained);
+                // bridge. Resolves the held loss and marks
+                // the transient resume owed.
+                let decision = apply_focus(state, FocusIntent::FocusRegained)?;
                 let snapshot = snapshot_of(state)?;
                 Ok(serde_json::json!({
                     "status": "focus_regained",
@@ -572,8 +613,11 @@ pub mod commands {
                 // FR-017a: follow at the unchanged position.
                 // The routing arm needs device identity the
                 // wire lacks, so the follow-only focus
-                // classification answers.
-                let decision = classify_focus_intent(FocusIntent::DeviceAppeared);
+                // classification answers — driven through
+                // the held tracker for latch consistency
+                // (a follow-only intent changes nothing it
+                // holds).
+                let decision = apply_focus(state, FocusIntent::DeviceAppeared)?;
                 let snapshot = snapshot_of(state)?;
                 Ok(serde_json::json!({
                     "status": "device_appeared",
@@ -585,8 +629,10 @@ pub mod commands {
             }
             IntentWire::DeviceDisappeared => {
                 // FR-016: pause first, explicit resume only
-                // — without inventing a device id.
-                let decision = classify_focus_intent(FocusIntent::DeviceDisappeared);
+                // — without inventing a device id. Applied
+                // to the held tracker so the permanent-loss
+                // escalation persists (FR-014).
+                let decision = apply_focus(state, FocusIntent::DeviceDisappeared)?;
                 pause_ack(
                     state,
                     "device_disappeared",
@@ -595,12 +641,13 @@ pub mod commands {
                 )
             }
             IntentWire::AppForegrounded => {
-                // FR-032c latch only: acknowledged statelessly.
-                Ok(ack_latch("app_foregrounded", FocusIntent::AppForegrounded))
+                // FR-032c latch only: latched into the held
+                // machines, read at offer expiry only.
+                ack_latch(state, "app_foregrounded", FocusIntent::AppForegrounded)
             }
             IntentWire::AppBackgrounded => {
                 // FR-032c latch only, read at expiry only.
-                Ok(ack_latch("app_backgrounded", FocusIntent::AppBackgrounded))
+                ack_latch(state, "app_backgrounded", FocusIntent::AppBackgrounded)
             }
             IntentWire::ResidentStop => {
                 // FR-009a: ends residency PRESERVING the
@@ -652,6 +699,27 @@ pub mod commands {
             .lock()
             .map_err(|e| e.to_string())
             .map(|session| session.snapshot())
+    }
+
+    /// Apply one focus intent to the held tracker (T125,
+    /// FR-014 / FR-032c): the single entry point every
+    /// focus-bearing arm uses, so latest-event-wins
+    /// supersede, the duck/resume flags, and the
+    /// foreground latch persist across IPC calls — never
+    /// a fresh machine per call. Returns the tracker's
+    /// classification (identical values to the stateless
+    /// mapping except where persistence owns the answer:
+    /// a late transient meeting a standing permanent loss
+    /// holds the paused outcome).
+    fn apply_focus(
+        state: &State<'_, AppState>,
+        intent: FocusIntent,
+    ) -> Result<FocusClassification, String> {
+        state
+            .focus_tracker
+            .lock()
+            .map_err(|e| e.to_string())
+            .map(|mut tracker| tracker.apply(intent))
     }
 
     /// Execute one session verb for a platform signal,
@@ -707,9 +775,12 @@ pub mod commands {
     /// session verb runs in any state. The ~20% gain
     /// half has no backend entry point (`CpalBackend`
     /// exposes no gain control): it is reported
-    /// unapplied, never silently absorbed.
+    /// unapplied, never silently absorbed. Driven
+    /// through the held tracker (T125, FR-014), so the
+    /// ducked flag and duck-restore flag persist for the
+    /// silence escalation that may follow.
     fn ack_duck(state: &State<'_, AppState>) -> Result<serde_json::Value, String> {
-        let decision = classify_focus_intent(FocusIntent::DuckableTransient);
+        let decision = apply_focus(state, FocusIntent::DuckableTransient)?;
         let snapshot = snapshot_of(state)?;
         Ok(serde_json::json!({
             "status": "duckable_transient",
@@ -723,19 +794,35 @@ pub mod commands {
     }
 
     /// Reply for a lifecycle latch intent (T110, FR-032c):
-    /// no playback decision — the bridge holds no
-    /// `OfferMachine` (the session crate is not a bridge
-    /// dependency), so the machine's latch verdict is
-    /// acknowledged statelessly and verbatim, and never
-    /// converts an open offer early.
-    fn ack_latch(status: &'static str, focus: FocusIntent) -> serde_json::Value {
-        let decision = classify_focus_intent(focus);
-        serde_json::json!({
+    /// no playback decision — the intent latches the held
+    /// machines (T125): the foreground latch writes the
+    /// held [`player::focus::FocusTracker`] through
+    /// `apply_focus` and the held
+    /// [`session::offer::OfferMachine`] through
+    /// `on_foregrounded` / `on_backgrounded`. The latch is
+    /// read at offer expiry only and never converts an
+    /// open offer early. The JSON shape is unchanged
+    /// (byte-compatible with the stateless ack).
+    fn ack_latch(
+        state: &State<'_, AppState>,
+        status: &'static str,
+        focus: FocusIntent,
+    ) -> Result<serde_json::Value, String> {
+        let decision = apply_focus(state, focus)?;
+        {
+            let mut offer = state.offer.lock().map_err(|e| e.to_string())?;
+            if focus == FocusIntent::AppForegrounded {
+                offer.on_foregrounded();
+            } else if focus == FocusIntent::AppBackgrounded {
+                offer.on_backgrounded();
+            }
+        }
+        Ok(serde_json::json!({
             "status": status,
             "outcome": decision.outcome,
             "changed": false,
             "foregrounded": decision.foreground_latched,
-        })
+        }))
     }
 
     /// Reply for an unmapped sentinel (T110): reported,
@@ -762,9 +849,12 @@ pub mod commands {
     /// the machine documents for the unlatched case.
     /// `Pause` pauses through the interrupt path;
     /// `NoChange` acks the already-silent session (R3:
-    /// never an auto-resume).
+    /// never an auto-resume). The silence is also applied
+    /// to the held focus tracker (T125, FR-014), so a
+    /// duck in progress does not survive the removal.
     fn dispatch_noisy_intent(state: &State<'_, AppState>) -> Result<serde_json::Value, String> {
         let transport = snapshot_of(state)?.transport;
+        let _ = apply_focus(state, FocusIntent::BecomingNoisy)?;
         let mut tracker = RoutingTracker::new();
         match tracker.apply(RoutingSignal::BecomingNoisy, transport) {
             RoutingDecision::Pause { latency_ms, .. } => {
@@ -805,11 +895,17 @@ pub mod commands {
     /// through [`ShellVerb::Complete`], legal only from
     /// `Playing` — any other state acks its mirror
     /// unchanged, and the backend stops only behind a
-    /// real completion.
+    /// real completion. The held offer machine tears down
+    /// with it (T125, FR-032b / FR-032e / FR-032f):
+    /// completion and the resume offer are mutually
+    /// exclusive, so a later expiry yields no outcome.
     fn dispatch_document_end(state: &State<'_, AppState>) -> Result<serde_json::Value, String> {
         let (snapshot, changed) = execute_or_current(state, ShellVerb::Complete)?;
         if changed {
             stop_backend(state);
+            if let Ok(mut offer) = state.offer.lock() {
+                offer.on_completion();
+            }
         }
         Ok(serde_json::json!({
             "status": "document_end",
@@ -1168,5 +1264,147 @@ mod bridge_dispatch_tests {
                 "wire {bad:?} must be rejected (unknown / wrong case / empty / kebab)"
             );
         }
+    }
+}
+
+/// T124 (Phase 13, BLOCKING TEST): latch persistence on the held machines.
+///
+/// RED test for the state T125 creates on [`AppState`]: the held
+/// `focus_tracker: Mutex<player::focus::FocusTracker>` and
+/// `offer: Mutex<session::offer::OfferMachine>` (both `pub(crate)`)
+/// plus the `#[cfg(test)] pub(crate) fn test_state()` constructor
+/// (fresh machines, default permissions, backend `None`; `src-tauri`
+/// gains the `session` path dependency mirroring the `player` one).
+///
+/// Every test locks through the [`AppState`]-held mutexes — never a
+/// local machine — so a latch or flag that fails to survive a lock
+/// boundary fails here (FR-032c latch read at expiry only; FR-014
+/// latest-event-wins supersede).
+#[cfg(test)]
+mod latch_persistence_tests {
+    use crate::AppState;
+    use engine_core::closed::SessionEnd;
+    use player::focus::{FocusIntent, FocusOutcome};
+    use session::offer::ExpiryOutcome;
+    use session::store::StoredPosition;
+
+    /// A deliberate-pause bookmark at exactly 120.0 s.
+    fn paused_at_120() -> StoredPosition {
+        StoredPosition {
+            offset_secs: 120.0,
+            first_yield_ms: 0,
+            end_kind: SessionEnd::Paused,
+        }
+    }
+
+    /// The foregrounded latch set under one lock acquisition is still
+    /// latched when expiry runs under a later acquisition: a
+    /// deliberate pause at 120.0 s auto-starts from 120.0 s — while a
+    /// fresh machine with the same end and the default (backgrounded)
+    /// latch converts to the explicit-resume form (FR-032c / FR-031).
+    #[test]
+    fn offer_latch_persists_across_lock_acquisitions() -> Result<(), String> {
+        let state = AppState::test_state();
+        let fingerprint = [0xA5u8; 32];
+        {
+            let mut offer = state.offer.lock().map_err(|e| e.to_string())?;
+            assert!(
+                offer
+                    .on_session_end(fingerprint, Some(paused_at_120()))
+                    .is_some(),
+                "a deliberate pause did not open the 3-second offer on the held machine"
+            );
+            offer.on_foregrounded();
+        }
+        {
+            let mut offer = state.offer.lock().map_err(|e| e.to_string())?;
+            assert_eq!(
+                offer.expire(),
+                ExpiryOutcome::AutoStart { offset_secs: 120.0 },
+                "the foregrounded latch did not survive the lock boundary (FR-032c)"
+            );
+        }
+        let fresh = AppState::test_state();
+        {
+            let mut offer = fresh.offer.lock().map_err(|e| e.to_string())?;
+            assert!(
+                offer
+                    .on_session_end(fingerprint, Some(paused_at_120()))
+                    .is_some(),
+                "a deliberate pause did not open the 3-second offer on the fresh machine"
+            );
+            assert_eq!(
+                offer.expire(),
+                ExpiryOutcome::ExplicitResume,
+                "a backgrounded deliberate-pause offer auto-started audio on its own (FR-032c, FR-031)"
+            );
+        }
+        Ok(())
+    }
+
+    /// Latest-event-wins supersede (FR-014) applies on the held
+    /// tracker: driving it through duck → silence-demanding →
+    /// permanent-loss clears the resume and duck-restore flags and
+    /// holds the paused outcome.
+    #[test]
+    fn supersede_applies_on_the_held_tracker() -> Result<(), String> {
+        let state = AppState::test_state();
+        let mut tracker = state.focus_tracker.lock().map_err(|e| e.to_string())?;
+        let _ducked = tracker.apply(FocusIntent::DuckableTransient);
+        assert!(
+            tracker.ducked,
+            "the duckable transient did not duck the held tracker"
+        );
+        let _silenced = tracker.apply(FocusIntent::SilenceDemanding);
+        assert!(
+            !tracker.duck_restore_due,
+            "silence-demanding did not clear the held duck-restore flag (FR-014)"
+        );
+        let _lost = tracker.apply(FocusIntent::PermanentLoss);
+        assert!(
+            !tracker.resume_due,
+            "permanent loss did not clear the held resume flag (FR-014)"
+        );
+        assert!(
+            !tracker.duck_restore_due,
+            "permanent loss did not clear the held duck-restore flag (FR-014)"
+        );
+        assert!(
+            !tracker.ducked,
+            "permanent loss left the held tracker ducked"
+        );
+        assert_eq!(
+            tracker.current,
+            Some(FocusOutcome::PermanentLoss),
+            "permanent loss did not hold the paused outcome on the held tracker (FR-014)"
+        );
+        Ok(())
+    }
+
+    /// Terminal ends open nothing on the held machine: `Stopped` and
+    /// `Completed` return no offer and their expiry yields no outcome
+    /// (FR-032 / FR-032e / FR-032f).
+    #[test]
+    fn terminal_ends_open_nothing() -> Result<(), String> {
+        let state = AppState::test_state();
+        let fingerprint = [0x5Au8; 32];
+        for end_kind in [SessionEnd::Stopped, SessionEnd::Completed] {
+            let stored = StoredPosition {
+                offset_secs: 120.0,
+                first_yield_ms: 0,
+                end_kind,
+            };
+            let mut offer = state.offer.lock().map_err(|e| e.to_string())?;
+            assert!(
+                offer.on_session_end(fingerprint, Some(stored)).is_none(),
+                "a terminal end opened a resume offer on the held machine"
+            );
+            assert_eq!(
+                offer.expire(),
+                ExpiryOutcome::NoOffer,
+                "an expiry produced an outcome after a terminal end on the held machine"
+            );
+        }
+        Ok(())
     }
 }

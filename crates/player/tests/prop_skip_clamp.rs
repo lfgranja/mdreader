@@ -61,10 +61,7 @@ use player::transport::SkipDirection;
 /// The closed skip-direction set (FR-018): exactly the two displacements
 /// the signature admits — no third input exists to fuzz.
 fn direction_strategy() -> impl Strategy<Value = SkipDirection> {
-    prop_oneof![
-        Just(SkipDirection::Forward),
-        Just(SkipDirection::Backward),
-    ]
+    prop_oneof![Just(SkipDirection::Forward), Just(SkipDirection::Backward),]
 }
 
 proptest! {

@@ -31,11 +31,39 @@ Updated: 2026-10-12 (wave 3 landed; US4 + US5 gates attested).
   T079.
 
 ## Next
-1. Phase 8 (parallel hardening wave): T080–T083, then
-   T084 host gates → T085 quickstart → T086 on-device
-   (hardware-blocked, document carried-forward) → T087
-   VERIFICATION.md attestation. ONLY T084–T087 attest
-   success.
+1. T081 (in flight): check-manifest.sh + check-shell-purity.sh
+   hardening (minSdk 29, 9-file allowlist, SC-057 registry
+   check, spec→test traceability).
+2. T084 host gates: `./scripts/verify.sh` full green run
+   (gates 1–7 PASS + gate-8-shell PASS + gate-8-full
+   DEFERRED) — the authoritative attestation run; gate 9
+   (cargo tauri android build --target aarch64) is
+   SDK-blocked on this host (ANDROID_HOME unset).
+3. T085 quickstart validation; T086 on-device (hardware-
+   blocked, document carried-forward); T087 VERIFICATION.md
+   attestation. ONLY T084–T087 attest success.
+
+## Phase 8 landed
+- T080 (c824bfc): verify.sh gates 1–8 runner (two-way
+  target diff, lint-drift both directions, deny-list
+  name-boundary scan, comment-stripped closed-set scan,
+  gate-8-shell conformance mapping, gate-8-full DEFERRED
+  reporting) + src-tauri [lints] workspace = true
+  (build.rs doc, lib.rs run()/register_android_plugin()
+  docs, AppState Debug, .expect → unwrap_or_else).
+- T082 (e41c3dd): docs/architecture.md, ipc.md,
+  fallback-order.md, diagnostic-record.md (873 lines).
+- T083 (79277ae): tests/device/README.md + trials.md
+  (48 trial procedures at 10/10 + routing sections).
+- Governance (6d655bb): constitution v1.4.0 → v1.5.0 —
+  CDLA-Permissive-2.0 admitted (webpki-roots data
+  license), Apache-2.0 WITH LLVM-exception synced into
+  deny.toml, RUSTSEC-2024-0370 waived (Exceptions Log
+  entry 10: compile-time-only proc macro in tauri's gtk
+  chain, no CVE). cargo deny all ok; cargo audit exit 0
+  (2 quality advisories as allowed warnings: entry-10
+  waiver + glib RUSTSEC-2024-0429, Linux-gtk-chain-only,
+  absent from the Android artifact).
 
 ## Watch-items
 - Kotlin compile verification SDK-gated (ANDROID_HOME

@@ -1007,7 +1007,11 @@ dependencies = [
 name = "doc-structure"
 version = "0.1.0"
 dependencies = [
+ "clap",
  "proptest",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
 ]
 
 [[package]]

@@ -4,8 +4,10 @@
 //! notification, lock screen, CLI, IPC — all call the same
 //! backend function per Principle II.
 
-use crate::position::PositionClock;
-use crate::transport::{PlaybackRate, TransportState, rate_down_from, rate_up_from};
+use crate::position::{PositionClock, SKIP_STEP_SECS};
+use crate::rate::{step_down, step_up};
+use crate::skip::apply_skip_exact;
+use crate::transport::{PlaybackRate, TransportState};
 use thiserror::Error;
 use tracing::{debug, instrument};
 
@@ -13,9 +15,14 @@ use tracing::{debug, instrument};
 const ENGINE_ID: &str = "rust-player";
 
 /// Shell verb — the closed verb set that every surface maps to
-/// (contracts/shell-ipc.md). Excludes read-only queries
-/// (`position`, `state`) which are handled separately and are
-/// not part of the closed-verb exhaustiveness.
+/// (contracts/shell-ipc.md): the fifteen verbs `Play | Pause |
+/// Stop | Complete | Interrupt | RateUp | RateDown |
+/// CycleVoiceNext | CycleVoicePrev | SkipForward | SkipBackward |
+/// ResumeAtStored | StartOver | ChooseEngine | ExternalStart`
+/// (the thirteen transport/session verbs plus the two voice-cycle
+/// verbs of FR-018b). Excludes read-only queries (`position`,
+/// `state`) which are handled separately and are not part of the
+/// closed-verb exhaustiveness.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ShellVerb {
     /// Play.
@@ -32,6 +39,14 @@ pub enum ShellVerb {
     RateUp,
     /// Rate down one step on the ladder.
     RateDown,
+    /// Cycle to the next voice — one voice per
+    /// press in the voice-selection order
+    /// (FR-018b / FR-024).
+    CycleVoiceNext,
+    /// Cycle to the previous voice — one voice
+    /// per press in the voice-selection order
+    /// (FR-018b / FR-024).
+    CycleVoicePrev,
     /// Skip forward ±5.0 s.
     SkipForward,
     /// Skip backward ±5.0 s.
@@ -56,6 +71,8 @@ impl std::fmt::Display for ShellVerb {
             ShellVerb::Interrupt => "interrupt",
             ShellVerb::RateUp => "rate-up",
             ShellVerb::RateDown => "rate-down",
+            ShellVerb::CycleVoiceNext => "cycle-voice-next",
+            ShellVerb::CycleVoicePrev => "cycle-voice-prev",
             ShellVerb::SkipForward => "skip-forward",
             ShellVerb::SkipBackward => "skip-backward",
             ShellVerb::ResumeAtStored => "resume-at-stored",
@@ -90,7 +107,14 @@ impl ShellVariant {
 }
 
 /// Snapshot of the session after a command.
-#[derive(Debug, Clone, PartialEq)]
+///
+/// The wire form is the shell-IPC mirror's source
+/// (contracts/shell-ipc.md case-mapping table):
+/// exactly the four snake_case keys `transport`,
+/// `position_secs`, `rate`, `engine_id` — the
+/// mirror carries the session's authoritative
+/// state and nothing else (SC-035).
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct SessionSnapshot {
     /// Current transport state.
     pub transport: TransportState,
@@ -160,6 +184,17 @@ enum Transition {
     /// ladder (FR-019) — a live-session control; no
     /// transport change.
     RateDown,
+    /// Cycle one voice in the voice-selection order
+    /// (FR-018b / FR-024) — a live-session control
+    /// like the rate moves: no transport change, the
+    /// position and the rate are retained. With the
+    /// single engine registered at v1 the
+    /// voice-selection order holds one entry, so the
+    /// press is honoured as a same-state landing; the
+    /// direction becomes observable when the
+    /// voice-selection interface lands with the engine
+    /// registry (T075).
+    CycleVoice,
     /// Skip forward exactly 5.0 s (FR-018) — a
     /// live-session control; no transport change.
     SkipForward,
@@ -178,7 +213,7 @@ enum Transition {
 /// `PlaybackSession`): the effect of every verb press
 /// from every transport state, as one exhaustive match
 /// over the closed (state, verb) product — five states
-/// × thirteen verbs, no catch-all arm (Principle VII /
+/// × fifteen verbs, no catch-all arm (Principle VII /
 /// FR-044 / gate 7). A new state or verb is a compile
 /// error here until it has a table entry, so the sets
 /// cannot drift.
@@ -196,7 +231,7 @@ enum Transition {
 /// other error, and never a silent acceptance.
 #[expect(
     clippy::match_same_arms,
-    reason = "Principle VII / FR-044: the closed 5x13 transition table's illegal cells all construct the same IllegalTransition and its legal control cells share effect constructors by design; enumerating every cell explicitly (rather than a catch-all arm) is what makes an added state or verb a compile error"
+    reason = "Principle VII / FR-044: the closed 5x15 transition table's illegal cells all construct the same IllegalTransition and its legal control cells share effect constructors by design; enumerating every cell explicitly (rather than a catch-all arm) is what makes an added state or verb a compile error"
 )]
 fn transition(transport: TransportState, verb: ShellVerb) -> Result<Transition, PlayerError> {
     match (transport, verb) {
@@ -223,6 +258,8 @@ fn transition(transport: TransportState, verb: ShellVerb) -> Result<Transition, 
         }),
         (TransportState::Playing, ShellVerb::RateUp) => Ok(Transition::RateUp),
         (TransportState::Playing, ShellVerb::RateDown) => Ok(Transition::RateDown),
+        (TransportState::Playing, ShellVerb::CycleVoiceNext) => Ok(Transition::CycleVoice),
+        (TransportState::Playing, ShellVerb::CycleVoicePrev) => Ok(Transition::CycleVoice),
         (TransportState::Playing, ShellVerb::SkipForward) => Ok(Transition::SkipForward),
         (TransportState::Playing, ShellVerb::SkipBackward) => Ok(Transition::SkipBackward),
         (TransportState::Playing, ShellVerb::ResumeAtStored) => {
@@ -267,6 +304,8 @@ fn transition(transport: TransportState, verb: ShellVerb) -> Result<Transition, 
         }),
         (TransportState::Paused, ShellVerb::RateUp) => Ok(Transition::RateUp),
         (TransportState::Paused, ShellVerb::RateDown) => Ok(Transition::RateDown),
+        (TransportState::Paused, ShellVerb::CycleVoiceNext) => Ok(Transition::CycleVoice),
+        (TransportState::Paused, ShellVerb::CycleVoicePrev) => Ok(Transition::CycleVoice),
         (TransportState::Paused, ShellVerb::SkipForward) => Ok(Transition::SkipForward),
         (TransportState::Paused, ShellVerb::SkipBackward) => Ok(Transition::SkipBackward),
         (TransportState::Paused, ShellVerb::ResumeAtStored) => Ok(Transition::Land {
@@ -306,6 +345,8 @@ fn transition(transport: TransportState, verb: ShellVerb) -> Result<Transition, 
         }
         (TransportState::Interrupted, ShellVerb::RateUp) => Ok(Transition::RateUp),
         (TransportState::Interrupted, ShellVerb::RateDown) => Ok(Transition::RateDown),
+        (TransportState::Interrupted, ShellVerb::CycleVoiceNext) => Ok(Transition::CycleVoice),
+        (TransportState::Interrupted, ShellVerb::CycleVoicePrev) => Ok(Transition::CycleVoice),
         (TransportState::Interrupted, ShellVerb::SkipForward) => Ok(Transition::SkipForward),
         (TransportState::Interrupted, ShellVerb::SkipBackward) => Ok(Transition::SkipBackward),
         (TransportState::Interrupted, ShellVerb::ResumeAtStored) => Ok(Transition::Land {
@@ -321,8 +362,8 @@ fn transition(transport: TransportState, verb: ShellVerb) -> Result<Transition, 
         // Stopped is terminal: only the idempotent Stop
         // press (T019) and the engine selection are
         // legal — the session is torn down (FR-032f),
-        // so rate moves, lock-screen skips, and every
-        // resume form are rejected.
+        // so rate moves, lock-screen skips, voice
+        // cycles, and every resume form are rejected.
         (TransportState::Stopped, ShellVerb::Play) => Err(PlayerError::IllegalTransition {
             current: transport,
             verb,
@@ -350,6 +391,18 @@ fn transition(transport: TransportState, verb: ShellVerb) -> Result<Transition, 
             current: transport,
             verb,
         }),
+        (TransportState::Stopped, ShellVerb::CycleVoiceNext) => {
+            Err(PlayerError::IllegalTransition {
+                current: transport,
+                verb,
+            })
+        }
+        (TransportState::Stopped, ShellVerb::CycleVoicePrev) => {
+            Err(PlayerError::IllegalTransition {
+                current: transport,
+                verb,
+            })
+        }
         (TransportState::Stopped, ShellVerb::SkipForward) => Err(PlayerError::IllegalTransition {
             current: transport,
             verb,
@@ -407,6 +460,18 @@ fn transition(transport: TransportState, verb: ShellVerb) -> Result<Transition, 
             current: transport,
             verb,
         }),
+        (TransportState::Completed, ShellVerb::CycleVoiceNext) => {
+            Err(PlayerError::IllegalTransition {
+                current: transport,
+                verb,
+            })
+        }
+        (TransportState::Completed, ShellVerb::CycleVoicePrev) => {
+            Err(PlayerError::IllegalTransition {
+                current: transport,
+                verb,
+            })
+        }
         (TransportState::Completed, ShellVerb::SkipForward) => {
             Err(PlayerError::IllegalTransition {
                 current: transport,
@@ -445,6 +510,13 @@ fn transition(transport: TransportState, verb: ShellVerb) -> Result<Transition, 
 /// Position advances only on audible playback (never while silent),
 /// and the transport state follows the closed transition function
 /// per data-model.md `PlaybackSession`.
+///
+/// The session is created either over a document of known
+/// duration ([`with_duration`](Self::with_duration)) — the
+/// determinate-progress total (FR-028c) that bounds every skip
+/// (FR-018) — or with no duration knowledge
+/// ([`new`](Self::new)), whose skips clamp at the 0.0 floor only
+/// and never reach an end-state.
 #[derive(Debug)]
 pub struct PlaybackSession {
     /// The authoritative position clock (FR-002).
@@ -453,16 +525,70 @@ pub struct PlaybackSession {
     transport: TransportState,
     /// Current playback rate.
     rate: PlaybackRate,
+    /// The known document duration in seconds (FR-028c):
+    /// `Some` for a [`with_duration`](Self::with_duration)
+    /// session — the skip clamp ceiling (FR-018) and the
+    /// determinate-progress total — `None` for
+    /// [`new`](Self::new), where the total is unknown.
+    duration: Option<f64>,
 }
 
 impl PlaybackSession {
     /// Create a new session at position 0.0, rate R1_0,
-    /// transport `Paused` (FR-019b default).
+    /// transport `Paused` (FR-019b default), with no
+    /// duration knowledge (FR-028c): the total is unknown,
+    /// so skips clamp at the 0.0 floor only and never
+    /// reach an end-state.
     pub fn new() -> Self {
         Self {
             clock: PositionClock::new(0.0),
             transport: TransportState::Paused,
             rate: PlaybackRate::R1_0,
+            duration: None,
+        }
+    }
+
+    /// Create a new session at position 0.0, rate R1_0,
+    /// transport `Paused` (FR-019b default), over a
+    /// document of known duration `duration_secs`
+    /// (FR-028c): the duration fixes determinate progress
+    /// for the whole session and bounds every skip at
+    /// `[0.0, duration]` (FR-018). A negative duration is
+    /// clamped to the 0.0 position floor — no document
+    /// is shorter than its start.
+    #[must_use]
+    pub fn with_duration(duration_secs: f64) -> Self {
+        Self {
+            clock: PositionClock::new(0.0),
+            transport: TransportState::Paused,
+            rate: PlaybackRate::R1_0,
+            duration: Some(duration_secs.max(0.0)),
+        }
+    }
+
+    /// The session's known document duration (FR-028c):
+    /// `Some` for a [`with_duration`](Self::with_duration)
+    /// session — the determinate-progress total and the
+    /// skip clamp ceiling (FR-018) — `None` for
+    /// [`new`](Self::new), whose skips clamp at the 0.0
+    /// floor only and never reach an end-state.
+    #[must_use]
+    pub const fn duration_secs(&self) -> Option<f64> {
+        self.duration
+    }
+
+    /// The ±5.0 s skip landing for a press from the current
+    /// position (FR-018): the unclamped core
+    /// ([`apply_skip_exact`](crate::skip::apply_skip_exact),
+    /// whose 0.0-floor clamp is part of the contract),
+    /// further clamped at the session's known duration
+    /// ceiling. A session with no declared duration clamps
+    /// at the floor only — there is no end to reach.
+    fn skip_landing(&self, delta_secs: f64) -> f64 {
+        let unclamped = apply_skip_exact(self.clock.position_secs(), delta_secs);
+        match self.duration {
+            Some(duration) => unclamped.min(duration),
+            None => unclamped,
         }
     }
 
@@ -483,7 +609,10 @@ impl PlaybackSession {
     /// cell first (FR-020): an illegal press is rejected with the
     /// transport and the position untouched, so the controls always
     /// reflect the actual state — and a playing state is never
-    /// reported while the session is silent (FR-005).
+    /// reported while the session is silent (FR-005). A forward
+    /// skip that reaches or passes a known duration lands at the
+    /// duration in the `Paused` end-state (FR-018) — completion
+    /// is document-end only, never a skip.
     #[instrument(skip(self))]
     pub fn execute(&mut self, verb: ShellVerb) -> Result<SessionSnapshot, PlayerError> {
         let effect = transition(self.transport, verb)?;
@@ -498,20 +627,73 @@ impl PlaybackSession {
                 debug!(verb = %verb, transport = ?transport, "transport landed, stored position discarded");
             }
             Transition::RateUp => {
-                self.rate = rate_up_from(self.rate);
+                self.rate = step_up(self.rate);
                 debug!(rate = ?self.rate, "rate up one step");
             }
             Transition::RateDown => {
-                self.rate = rate_down_from(self.rate);
+                self.rate = step_down(self.rate);
                 debug!(rate = ?self.rate, "rate down one step");
             }
+            Transition::CycleVoice => {
+                // A live-session control (FR-018b /
+                // FR-024): each press moves one voice
+                // in the order the voice-selection
+                // interface supplies. With the single
+                // engine registered at v1 that order
+                // holds one entry, so the press is
+                // honoured as a same-state landing —
+                // no transport, position, or rate
+                // change, and never a phantom playing
+                // state (FR-005). The direction
+                // becomes observable when the
+                // voice-selection interface lands
+                // with the engine registry (T075).
+                debug!("cycle voice — same-state landing (single engine)");
+            }
             Transition::SkipForward => {
-                let position = self.clock.skip_forward();
-                debug!(position, "skip forward");
+                // FR-018: exactly +5.0 s against the
+                // position at the moment the control
+                // was pressed, clamped to
+                // [0.0, duration] on a session with a
+                // known duration (FR-028c). A forward
+                // skip that reaches or passes the end
+                // lands at exactly the duration in the
+                // PAUSED end-state — completion is
+                // document-end only, never a skip.
+                let landing = self.skip_landing(SKIP_STEP_SECS);
+                let reached_the_end = match self.duration {
+                    Some(duration) => landing >= duration,
+                    None => false,
+                };
+                if reached_the_end {
+                    self.clock = PositionClock::new(landing);
+                    self.transport = TransportState::Paused;
+                    debug!(
+                        position = landing,
+                        "skip forward reached the end — landed paused at the duration (FR-018)"
+                    );
+                } else {
+                    let position = self.clock.skip_forward();
+                    debug!(position, "skip forward");
+                }
             }
             Transition::SkipBackward => {
+                // FR-018: exactly −5.0 s against the
+                // press-time position, clamped at the
+                // 0.0 floor and, on a session with a
+                // known duration, at the duration
+                // ceiling; the transport never changes.
+                let landing = self.skip_landing(-SKIP_STEP_SECS);
                 let position = self.clock.skip_back();
-                debug!(position, "skip backward");
+                // A position already past the duration
+                // ceiling (a progress feed beyond the
+                // end) is pulled back to the clamped
+                // landing; the ordinary backward skip
+                // already lands at the unclamped core.
+                if position > landing {
+                    self.clock = PositionClock::new(landing);
+                }
+                debug!(position = self.clock.position_secs(), "skip backward");
             }
             Transition::ChooseEngine => {
                 // Placeholder: engine selection is handled by the

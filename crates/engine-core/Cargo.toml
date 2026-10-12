@@ -23,5 +23,9 @@ proptest = { workspace = true }
 name = "test_engine_handoff_us1"
 path = "tests/contract/test_engine_handoff_us1.rs"
 
+[[test]]
+name = "test_standin_conformance_us5"
+path = "tests/contract/test_standin_conformance_us5.rs"
+
 [lints]
 workspace = true

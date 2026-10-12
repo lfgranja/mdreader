@@ -61,9 +61,21 @@ path = "tests/integration/test_routing_us3.rs"
 name = "test_removal_signals_us3"
 path = "tests/contract/test_removal_signals_us3.rs"
 
-# US4/US5 targets (test_lockscreen_us4,
-# test_shell_ipc_us4, test_failover_us5) stay unwired until
-# their test tasks (T049–T055, T067–T071) land
+[[test]]
+name = "test_lockscreen_us4"
+path = "tests/integration/test_lockscreen_us4.rs"
+
+[[test]]
+name = "test_shell_ipc_us4"
+path = "tests/contract/test_shell_ipc_us4.rs"
+
+[[test]]
+name = "test_failover_us5"
+path = "tests/integration/test_failover_us5.rs"
+
+# US4/US5 root-level targets (prop_surface, prop_idle_drain)
+# auto-discover; session/diag/engine-core root tests
+# auto-discover in their own crates
 # the files — wiring a missing path breaks every workspace
 # build (this commit's first attempt proved it).
 

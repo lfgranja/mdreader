@@ -240,8 +240,9 @@ pub trait Engine {
     /// sample rate, which stays the declared
     /// [`crate::format::DeclaredFormat::SAMPLE_RATE`] on all
     /// seven rungs (SC-034). Measurable tolerance: the pitch
-    /// shift stays within ±3 cents at 2.0× — a deviation
-    /// beyond that tolerance is an
+    /// shift stays within the shared SC-015 bound,
+    /// [`crate::format::PITCH_TOLERANCE_CENTS`] — a deviation
+    /// beyond that bound is an
     /// [`EngineError::RateMismatch`]
     /// (contracts/engine-handoff.md).
     ///

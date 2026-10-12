@@ -118,15 +118,6 @@ pub struct Position {
 /// in `crates/*/src`.
 #[derive(Error, Debug)]
 pub enum TransportError {
-    /// The skip would move the position below the 0.0 floor.
-    ///
-    /// # Failure
-    ///
-    /// This error is returned when `target < 0.0` in
-    /// `apply_skip`. The caller must not attempt to skip
-    /// beyond the document start.
-    #[error("Position exceeds document bounds")]
-    OutOfBounds,
     /// The rewind would exceed the 30 s cap (FR-004 / FR-015).
     ///
     /// # Failure
@@ -186,37 +177,6 @@ pub fn apply_rewind(
     }
     // Sentence snap: fallback to nearest sentence boundary
     // (document-structure resolves via doc-structure crate at resume)
-    Ok(Position {
-        secs: target,
-        transport: TransportState::Playing,
-    })
-}
-
-/// Skip ±5.0 s — exact displacement, never start/end violation.
-///
-/// # Errors
-///
-/// `Err(TransportError::OutOfBounds)` when `target < 0.0`:
-/// the skip would move the position below the document start.
-/// The end-bound check is deferred to document-structure (FR-038).
-///
-/// # Failure
-///
-/// This error is returned when `current.secs + delta < 0.0`.
-/// The caller must not attempt to skip beyond the document
-/// start; the clamping is deferred to the document-structure
-/// layer (FR-038 / FR-022).
-#[must_use]
-pub fn apply_skip(current: Position, direction: SkipDirection) -> Result<Position, TransportError> {
-    let delta = match direction {
-        SkipDirection::Forward => 5.0,
-        SkipDirection::Backward => -5.0,
-    };
-    let target = current.secs + delta;
-    if target < 0.0 {
-        return Err(TransportError::OutOfBounds);
-    }
-    // End-bound check deferred to document-structure (FR-038 / FR-022)
     Ok(Position {
         secs: target,
         transport: TransportState::Playing,

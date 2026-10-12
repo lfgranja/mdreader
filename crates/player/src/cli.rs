@@ -4,10 +4,10 @@
 //! notification, lock screen, CLI, IPC — all call the same
 //! backend function per Principle II.
 
-use crate::position::{PositionClock, SKIP_STEP_SECS};
+use crate::position::PositionClock;
 use crate::rate::{step_down, step_up};
-use crate::skip::apply_skip_exact;
-use crate::transport::{PlaybackRate, TransportState};
+use crate::skip::skip_clamped;
+use crate::transport::{PlaybackRate, SkipDirection, TransportState};
 use thiserror::Error;
 use tracing::{debug, instrument};
 
@@ -578,17 +578,16 @@ impl PlaybackSession {
     }
 
     /// The ±5.0 s skip landing for a press from the current
-    /// position (FR-018): the unclamped core
-    /// ([`apply_skip_exact`](crate::skip::apply_skip_exact),
-    /// whose 0.0-floor clamp is part of the contract),
-    /// further clamped at the session's known duration
-    /// ceiling. A session with no declared duration clamps
-    /// at the floor only — there is no end to reach.
-    fn skip_landing(&self, delta_secs: f64) -> f64 {
-        let unclamped = apply_skip_exact(self.clock.position_secs(), delta_secs);
+    /// position (FR-018): the canonical clamped core
+    /// ([`skip_clamped`](crate::skip::skip_clamped)) against
+    /// the session's known duration ceiling. A session with
+    /// no declared duration clamps at the 0.0 floor only —
+    /// there is no end to reach, so the ceiling is +∞ (the
+    /// identity for the `.min` clamp inside `skip_clamped`).
+    fn skip_landing(&self, direction: SkipDirection) -> f64 {
         match self.duration {
-            Some(duration) => unclamped.min(duration),
-            None => unclamped,
+            Some(duration) => skip_clamped(self.clock.position_secs(), direction, duration),
+            None => skip_clamped(self.clock.position_secs(), direction, f64::INFINITY),
         }
     }
 
@@ -660,7 +659,7 @@ impl PlaybackSession {
                 // lands at exactly the duration in the
                 // PAUSED end-state — completion is
                 // document-end only, never a skip.
-                let landing = self.skip_landing(SKIP_STEP_SECS);
+                let landing = self.skip_landing(SkipDirection::Forward);
                 let reached_the_end = match self.duration {
                     Some(duration) => landing >= duration,
                     None => false,
@@ -683,7 +682,7 @@ impl PlaybackSession {
                 // 0.0 floor and, on a session with a
                 // known duration, at the duration
                 // ceiling; the transport never changes.
-                let landing = self.skip_landing(-SKIP_STEP_SECS);
+                let landing = self.skip_landing(SkipDirection::Backward);
                 let position = self.clock.skip_back();
                 // A position already past the duration
                 // ceiling (a progress feed beyond the

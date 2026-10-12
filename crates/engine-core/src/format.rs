@@ -32,6 +32,20 @@ impl DeclaredFormat {
     pub const SAMPLE_WIDTH_BITS: u16 = 32;
 }
 
+/// The single contract pitch tolerance: `50` cents
+/// (SC-015, contracts/engine-handoff.md).
+///
+/// The pitch shift of the delivered audio stays within
+/// this bound of the source across all seven rate rungs,
+/// including the `2.0×`→`4.0×` pair; a deviation beyond
+/// it is a named [`EngineError::RateMismatch`]. The
+/// engine trait ([`crate::trait_::Engine::set_rate`]),
+/// both stand-in engines, and the pitch-invariance
+/// property (`tests/prop_pitch.rs`) all derive their
+/// conformance from this constant, so the bound cannot
+/// drift between declaration and enforcement.
+pub const PITCH_TOLERANCE_CENTS: u32 = 50;
+
 /// Check an engine-delivered audio format against the
 /// declared handoff shape (FR-033, FR-035).
 ///

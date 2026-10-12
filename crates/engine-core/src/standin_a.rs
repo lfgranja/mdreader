@@ -71,8 +71,9 @@ impl StandinA {
     /// **inside the engine**: the delivered sample rate
     /// stays the declared 22050 Hz on all seven rungs
     /// (FR-043, SC-034), and the pitch shift stays
-    /// within ±3 cents at 2.0× — a deviation beyond
-    /// that tolerance is an [`crate::closed::EngineError::RateMismatch`]
+    /// within the shared SC-015 bound
+    /// ([`crate::format::PITCH_TOLERANCE_CENTS`]) — a
+    /// deviation beyond that bound is an [`crate::closed::EngineError::RateMismatch`]
     /// (contracts/engine-handoff.md). The stand-in
     /// satisfies the contract by construction: it
     /// accepts the rate and keeps the delivered format

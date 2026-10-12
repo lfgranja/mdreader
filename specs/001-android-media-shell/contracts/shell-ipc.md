@@ -68,3 +68,37 @@ the diagnostic record and IPC payloads carry; Rust names never appear on the wir
 | `Unreachable\|InitFailed\|RateMismatch\|ChannelMismatch\|DeviceRefused\|DeviceLost\|StartRefused` | `engine_unreachable\|engine_init_failed\|rate_mismatch\|channel_mismatch\|device_refused\|device_lost\|start_refused` | — (named `error` on `failure` + `refusal`) |
 | `PlaybackRate` 7 rungs | `0.75\|1.0\|1.25\|1.5\|1.75\|2.0\|4.0` numbers | `RateUp\|RateDown` (+ `CycleVoiceNext\|CycleVoicePrev` per FR-018b) |
 | `offline_default\|cloud_default\|cloud_escalation\|test_double\|evaluated_fallback` | same five strings in `engine_tier` | — (closed tier order, FR-023c) |
+
+## Read-only queries (outside the closed verb set)
+
+`diagnose` is a read-only query, not a verb. It answers the voice-asset
+inventory question (what packaged voice assets are present and how large
+the extracted tree is) and maps to no IPC verb. Per the T027 precedent
+(`position`/`state` are read-only queries handled separately and excluded
+from closed-verb exhaustiveness), `diagnose` is likewise excluded from
+closed-verb exhaustiveness: the closed verb set above is unchanged.
+
+Purpose: voice-asset inventory for the packaged `pt_BR-faber-medium`
+voice (`src-tauri/src/lib.rs:282-311`).
+
+Exhaustive returned-field list (JSON object, ten keys):
+
+`resource_dir` (resolved resource-dir string, or `unresolvable: …`),
+`model_present`, `tokens_present`, `espeak_present` (presence of
+`pt_BR-faber-medium.onnx`, `tokens.txt`, `espeak-ng-data` under the
+resource-dir voice path), `data_model_present`, `data_tokens_present`
+(same two files under the app-data-dir voice path), `data_files_total`
+(total entries walked, capped), `data_espeak_is_dir`,
+`data_espeak_files`, `data_onnx_bytes` (model byte size, 0 when absent).
+
+No-mutation guarantee: read-only. It walks the two voice-asset
+directories (`resource_dir/voices/pt_BR-faber-medium` and
+`app_data_dir/voices/pt_BR-faber-medium`) via existence checks and a
+capped directory walk. It takes no session or backend lock and writes
+nothing — no transport/position/rate/session mutation. It reads the
+filesystem only; it does not read the diagnostic record.
+
+Routing note: the substance of this surface (voice-asset ownership)
+belongs to the 002 synthesis feature per `VERIFICATION.md` §9. This
+section closes only the 001-side documentation gap; normative closed-set
+text above is untouched.

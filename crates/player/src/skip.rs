@@ -1,16 +1,30 @@
 //! Skip math, rate-change effective time-bound, pre-roll pipeline property.
 //! No computation delegated to Kotlin surface (FR-042 / SC-035).
 
-use crate::transport::PlaybackRate;
+use crate::transport::{PlaybackRate, SkipDirection};
 
 /// Skip ±5.0 s exactly — displacement must land at sentence/node boundary
-/// when re-anchor applies (FR-038 / FR-018). End-bound checked by doc-structure.
+/// when re-anchor applies (FR-038 / FR-018). Callers pass ±5.0 s by
+/// construction (the closed [`SKIP_STEP_SECS`](crate::position::SKIP_STEP_SECS)
+/// step); the canonical clamped path — direction-typed so an off-±5.0
+/// displacement is unrepresentable — is [`skip_clamped`].
 pub fn apply_skip_exact(position: f64, delta: f64) -> f64 {
-    assert!(
-        (delta - 5.0).abs() < 0.001 || (delta + 5.0).abs() < 0.001,
-        "Skip displacement must be exactly ±5.0 s (FR-018 / SC-043)"
-    );
     (position + delta).max(0.0)
+}
+
+/// Skip exactly ±5.0 s from `position`, clamped into `[0.0, duration]`
+/// (FR-018 / SC-016): `+5.0` for [`SkipDirection::Forward`], `-5.0` for
+/// [`SkipDirection::Backward`]. The direction-typed signature admits only
+/// the two closed displacements, so no assertion or error arm is needed —
+/// the clamp-without-error rule holds by construction and this function
+/// never panics and never errors.
+#[must_use]
+pub fn skip_clamped(position: f64, direction: SkipDirection, duration: f64) -> f64 {
+    let delta = match direction {
+        SkipDirection::Forward => 5.0,
+        SkipDirection::Backward => -5.0,
+    };
+    (position + delta).max(0.0).min(duration)
 }
 
 /// Pre-roll ≤60 s — ring buffer never advances position; empty while idle (FR-015a/FR-015b/FR-015c).

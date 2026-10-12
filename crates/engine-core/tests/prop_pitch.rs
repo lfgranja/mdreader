@@ -10,9 +10,10 @@
 //! Spec anchors:
 //! - SC-015 — the pitch shift stays within ±50 cents of the source
 //!   across ALL seven rungs, including the 2.0×→4.0× pair. The
-//!   engine-handoff contract pins ±3 cents at 2.0× (trait_.rs,
-//!   `Engine::set_rate`); this property asserts the looser SC-015
-//!   bound so every conforming engine passes.
+//!   engine-handoff contract names the same bound through the
+//!   single shared `engine_core::format::PITCH_TOLERANCE_CENTS`,
+//!   which this property asserts directly, so every conforming
+//!   engine passes the same tolerance everywhere.
 //! - SC-034 — the delivered audio rate is invariant at the declared
 //!   22050 Hz on every rung: a rate change is a pitch-preserving
 //!   time-stretch INSIDE the engine (FR-043) and never alters the
@@ -74,15 +75,10 @@
 use std::f64::consts::PI;
 
 use engine_core::closed::PlaybackRate;
-use engine_core::format::{DeclaredFormat, check_handoff};
+use engine_core::format::{DeclaredFormat, PITCH_TOLERANCE_CENTS, check_handoff};
 use engine_core::standin_a::StandinA;
 use engine_core::standin_b::StandinB;
 use engine_core::trait_::{Engine, MAX_PREROLL_SECS, StreamChunk};
-
-/// The SC-015 pitch-invariance bound: ±50 cents between the F0
-/// contour (and the spectral-peak contour) of the delivered audio
-/// at any rung and the R1_0 reference contour.
-const PITCH_TOLERANCE_CENTS: f64 = 50.0;
 
 /// The estimator calibration bound: the deterministic estimators
 /// must recover the source fundamental well inside the SC-015
@@ -491,13 +487,13 @@ fn pitch_is_invariant_across_the_ladder<E: Engine>(
         contour_matches_within(
             &f0_contour(&chunk.frames),
             &reference_f0,
-            PITCH_TOLERANCE_CENTS,
+            f64::from(PITCH_TOLERANCE_CENTS),
             &diagnostic,
         )?;
         contour_matches_within(
             &peak_contour(&chunk.frames),
             &reference_peaks,
-            PITCH_TOLERANCE_CENTS,
+            f64::from(PITCH_TOLERANCE_CENTS),
             &diagnostic,
         )?;
     }
@@ -527,13 +523,13 @@ fn pitch_matches_across_the_two_to_four_pair<E: Engine>(
     contour_matches_within(
         &four_f0,
         &two_f0,
-        PITCH_TOLERANCE_CENTS,
+        f64::from(PITCH_TOLERANCE_CENTS),
         &format!("{engine_name}: the 2.0×→4.0× pair, F0 contour"),
     )?;
     contour_matches_within(
         &four_peaks,
         &two_peaks,
-        PITCH_TOLERANCE_CENTS,
+        f64::from(PITCH_TOLERANCE_CENTS),
         &format!("{engine_name}: the 2.0×→4.0× pair, spectral peaks"),
     )?;
     Ok(())

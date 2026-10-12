@@ -343,3 +343,242 @@ pub mod commands {
         (total, espeak_is_dir, espeak_files, onnx_bytes)
     }
 }
+
+/// T109 (Phase 12 Convergence, BLOCKING TEST): bridge dispatch table.
+///
+/// RED test for the seam T110 will create inside [`commands`]:
+/// `parse_action` classifying every closed shell-IPC wire string
+/// (`specs/001-android-media-shell/contracts/shell-ipc.md`) into
+/// `BridgeAction::Verb` / `BridgeAction::Intent` / `BridgeAction::Diagnose`.
+///
+/// Wire-string sources (verified by direct read):
+/// * verbs `play|pause|stop|skip_forward5s|skip_back5s|rate_up|rate_down|
+///   cycle_voice_next|cycle_voice_prev|control_unmapped` — `MediaMirror.kt`
+///   `VERB_*` consts; `resume_at_stored|start_over|choose_engine` — the
+///   contract's closed verb set via the normative snake_case case-mapping
+///   (no Kotlin `VERB_*` const exists for these three yet — gap noted).
+/// * intents `duckable_transient|silence_demanding|permanent_loss|regained`
+///   (`FocusMirror.kt` `INTENT_*`; `FocusRegained` wires as `regained`, per
+///   the contract case-mapping table and `test_focus_intents_us2.rs` WIRE),
+///   `becoming_noisy|device_appeared|device_disappeared` (`RoutingMirror.kt`),
+///   `resident_stop|swipe_away|document_end|lifecycle_unmapped`
+///   (`Residency.kt`), `app_foregrounded|app_backgrounded` (contract +
+///   `FocusIntent` WIRE table; no Kotlin `INTENT_*` const exists — gap noted).
+///   Extra Kotlin-only wires with no `IntentWire` counterpart (also gaps):
+///   `granted|deferred|refused|focus_change_unmapped|focus_grant_unmapped`.
+///
+/// Assertions use `matches!` (not `assert_eq!`) so the test imposes no
+/// `PartialEq`/`Debug` derive requirement on the T110 types.
+#[cfg(test)]
+mod bridge_dispatch_tests {
+    use crate::commands::{BridgeAction, IntentWire, parse_action};
+    use player::cli::ShellVerb;
+
+    #[test]
+    fn closed_verb_wires_parse_to_verb() {
+        assert!(
+            matches!(
+                parse_action("play"),
+                Ok(BridgeAction::Verb(ShellVerb::Play))
+            ),
+            "wire 'play' must parse to Verb(Play)"
+        );
+        assert!(
+            matches!(
+                parse_action("pause"),
+                Ok(BridgeAction::Verb(ShellVerb::Pause))
+            ),
+            "wire 'pause' must parse to Verb(Pause)"
+        );
+        assert!(
+            matches!(
+                parse_action("stop"),
+                Ok(BridgeAction::Verb(ShellVerb::Stop))
+            ),
+            "wire 'stop' must parse to Verb(Stop)"
+        );
+        assert!(
+            matches!(
+                parse_action("skip_forward5s"),
+                Ok(BridgeAction::Verb(ShellVerb::SkipForward))
+            ),
+            "wire 'skip_forward5s' must parse to Verb(SkipForward)"
+        );
+        assert!(
+            matches!(
+                parse_action("skip_back5s"),
+                Ok(BridgeAction::Verb(ShellVerb::SkipBackward))
+            ),
+            "wire 'skip_back5s' must parse to Verb(SkipBackward)"
+        );
+        assert!(
+            matches!(
+                parse_action("rate_up"),
+                Ok(BridgeAction::Verb(ShellVerb::RateUp))
+            ),
+            "wire 'rate_up' must parse to Verb(RateUp)"
+        );
+        assert!(
+            matches!(
+                parse_action("rate_down"),
+                Ok(BridgeAction::Verb(ShellVerb::RateDown))
+            ),
+            "wire 'rate_down' must parse to Verb(RateDown)"
+        );
+        assert!(
+            matches!(
+                parse_action("cycle_voice_next"),
+                Ok(BridgeAction::Verb(ShellVerb::CycleVoiceNext))
+            ),
+            "wire 'cycle_voice_next' must parse to Verb(CycleVoiceNext)"
+        );
+        assert!(
+            matches!(
+                parse_action("cycle_voice_prev"),
+                Ok(BridgeAction::Verb(ShellVerb::CycleVoicePrev))
+            ),
+            "wire 'cycle_voice_prev' must parse to Verb(CycleVoicePrev)"
+        );
+        assert!(
+            matches!(
+                parse_action("resume_at_stored"),
+                Ok(BridgeAction::Verb(ShellVerb::ResumeAtStored))
+            ),
+            "wire 'resume_at_stored' must parse to Verb(ResumeAtStored)"
+        );
+        assert!(
+            matches!(
+                parse_action("start_over"),
+                Ok(BridgeAction::Verb(ShellVerb::StartOver))
+            ),
+            "wire 'start_over' must parse to Verb(StartOver)"
+        );
+        assert!(
+            matches!(
+                parse_action("choose_engine"),
+                Ok(BridgeAction::Verb(ShellVerb::ChooseEngine))
+            ),
+            "wire 'choose_engine' must parse to Verb(ChooseEngine)"
+        );
+    }
+
+    #[test]
+    fn closed_intent_wires_parse_to_intent() {
+        assert!(
+            matches!(
+                parse_action("duckable_transient"),
+                Ok(BridgeAction::Intent(IntentWire::DuckableTransient))
+            ),
+            "wire 'duckable_transient' must parse to Intent(DuckableTransient)"
+        );
+        assert!(
+            matches!(
+                parse_action("silence_demanding"),
+                Ok(BridgeAction::Intent(IntentWire::SilenceDemanding))
+            ),
+            "wire 'silence_demanding' must parse to Intent(SilenceDemanding)"
+        );
+        assert!(
+            matches!(
+                parse_action("permanent_loss"),
+                Ok(BridgeAction::Intent(IntentWire::PermanentLoss))
+            ),
+            "wire 'permanent_loss' must parse to Intent(PermanentLoss)"
+        );
+        assert!(
+            matches!(
+                parse_action("regained"),
+                Ok(BridgeAction::Intent(IntentWire::FocusRegained))
+            ),
+            "wire 'regained' must parse to Intent(FocusRegained)"
+        );
+        assert!(
+            matches!(
+                parse_action("becoming_noisy"),
+                Ok(BridgeAction::Intent(IntentWire::BecomingNoisy))
+            ),
+            "wire 'becoming_noisy' must parse to Intent(BecomingNoisy)"
+        );
+        assert!(
+            matches!(
+                parse_action("device_appeared"),
+                Ok(BridgeAction::Intent(IntentWire::DeviceAppeared))
+            ),
+            "wire 'device_appeared' must parse to Intent(DeviceAppeared)"
+        );
+        assert!(
+            matches!(
+                parse_action("device_disappeared"),
+                Ok(BridgeAction::Intent(IntentWire::DeviceDisappeared))
+            ),
+            "wire 'device_disappeared' must parse to Intent(DeviceDisappeared)"
+        );
+        assert!(
+            matches!(
+                parse_action("app_foregrounded"),
+                Ok(BridgeAction::Intent(IntentWire::AppForegrounded))
+            ),
+            "wire 'app_foregrounded' must parse to Intent(AppForegrounded)"
+        );
+        assert!(
+            matches!(
+                parse_action("app_backgrounded"),
+                Ok(BridgeAction::Intent(IntentWire::AppBackgrounded))
+            ),
+            "wire 'app_backgrounded' must parse to Intent(AppBackgrounded)"
+        );
+        assert!(
+            matches!(
+                parse_action("resident_stop"),
+                Ok(BridgeAction::Intent(IntentWire::ResidentStop))
+            ),
+            "wire 'resident_stop' must parse to Intent(ResidentStop)"
+        );
+        assert!(
+            matches!(
+                parse_action("swipe_away"),
+                Ok(BridgeAction::Intent(IntentWire::SwipeAway))
+            ),
+            "wire 'swipe_away' must parse to Intent(SwipeAway)"
+        );
+        assert!(
+            matches!(
+                parse_action("document_end"),
+                Ok(BridgeAction::Intent(IntentWire::DocumentEnd))
+            ),
+            "wire 'document_end' must parse to Intent(DocumentEnd)"
+        );
+        assert!(
+            matches!(
+                parse_action("control_unmapped"),
+                Ok(BridgeAction::Intent(IntentWire::ControlUnmapped))
+            ),
+            "wire 'control_unmapped' must parse to Intent(ControlUnmapped)"
+        );
+        assert!(
+            matches!(
+                parse_action("lifecycle_unmapped"),
+                Ok(BridgeAction::Intent(IntentWire::LifecycleUnmapped))
+            ),
+            "wire 'lifecycle_unmapped' must parse to Intent(LifecycleUnmapped)"
+        );
+    }
+
+    #[test]
+    fn diagnose_wire_parses_to_diagnose() {
+        assert!(
+            matches!(parse_action("diagnose"), Ok(BridgeAction::Diagnose)),
+            "wire 'diagnose' must parse to Diagnose"
+        );
+    }
+
+    #[test]
+    fn unknown_wires_are_rejected() {
+        for bad in ["bogus", "SKIP", "", "skip-forward"] {
+            assert!(
+                parse_action(bad).is_err(),
+                "wire {bad:?} must be rejected (unknown / wrong case / empty / kebab)"
+            );
+        }
+    }
+}

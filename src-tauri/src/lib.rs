@@ -21,6 +21,19 @@ use tauri::Manager;
 /// here (Principle V).
 pub mod permissions;
 
+/// The shared reason shapes every surface renders
+/// (T065): short lock-screen strings, full in-app
+/// strings, and the reason expiry (3 s focus-loss
+/// vs persistent failure). T065b's status view and
+/// T078's failure surface render through these
+/// getters — never a second definition.
+pub mod surface;
+
+/// The engine-failure surface (T078): the named
+/// failure + alternatives rendering, conforming to
+/// the T065 reason shapes.
+pub mod failure;
+
 /// Shared app state: one playback session, one lazily-opened
 /// audio backend, and the platform permission snapshot the
 /// Kotlin shell pushes.

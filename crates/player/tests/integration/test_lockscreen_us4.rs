@@ -504,9 +504,11 @@ fn full_ladder_walks_every_rung_including_2x_to_4x() -> Result<(), Box<dyn Error
 
     // Walk up from the default rung, asserting every
     // intermediate rung — the final step is the 2.0×→4.0×
-    // move the trial must exercise (FR-019).
+    // move the trial must exercise (FR-019). The default
+    // rung is LADDER[1], so the walk covers LADDER[2..]:
+    // the first rate-up press lands on LADDER[2] (R1_25).
     let mut walked = PlaybackRate::R1_0;
-    for &rung in LADDER.iter().skip(1) {
+    for &rung in LADDER.iter().skip(2) {
         let stepped = session.execute(ShellVerb::RateUp)?;
         walked = step_up(walked);
         assert_eq!(
@@ -990,8 +992,8 @@ fn status_view_rate_equals_the_lock_screen_rate_source() -> Result<(), Box<dyn E
     // The surface resolver — fed only the session's
     // position — resolves the status view: a determinate
     // progress carrying the session's position and the
-    // known duration, with the most-recent-passed heading
-    // as the section title (T051).
+    // marked document extent, with the most-recent-passed
+    // heading as the section title (T051).
     let resolver =
         SurfaceResolver::new(Some(METADATA_TITLE.to_string()), FILENAME.to_string(), true);
     let headings = [
@@ -1008,6 +1010,14 @@ fn status_view_rate_equals_the_lock_screen_rate_source() -> Result<(), Box<dyn E
             title: "Later Section".to_string(),
         },
     ];
+    // The marked document extent (FR-028a): the
+    // greatest heading position the list marks —
+    // the determinate total's only possible source,
+    // since the resolver is fed the position and
+    // the heading list and nothing else.
+    let marked_extent = headings
+        .iter()
+        .fold(0.0_f64, |extent, heading| extent.max(heading.position_secs));
     let surface = resolver.resolve(snap.position_secs, &headings);
     assert_eq!(
         surface.title, METADATA_TITLE,
@@ -1029,8 +1039,8 @@ fn status_view_rate_equals_the_lock_screen_rate_source() -> Result<(), Box<dyn E
             "the status view carries the session's position — the Rust module only (FR-003)"
         );
         assert!(
-            (duration_secs - DURATION_SECS).abs() <= POS_EPS_SECS,
-            "a session with a known duration resolves a determinate progress (T051)"
+            (duration_secs - marked_extent).abs() <= POS_EPS_SECS,
+            "the determinate total is the marked document extent — the greatest heading position the list marks, the resolver's only duration input, never an estimate (FR-028a)"
         );
         determinate = true;
     }

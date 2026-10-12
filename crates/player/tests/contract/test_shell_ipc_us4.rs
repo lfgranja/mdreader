@@ -754,10 +754,12 @@ fn transition_table_shape_follows_the_shell_ipc_contract() -> Result<(), Box<dyn
 
     // The rate ladder: every rung of the closed
     // 7-rung ladder in order, saturating at both
-    // ends (FR-019).
+    // ends (FR-019). The default rung is LADDER[1],
+    // so the up-walk covers LADDER[2..] — the
+    // first rate-up press lands on LADDER[2] (R1_25).
     let mut session = PlaybackSession::new();
     let _played = session.execute(ShellVerb::Play)?;
-    for &rung in LADDER.iter().skip(1) {
+    for &rung in LADDER.iter().skip(2) {
         let _stepped = session.execute(ShellVerb::RateUp)?;
         assert_eq!(
             session.snapshot().rate,

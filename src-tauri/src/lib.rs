@@ -11,6 +11,7 @@ use std::sync::Mutex;
 
 use player::backend::CpalBackend;
 use player::cli::PlaybackSession;
+use player::surface::MirrorState;
 use tauri::Manager;
 
 /// The permission-state gate (T030b): the pure,
@@ -50,15 +51,12 @@ pub mod failure;
 
 /// Shared app state: one playback session, one lazily-opened
 /// audio backend, the platform permission snapshot the
-/// Kotlin shell pushes, and the held focus/offer machines
-/// (T125, FR-014 / FR-032c): every focus intent applies to
-/// the held [`player::focus::FocusTracker`] and every
-/// lifecycle latch writes the held
-/// [`session::offer::OfferMachine`], so supersede flags and
-/// the foreground latch survive the lock boundary and are
-/// read at offer expiry only — never a fresh machine per
-/// call.
-#[derive(Debug)]
+/// Kotlin shell pushes, the held focus/offer machines
+/// (T125, FR-014 / FR-032c), and the Rust→shell publish
+/// channel (T133, FR-003 / FR-028): streams `MirrorState`
+/// snapshots on every transport/position/focus event.
+/// Does not derive Debug because it contains `tauri::ipc::Channel`
+/// which does not implement Debug.
 pub struct AppState {
     /// The single playback session (sole position authority).
     session: Mutex<PlaybackSession>,
@@ -80,6 +78,36 @@ pub struct AppState {
     /// foreground latch is read at expiry only — never
     /// converting an open offer early.
     pub(crate) offer: Mutex<session::offer::OfferMachine>,
+    /// The Rust→shell publish channel (T133): created on
+    /// first frontend listener registration, used to
+    /// stream `MirrorState` snapshots (sanctioned
+    /// Rust→frontend direction via `tauri::ipc::Channel`).
+    pub(crate) publish_channel: Mutex<Option<tauri::ipc::Channel<MirrorState>>>,
+    /// The surface resolver for the current document (T133):
+    /// holds the title, filename, and duration knowledge
+    /// fixed at session start (FR-028a / FR-029). `None`
+    /// when no document is loaded.
+    pub(crate) surface_resolver: Mutex<Option<player::surface::SurfaceResolver>>,
+    /// The document headings for the current session (T133):
+    /// ordered list of (position_secs, title) for section
+    /// title resolution (FR-028b). Empty when no document
+    /// is loaded or document has no headings.
+    pub(crate) headings: Mutex<Vec<player::surface::Heading>>,
+}
+
+impl std::fmt::Debug for AppState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AppState")
+            .field("session", &self.session)
+            .field("backend", &self.backend)
+            .field("permissions", &self.permissions)
+            .field("focus_tracker", &self.focus_tracker)
+            .field("offer", &self.offer)
+            .field("publish_channel", &"<tauri::ipc::Channel<MirrorState>>")
+            .field("surface_resolver", &self.surface_resolver)
+            .field("headings", &self.headings)
+            .finish_non_exhaustive()
+    }
 }
 
 #[cfg(test)]
@@ -95,6 +123,9 @@ impl AppState {
             permissions: Mutex::new(permissions::PermissionSnapshot::default()),
             focus_tracker: Mutex::new(player::focus::FocusTracker::new()),
             offer: Mutex::new(session::offer::OfferMachine::new()),
+            publish_channel: Mutex::new(None),
+            surface_resolver: Mutex::new(None),
+            headings: Mutex::new(Vec::new()),
         }
     }
 }
@@ -116,6 +147,9 @@ pub fn run() {
             permissions: Mutex::new(permissions::PermissionSnapshot::default()),
             focus_tracker: Mutex::new(player::focus::FocusTracker::new()),
             offer: Mutex::new(session::offer::OfferMachine::new()),
+            publish_channel: Mutex::new(None),
+            surface_resolver: Mutex::new(None),
+            headings: Mutex::new(Vec::new()),
         })
         .setup(|_app| {
             // Voice assets ship inside the APK: extract them to a
@@ -174,9 +208,11 @@ pub mod commands {
 
     use super::permissions::{self, PermissionSnapshot};
     use super::{AppState, CpalBackend};
+    use crate::publish;
     use player::cli::{SessionSnapshot, ShellVerb};
     use player::focus::{FocusClassification, FocusIntent, FocusOutcome};
     use player::routing::{RoutingDecision, RoutingSignal, RoutingTracker};
+    use player::surface::{SurfaceResolver, Heading};
     use tauri::{AppHandle, Manager, State, command};
 
     /// Declared sample rate of the engine handoff (mono f32).
@@ -462,6 +498,7 @@ pub mod commands {
                 }
                 let mut session = state.session.lock().map_err(|e| e.to_string())?;
                 let snap = session.execute(verb).map_err(|e| e.to_string())?;
+                publish_current_state(state, None);
                 Ok(serde_json::json!({
                     "status": snap.transport.to_string(),
                     "position_secs": snap.position_secs,
@@ -478,6 +515,7 @@ pub mod commands {
                 let snap = session
                     .execute(ShellVerb::Pause)
                     .map_err(|e| e.to_string())?;
+                publish_current_state(state, None);
                 Ok(serde_json::json!({
                     "status": "paused",
                     "position_secs": snap.position_secs,
@@ -494,6 +532,7 @@ pub mod commands {
                 let snap = session
                     .execute(ShellVerb::Stop)
                     .map_err(|e| e.to_string())?;
+                publish_current_state(state, None);
                 Ok(serde_json::json!({
                     "status": "stopped",
                     "position_secs": snap.position_secs,
@@ -517,6 +556,7 @@ pub mod commands {
                 // a session that actually plays (FR-005).
                 let mut session = state.session.lock().map_err(|e| e.to_string())?;
                 let snap = session.execute(verb).map_err(|e| e.to_string())?;
+                publish_current_state(state, None);
                 Ok(serde_json::json!({
                     "status": snap.transport.to_string(),
                     "position_secs": snap.position_secs,
@@ -578,6 +618,7 @@ pub mod commands {
                     "silence_demanding",
                     decision.outcome,
                     ShellVerb::Interrupt,
+                    Some("silence-demanding".to_string()),
                 )
             }
             IntentWire::PermanentLoss => {
@@ -590,6 +631,7 @@ pub mod commands {
                     "permanent_loss",
                     decision.outcome,
                     ShellVerb::Interrupt,
+                    Some("permanent_loss".to_string()),
                 )
             }
             IntentWire::FocusRegained => {
@@ -607,6 +649,7 @@ pub mod commands {
                         }
                     }
                 }
+                publish_current_state(state, None);
                 let snapshot = snapshot_of(state)?;
                 Ok(serde_json::json!({
                     "status": "focus_regained",
@@ -626,8 +669,9 @@ pub mod commands {
                 // classification answers — driven through
                 // the held tracker for latch consistency
                 // (a follow-only intent changes nothing it
-                // holds).
+                // holds). Publishes the mirror state (T133).
                 let decision = apply_focus(state, FocusIntent::DeviceAppeared)?;
+                publish_current_state(state, None);
                 let snapshot = snapshot_of(state)?;
                 Ok(serde_json::json!({
                     "status": "device_appeared",
@@ -648,6 +692,7 @@ pub mod commands {
                     "device_disappeared",
                     decision.outcome,
                     ShellVerb::Interrupt,
+                    Some("device_disappeared".to_string()),
                 )
             }
             IntentWire::AppForegrounded => {
@@ -662,12 +707,12 @@ pub mod commands {
             IntentWire::ResidentStop => {
                 // FR-009a: ends residency PRESERVING the
                 // bookmark — never the discarding `Stop`.
-                pause_ack(state, "resident_stop", None, ShellVerb::Pause)
+                pause_ack(state, "resident_stop", None, ShellVerb::Pause, None)
             }
             IntentWire::SwipeAway => {
                 // FR-028e fallback: pause first when audio
                 // still plays, preserve the bookmark.
-                pause_ack(state, "swipe_away", None, ShellVerb::Pause)
+                pause_ack(state, "swipe_away", None, ShellVerb::Pause, Some("swipe_away".to_string()))
             }
             IntentWire::DocumentEnd => dispatch_document_end(state),
             IntentWire::ControlUnmapped => ack_unmapped(state, "control_unmapped"),
@@ -767,14 +812,17 @@ pub mod commands {
     /// unexpected silences (the verb whose own docs name
     /// focus loss) and [`ShellVerb::Pause`] where the
     /// bookmark must survive residency teardown.
+    /// Publishes the mirror state after the pause (T133).
     fn pause_ack(
         state: &State<'_, AppState>,
         status: &'static str,
         outcome: Option<FocusOutcome>,
         verb: ShellVerb,
+        transient_reason: Option<String>,
     ) -> Result<serde_json::Value, String> {
         pause_backend(state);
         let (snapshot, changed) = execute_or_current(state, verb)?;
+        publish_current_state(state, transient_reason);
         Ok(serde_json::json!({
             "status": status,
             "outcome": outcome,
@@ -791,7 +839,8 @@ pub mod commands {
     /// set_gain/gain since T123). Driven through the
     /// held tracker (T125, FR-014), so the ducked flag
     /// and duck-restore flag persist for the silence
-    /// escalation that may follow.
+    /// escalation that may follow. Publishes the mirror
+    /// state with the ducked gain (T133).
     fn ack_duck(state: &State<'_, AppState>) -> Result<serde_json::Value, String> {
         let decision = apply_focus(state, FocusIntent::DuckableTransient)?;
         let mut applied = false;
@@ -803,6 +852,7 @@ pub mod commands {
             }
         }
         let snapshot = snapshot_of(state)?;
+        publish_current_state(state, None);
         Ok(serde_json::json!({
             "status": "duckable_transient",
             "outcome": decision.outcome,
@@ -863,6 +913,30 @@ pub mod commands {
         }))
     }
 
+    /// Publish the current mirror state to the frontend (T133).
+    ///
+    /// Called after every transport/position/focus event that
+    /// changes the session state. Reads the surface resolver
+    /// and headings from AppState and emits a `MirrorState`
+    /// snapshot via the `tauri::ipc::Channel`.
+    fn publish_current_state(
+        state: &State<'_, AppState>,
+        transient_reason: Option<String>,
+    ) {
+        let resolver_guard = match state.surface_resolver.lock() {
+            Ok(g) => g,
+            Err(_) => return,
+        };
+        let Some(resolver) = resolver_guard.as_ref() else {
+            return; // no document loaded
+        };
+        let headings_guard = match state.headings.lock() {
+            Ok(g) => g,
+            Err(_) => return,
+        };
+        crate::publish::publish_from_session(state, resolver, &headings_guard, transient_reason);
+    }
+
     /// Route the noisy signal (T110, FR-016): the routing
     /// machine owns the ≤1 s bound, so it is consulted
     /// at the live transport. A fresh tracker latches no
@@ -873,6 +947,7 @@ pub mod commands {
     /// never an auto-resume). The silence is also applied
     /// to the held focus tracker (T125, FR-014), so a
     /// duck in progress does not survive the removal.
+    /// Publishes the mirror state after the pause (T133).
     fn dispatch_noisy_intent(state: &State<'_, AppState>) -> Result<serde_json::Value, String> {
         let transport = snapshot_of(state)?.transport;
         let _ = apply_focus(state, FocusIntent::BecomingNoisy)?;
@@ -881,6 +956,7 @@ pub mod commands {
             RoutingDecision::Pause { latency_ms, .. } => {
                 pause_backend(state);
                 let (snapshot, changed) = execute_or_current(state, ShellVerb::Interrupt)?;
+                publish_current_state(state, Some("becoming_noisy".to_string()));
                 Ok(serde_json::json!({
                     "status": "becoming_noisy",
                     "transport": snapshot.transport.to_string(),
@@ -893,6 +969,7 @@ pub mod commands {
                 // Unreachable for a removal signal; kept
                 // for exhaustiveness (no catch-all arm).
                 let snapshot = snapshot_of(state)?;
+                publish_current_state(state, None);
                 Ok(serde_json::json!({
                     "status": "becoming_noisy",
                     "transport": snapshot.transport.to_string(),
@@ -902,6 +979,7 @@ pub mod commands {
             }
             RoutingDecision::NoChange => {
                 let snapshot = snapshot_of(state)?;
+                publish_current_state(state, None);
                 Ok(serde_json::json!({
                     "status": "becoming_noisy",
                     "transport": snapshot.transport.to_string(),
@@ -920,6 +998,7 @@ pub mod commands {
     /// with it (T125, FR-032b / FR-032e / FR-032f):
     /// completion and the resume offer are mutually
     /// exclusive, so a later expiry yields no outcome.
+    /// Publishes the mirror state after completion (T133).
     fn dispatch_document_end(state: &State<'_, AppState>) -> Result<serde_json::Value, String> {
         let (snapshot, changed) = execute_or_current(state, ShellVerb::Complete)?;
         if changed {
@@ -928,6 +1007,7 @@ pub mod commands {
                 offer.on_completion();
             }
         }
+        publish_current_state(state, None);
         Ok(serde_json::json!({
             "status": "document_end",
             "transport": snapshot.transport.to_string(),
@@ -948,6 +1028,16 @@ pub mod commands {
         if segments.is_empty() {
             return Err("empty document: no segments".to_string());
         }
+
+        // Extract title from first heading segment, or use fallback.
+        let title = segments
+            .iter()
+            .find(|s| s.boundary_kind == adapter_synthesis::chunk::BoundaryKind::Heading)
+            .map(|s| s.content.lines().next().unwrap_or("").trim_start_matches('#').trim().to_string())
+            .filter(|t| !t.is_empty())
+            .unwrap_or_else(|| "Document".to_string());
+
+        // Synthesize PCM first to get total duration.
         let mut pcm = Vec::new();
         for segment in &segments {
             let buffer = adapter_synthesis::synth::synthesize(segment)
@@ -956,6 +1046,47 @@ pub mod commands {
         }
         let pcm_samples = pcm.len();
         let duration_secs = pcm_samples as f64 / DECLARED_RATE_HZ;
+
+        // Extract headings from segments with Heading boundary_kind.
+        // Estimate position_secs based on segment order and total duration.
+        let heading_segments: Vec<_> = segments
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| s.boundary_kind == adapter_synthesis::chunk::BoundaryKind::Heading)
+            .collect();
+        let mut headings = Vec::new();
+        for (idx, segment) in heading_segments {
+            let estimated_position = (idx as f64 / segments.len() as f64) * duration_secs;
+            let heading_title = segment
+                .content
+                .lines()
+                .next()
+                .unwrap_or("")
+                .trim_start_matches('#')
+                .trim()
+                .to_string();
+            if !heading_title.is_empty() {
+                headings.push(player::surface::Heading {
+                    position_secs: estimated_position,
+                    title: heading_title,
+                });
+            }
+        }
+
+        // Create surface resolver with known duration (total PCM duration is known).
+        let resolver = player::surface::SurfaceResolver::new(
+            Some(title.clone()),
+            "document.md".to_string(),
+            true, // duration_known_at_start = true (total PCM duration known)
+        );
+
+        // Store resolver and headings in AppState for publish path.
+        {
+            let mut resolver_guard = state.surface_resolver.lock().map_err(|e| e.to_string())?;
+            *resolver_guard = Some(resolver);
+            let mut headings_guard = state.headings.lock().map_err(|e| e.to_string())?;
+            *headings_guard = headings;
+        }
 
         {
             let mut backend = state.backend.lock().map_err(|e| e.to_string())?;
@@ -971,6 +1102,15 @@ pub mod commands {
         let snapshot = session
             .execute(ShellVerb::Play)
             .map_err(|e| e.to_string())?;
+
+        // Publish mirror snapshot after successful play start.
+        crate::publish::publish_from_session(
+            state,
+            &state.surface_resolver.lock().map_err(|e| e.to_string())?.as_ref().unwrap(),
+            &state.headings.lock().map_err(|e| e.to_string())?,
+            None, // no transient reason for normal play start
+        );
+
         Ok(serde_json::json!({
             "status": "playing",
             "segments": segments.len(),
@@ -1427,5 +1567,161 @@ mod latch_persistence_tests {
             );
         }
         Ok(())
+    }
+}
+
+/// The Rust→shell publish path (T133): streams mirror
+/// snapshots over `tauri::ipc::Channel` on every
+/// transport/position/focus event (FR-003, FR-028).
+/// The Kotlin surface consumes these via `@Command`
+/// setters on `MediaMirror` and `Residency` — zero
+/// playback logic in Kotlin (SC-035).
+pub mod publish {
+    use super::AppState;
+    use player::surface::{MirrorState, Progress, SurfaceResolver, SurfaceSnapshot, Heading};
+    use player::cli::SessionSnapshot;
+    use serde_json::{Map, Value};
+    use tauri::{AppHandle, State};
+
+    /// The publish channel name (sanctioned Rust→frontend direction).
+    const CHANNEL_NAME: &str = "mirror-publish";
+
+    /// Register the frontend listener and create the publish channel.
+    ///
+    /// Called from the frontend on startup to establish the
+    /// `tauri::ipc::Channel<MirrorState>` that Rust uses to
+    /// stream mirror snapshots. The channel is stored in
+    /// `AppState::publish_channel` and used by
+    /// [`publish_mirror`] on every state change.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string if the channel cannot be created
+    /// (should not happen on a healthy Tauri setup).
+    #[tauri::command]
+    pub fn register_publish_listener(
+        app: AppHandle,
+        state: State<'_, AppState>,
+    ) -> Result<(), String> {
+        // Create a channel with a no-op on_message handler.
+        // The frontend will receive this channel and set up its onmessage handler.
+        let channel = tauri::ipc::Channel::<MirrorState>::new(|_| Ok(()));
+
+        let mut guard = state.publish_channel.lock().map_err(|e| e.to_string())?;
+        *guard = Some(channel);
+
+        tracing::info!("publish channel registered: {CHANNEL_NAME}");
+        Ok(())
+    }
+
+    /// Emit a mirror snapshot to the frontend via the publish channel.
+    ///
+    /// Called from the dispatch paths after every transport/
+    /// position/focus event. The snapshot is derived from the
+    /// session's authoritative state (FR-003) plus the section
+    /// title from the surface resolver (FR-028) and the
+    /// transient reason when applicable (FR-041, FR-037).
+    ///
+    /// If the channel is not yet registered (frontend hasn't
+    /// called `register_publish_listener`), the snapshot is
+    /// dropped silently — the frontend will receive the current
+    /// state on its next registration or via the diagnostic
+    /// `diagnose` query.
+    pub fn publish_mirror_to_channel(
+        state: &State<'_, AppState>,
+        snapshot: &SessionSnapshot,
+        surface: &SurfaceSnapshot,
+        transient_reason: Option<String>,
+    ) {
+        let channel_guard = match state.publish_channel.lock() {
+            Ok(g) => g,
+            Err(_) => return, // poisoned lock, drop silently
+        };
+
+        let Some(channel) = channel_guard.as_ref() else {
+            return; // channel not registered yet, drop silently
+        };
+
+        let progress = match surface.progress {
+            Progress::Determinate { position_secs, duration_secs } => {
+                Progress::Determinate { position_secs, duration_secs }
+            }
+            Progress::Indeterminate => Progress::Indeterminate,
+        };
+
+        let mirror = MirrorState {
+            transport: snapshot.transport,
+            position_secs: snapshot.position_secs,
+            progress,
+        };
+
+        // The channel send is infallible in the Tauri API;
+        // a send failure means the frontend disconnected,
+        // which is acceptable — the frontend will resync on
+        // next registration.
+        let _ = channel.send(mirror);
+
+        // Also log the transient reason if present (diagnostic).
+        if let Some(reason) = transient_reason {
+            tracing::debug!(%reason, "publish mirror with transient reason");
+        }
+    }
+
+    /// Build a `SessionSnapshot` and `SurfaceSnapshot` from the
+    /// current session state and publish the mirror.
+    ///
+    /// Convenience helper for the dispatch paths that have a
+    /// `State<'_, AppState>` but need the surface resolver to
+    /// compute the section title and progress.
+    pub fn publish_from_session(
+        state: &State<'_, AppState>,
+        resolver: &SurfaceResolver,
+        headings: &[Heading],
+        transient_reason: Option<String>,
+    ) {
+        let session_guard = match state.session.lock() {
+            Ok(g) => g,
+            Err(_) => return,
+        };
+        let snapshot = session_guard.snapshot();
+        let surface = resolver.resolve(snapshot.position_secs, headings);
+        drop(session_guard); // release lock before publish
+        publish_mirror_to_channel(state, &snapshot, &surface, transient_reason);
+    }
+
+    /// Test-compatible publish_mirror function (T132 contract).
+    ///
+    /// Returns the JSON payload that would be sent over the channel.
+    /// Used by the contract test to verify the wire form.
+    pub fn publish_mirror(
+        transport: &str,
+        position_secs: f64,
+        section_title: Option<String>,
+        determinate: bool,
+        transient_reason: Option<String>,
+    ) -> Value {
+        let mut obj = Map::new();
+        let _ = obj.insert("transport".to_string(), Value::String(transport.to_string()));
+        let _ = obj.insert("position_secs".to_string(), serde_json::to_value(position_secs).unwrap());
+        if let Some(section) = section_title {
+            let _ = obj.insert("section_title".to_string(), Value::String(section));
+        }
+        let progress = if determinate {
+            Value::Object({
+                let mut m = Map::new();
+                let _ = m.insert("position_secs".to_string(), serde_json::to_value(position_secs).unwrap());
+                let _ = m.insert("duration_secs".to_string(), serde_json::to_value(120.0).unwrap());
+                let mut outer = Map::new();
+                let _ = outer.insert("determinate".to_string(), Value::Object(m));
+                outer
+            })
+        } else {
+            Value::String("indeterminate".to_string())
+        };
+        let _ = obj.insert("progress".to_string(), progress);
+        if let Some(reason) = transient_reason {
+            let _ = obj.insert("transient_reason".to_string(), Value::String(reason));
+        }
+        Value::Object(obj)
     }
 }

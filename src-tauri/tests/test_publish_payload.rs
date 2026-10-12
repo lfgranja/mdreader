@@ -30,11 +30,11 @@
 //! not exist yet — no `Channel` creation, no `emit` call sites,
 //! no Kotlin `@Command` listeners in `src-tauri/`.
 
-use serde_json::{Map, Value};
+use serde_json::Value;
 
 /// The publish function that T133 will implement.
 /// This import will fail until T133 creates the publish module.
-use crate::publish::publish_mirror;
+use src_tauri::publish::publish_mirror;
 
 #[test]
 fn publish_payload_carries_exactly_the_five_contract_keys_for_each_transport() {

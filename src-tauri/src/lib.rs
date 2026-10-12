@@ -45,6 +45,7 @@ pub mod failure;
 /// Shared app state: one playback session, one lazily-opened
 /// audio backend, and the platform permission snapshot the
 /// Kotlin shell pushes.
+#[derive(Debug)]
 pub struct AppState {
     /// The single playback session (sole position authority).
     session: Mutex<PlaybackSession>,
@@ -58,6 +59,14 @@ pub struct AppState {
     permissions: Mutex<permissions::PermissionSnapshot>,
 }
 
+/// Run the Tauri application.
+///
+/// Builds the application — managing the shared
+/// [`AppState`], running the permission-state startup
+/// gate, and registering the IPC handlers — and starts
+/// the event loop. A loop failure is logged through
+/// [`tracing`] and exits the process with a non-zero
+/// status: the bridge cannot serve without the loop.
 #[cfg_attr(target_os = "android", tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -102,7 +111,10 @@ pub fn run() {
             commands::update_permissions
         ])
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .unwrap_or_else(|error| {
+            tracing::error!("tauri application terminated: {error}");
+            std::process::exit(1);
+        });
 }
 
 pub mod commands {
@@ -116,6 +128,12 @@ pub mod commands {
     /// Declared sample rate of the engine handoff (mono f32).
     const DECLARED_RATE_HZ: f64 = 22_050.0;
 
+    /// Bind the native Android plugin surface.
+    ///
+    /// The Kotlin `PlaybackService` self-bootstraps from
+    /// the Application/Activity and reaches Rust through
+    /// `run_mobile_plugin` below — never computing
+    /// position, rate, or transport itself (SC-035).
     #[command]
     pub fn register_android_plugin() {
         // The Kotlin PlaybackService self-bootstraps from the

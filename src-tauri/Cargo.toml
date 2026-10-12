@@ -24,3 +24,11 @@ serde_json = "1.0.132"
 # tauri-build carries its own version line (latest
 # stable 2.7.2), independent of the tauri 2.12.1 pin.
 tauri-build = { version = "=2.7.2", features = [] }
+
+# The workspace rigour tables (constitution "Rust Code
+# Rigor"): every workspace member declares them, so the
+# lint-drift gate (gate 4) verifies this member against
+# the same pinned set as every crate — no member may
+# quietly opt out of the deny tables.
+[lints]
+workspace = true

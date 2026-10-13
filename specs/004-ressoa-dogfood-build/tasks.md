@@ -5,7 +5,7 @@
 **Constitution**: `.specify/memory/constitution.md` v1.5.0 (Rust rigor, closed sets gate 7, supply-chain gates 5–6, single playback authority, manual manifest)
 
 **Execution rules (binding for this file)**:
-1. **TDD gate (per-phase, binding)**: every `### Tests` subsection is BLOCKING — all its tasks MUST be written, shown to FAIL (`cargo nextest`), then implementation in that phase begins. No implementation task in a phase starts until that phase's own test gate is red. Foundational T006–T010 additionally block ALL US-phase implementation (see Phase 2 checkpoint). Test tasks from multiple phases MAY run together as one global background wave for scheduling only; such a wave never waives any per-phase red gate. Binding interpretation of user constraint 1: per-phase red gates hold — no implementation task in a phase starts until that phase's own Tests are red; Foundational T006–T010 additionally block ALL US-phase impl (see Phase 2 checkpoint). Waiver of 2026-10-13 is REVOKED per 2026-10-13 remediation (I1). Maintainer-accepted 2026-10-13 (analyze remediation H2): per-phase red gates plus the Foundational global block satisfy user constraint 1; strict-global (every phase's tests red before any scaffold) is explicitly not required.
+1. **TDD gate (strict-global, binding)**: ALL `### Tests` subsections across ALL phases (T002d–T002f, T006–T010, T013–T016, T023–T026, T033–T034, T038–T040b) MUST be written and shown to FAIL (cargo nextest red) BEFORE ANY implementation task (T003–T005, T011–T012, T017+ in any phase) begins. Per-phase gates still hold inside the global gate. The 2026-10-13 per-phase-only interpretation and waiver are REVOKED; strict-global satisfies user constraint 1. Foundational T006–T010 red additionally blocks ALL US-phase impl (retained). Record red output in commit messages.
 2. **Property-based first**: invariants use `proptest` wherever applicable (`prop_*`); unit edge cases complement, never replace, the property.
 3. **[P] = subagent wave**: every `[P]` task is delegated to the maximum viable number of agents/subagents/background agents; tasks sharing context may reuse one subagent; waves run per the Parallel Examples below.
 4. **Verification attests**: ONLY the Final Phase verification tasks attest success/completeness — NEVER the implementing agent's claim.
@@ -42,7 +42,7 @@
 
 **Note**: T002 split into T002a/T002b (different files, both `[P]`); T002c workspace `proptest` verification + T002d–T002f Setup Tests added without renumbering; all later IDs T003–T052 unchanged.
 
-**Checkpoint (TDD gate — Setup)**: `cargo nextest run --workspace` shows T002d–T002f FAIL (red) before T003–T005; then `cargo check --workspace` green; skeletons compile; zero behavior changed. Record the red output in the commit message.
+**Checkpoint (TDD gate — Setup)**: `cargo nextest run --workspace` shows T002d–T002f FAIL (red) before T003–T005; then `cargo check --workspace` green; skeletons compile; zero behavior changed. Record the red output in the commit message. Global gate: T003+ waits for ALL phase Tests red, not just T002d–f.
 
 ---
 
@@ -189,7 +189,7 @@
 
 - **Setup (Phase 1)**: no dependencies — start immediately. T001, T002a–T002c, T002d–T002f are `[P]` (Wave S); T003–T005 are `[P]` (Wave S-impl) (different files); T002d–T002f red before T003–T005.
 - **Foundational (Phase 2)**: depends on Phase 1 skeletons. T006–T010 `[P]` run as **Wave F1** (5 subagents, one per test file); T011–T012 `[P]` run as **Wave F2** (2 subagents, different files) after red is shown.
-- **US phases (3–6)**: ALL depend on Foundational red→green cycle. Within each US phase: `### Tests` BLOCK all implementation in that phase. Test tasks MAY be scheduled as a cross-phase global wave, but implementation in each phase still waits for that phase's own red gate (rule 1).
+- **US phases (3–6)**: ALL depend on Foundational red→green cycle. Within each US phase: `### Tests` BLOCK all implementation in that phase. Test tasks MUST run as one global background wave; NO implementation in ANY phase starts until the global test-red gate is met (rule 1).
 - **Polish (Phase 7)**: depends on all desired US phases complete. T045–T047 `[P]`.
 - **Verification (Phase 8)**: depends on everything; runs SEQUENTIALLY (T048→T052), never parallel (shared device + shared target dir).
 
@@ -208,7 +208,7 @@ Tests (BLOCKING, FAIL-red) → types/enums → services/paths → surfaces → i
 
 ### Parallel Opportunities (subagent waves)
 
-Test waves MAY span phases for scheduling only; per-phase red gates still hold — no implementation in a phase starts until that phase's own Tests are all red. Global test waves are scheduling only and never waive per-phase gates.
+Wave S + F1 + U1-tests + U2-tests + U3/U4-tests MAY combine into one global test wave of up to ~20 subagents; impl waves (S-impl, F2, U1-impl, U2-impl, U3/U4-impl) all wait for global red. Per-phase gates still hold inside the global gate — no implementation in a phase starts until that phase's own Tests are all red AND the global test-red gate is met.
 
 - **Wave S**: T002a, T002b, T002c, T002d, T002e, T002f (6 subagents, different files; T002c workspace-wide — single subagent, runs first in Wave S) with T001 (7 subagents, different files; fixture independent); gate: T002d–T002f red before T003+.
 - **Wave S-impl**: T003, T004, T005 (3 subagents, different files) after S-tests red.

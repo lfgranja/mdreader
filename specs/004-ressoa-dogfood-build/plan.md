@@ -102,6 +102,7 @@ src-tauri/src/          # MODIFY: lib.rs (open_document(bytes) reusing play path
 │                       #   + stepper + Stop; owns no state, renders surface.rs/failure.rs strings only)
 src-tauri/tests/        # NEW: host contract/purity/noscope suites — test_surface_us1.rs,
 │                       #   test_purity.rs (no prose/time/rate/voice leak), test_noscope.rs
+│                       #   test_progress_cli.rs (T040b progress CLI contract)
 └── gen/android/app/src/main/
     ├── AndroidManifest.xml  # MODIFY-if-missing (requires service mediaPlayback + FOREGROUND_SERVICE* + VIBRATE + POST_NOTIFICATIONS; if VIBRATE/POST_NOTIFICATIONS absent, edit manifest directly and re-verify on every Tauri upgrade per Tauri Platform Contract)
     └── assets/voices/pt_BR-faber-medium/  # SOLE voice (no addition)

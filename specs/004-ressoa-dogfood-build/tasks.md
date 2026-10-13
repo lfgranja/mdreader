@@ -26,7 +26,7 @@
 - [ ] T001 Create Portuguese acceptance fixture `tests/device/fixtures/fixture-pt-2h.md` (Markdown with headings + numbers/currency, ~2 h at 1.0x; SC-001 input for every speed incl. 4.0x)
 - [ ] T002a [P] Add snapshot `.gitignore` exception in repo-root `.gitignore` (ignore repo-local `/snapshots/` content — on-device `filesDir/snapshots` never enters git; no logic yet — parallel-safe with T002b, different file)
 - [ ] T002b [P] Add snapshot directory convention const in `android-shell/src/main/kotlin/app/mdreader/DocIngest.kt` (header const `SNAPSHOT_DIR="filesDir/snapshots"`, `<hex>.{md,txt}` naming; no logic yet — parallel-safe with T002a, different file)
-- [ ] T002c [P] Verify workspace `proptest` dev-dependency in `Cargo.toml` (`[workspace.dependencies]` pin + `proptest = { workspace = true }` in `[dev-dependencies]` of each member with `prop_*` suites; re-verify latest stable on crates.io at implementation time and record exact version in atomic commit msg per Principle IV — do NOT hardcode plan.md `1.12.0`; `Cargo.lock` committed + `--locked` build; `deny.toml` `[sources]` crates.io-only; `cargo deny check advisories licenses bans sources` + `cargo audit` clean; `[lints] workspace = true` intact, no `Cargo.toml`/`clippy.toml` weakening, no `Other`/`Unknown`, no `_ =>`; parallel-safe with T002a/T002b/T002d–T002f, different files)
+- [ ] T002c [P] Verify workspace `proptest` dev-dependency in `Cargo.toml` (`[workspace.dependencies]` pin + `proptest = { workspace = true }` in `[dev-dependencies]` of each member with `prop_*` suites; re-verify latest stable on crates.io at implementation time and record exact version in atomic commit msg per Principle IV — do NOT hardcode plan.md `1.12.0`; `Cargo.lock` committed + `--locked` build; `deny.toml` `[sources]` crates.io-only; `cargo deny check advisories licenses bans sources` + `cargo audit` clean; `[lints] workspace = true` intact, no `Cargo.toml`/`clippy.toml` weakening, no `Other`/`Unknown`, no `_ =>`; parallel-safe with T002a/T002b/T002d–T002f, different files) (workspace-wide — single subagent, runs first in Wave S)
 
 ### Setup Tests (BLOCKING — write first, FAIL before T003+) ⚠️
 
@@ -110,7 +110,7 @@
 - [ ] T028 [P] [US2] Procedural earcon synthesis in `crates/player/src/earcon.rs` (grammar per `contracts/earcon.md` incl. failure E4 ~330 Hz transposition; mono f32 22050; constructors CLI-drivable)
 - [ ] T029 [US2] Duck-exempt short-mix bypass in `crates/player/src/backend.rs` (depends on T028; earcon skips `SampleQueue::gain`, same stream/clock, files no focus request, re-fires post-`GAIN` if missed, never moves bookmark)
 - [ ] T030 [P] [US2] `player earcon` CLI verb in `crates/player/src/cli.rs` (`earcon <play|pause|skip-fwd|skip-back|warning|failure|rate> --format json` ⇒ PCM descriptor + duration/band asserts)
-- [ ] T030b [P] [US4] `player progress` CLI verb in `crates/player/src/cli.rs` (`progress (--consumed <u> --total <u> --k <k> --n <n> | --indeterminate) --format json` ⇒ `Progress::{Determinate,Indeterminate}` JSON + frozen label `"Section {k} of {N} — {p}% (content-offset)"` per `contracts/surface.md`; determinate-iff-known-at-start, freeze-then-drop, zero-sections ⇒ indeterminate + null title; Tauri IPC calls same fn; covered by `crates/player/tests/test_progress_cli.rs` + existing `prop_progress_fraction` T006; sync `scripts/expected-tests.txt` via T046)
+- [ ] T030b [P] [US4] [cross-story: needs T005 Progress shape green + T040b red; US4-owned, scheduled in U2 wave for file-locality with T030] `player progress` CLI verb in `crates/player/src/cli.rs` (`progress (--consumed <u> --total <u> --k <k> --n <n> | --indeterminate) --format json` ⇒ `Progress::{Determinate,Indeterminate}` JSON + frozen label `"Section {k} of {N} — {p}% (content-offset)"` per `contracts/surface.md`; determinate-iff-known-at-start, freeze-then-drop, zero-sections ⇒ indeterminate + null title; Tauri IPC calls same fn; covered by T040b test_progress_cli.rs + existing `prop_progress_fraction` T006; sync `scripts/expected-tests.txt` via T046) (same file as T030 — one subagent does T030+T030b atomically)
 - [ ] T031 [US2] Haptic patterns in `MediaMirror.publish()` in `android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt` (+ `VIBRATE` permission; depends on T027; distinct `VibrationEffect.createOneShot` per action; outside `STREAM_MUSIC`; visual glyph+progress banner covers fully-disabled-haptic)
 - [ ] T032 [P] [US2] Sentence-snap resume path in `crates/player/src/rewind.rs` + `crates/player/src/resume.rs` (containing-sentence-start snap, mid-word forward-snap, cap-precedence, cue 5–10 s; degrade to raw cursor never doc start — independent of T027/T028/T030/T031, different files, no depends; requires only its phase Tests red + Foundational-green)
 
@@ -141,18 +141,19 @@
 ## Phase 6: User Story 4 — A lock screen that respects attention (Priority: P2)
 
 **Goal**: Purity (title+section+progress only), 7-rung persistent pitch-preserving rate, honest determinacy, bounded private full-trace record.
-**Independent Test**: 10/10 purity inspections; rate persists + unpitched; diag within 30-day/10 MB with zero prose (quickstart §3.6–3.8); host: T038–T040 green.
+**Independent Test**: 10/10 purity inspections; rate persists + unpitched; diag within 30-day/10 MB with zero prose (quickstart §3.6–3.8); host: T038–T040b green.
 
-### Tests for US4 (BLOCKING — write first, FAIL before T041+; per-phase gate holds even in a global test wave) ⚠️
+### Tests for US4 (BLOCKING — write first, FAIL before T030b/T041+; per-phase gate holds even in a global test wave) ⚠️
 
 - [ ] T038 [P] [US4] Purity property in `src-tauri/tests/test_purity.rs` (lock-screen + in-app snapshots across playing/paused/section-change/rate-change/interruption ⇒ keys ⊆ `{title, section_title, progress}`; zero prose/time/rate-VALUE/voice leaks — rate-step action permitted, no value display; dismissal-refused-while-playing assert; zero sections ⇒ `section_title == null` + indeterminate)
 - [ ] T039 [P] [US4] Rate-ladder property in `crates/player/tests/prop_ladder.rs` (7 rungs `[0.75,1.0,1.25,1.5,1.75,2.0,4.0]` exact, one step saturating, `settings.last_rate` persists across sessions/documents, pitch within `PITCH_TOLERANCE_CENTS=50` every rung incl. 2.0x→4.0x)
 - [ ] T040 [P] [US4] Diag no-prose + bounds property in `crates/diag/tests/prop_trace.rs` (30-day + 10 MB oldest-first with `Trim` before retained, `Gap` on full with `Ok`; `ProseInDetail`/`DetailTooLong`/`FailureWithoutError`/`RefusalWithoutError` scan violations trip; zero egress — no network call sites)
+- [ ] T040b [P] [US4] CLI contract test for progress verb in `crates/player/tests/test_progress_cli.rs` (--consumed/--total/--k/--n and --indeterminate JSON shapes, frozen label "Section {k} of {N} — {p}% (content-offset)", zero-sections indeterminate+null, --format json; FAIL-red before T030b/T041)
 
 ### Implementation for US4
 
 - [ ] T041 [US4] Content-offset progress rendering in `crates/player/src/surface.rs` (depends on T005; bar = `consumed_units/total_units`, label frozen template `"Section {k} of {N} — {p}% (content-offset)"`; determinate iff both totals known at session start; freeze-then-drop; audio-duration never feeds it; no seek without random access)
-- [ ] T042 [P] [US4] Rate stepper + persistence in `crates/player/src/rate.rs` + `crates/session/src/store.rs` (in-app stepper + lock-screen rate-step action without value display — no rate leak, earcon+haptic confirm; engine-contract stretch, `last_rate` read-at-start/write-on-change; acceptance: locked rate-step works, no numeric leak)
+- [ ] T042 [US4] Rate stepper + persistence in `crates/player/src/rate.rs` + `crates/session/src/store.rs` (in-app stepper + lock-screen rate-step action without value display — no rate leak, earcon+haptic confirm; engine-contract stretch, `last_rate` read-at-start/write-on-change; acceptance: locked rate-step works, no numeric leak; serializes after T036: both touch crates/session/src/store.rs; runs after T036 in same wave)
 - [ ] T043 [P] [US4] Reason-expiry + dismissal in `src-tauri/src/surface.rs` + `src-tauri/src/failure.rs` (pause-demanding 3 s `reason_ttl_ms=3000` distinct from `dismissal` ∈ `{non_dismissable_while_playing,dismissable}`; undeliverables (`VoiceUnavailable`/`FormatUndeliverable`/`DecodeFailed`) ⇒ never start + persistent line + `error` logged; non-dismissable while playing; ≤8-word lines; failures never quote document text)
 - [ ] T044 [P] [US4] DESIGN-SONA token styling of MediaStyle + in-app grid in `android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt` + `src-tauri/src/status_view.html` (title `#F2F0E6`, section `#A9B8CE`, progress white/`#55688F`; yellow `#FFD400` warning-only, red `#FF4D63` failure-only, green `#5FD0A0` prohibited; no marquee/body/rate-display/voice — no rate value display)
 
@@ -203,21 +204,21 @@
 
 Tests (BLOCKING, FAIL-red) → types/enums → services/paths → surfaces → integration. Models before services before endpoints before integration. Story checkpoint before next priority.
 
-**Same-file serialize guard (do NOT add `[P]`)**: T035 stays non-`[P]` (shares `src-tauri/src/lib.rs` with T037 — T035 runs after Wave U3/U4-impl); T041 stays non-`[P]` (shares `surface.rs` basename with T043 — `crates/player/src/surface.rs` vs `src-tauri/src/surface.rs` — T041 runs after wave). T011/T012, T022, T032 above are the only missed-`[P]` additions; no other non-`[P]` task is promoted by this fix.
+**Same-file serialize guard (do NOT add `[P]`)**: T035 stays non-`[P]` (shares `src-tauri/src/lib.rs` with T037 — T035 runs after Wave U3/U4-impl); T041 stays non-`[P]` (shares `surface.rs` basename with T043 — `crates/player/src/surface.rs` vs `src-tauri/src/surface.rs` — T041 runs after wave); T042 stays non-`[P]` (shares `crates/session/src/store.rs` with T036 — T042 runs after T036 in the same wave, T036→T042 ordering). T011/T012, T022, T032 above are the only missed-`[P]` additions; no other non-`[P]` task is promoted by this fix.
 
 ### Parallel Opportunities (subagent waves)
 
 Test waves MAY span phases (scheduling only); per-phase red gates still hold — no implementation in a phase starts until that phase's own Tests are all red.
 
-- **Wave S**: T002a, T002b, T002c, T002d, T002e, T002f (6 subagents, different files) after T001; gate: T002d–T002f red before T003+.
+- **Wave S**: T002a, T002b, T002c, T002d, T002e, T002f (6 subagents, different files; T002c workspace-wide — single subagent, runs first in Wave S) after T001; gate: T002d–T002f red before T003+.
 - **Wave S-impl**: T003, T004, T005 (3 subagents, different files) after S-tests red.
 - **Wave F1 (tests)**: T006, T007, T008, T009, T010 (5 subagents, background OK).
 - **Wave F2**: T011, T012 `[P]` (2 subagents, different files) after F1 red.
-- **Wave U1-tests**: T013, T014, T015, T016 (4 subagents) — MAY run together with U2/U3/U4 tests as one global background wave of up to 13 subagents once Foundational is green (tasks sharing `player` context may reuse one subagent per crate); U1 impl still waits for T013–T016 red.
+- **Wave U1-tests**: T013, T014, T015, T016 (4 subagents) — MAY run together with U2/U3/U4 tests as one global background wave of up to 14 subagents once Foundational is green (tasks sharing `player` context may reuse one subagent per crate); U1 impl still waits for T013–T016 red.
 - **Wave U1-impl**: T017, T018, T020, T022 `[P]` (4 subagents, different files) only after T013–T016 red; T019, T021 follow deps (T019 depends T017+T018; T021 depends T019).
-- **Wave U2**: T023, T024, T025, T026 `[P]` (4 subagents, MAY join the global test wave); then T027, T028, T030, T030b, T031, T032 `[P]` (6 subagents, different files) only after T023–T026 red; T029 follows dep (depends T028).
-- **Wave U3/U4-tests**: T033, T034, T038, T039, T040 `[P]` (5 subagents, MAY join the global test wave).
-- **Wave U3/U4-impl**: T036, T037, T042, T043, T044 `[P]` (5 subagents, different files — see serialize guard below); T035, T041 follow deps and stay non-`[P]` (T035 serializes after T037: both touch `src-tauri/src/lib.rs`; T041 serializes after wave: `crates/player/src/surface.rs` vs `src-tauri/src/surface.rs` basename pair, serialize to avoid confusion).
+- **Wave U2**: T023, T024, T025, T026 `[P]` (4 subagents, MAY join the global test wave); then T027, T028, T030+T030b (one subagent, same file), T031, T032 `[P]` (5 subagents, different files; T030b is US4-owned but scheduled here for file-locality with T030) only after T023–T026 red; T029 follows dep (depends T028).
+- **Wave U3/U4-tests**: T033, T034, T038, T039, T040, T040b `[P]` (6 subagents, MAY join the global test wave).
+- **Wave U3/U4-impl**: T036, T037, T043, T044 `[P]` (4 subagents, different files — see serialize guard below) + T042 follows T036 (same store.rs, serial); T035, T041, T042 follow deps and stay non-`[P]` (T035 serializes after T037: both touch `src-tauri/src/lib.rs`; T041 serializes after wave: `crates/player/src/surface.rs` vs `src-tauri/src/surface.rs` basename pair, serialize to avoid confusion; T042 serializes after T036: both touch `crates/session/src/store.rs`).
 - **Wave P7**: T045, T046, T047 `[P]` (3 subagents).
 
 ---
@@ -248,7 +249,7 @@ Subagent A: "T023 prop_focus8 in crates/player/tests/prop_focus8.rs"
 Subagent B: "T024 prop_routing in crates/player/tests/prop_routing.rs"
 Subagent C: "T025 prop_resume in crates/player/tests/prop_resume.rs"
 Subagent D: "T026 test_earcon_mirror in crates/player/tests/test_earcon_mirror.rs"
-# Wave U2-impl[P] — 6 subagents, different files:
+# Wave U2-impl[P] — 5 subagents, different files:
 Subagent A: "T027 interruption.rs 8-reason mapping"
 Subagent B: "T028 earcon.rs procedural synthesis"
 Subagent C: "T030 player cli.rs earcon verb + T030b progress verb (same file, one subagent)"

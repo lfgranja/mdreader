@@ -33,7 +33,7 @@ Integrate the proven pieces (001 shell + 002 `sherpa-onnx`/`faber` synthesis + 0
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
 - **I (Library-First)**: PASS — no new crates; `earcon.rs` + ingest/persistence wiring live in existing `player`/`session`/`src-tauri`; Tauri one consumer; every behavior CLI-drivable.
-- **II (Text I/O)**: PASS — `player earcon …`, `session ingest …`, existing `get/put/clear/rate` + `diag scan` CLIs with `--format json`; IPC calls the same functions.
+- **II (Text I/O)**: PASS — `player earcon …`, `session ingest …`, existing `get/put/clear/rate` + `diag scan` CLIs with `--format json`; IPC calls the same functions; 2026-10-13 U2 decision: player progress verb required, no derived-view-only exemption.
 - **III (Test-First)**: PASS — host-testable (progress fraction, snap math, ladder, fingerprint, earcon band/duration, trim, exhaustiveness) red-green; on-device 10/10 trials for the rest; no implementation before failing tests in tasks phase.
 - **IV (Stable + supply-chain)**: PASS — no new runtime dependencies (procedural earcons = no assets; `Vibrator` = platform API); property tests reuse the existing workspace `proptest` dev-dependency at latest stable at implementation time (re-verified on crates.io per tasks.md T002c, never hardcoded here) (crates.io-only, `Cargo.lock` committed, `cargo deny` + `cargo audit` gates); `faber` + `ort` RC covered by existing registry/exception; `cargo deny` + `cargo audit` + `--locked` gates unchanged.
 - **V (Deterministic gates)**: PASS — manifest + shell-purity checks retained; missing input fails, never skips; `verify.sh` ordering kept.
@@ -82,7 +82,7 @@ crates/
 │                       #   untouched closed taxonomies), interruption.rs (NEW closed 8-reason
 │                       #   surface/diag enum mapping N:1 onto focus/routing/engine taxonomies),
 │                       #   skip.rs (section ±10 s
-│                       #   fallback), rate.rs (reuse ladder), cli.rs (earcon + progress verbs; progress verb per tasks.md T030b, or Principle-II exemption recorded in Constitution-Check II if Progress stays derived-view-only)
+│                       #   fallback), rate.rs (reuse ladder), cli.rs (earcon + progress verbs; progress verb per tasks.md T030b (2026-10-13 remediation U2: no exemption taken — progress CLI required for Principle II CLI-drivability))
 ├── session/src/        # MODIFY: store.rs / fingerprint.rs / offer.rs reuse; cli.rs gains
 │                       #   `ingest` verb (hash + lookup → resume decision JSON)
 ├── diag/src/           # REUSE: writer.rs / scan.rs / cli.rs as-is (full-trace kinds are
@@ -136,4 +136,4 @@ No violations — table intentionally empty.
 
 - All Phase 1 artifacts (`data-model.md`, `contracts/ingest.md`, `contracts/surface.md`, `contracts/earcon.md`, `contracts/diagnostic-trace.md` + `diagnostic-record.schema.json`, `quickstart.md`) resolve into the crates above without moving logic into the Kotlin shell or the Tauri app layer; `engine-core` untouched (no semver bump); no new dependency, licence, or tier.
 - Voice fixed `pt_BR-faber-medium` (CC0, already bundled); durable interval fixed 20 s (worst loss inside 30 s cap); failure E4 transposition (~330 Hz square + minor-2nd dissonance) keeps FR-016 300–2500 Hz (abstract-dissonant, in-band); progress uses parsed units (audio-duration never feeds it); `DecodeFailed` rides `Unreachable` on the wire with `decode_failed` in diag (revisit only if trials show confusion).
-- Gates: no ERROR. Proceed to `/speckit.tasks`.
+- Gates: no ERROR, one ownership clarification (2026-10-13 remediation I4): constitution gate 8 (byte-budget + SSML + sentence-alignment) was DEFERRED for 001-shell per Exceptions Log 8 (owner=synthesis, SC-044). 004 integrates 002 faber synthesis, so T048 MUST attempt gate-8-full discharge with evidence; only if synthesis SC-044 remains open per specs/002 status does T048 record `gate-8-full: DEFERRED (owner=synthesis, reason=SC-044-open)` — never claim constitution gate 8 PASS without the full discharge. Proceed to /speckit.tasks (implement T048 as written 2026-10-13).

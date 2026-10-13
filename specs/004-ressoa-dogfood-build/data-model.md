@@ -40,7 +40,7 @@ Listener's place in content: section + sentence-anchored offset + monotonic cloc
 | `sentence_start` | snapped boundary at/before cursor | snap-back target; mid-word cap-point forward-snaps to next word-gap |
 | `first_yield_ms` | `u64` unix-ms cumulative | 5%-of-pause (REWIND_FRACTION=0.05 capped 30 s) accounting basis only, never reset at supersede; the 004 cue distance is 5–10 s further-backward from containing-sentence-start per FR-007 |
 
-Cadence (Option C): in-RAM tick ~1 s; non-durable commit per sentence-end/5 s (snap-back source only); **durable every 20 s fixed** (within the FR-007 15–30 s envelope) while Playing + on every pause, focus-loss, device-removal, section-change, Stop (then `delete`), app-background, `DocumentEnd`. Worst-case loss = one interval (20 s); caps: 30 s interruption replay, 60 s kill/power-loss replay. Resume rendering: containing-sentence-start snap, then further backward 5–10 s cue, total backward ≤ cap; degrade to raw last-spoken cursor, never doc start.
+Cadence (Option C): in-RAM tick ~1 s; non-durable commit per sentence-end/5 s (snap-back source only); **durable every 20 s fixed** (within the FR-007 15–30 s envelope) while Playing + on every pause, focus-loss, device-removal, section-change, Stop (then `delete`), app-background, `DocumentEnd`. Worst-case loss = one interval (20 s); caps: 30 s interruption replay, 60 s kill/power-loss replay. Resume rendering: containing-sentence-start snap, then further backward 5–10 s cue, never mid-word, total backward ≤ cap; degrade to raw last-spoken cursor, never doc start.
 
 ## Playback Session (extends 001 `PlaybackSession`)
 

@@ -51,4 +51,6 @@ FR-002 + FR-009 + FR-011 + FR-012 + FR-013 + FR-014 + FR-019. DESIGN-SONA appear
 }
 ```
 
+Display-vs-payload: purity applies to display fields only — display projection keys ⊆ {title, section_title, progress}. The full mirror payload additionally carries transport ∈ {playing,paused,stopped}, reason/reason_ttl_ms, dismissal per this contract; these are state/behavior, not display leaks. Prohibited anywhere: document prose, elapsed/remaining time, numeric rate value, voice identity.
+
 Exhaustive match on `progress.kind`, `transport`, `dismissal` (gate 7: no `_ =>`). `reason_ttl_ms` (payload overload fix, F8) is distinct from `dismissal` (notification behavior).

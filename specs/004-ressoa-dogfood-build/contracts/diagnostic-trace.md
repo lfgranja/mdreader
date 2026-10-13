@@ -8,7 +8,7 @@ FR-017. Extends `specs/001-android-media-shell/contracts/diagnostic-record.schem
 - `TransportChange` per play/pause/skip/stop/rate-step action.
 - Per-section progress entries (section boundary crossed, with content-hash `detail` ref).
 - Per-rate-change entries (old → new rung).
-- Buffer-state entries (pre-roll remaining/depth; `MAX_PREROLL_SECS=60` (same 60 s bound; alias `MAX_PRE_ROLL_MS` in older text)).
+- Buffer-state entries (pre-roll remaining/depth; `MAX_PREROLL_SECS=60` (seconds; historical alias `MAX_PREROLL_MS=60000` — do not use ms name)).
 - `FocusTransition` / `OutputDevice` per interruption with **measured** values in `detail`: play-to-audio latency ms, device-removal pause latency ms, actual replay seconds.
 - `Failure` / `Refusal` with `error` name from the closed 8 (`FocusDenied`, `FocusDelayed`, `PermanentLoss`, `TransientPaused`, `DeviceRemoved`, `VoiceUnavailable`, `FormatUndeliverable`, `DecodeFailed`); `error` required on failure *and* refusal.
 

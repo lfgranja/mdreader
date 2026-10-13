@@ -285,7 +285,7 @@ Subagent E: "T032 rewind.rs + resume.rs sentence-snap (independent)"
 
 ## Notes
 
-- `[P]` = different files, no dependencies → subagent wave, background where viable.
+- `[P]` = parallelizable (different files WITHIN the same wave, no dependencies on incomplete tasks; same file ONLY across different waves/phases with explicit serialize order per line 16, never batched in one wave) → subagent wave, background where viable (binding definition: line 16).
 - `[USn]` maps task to spec.md story for traceability.
 - Quote data-model constraints verbatim in code (e.g. `Progress` fixed-at-start, `detail ≤200 ch`, `error` required on failure *and* refusal, `TransientPaused` duck-vs-pause split, zero-sections ⇒ indeterminate + null title).
 - `DecodeFailed` rides `EngineError::Unreachable` on the wire (`decode_failed` in diag only) — no `EngineError` edit, no semver bump.

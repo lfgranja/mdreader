@@ -6,7 +6,7 @@
 
 ## Content Quality
 
-- [x] No implementation details (languages, frameworks, APIs)
+- [ ] No implementation details (languages, frameworks, APIs) — POST-CLARIFICATION SUPERSEDED 2026-10-13 (C1): spec normatively contains ACTION_OPEN_DOCUMENT, AUDIOFOCUS_* classes, BLAKE3, MediaStyle/MediaSession for testability; see iteration-2 note.
 - [x] Focused on user value and business needs
 - [x] Written for non-technical stakeholders
 - [x] All mandatory sections completed
@@ -16,7 +16,7 @@
 - [x] No [NEEDS CLARIFICATION] markers remain
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
-- [x] Success criteria are technology-agnostic (no implementation details)
+- [ ] Success criteria are technology-agnostic (no implementation details) — SUPERSEDED 2026-10-13 (C1): SC-007 names PITCH_TOLERANCE_CENTS=50 implementation constant by design.
 - [x] All acceptance scenarios are defined
 - [x] Edge cases are identified
 - [x] Scope is clearly bounded
@@ -33,3 +33,4 @@
 
 - Validation iteration 1: tightened FR-004 (duck depth ~one-fifth volume), FR-005 (reason lifetime 3 seconds), FR-007 (replay cap 30 seconds), FR-009 (offer window 3 seconds) — values grounded in assessment research constraints. Grep confirms zero [NEEDS CLARIFICATION] markers and zero implementation-detail terms (no language/framework/API/crate names). All 16 items pass; spec is ready for `/speckit.clarify` or `/speckit.plan`.
 - Validation iteration 2 (2026-10-13): 2026-10-12 zero-implementation-detail claim is STALE — post-clarification spec normatively contains ACTION_OPEN_DOCUMENT, AUDIOFOCUS_* classes, BLAKE3, MediaStyle/MediaSession terms (needed for testability). SC-007 names PITCH_TOLERANCE_CENTS=50 (implementation constant). Checklist Content-Quality item 'No implementation details' and 'Success criteria technology-agnostic' no longer hold as written; retained as historical record, superseded by plan.md Technical Context + tasks.md gates.
+- Validation iteration 3 (2026-10-13, C1 remediation): unchecked the two boxes above to match the iteration-2 supersession note; all other 14 items remain passing. No scope change.

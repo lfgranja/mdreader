@@ -11,7 +11,7 @@ FR-002 + FR-009 + FR-011 + FR-012 + FR-013 + FR-014 + FR-019. DESIGN-SONA appear
 - Dismissal: refused while playing; pause is the route to dismissal. Obeys platform lock-screen privacy (no workaround).
 - After kill/power-loss: wait paused + explicit resume control on this surface (no visual dialog).
 
-## Single minimal in-app screen (Svelte 5)
+## Single minimal in-app screen (`src-tauri/src/status_view.html` + `src-tauri/src/status_view.rs`)
 
 - Fields: document title, current section title, progress indication, speed control, transport (play, pause, skip-forward/back) + dedicated **Stop** (clears stored position; the Stop CONTROL, distinct from `transport: ...stopped` STATE). Never document prose.
 - Speed: single bullet — 7 closed rungs `0.75x–4.0x` (default `1.0x`), one step per action, pitch-preserving, persisted app-wide. Rate-step affordance without value display permitted (D1 fix); rate numeric value MUST NOT appear anywhere (stepper moves position only — never rate value/prose/times/voice).

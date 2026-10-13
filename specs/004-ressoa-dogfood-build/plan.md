@@ -22,7 +22,7 @@ Integrate the proven pieces (001 shell + 002 `sherpa-onnx`/`faber` synthesis + 0
 
 **Project Type**: Mobile app (Tauri) on a Cargo-workspace modular monolith of focused library crates (`player`, `session`, `diag`, `engine-core`, `doc-structure`, `adapter-synthesis`), each CLI-drivable per Principles I–II; Tauri app one consumer
 
-**Performance Goals**: First audible speech ≤3 s after Play, 10/10 cold-start (SC-002); `MAY_DUCK` nav transient → duck to 0.20 + restore without losing place (continuous, no reason line); non-duckable `TRANSIENT`/call/alarm/permanent loss → pause immediately (+ 3 s reason, never auto-resume); device removal → pause ≤1 s; interruption resume replay ≤30 s at sentence-start + 5–10 s cue; kill/power-loss replay ≤60 s (20 s fixed durable heartbeat worst-case). Informative targets (not acceptance-gated, no FR/SC parent): rate change effective ≤2 s (SC-007 gates persistence + unpitched only); pre-roll buffer cap ≤60 s (`MAX_PREROLL_SECS` engine-side bound, observed via diag buffer-state entries per `contracts/diagnostic-trace.md`, not a latency bound)
+**Performance Goals**: First audible speech ≤3 s after Play, 10/10 cold-start (SC-002); `MAY_DUCK` nav transient → duck to 0.20 + restore without losing place (continuous, no reason line); non-duckable `TRANSIENT`/call/alarm/permanent loss → pause immediately (+ 3 s reason, never auto-resume); device removal → pause ≤1 s; interruption resume replay ≤30 s at sentence-start + 5–10 s cue; kill/power-loss replay ≤60 s (20 s fixed durable heartbeat worst-case). Declared implementation target, informative and non-gating: routing decision 250 ms within the normative ≤1000 ms FR-006 bound (mirrored by tasks.md T024). Informative targets (not acceptance-gated, no FR/SC parent): rate change effective ≤2 s (SC-007 gates persistence + unpitched only); pre-roll buffer cap ≤60 s (`MAX_PREROLL_SECS` engine-side bound, observed via diag buffer-state entries per `contracts/diagnostic-trace.md`, not a latency bound)
 
 **Constraints**: Pure offline (zero network voice code ships); exactly one CC0 voice; closed sets everywhere (8 product reasons, 7 rate rungs, 3 transports (playing|paused|stopped — STATE; Stop is an in-app CONTROL only, per contracts/surface.md), 4 end-kinds; no `Other`/`Unknown`, no `_ =>`, gate 7); Rust rigor lints (`unsafe` deny, pedantic clippy deny, no unwrap/expect/println); mono-f32-22050 handoff (mismatch = named `EngineError`, never silent); lock-screen + in-app never show prose/times/rate/voice (rate-step is a lock-screen custom action without value display — stepping reachable without unlock, no numeric leak); rate memory app-wide via `settings.last_rate`; diag never transmitted, no in-app surface, zero prose, `error` on failure *and* refusal; dismissal refused while playing; Ressoa-external / mdreader-technical naming boundary
 
@@ -86,7 +86,7 @@ crates/
 ├── session/src/        # MODIFY: store.rs / fingerprint.rs / offer.rs reuse; cli.rs gains
 │                       #   `ingest` verb (hash + lookup → resume decision JSON)
 ├── diag/src/           # REUSE: writer.rs / scan.rs / cli.rs as-is (full-trace kinds are
-│                       #   data, not schema change); new measured-latency detail keys only
+│                       #   data, not schema change — nine EventKind values unchanged, per-section/per-rate/buffer/latency ride as detail data); new measured-latency detail keys only
 ├── engine-core/src/    # UNTOUCHED (7-member EngineError stable; DecodeFailed rides Unreachable)
 ├── doc-structure/src/  # REUSE: headings_before / nearest-boundary / reanchor for skip +
 │                       #   progress totals; TXT empty-section path
@@ -97,8 +97,8 @@ src-tauri/src/          # MODIFY: lib.rs (open_document(bytes) reusing play path
 │                       #   fixed heartbeat TIMER WIRING ONLY — cadence LOGIC lives in the
 │                       #   `player`/`session` library (CLI-drivable); lib.rs only ticks and
 │                       #   calls `BookmarkStore::put` + event-durable puts), surface.rs / failure.rs (≤8-word
-│                       #   8-reason lines + Focus3s vs FailurePersistent), status_view.rs
-│                       #   + status_view.html (single minimal screen markup; section + progress
+│                       #   8-reason lines per contracts/surface.md reason-line table; Focus3s = reason_ttl_ms=3000, FailurePersistent = reason_ttl_ms=null (aliases retained here only)), status_view.rs
+│                       #   + status_view.html (single minimal screen markup — .html extension by existing convention, Svelte 5 Runes frontend per Technical Context; section + progress
 │                       #   + stepper + Stop; owns no state, renders surface.rs/failure.rs strings only)
 src-tauri/tests/        # NEW: host contract/purity/noscope suites — test_surface_us1.rs,
 │                       #   test_purity.rs (no prose/time/rate/voice leak), test_noscope.rs
@@ -108,9 +108,9 @@ src-tauri/tests/        # NEW: host contract/purity/noscope suites — test_surf
 
 android-shell/src/main/kotlin/app/mdreader/
 │                       # ADD: DocIngest.kt picker intent (ACTION_OPEN_DOCUMENT + persistable grant +
-│                       #   ContentResolver → filesDir/snapshots/<hex>.{md,txt} write); ADD: PlaybackService.kt
-│                       #   (foreground residency holder; asserts screen-off continuity;
-│                       #   dismissal refused while playing); MODIFY: MediaMirror.kt
+│                       #   ContentResolver → filesDir/snapshots/<hex>.{md,txt} write); MODIFY: PlaybackService.kt (existing foreground residency
+│                       #   holder; assert screen-off continuity; dismissal refused
+│                       #   while playing); MODIFY: MediaMirror.kt
 │                       #   (haptic patterns in publish()/buildSurface() + VIBRATE permission)
 │                       #   — forward-only, zero playback logic (SC-035 holds)
 

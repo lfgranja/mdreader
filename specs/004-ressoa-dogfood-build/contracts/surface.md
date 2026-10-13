@@ -5,7 +5,7 @@ FR-002 + FR-009 + FR-011 + FR-012 + FR-013 + FR-014 + FR-019. DESIGN-SONA appear
 ## Lock-screen surface (MediaStyle notification)
 
 - Fields: **at most** document title + current section title + progress indication. Never: document prose, elapsed/remaining time, playback rate, voice identity.
-- Controls: play, pause, skip-forward/back. Rate-step reachable without unlock via lock-screen custom action (no value display; in-app stepper is full control). Skip = next/previous section boundary, fallback ±10 s when zero sections. **No Stop control on lock-screen** — `transport: playing|paused|stopped` is STATE, distinct from the Stop CONTROL which exists in-app only.
+- Controls: play, pause, skip-forward/back. Rate-step reachable without unlock via lock-screen custom action (no value display; in-app stepper is full control). Skip = next/previous section boundary, fallback ±10 s when zero sections. **No Stop control on lock-screen** — `transport: playing|paused|stopped` is STATE, distinct from the Stop CONTROL which exists in-app only (transport STATE is playing|paused|stopped; Interrupted/Completed are EndKind, never transport values).
 - Progress: bar = content-offset fraction + label `"Section {k} of {N} — {p}% (content-offset)"` (frozen template); determinate only when section count + total units known at session start, else indeterminate whole session (no flip, no backward jump); zero sections → indeterminate + no title.
 - Interruption reason: ≤8-word line + distinct earcon, `reason_ttl_ms=3000` then cleared; undeliverable failures (`VoiceUnavailable`/`FormatUndeliverable`/`DecodeFailed`) persistent (`reason_ttl_ms=null`). No spoken announcement.
 - Dismissal: refused while playing; pause is the route to dismissal. Obeys platform lock-screen privacy (no workaround).
@@ -14,7 +14,7 @@ FR-002 + FR-009 + FR-011 + FR-012 + FR-013 + FR-014 + FR-019. DESIGN-SONA appear
 ## Single minimal in-app screen (`src-tauri/src/status_view.html` + `src-tauri/src/status_view.rs`)
 
 - Fields: document title, current section title, progress indication, speed control, transport (play, pause, skip-forward/back) + dedicated **Stop** (clears stored position; the Stop CONTROL, distinct from `transport: ...stopped` STATE). Never document prose.
-- Speed: single bullet — 7 closed rungs `0.75x–4.0x` (default `1.0x`), one step per action, pitch-preserving, persisted app-wide. Rate-step affordance without value display permitted (D1 fix); rate numeric value MUST NOT appear anywhere (stepper moves position only — never rate value/prose/times/voice).
+- Speed: single bullet — 7 closed rungs `0.75x–4.0x` (default `1.0x`), one step per action, pitch-preserving, persisted app-wide. Rate-step affordance without value display permitted (D1 fix); rate numeric value MUST NOT appear anywhere (value-blind on both surfaces; stepper orients by position + earcon/haptic) (stepper moves position only — never rate value/prose/times/voice).
 - Resume: deliberate-pause reopen → 3 s visual dialog (continue vs start-over; silence = continue from stored). Stop/document-end/content-change → no offer, start at `0.0`.
 - Read-only mirror of the same `SurfaceSnapshot` the lock-screen renders (`status_view.rs` extended with section + progress + stepper + Stop; owns no state, renders only `surface.rs`/`failure.rs` strings).
 

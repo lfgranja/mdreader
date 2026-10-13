@@ -16,7 +16,7 @@ cargo fmt --all -- --check
 cargo nextest run --workspace
 cargo doc --workspace --no-deps
 ./scripts/verify.sh            # gates 1–8
-./scripts/check-manifest.sh    # <service mediaPlayback> + FOREGROUND_SERVICE* + minSdk 29
+./scripts/check-manifest.sh    # <service mediaPlayback> + FOREGROUND_SERVICE* + VIBRATE + POST_NOTIFICATIONS + minSdk 29 (must match plan.md + tasks T049)
 ./scripts/check-shell-purity.sh # zero playback logic in android-shell/
 ```
 

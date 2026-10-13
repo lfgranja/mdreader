@@ -161,7 +161,7 @@ While driving, the lock-screen surface shows only what orients without demanding
 - **SC-004**: In blind (no-look) trials, the listener correctly identifies play, pause, skip, warning, and failure confirmations without seeing the screen in 10 out of 10 trials per confirmation type.
 - **SC-005**: After moving and renaming a paused document, 10 out of 10 reopens offer continue-from-position; after editing its content, 10 out of 10 reopens offer no resume; after explicit stop (via the in-app Stop control), the next open starts from the beginning.
 - **SC-006**: Across a full session including section changes, rate changes, pauses, and interruptions, the lock-screen surface is observed showing only title, section, and progress in 10 out of 10 inspections on the reference phone — zero prose, time, rate, or voice leaks.
-- **SC-007**: The chosen reading speed persists across sessions and documents, and listeners judge the voice character unchanged (quicker/slower, not pitched) at every step.
+- **SC-007**: The chosen reading speed persists across sessions and documents, voice character stays unpitched at every step (pitch deviation within PITCH_TOLERANCE_CENTS=50 per plan/tasks T039, engine-contract stretch), and listeners judge the voice quicker/slower, not higher-/lower-pitched.
 - **SC-008**: The diagnostic record is verified retained within its 30-day window and 10 MB cap on device with zero entries containing document prose.
 
 ## Assumptions

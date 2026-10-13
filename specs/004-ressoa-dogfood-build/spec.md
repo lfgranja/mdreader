@@ -71,7 +71,7 @@ While listening, the driver is interrupted: a navigation prompt speaks, a call o
 1. **Given** audio is playing, **When** a navigation-style transient interruption arrives, **Then** the reading gets clearly quieter but keeps going, and returns to full volume afterwards without losing the listener's place.
 2. **Given** audio is playing, **When** a call- or alarm-style interruption arrives, **Then** reading pauses immediately, the lock-screen surface states the reason briefly, and playback never resumes on its own.
 3. **Given** audio is playing through headphones, **When** the headphones are unplugged, **Then** reading pauses within 1 second rather than playing aloud.
-4. **Given** reading paused for an interruption, **When** the driver presses Play again, **Then** reading resumes at or just before the point of interruption — never mid-word, never far back (at most a short replay).
+4. **Given** reading paused for an interruption, **When** the driver presses Play again, **Then** reading resumes at or just before the point of interruption — never mid-word, never far back (at most 30 s after interruption / 60 s after kill per FR-007: containing-sentence-start + 5–10 s cue, never mid-word).
 
 ---
 
@@ -113,7 +113,7 @@ While driving, the lock-screen surface shows only what orients without demanding
 - What happens when the system denies or delays the audio request at Play time? The reader sees the closed-set reason (FocusDenied or FocusDelayed), never silence presented as playback.
 - What happens when a transient interruption is immediately followed by a permanent one? The latest event wins: the final state is paused with no auto-resume, and the stated reason reflects the latest cause.
 - What happens when the lock-screen surface is dismissed while audio plays? Dismissal is refused while playing; pausing is the route to dismissal.
-- What happens when the phone is killed or loses power mid-sentence? (summary; FR-007 normative) At most 60 seconds of already-heard audio repeats on resume per FR-007 (30s interruption cap, 60s kill/power-loss cap; guaranteed by the FR-007 20s fixed durable heartbeat within the 15–30s envelope plus event-durable writes; worst-case loss is one interval).
+- What happens when the phone is killed or loses power mid-sentence? Summary only — FR-007 normative: At most 60 seconds of already-heard audio repeats on resume per FR-007 (30s interruption cap, 60s kill/power-loss cap; guaranteed by the FR-007 20s fixed durable heartbeat within the 15–30s envelope plus event-durable writes; worst-case loss is one interval) (see FR-007; this bullet is non-normative).
 - What happens when the phone's own lock-screen privacy setting hides notification contents? The app obeys the platform setting and does not work around it.
 - What happens when the requested voice or audio format cannot be delivered? Reading does not start; the closed-set failure (VoiceUnavailable, FormatUndeliverable, or DecodeFailed) is shown instead of substituted or silent output.
 - What happens when the document has no sections or the position precedes the first section? No section title is shown rather than a wrong one.
@@ -155,7 +155,7 @@ While driving, the lock-screen surface shows only what orients without demanding
 
 ### Measurable Outcomes
 
-- **SC-001**: The maintainer completes a 30-minute commute-length session on the reference phone using a single fixed fixture (roughly 2 hours of material at 1.0x, committed to the repo: Portuguese Markdown with headings plus numbers/currency) with the screen off and locked, using only lock-screen controls, with zero unlocks required to keep listening — valid at every speed including 4.0x.
+- **SC-001**: The maintainer completes a 30-minute commute-length session on the reference phone using a single fixed fixture (≥2 h of material at 1.0x, sufficient to sustain a 30-min session at 4.0x; exact duration recorded in fixture README, committed to the repo: Portuguese Markdown with headings plus numbers/currency) with the screen off and locked, using only lock-screen controls, with zero unlocks required to keep listening — valid at every speed including 4.0x.
 - **SC-002**: First audible speech arrives within 3 seconds of Play in 10 out of 10 trials on the reference phone from a cold start (process-killed, fixture unopened, reference phone, radios off).
 - **SC-003**: In 10 out of 10 trials per interruption class (navigation transient, call/alarm, headphone removal, permanent loss), the observed outcome matches the mandated one with no unlocking and no spontaneous resume after pauses that forbid it.
 - **SC-004**: In blind (no-look) trials, the listener correctly identifies play, pause, skip, rate-step, warning, and failure confirmations without seeing the screen in 10 out of 10 trials per confirmation type.

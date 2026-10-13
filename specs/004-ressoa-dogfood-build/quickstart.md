@@ -34,12 +34,12 @@ Expect: installs on the reference phone; no reviewer/listing/changelog involved.
 ## 3. On-device acceptance (reference phone only)
 
 1. **Commute loop (SC-001)**: open fixture via system file picker → Play → lock → 30 min continuous audible reading with screen off, lock-screen controls only, zero unlocks. Repeat at each of the 7 speeds incl. 4.0x.
-2. **First audio (SC-002)**: 10/10 cold-start trials, first audible speech ≤3 s after Play.
+2. **First audio (SC-002)**: 10/10 cold-start trials (cold start = process-killed, fixture unopened, radios off), first audible speech ≤3 s after Play.
 3. **Interruptions (SC-003)**: 10/10 per class — nav-transient → duck ~20% + restore; call/alarm → pause + 3 s reason, never auto-resume; headphone removal → pause ≤1 s, never on speaker; permanent loss → pause + 3 s, never auto-resume.
 4. **Blind confirmations (SC-004)**: no-look, 10/10 per type (play, pause, skip, warning, failure) via earcon + state change + haptic, sounds-on and sounds-off.
 5. **Resume (SC-005)**: pause → move + rename file → reopen via picker → 10/10 offer continue-from-position; edit content → 10/10 no resume; in-app Stop → next open starts at beginning. Kill/power-loss → resumes with ≤60 s replay (interruption replay ≤30 s).
 6. **Lock-screen purity (SC-006)**: 10/10 inspections across playing/paused/section-change/rate-change/interruption — title + section + progress only, zero prose/time/rate/voice leaks.
-7. **Rate (SC-007)**: chosen rung persists across sessions/documents; voice quicker/slower, never pitched.
+7. **Rate (SC-007)**: chosen rung persists across sessions/documents (10/10 per rung); voice quicker/slower never pitched (PITCH_TOLERANCE_CENTS=50) + blind listener check.
 8. **Record (SC-008)**: `adb pull` app-private JSONL → full trace present (session/transport/per-section/per-rate/buffer/interruptions + measured latencies + failures), retained within 30-day/10 MB bounds, zero entries with prose.
 9. **Lock-screen privacy (manual inspection)**: enable the phone's lock-screen privacy-hide-contents setting → app obeys, lock-screen hides contents, no workaround attempted.
 

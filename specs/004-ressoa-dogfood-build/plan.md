@@ -43,7 +43,7 @@ Integrate the proven pieces (001 shell + 002 `sherpa-onnx`/`faber` synthesis + 0
 - **IX (Offline-first)**: PASS — pure offline; snapshot synthesis survives revocation; no network to start/continue; paused-idle synthesises nothing.
 - **X (Free-tier budgeted)**: PASS — no paid tier; idle pause bills nothing; byte-budget chunking unchanged (adapter-side ≤5000 B).
 - **XI (Sovereignty)**: PASS — no secrets; no second voice/cloud/credentials/consent surface; diag device-local private, never transmitted, adb-pull only.
-- **Tauri Platform Contract**: PASS — Kotlin confined to picker intent + Service/MediaSession/notification/focus-request + haptics (forward-only mirror driven by the Rust reason — `Vibrator`/`VibrationEffect` fire patterns selected by Rust, zero computation, SC-035 holds); Rust single playback authority; required permissions `FOREGROUND_SERVICE*` + `VIBRATE` + `POST_NOTIFICATIONS`; manual `<service mediaPlayback>` manifest edit re-verified every Tauri upgrade (re-verify covers the `VIBRATE` + `POST_NOTIFICATIONS` permissions too).
+- **Tauri Platform Contract**: PASS — Kotlin confined to picker intent + Service/MediaSession/notification/focus-request + haptics (forward-only mirror driven by the Rust reason — `Vibrator`/`VibrationEffect` fire patterns selected by Rust, zero computation — Kotlin renders pattern-id verbatim, selects nothing (SC-035 holds)); Rust single playback authority; required permissions `FOREGROUND_SERVICE*` + `VIBRATE` + `POST_NOTIFICATIONS`; manual `<service mediaPlayback>` manifest edit re-verified every Tauri upgrade (re-verify covers the `VIBRATE` + `POST_NOTIFICATIONS` permissions too).
 - **Audio Pipeline Contracts**: PASS — sentence/node granularity as designed precision; content-offset progress uses parsed units, audio-duration estimates never feed it; degradation observable.
 - **Driving-Safety / Licence**: PASS — no new licences (CC0 `faber` already admitted; no `soundtouch` needed — engine stretches); transient duck ~20% per ADR-001 deviation stands.
 
@@ -112,7 +112,7 @@ android-shell/src/main/kotlin/app/mdreader/
 │                       #   ContentResolver → filesDir/snapshots/<hex>.{md,txt} write); MODIFY: PlaybackService.kt (existing foreground residency
 │                       #   holder; assert screen-off continuity; dismissal refused
 │                       #   while playing); MODIFY: MediaMirror.kt
-│                       #   (haptic patterns in publish()/buildSurface() + VIBRATE permission)
+│                       #   (haptic patterns in publish()/buildSurface() (render-only) + VIBRATE permission)
 │                       #   — forward-only, zero playback logic (SC-035 holds)
 
 tests/device/           # ADD: 004 trial procedures (commute/blind/resume/purity/rate/record

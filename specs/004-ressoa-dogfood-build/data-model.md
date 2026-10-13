@@ -64,7 +64,7 @@ Surface/diag-level reason enum mapping N:1 onto the untouched `FocusOutcome`/`Fo
 | `PermanentLoss` / `DeviceRemoved` | pause ≤1 s (routing), never auto-resume, latest-wins | 3 s + warning earcon |
 | `VoiceUnavailable` / `FormatUndeliverable` / `DecodeFailed` | never start, no substitution | persistent failure line + failure earcon |
 
-Each variant maps 1:1 to a ≤8-word lock-screen line + distinct earcon + logged `error` name. No-look channel = earcon (no spoken announcement).
+Mapping is N:1 (eight product reasons onto two earcon kinds + line-or-None + logged `error` name): `TransientPaused`-duckable → no line, no earcon (continuous); `TransientPaused`-pause / `FocusDenied` / `PermanentLoss` / `DeviceRemoved` → ≤8-word line + Warning earcon; `VoiceUnavailable` / `FormatUndeliverable` / `DecodeFailed` → persistent line + Failure earcon; `FocusDelayed`/`Deferred` → no line, no earcon (zero-audio hold). Exact lines: see `contracts/surface.md` reason-line table. No-look channel = earcon (no spoken announcement).
 
 ## Speed Setting (FR-012)
 

@@ -4,20 +4,20 @@ FR-002 + FR-009 + FR-011 + FR-012 + FR-013 + FR-014 + FR-019. DESIGN-SONA appear
 
 ## Lock-screen surface (MediaStyle notification)
 
-- Fields: **at most** document title + current section title + progress indication. Never: document prose, elapsed/remaining time, playback rate, voice identity.
+- Fields: **at most** document title (original language — proper noun, exempt from pt-BR per FR-011) + current section title + progress indication. Never: document prose, elapsed/remaining time, playback rate, voice identity.
 - Controls: play, pause, skip-forward/back. Rate-step reachable without unlock via lock-screen custom action (no value display; in-app stepper is full control). Skip = next/previous section boundary, fallback ±10 s when zero sections. **No Stop control on lock-screen** — `transport: playing|paused|stopped` is STATE (Interrupted/Completed are EndKind, never transport values), distinct from the Stop CONTROL which exists in-app only.
-- Progress: bar = content-offset fraction + label `"Section {k} of {N} — {p}% (content-offset)"` (frozen template); determinate only when section count + total units known at session start, else indeterminate whole session (no flip, no backward jump); zero sections → indeterminate + no title.
-- Interruption reason: ≤8-word line + distinct earcon, `reason_ttl_ms=3000` then cleared; undeliverable failures (`VoiceUnavailable`/`FormatUndeliverable`/`DecodeFailed`) persistent (`reason_ttl_ms=null`). No spoken announcement. Mirror visual = giant transport glyph (≥48dp, high-contrast DESIGN-SONA tokens below, never body text) + progress + warning/failure banner asserted by T026 snapshot; haptic distinct per contracts/earcon.md rides outside STREAM_MUSIC so sounds-off/DND path holds.
+- Progress: bar = content-offset fraction + label `"Section {k} of {N} — {p}% (content-offset)"` (frozen template; English identifier — the exact pt-BR rendered string is the translated equivalent, e.g. `"Seção {k} de {N} — {p}% (deslocamento de conteúdo)"`); determinate only when section count + total units known at session start, else indeterminate whole session (no flip, no backward jump); zero sections → indeterminate + no title.
+- Interruption reason: ≤8-word pt-BR line (soft target) + ≤40-char hard limit (Android content-text limit; if the two conflict, ≤40 chars wins) + distinct earcon, `reason_ttl_ms=3000` then cleared; undeliverable failures (`VoiceUnavailable`/`FormatUndeliverable`/`DecodeFailed`) persistent (`reason_ttl_ms=null`). No spoken announcement. Mirror visual = giant transport glyph (≥48dp, high-contrast DESIGN-SONA tokens below, never body text) + progress + warning/failure banner asserted by T026 snapshot; haptic distinct per contracts/earcon.md rides outside STREAM_MUSIC so sounds-off/DND path holds.
 - Fixed reason lines (closed; `FocusDelayed`/`Deferred` shows no line — zero-audio hold):
-| Reason | Lock-screen line |
+| Reason | Lock-screen line (pt-BR) |
 |---|---|
-| `FocusDenied` | `Audio focus denied — paused` |
-| `TransientPaused` (pause outcome) | `Paused for interruption — resume to continue` |
-| `PermanentLoss` | `Audio lost — paused` |
-| `DeviceRemoved` | `Headphones removed — paused` |
-| `VoiceUnavailable` | `Voice unavailable — reading cannot start` |
-| `FormatUndeliverable` | `Document format cannot be read aloud` |
-| `DecodeFailed` | `Audio decode failed — reading stopped` |
+| `FocusDenied` | `Foco de áudio negado — pausado` |
+| `TransientPaused` (pause outcome) | `Pausado por interrupção — retome para continuar` |
+| `PermanentLoss` | `Áudio perdido — pausado` |
+| `DeviceRemoved` | `Fones removidos — pausado` |
+| `VoiceUnavailable` | `Voz indisponível — leitura não pode iniciar` |
+| `FormatUndeliverable` | `Formato do documento não pode ser lido` |
+| `DecodeFailed` | `Falha ao decodificar áudio — leitura parada` |
 - Dismissal: refused while playing; pause is the route to dismissal. Obeys platform lock-screen privacy (no workaround).
 - After kill/power-loss: wait paused + explicit resume control on this surface (no visual dialog).
 

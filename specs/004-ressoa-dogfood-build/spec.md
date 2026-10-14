@@ -130,6 +130,18 @@ While driving, the lock-screen surface shows only what orients without demanding
 - What happens when the requested voice or audio format cannot be delivered? Reading does not start; the closed-set failure (VoiceUnavailable, FormatUndeliverable, or DecodeFailed) is shown instead of substituted or silent output.
 - What happens when the document has no sections or the position precedes the first section? No section title is shown rather than a wrong one.
 
+## Normative Contract References
+
+The following contract files are the normative sources for the algorithms, grammars, and flows referenced in this spec; this spec, `plan.md`, and `tasks.md` reference them rather than restating them:
+
+- `contracts/resume-algorithm.md` — FR-007 resume/snap-back/replay algorithm (normative for A1).
+- `contracts/earcon.md` — FR-016 earcon grammar + duck-exempt bypass (normative for A2).
+- `contracts/ingest.md` — FR-018 document ingest flow (normative for A3).
+- `contracts/surface.md` — FR-011/FR-019 surface rules + progress label.
+- `contracts/diagnostic-trace.md` — FR-017 diagnostic record shape.
+
+When a contract and this spec appear to diverge, the contract is authoritative; updates must be coordinated (see plan.md Complexity Tracking rule).
+
 ## Requirements *(mandatory)*
 
 ### Functional Requirements

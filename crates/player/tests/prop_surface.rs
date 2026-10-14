@@ -348,19 +348,20 @@ proptest! {
             let snapshot = resolver.resolve(*position, &headings);
             match snapshot.progress {
                 Progress::Determinate {
-                    position_secs,
-                    duration_secs,
+                    consumed_units,
+                    total_units,
+                    ..
                 } => {
                     prop_assert_eq!(
-                        position_secs,
-                        *position,
-                        "the determinate progress at {} did not carry the resolve position (FR-028a)",
+                        consumed_units,
+                        *position as u64,
+                        "the determinate progress at {} did not carry the resolve position as the consumed content offset (FR-028a)",
                         position
                     );
                     prop_assert_eq!(
-                        duration_secs,
-                        marked_document_total(&headings),
-                        "the determinate progress at {} did not carry the marked document total (FR-028a)",
+                        total_units,
+                        marked_document_total(&headings) as u64,
+                        "the determinate progress at {} did not carry the marked document total as content units (FR-028a)",
                         position
                     );
                     determinate_count += 1;

@@ -450,8 +450,10 @@ fn session_in(transport: TransportState) -> PlaybackSession {
 fn mirror_of(snapshot: &SessionSnapshot, duration_secs: Option<f64>) -> MirrorState {
     let progress = match duration_secs {
         Some(duration) => Progress::Determinate {
-            position_secs: snapshot.position_secs,
-            duration_secs: duration,
+            consumed_units: snapshot.position_secs as u64,
+            total_units: duration as u64,
+            k: 0,
+            n: 0,
         },
         None => Progress::Indeterminate,
     };
@@ -844,23 +846,25 @@ fn mirror_payload_carries_the_sessions_authoritative_position_only() -> Result<(
 
     // The progress is determinate when the duration
     // is known at session start (T051), carrying the
-    // same position and the duration.
+    // content-offset units (the 004 content-offset
+    // shape: parsed units, never time-based values).
     let Progress::Determinate {
-        position_secs,
-        duration_secs,
+        consumed_units,
+        total_units,
+        ..
     } = mirror.progress
     else {
         return Err(
             "a session with a known duration resolves a determinate progress (T051)".into(),
         );
     };
-    assert!(
-        (position_secs - snapshot.position_secs).abs() <= POS_EPS_SECS,
-        "the determinate progress carries the session's position (FR-003)"
+    assert_eq!(
+        consumed_units, snapshot.position_secs as u64,
+        "the determinate progress carries the session's position as the consumed content offset (FR-003)"
     );
-    assert!(
-        (duration_secs - DURATION_SECS).abs() <= POS_EPS_SECS,
-        "the determinate progress carries the session's duration (T051)"
+    assert_eq!(
+        total_units, DURATION_SECS as u64,
+        "the determinate progress carries the session's total content units (T051)"
     );
 
     // The mirror is derived, never a second clock:
@@ -1056,11 +1060,13 @@ fn snapshot_and_mirror_serialize_to_snake_case_wire_keys() -> Result<(), Box<dyn
         progress,
         &serde_json::json!({
             "determinate": {
-                "position_secs": STORED_POSITION_SECS,
-                "duration_secs": DURATION_SECS,
+                "consumed_units": STORED_POSITION_SECS as u64,
+                "total_units": DURATION_SECS as u64,
+                "k": 0,
+                "n": 0,
             }
         }),
-        "a determinate progress serializes as an externally-tagged object (contracts/shell-ipc.md)"
+        "a determinate progress serializes as an externally-tagged object (contracts/surface.md content-offset shape)"
     );
 
     // The indeterminate progress serializes as its

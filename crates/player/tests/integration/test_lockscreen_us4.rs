@@ -1030,17 +1030,20 @@ fn status_view_rate_equals_the_lock_screen_rate_source() -> Result<(), Box<dyn E
     );
     let mut determinate = false;
     if let Progress::Determinate {
-        position_secs,
-        duration_secs,
+        consumed_units,
+        total_units,
+        ..
     } = surface.progress
     {
-        assert!(
-            (position_secs - snap.position_secs).abs() <= POS_EPS_SECS,
-            "the status view carries the session's position — the Rust module only (FR-003)"
+        assert_eq!(
+            consumed_units,
+            snap.position_secs as u64,
+            "the status view carries the session's position as the consumed content offset — the Rust module only (FR-003)"
         );
-        assert!(
-            (duration_secs - marked_extent).abs() <= POS_EPS_SECS,
-            "the determinate total is the marked document extent — the greatest heading position the list marks, the resolver's only duration input, never an estimate (FR-028a)"
+        assert_eq!(
+            total_units,
+            marked_extent as u64,
+            "the determinate total is the marked document extent as content units — the greatest heading position the list marks, the resolver's only duration input, never an estimate (FR-028a)"
         );
         determinate = true;
     }

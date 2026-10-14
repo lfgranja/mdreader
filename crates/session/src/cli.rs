@@ -15,14 +15,26 @@
 //! [`fingerprint`] functions — no second implementation
 //! of any rule lives here.
 //!
-//! The redb database is a required option
+//! The redb database is named per invocation
 //! (`--db <path>`, preceding the subcommand):
 //! the store opens — and creates — the file it
-//! names, so every invocation states explicitly
-//! which store it touches. `<file>` is the
-//! DOCUMENT whose bytes are blake3-256
-//! fingerprinted (FR-036) into the bookmark
-//! key — never the path.
+//! names, so every invocation states which
+//! store it touches. An invocation that names
+//! none — the developer smoke pipe, `echo
+//! <bytes> | session ingest` — answers from
+//! the scratch store under the system temp
+//! dir, so the text-I/O protocol reads stdin
+//! and answers with no argument at all; the
+//! default is visible in every rendered
+//! `--help`. `<file>` is the DOCUMENT whose
+//! bytes are blake3-256 fingerprinted into the
+//! bookmark key — never the path. The `ingest`
+//! verb takes that document positionally
+//! (`ingest <snapshot-file>`, contracts/
+//! ingest.md "CLI surface"), or by `--path`,
+//! or as the bytes piped on stdin when no file
+//! is named — the bytes are fingerprinted into
+//! the key in every form, never the path.
 //!
 //! The offer machine is per-invocation: a CLI process
 //! holds no live session, so the application-visibility
@@ -219,11 +231,13 @@ struct Cli {
 
     /// The redb database file the bookmark store
     /// opens — and creates when absent
-    /// (storage-schema.md). Required: every
-    /// invocation states explicitly which
-    /// store it touches, so it precedes the
-    /// subcommand.
-    #[arg(long)]
+    /// (storage-schema.md). An invocation that
+    /// names none answers from the scratch store
+    /// under the system temp dir: the pipe form
+    /// of the protocol (`echo <bytes> | session
+    /// ingest`) has no store to name, and the
+    /// rendered default states the file.
+    #[arg(long, default_value_os_t = scratch_db_path())]
     db: PathBuf,
 
     /// The subcommand naming the capability to
@@ -248,15 +262,28 @@ enum OutputFormat {
 enum Command {
     /// Ingest a document: compute its fingerprint and
     /// report the resume state (FR-036 / FR-036a).
+    ///
+    /// The document bytes come from the named file
+    /// (`ingest <snapshot-file>`, `contracts/
+    /// ingest.md` "CLI surface", or the `--path`
+    /// spelling), or from the bytes piped on
+    /// stdin when no file is named. The bytes are
+    /// blake3-256 fingerprinted into the bookmark
+    /// key — never the path — and the lookup
+    /// reports the resume decision the stored end
+    /// kind resolves (`{fingerprint, resume,
+    /// offset}` JSON).
     Ingest {
         /// The document file: its bytes are
         /// blake3-256 fingerprinted into the bookmark
         /// key — never its path.
-        #[arg(long, conflicts_with = "bytes")]
+        #[arg(conflicts_with = "path")]
+        file: Option<PathBuf>,
+        /// The document file named by flag — the same
+        /// bytes rule, the alternative spelling of the
+        /// positional form.
+        #[arg(long, conflicts_with = "file")]
         path: Option<PathBuf>,
-        /// Read document bytes from stdin instead of a file.
-        #[arg(long, conflicts_with = "path")]
-        bytes: bool,
     },
     /// Read the stored position for a document, keyed
     /// by its content fingerprint (FR-036).
@@ -430,31 +457,46 @@ enum Visibility {
 /// completes the failure half of the protocol.
 fn execute(cli: Cli, stdout: &mut dyn Write) -> Result<(), CliError> {
     match cli.command {
-        Command::Ingest { path, bytes } => {
-            let document_bytes = if let Some(path) = path {
-                std::fs::read(&path)?
-            } else if bytes {
-                let mut buf = Vec::new();
-                let _ = std::io::stdin().read_to_end(&mut buf)?;
-                buf
-            } else {
-                return Err(CliError::Usage(
-                    "ingest requires either --path <PATH> or --bytes".to_string(),
-                ));
+        Command::Ingest { file, path } => {
+            // The document bytes: the named file's
+            // — positionally or by `--path` — or the
+            // bytes piped on stdin when no file is
+            // named (the pipe form of the protocol,
+            // `echo <bytes> | session ingest`). The
+            // bytes are fingerprinted; the path is
+            // never the key (FR-036).
+            let document_bytes = match file.or(path) {
+                Some(path) => std::fs::read(path)?,
+                None => read_stdin_bytes()?,
             };
             let key = fingerprint(&document_bytes);
             let mut store = BookmarkStore::open(&cli.db)?;
             let stored = store.get(&key)?;
-            let fingerprint_hex = hex_key(key);
-            let (resume, offset_secs) = match stored {
-                Some(pos) if pos.end_kind == SessionEnd::Paused => (true, pos.offset_secs),
-                _ => (false, 0.0),
+            // The resume decision reads the stored
+            // end kind (storage-schema.md): only the
+            // deliberate pause opens the continue
+            // offer, so `resume` is true exactly
+            // then. An unexpected end (FR-032d) auto-resumes
+            // nothing, but its stored position is
+            // still reported — the offer form
+            // itself resolves in `offer.rs`
+            // (`offer show`), never here, so the
+            // payload carries the stored offset on
+            // either path and `0.0` on a miss
+            // (FR-036a: an edited document resolves
+            // to a start at 0.0 with no offer).
+            let (resume, offset) = match stored {
+                Some(position) => (
+                    matches!(position.end_kind, SessionEnd::Paused),
+                    position.offset_secs,
+                ),
+                None => (false, 0.0),
             };
+            let fingerprint_hex = hex_key(key);
             let payload = IngestPayload {
-                capability: "ingest",
                 fingerprint: &fingerprint_hex,
                 resume,
-                offset_secs,
+                offset,
             };
             write_payload(stdout, &ingest_payload(&payload, cli.format)?)
         }
@@ -929,21 +971,27 @@ struct ForegroundPayload {
 }
 
 /// The `ingest` payload: the document fingerprint
-/// and resume state.
+/// and resume state — the exact wire shape
+/// `contracts/ingest.md` ("CLI surface") names:
+/// `{fingerprint, resume: bool, offset}`.
 #[derive(Serialize)]
 struct IngestPayload<'a> {
-    /// The capability the payload mirrors.
-    capability: &'static str,
     /// The document's blake3-256 content
     /// fingerprint, in hex (FR-036).
     fingerprint: &'a str,
     /// Whether a resume offer applies — `true`
-    /// when a paused position exists for this
-    /// fingerprint.
+    /// only when a stored entry exists AND its
+    /// end kind is the deliberate pause
+    /// (`paused`); an interrupted entry reports
+    /// `false` here and resolves its offer form
+    /// through `offer.rs` (FR-032d).
     resume: bool,
-    /// The stored offset in seconds when
-    /// `resume` is `true`; otherwise `0.0`.
-    offset_secs: f64,
+    /// The stored offset in seconds: the stored
+    /// position when an entry exists (any
+    /// retained end kind), `0.0` on a miss —
+    /// a miss resolves to a start at `0.0` with
+    /// no offer (FR-036a / storage-schema.md).
+    offset: f64,
 }
 
 /// The `get` / `put` payload: the stored position
@@ -1115,14 +1163,39 @@ fn foreground_payload(foregrounded: bool, format: OutputFormat) -> Result<String
 /// The `ingest` payload, for the selected format.
 ///
 /// The `Result` return already carries `#[must_use]`.
-fn ingest_payload(
-    payload: &IngestPayload<'_>,
-    format: OutputFormat,
-) -> Result<String, CliError> {
+fn ingest_payload(payload: &IngestPayload<'_>, format: OutputFormat) -> Result<String, CliError> {
     Ok(match format {
         OutputFormat::Json => render_json(payload)?,
         OutputFormat::Human => human_ingest(payload),
     })
+}
+
+/// The scratch store an invocation that names no
+/// `--db` answers from: one file under the system
+/// temp dir ([`std::env::temp_dir`]). It keeps the
+/// pipe form of the protocol zero-argument — the
+/// bytes piped on stdin carry no store to name —
+/// while every explicit invocation still states
+/// its store, and the rendered `--help` shows the
+/// default file so the answer is never silent.
+fn scratch_db_path() -> PathBuf {
+    std::env::temp_dir().join("mdreader-session.redb")
+}
+
+/// Read the document bytes from stdin to end of
+/// stream: the pipe form of the text-I/O protocol
+/// (`echo <bytes> | session ingest`).
+///
+/// # Errors
+///
+/// [`CliError::Io`] when the stream cannot be read.
+fn read_stdin_bytes() -> Result<Vec<u8>, CliError> {
+    let mut bytes = Vec::new();
+    // The count of bytes read answers no payload
+    // field; the result is still handled because
+    // the workspace denies unused results.
+    let _read = std::io::stdin().read_to_end(&mut bytes)?;
+    Ok(bytes)
 }
 
 /// The rung's numeric value — its JSON-ladder
@@ -1302,11 +1375,12 @@ fn human_foreground(payload: &ForegroundPayload) -> String {
 }
 
 /// The human-readable plain form of the `ingest`
-/// payload.
+/// payload: the labeled fingerprint, resume
+/// decision, and stored offset.
 #[must_use]
 fn human_ingest(payload: &IngestPayload<'_>) -> String {
     format!(
-        "capability: {}\nfingerprint: {}\nresume: {}\noffset-secs: {}\n",
-        payload.capability, payload.fingerprint, payload.resume, payload.offset_secs,
+        "fingerprint: {}\nresume: {}\noffset: {}\n",
+        payload.fingerprint, payload.resume, payload.offset,
     )
 }

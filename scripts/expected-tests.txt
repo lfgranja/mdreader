@@ -48,4 +48,5 @@ session::prop_end_kind_codes
 session::prop_fingerprint
 session::prop_offer
 session::prop_resume
+session::test_ingest_cli
 src-tauri

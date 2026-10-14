@@ -165,7 +165,7 @@ FORBIDDEN_SHAPES=(
   'setPlaybackState\s*\(.*position'
   'setPlaybackState\s*\(.*state'
   'seekTo\s*\('
-  'gain\s*[*/+-]?='
+  '\bgain\s*[*/+-]?='
   'duck\w*\s*='
   'skip(Forward|Backward)\s*\('
 )

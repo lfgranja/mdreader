@@ -137,9 +137,10 @@ fn main() -> io::Result<()> {
             };
             let descriptor = EarconDescriptor::for_kind(kind);
             // Output as JSON (--format json is the only supported format per contract)
-            let json = serde_json::to_string(&descriptor).map_err(|e| {
-                io::Error::new(io::ErrorKind::Other, format!("JSON serialization failed: {e}"))
-            })?;
+            // serde_json::Error converts into io::Error through its From impl,
+            // so the failure goes to stderr through the error channel — never
+            // a catch-all ErrorKind::Other (closed-set gate, SC-057).
+            let json = serde_json::to_string(&descriptor)?;
             writeln!(out, "{json}")?;
             return Ok(());
         }

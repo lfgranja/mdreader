@@ -452,6 +452,7 @@ mod tests {
                 FullReason::EngineDeviceLost,
                 ReasonExpiry::FailurePersistent,
             )),
+            TEST_FINGERPRINT,
         );
         assert_eq!(
             serde_json::to_value(&failure).ok(),
@@ -461,6 +462,7 @@ mod tests {
                 "position_secs": 33.25,
                 "reason": full_reason(&FullReason::EngineDeviceLost, DOCUMENT_TITLE),
                 "reason_expiry": "failure_persistent",
+                "fingerprint": "0000000000000000000000000000000000000000000000000000000000000000",
             }))
         );
         let focus = render_status_view(
@@ -469,6 +471,7 @@ mod tests {
             7.75,
             DOCUMENT_TITLE,
             Some((FullReason::FocusPermanentLoss, ReasonExpiry::Focus3s)),
+            TEST_FINGERPRINT,
         );
         assert_eq!(
             serde_json::to_value(&focus).ok(),
@@ -478,6 +481,7 @@ mod tests {
                 "position_secs": 7.75,
                 "reason": format!("{PAUSE_STATEMENT}: {DOCUMENT_TITLE}"),
                 "reason_expiry": "focus_3s",
+                "fingerprint": "0000000000000000000000000000000000000000000000000000000000000000",
             }))
         );
     }

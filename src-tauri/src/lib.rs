@@ -9,12 +9,14 @@
 
 use std::sync::Mutex;
 
+use engine_core::closed::SessionEnd;
 use player::backend::CpalBackend;
-use player::cli::PlaybackSession;
+use player::cli::{PlaybackSession, SessionSnapshot};
 use player::surface::MirrorState;
+use player::transport::TransportState;
 use tauri::Manager;
 use std::time::Duration;
-use session::store::BookmarkStore;
+use session::store::{BookmarkStore, StoredPosition};
 use session::fingerprint;
 use tokio::time;
 
@@ -108,6 +110,20 @@ pub struct AppState {
     /// is loaded. Used by the 20 s heartbeat (T011) to
     /// persist the position under the correct key.
     current_fingerprint: Mutex<Option<[u8; 32]>>,
+    /// The wall-clock start of the current continuous
+    /// playback interval, in unix milliseconds — the
+    /// FR-015 supersede clock every bookmark write
+    /// stamps as `first_yield_ms` (T011). `None` while
+    /// no interval is open: the clock opens when
+    /// playback starts, survives a deliberate pause and
+    /// its resume (one continuous interval — the clock
+    /// is never reset mid-session), and closes at the
+    /// terminal ends (`Stopped` / `Completed`), which
+    /// end the interval it anchors. A write with the
+    /// clock closed carries `0` — the "no interval
+    /// recorded" value the raw-table surface accepts
+    /// (T063 / storage-schema.md).
+    first_yield_ms: Mutex<Option<u64>>,
 }
 
 impl std::fmt::Debug for AppState {
@@ -123,6 +139,7 @@ impl std::fmt::Debug for AppState {
             .field("headings", &self.headings)
             .field("bookmark_store", &"<BookmarkStore>")
             .field("current_fingerprint", &self.current_fingerprint)
+            .field("first_yield_ms", &self.first_yield_ms)
             .finish_non_exhaustive()
     }
 }
@@ -145,8 +162,231 @@ impl AppState {
             headings: Mutex::new(Vec::new()),
             bookmark_store: Mutex::new(None),
             current_fingerprint: Mutex::new(None),
+            first_yield_ms: Mutex::new(None),
         }
     }
+
+    /// Test state over an already-opened bookmark store
+    /// (T011): the persistence tests drive the durable
+    /// writes into a real redb file and read the rows
+    /// back through the store's own `get`, never a
+    /// mock. Everything else matches [`Self::test_state`].
+    pub(crate) fn test_state_with_bookmark_store(store: BookmarkStore) -> Self {
+        Self {
+            bookmark_store: Mutex::new(Some(store)),
+            ..Self::test_state()
+        }
+    }
+}
+
+/// The durable heartbeat period, in seconds (T011):
+/// the 20 s cadence the crash-safe recovery bound
+/// names — a hard kill replays at most ~30 s of
+/// position (FR-004), so a 20 s durable write keeps
+/// the worst-case loss inside that bound.
+const HEARTBEAT_PERIOD_SECS: u64 = 20;
+
+/// The current unix time in milliseconds — the epoch
+/// the FR-015 supersede clock stamps (T011). A clock
+/// set before the unix epoch (an impossible
+/// `duration_since`) saturates at `0` and a
+/// millisecond count beyond `u64` at `u64::MAX`:
+/// never a panic, never a wrap.
+#[must_use]
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |elapsed| u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX))
+}
+
+/// The loaded document's blake3-256 content
+/// fingerprint (FR-036), or `None` when no document
+/// is loaded or the lock is poisoned — the key every
+/// bookmark write persists the position under.
+fn current_fingerprint(state: &AppState) -> Option<[u8; 32]> {
+    match state.current_fingerprint.lock() {
+        Ok(guard) => *guard,
+        Err(_) => {
+            tracing::warn!("the fingerprint lock is poisoned; no bookmark can be keyed");
+            None
+        }
+    }
+}
+
+/// The FR-015 supersede clock in unix milliseconds,
+/// or `0` — the "no interval recorded" value — when
+/// no interval is open or the lock is poisoned.
+fn current_first_yield_ms(state: &AppState) -> u64 {
+    match state.first_yield_ms.lock() {
+        Ok(clock) => clock.unwrap_or(0),
+        Err(_) => 0,
+    }
+}
+
+/// Record the loaded document's blake3-256 content
+/// fingerprint in the shared state (FR-036): the one
+/// call site every document-opening path routes
+/// through — `open_document` and `play` both call it
+/// with the document bytes — so the key the 20 s
+/// heartbeat and the event-durable pause puts
+/// persist under (T011 / T035) is set by the same
+/// code everywhere (Principle II).
+///
+/// A poisoned fingerprint lock is recorded and
+/// skipped: durability is best-effort, never a
+/// panic, and a missed write only means the next
+/// heartbeat finds no document.
+pub(crate) fn set_document_fingerprint(state: &AppState, bytes: &[u8]) {
+    let fp = fingerprint::fingerprint(bytes);
+    match state.current_fingerprint.lock() {
+        Ok(mut guard) => *guard = Some(fp),
+        Err(_) => tracing::warn!("document fingerprint not recorded: the state lock is poisoned"),
+    }
+}
+
+/// Note the transport the session landed in for the
+/// FR-015 supersede clock (T011): the clock opens
+/// when playback starts, never resets while playback
+/// continues — a deliberate pause and its resume are
+/// one continuous interval — and closes at the
+/// terminal ends (`Stopped` / `Completed`), which
+/// end the interval it anchors.
+fn note_transport(state: &AppState, transport: TransportState) {
+    match state.first_yield_ms.lock() {
+        Ok(mut clock) => match transport {
+            TransportState::Playing => {
+                if clock.is_none() {
+                    *clock = Some(now_ms());
+                }
+            }
+            TransportState::Paused | TransportState::Interrupted => {}
+            TransportState::Stopped | TransportState::Completed => *clock = None,
+        },
+        Err(_) => tracing::warn!("the FR-015 clock was not updated: the state lock is poisoned"),
+    }
+}
+
+/// The session-end kind a landed pause records
+/// (FR-044 / contracts/storage-schema.md): the offer
+/// flow is resolved SOLELY from the stored
+/// `end_kind`, so the mapping lives here exactly
+/// once — a deliberate pause (and the residency
+/// teardowns that pause first, `resident_stop` /
+/// `swipe_away`) keeps the `paused` kind that opens
+/// the FR-032c continue offer, while an unexpected
+/// silence (focus loss, route removal) keeps the
+/// `interrupted` kind that leaves the FR-032d
+/// explicit-resume requirement. Any other transport
+/// names no stored end and records nothing.
+fn end_kind_of_pause(transport: TransportState) -> Option<SessionEnd> {
+    match transport {
+        TransportState::Paused => Some(SessionEnd::Paused),
+        TransportState::Interrupted => Some(SessionEnd::Interrupted),
+        TransportState::Playing | TransportState::Stopped | TransportState::Completed => None,
+    }
+}
+
+/// Persist one bookmark row (T011 skeleton; the T035
+/// event-durable call sites): `position_secs` under
+/// the current document's content fingerprint, with
+/// the FR-015 clock read from the shared state and
+/// `end_kind` — one atomic single-row redb write
+/// transaction (`BookmarkStore::put`, FR-004), the
+/// same shape the heartbeat and every event-durable
+/// call site share.
+///
+/// Best-effort by construction: no loaded document
+/// (no fingerprint), an unopened store, or a
+/// poisoned lock skips the write with a tracing
+/// record — durability is never a failure of the
+/// control that triggered it, and a storage failure
+/// is a warn, never a panic (storage-schema.md).
+///
+/// Lock discipline: the fingerprint and clock guards
+/// are each released before the store is locked
+/// last, so no two of them are ever held together —
+/// the heartbeat's read order and the IPC paths'
+/// `session`-then-`bookmark_store` order keep the
+/// crate free of lock cycles.
+fn persist_bookmark(state: &AppState, position_secs: f64, end_kind: SessionEnd) {
+    let Some(fingerprint) = current_fingerprint(state) else {
+        return; // no document loaded — nothing to key the bookmark under
+    };
+    let first_yield_ms = current_first_yield_ms(state);
+    let mut store_guard = match state.bookmark_store.lock() {
+        Ok(guard) => guard,
+        Err(_) => {
+            tracing::warn!("bookmark not persisted: the store lock is poisoned");
+            return;
+        }
+    };
+    let Some(store) = store_guard.as_mut() else {
+        return; // the store never opened — durability degrades to no bookmark
+    };
+    let position = StoredPosition {
+        offset_secs: position_secs,
+        first_yield_ms,
+        end_kind,
+    };
+    if let Err(error) = store.put(&fingerprint, position) {
+        tracing::warn!(%error, "bookmark not persisted: the store write failed");
+    } else {
+        tracing::debug!(
+            offset_secs = position_secs,
+            end_kind = ?end_kind,
+            "bookmark persisted"
+        );
+    }
+}
+
+/// The post-execution bookkeeping every verb path
+/// runs once the session has landed (T011 clock,
+/// T035 event-durable puts): note the landed
+/// transport for the FR-015 clock, and — when the
+/// landing is a pause — persist the position with
+/// the end kind that landing names. Every surface
+/// that moves the session through `execute` (the
+/// bridge verbs, the intent paths, the cold-start
+/// open) routes through here, so no call site can
+/// forget the durable write.
+fn after_execute(state: &AppState, snapshot: &SessionSnapshot) {
+    note_transport(state, snapshot.transport);
+    if let Some(end_kind) = end_kind_of_pause(snapshot.transport) {
+        persist_bookmark(state, snapshot.position_secs, end_kind);
+    }
+}
+
+/// One durable heartbeat tick (T011): while the
+/// session is `Playing`, persist the current position
+/// under the document's content fingerprint with the
+/// `interrupted` end kind — the write a hard kill
+/// replays from (FR-004: recovery to the last stored
+/// write, at most ~30 s of lost position). The
+/// heartbeat write is a potential crash point, so it
+/// records the unexpected-end kind: recovery from it
+/// requires the explicit resume (FR-032d). A tick
+/// meeting any other transport, no loaded document,
+/// or an unopened store records nothing — only a
+/// playing session has a moving position worth
+/// durably recording.
+///
+/// Ordering: the snapshot guard is released before
+/// `persist_bookmark` takes the store last, so this
+/// function never holds two of the state locks
+/// together — the heartbeat sits off both sides of
+/// every IPC path's lock order.
+fn heartbeat_once(state: &AppState) {
+    let snapshot = match state.session.lock() {
+        Ok(guard) => guard.snapshot(),
+        Err(_) => {
+            tracing::warn!("heartbeat tick skipped: the session lock is poisoned");
+            return;
+        }
+    };
+    if snapshot.transport != TransportState::Playing {
+        return;
+    }
+    persist_bookmark(state, snapshot.position_secs, SessionEnd::Interrupted);
 }
 
 /// Run the Tauri application.
@@ -171,6 +411,7 @@ pub fn run() {
             headings: Mutex::new(Vec::new()),
             bookmark_store: Mutex::new(None),
             current_fingerprint: Mutex::new(None),
+            first_yield_ms: Mutex::new(None),
         })
         .setup(|_app| {
             // Voice assets ship inside the APK: extract them to a
@@ -190,50 +431,47 @@ pub fn run() {
             // Initialize the 20 s durable heartbeat (T011): open the
             // BookmarkStore in the app data directory and start the
             // periodic timer that calls `put` while Playing.
-            let data_dir = _app.path().app_data_dir().unwrap_or_else(|_| std::env::current_dir().unwrap());
-            let store_for_app = BookmarkStore::open(&data_dir.join("bookmarks.redb")).ok();
-            *app_state.bookmark_store.lock().unwrap() = store_for_app;
+            let data_dir = _app
+                .path()
+                .app_data_dir()
+                .unwrap_or_else(|_| std::env::current_dir().unwrap_or_default());
+            let bookmark_path = data_dir.join("bookmarks.redb");
+            let store_for_app = match BookmarkStore::open(&bookmark_path) {
+                Ok(store) => Some(store),
+                Err(error) => {
+                    // Best-effort durability: with no store the
+                    // heartbeat skips its puts, never panics —
+                    // FR-004 recovery degrades to no bookmark.
+                    tracing::warn!(
+                        %error,
+                        path = %bookmark_path.display(),
+                        "heartbeat: bookmark store could not be opened; persistence is skipped"
+                    );
+                    None
+                }
+            };
+            if let Ok(mut guard) = app_state.bookmark_store.lock() {
+                *guard = store_for_app;
+            }
             // Spawn the 20 s heartbeat task (T011): calls `BookmarkStore::put`
             // while Playing for crash-safe position recovery (FR-004 / FR-007).
-            // The task accesses AppState directly to get the current session
-            // fingerprint and position, then calls put() with end_kind=Interrupted.
-            let app_state_for_heartbeat = _app.state::<AppState>();
+            // Each tick reads the session snapshot under its own lock,
+            // releases it, and only then takes the store inside
+            // `persist_bookmark` — no two state locks are ever held
+            // together here, so the heartbeat cannot form a cycle with
+            // the IPC paths. The task holds the owned app handle (never a
+            // borrowed `State`), so it outlives the setup closure.
+            let app_handle = _app.app_handle().clone();
             let _ = tauri::async_runtime::spawn(async move {
+                let mut ticker = time::interval(Duration::from_secs(HEARTBEAT_PERIOD_SECS));
                 loop {
-                    time::sleep(Duration::from_secs(20)).await;
-                    // Get the bookmark store from AppState
-                    let store_opt = {
-                        let guard = app_state_for_heartbeat.bookmark_store.lock();
-                        if let Ok(g) = guard { g.clone() } else { continue }
-                    };
-                    let Some(mut store) = store_opt else { continue };
-                    // Get the current fingerprint
-                    let fingerprint_opt = {
-                        let guard = app_state_for_heartbeat.current_fingerprint.lock();
-                        if let Ok(g) = guard { *g } else { continue }
-                    };
-                    let Some(fingerprint) = fingerprint_opt else { continue };
-                    // Get the session snapshot (position and transport)
-                    let snapshot = {
-                        let guard = app_state_for_heartbeat.session.lock();
-                        if let Ok(g) = guard { g.snapshot() } else { continue }
-                    };
-                    // Only persist while Playing (FR-004 / FR-007 / FR-032)
-                    if snapshot.transport != player::transport::TransportState::Playing {
-                        continue;
-                    }
-                    // Persist position with end_kind=Interrupted for crash-safe recovery
-                    // The heartbeat represents a potential crash point, so we use Interrupted.
-                    let stored_pos = session::store::StoredPosition {
-                        offset_secs: snapshot.position_secs,
-                        first_yield_ms: 0,
-                        end_kind: engine_core::closed::SessionEnd::Interrupted,
-                    };
-                    if let Err(e) = store.put(&fingerprint, stored_pos) {
-                        tracing::warn!(error = %e, "heartbeat: BookmarkStore::put failed");
-                    } else {
-                        tracing::debug!(position = snapshot.position_secs, "heartbeat: bookmark persisted");
-                    }
+                    // The tick instant goes unread: the tick
+                    // only paces the writes, and a caught-up
+                    // burst tick is harmless — the put is
+                    // idempotent and last-write-wins.
+                    let _tick = ticker.tick().await;
+                    let app_state = app_handle.state::<AppState>();
+                    heartbeat_once(&app_state);
                 }
             });
 
@@ -291,7 +529,8 @@ pub mod commands {
     use player::routing::{RoutingDecision, RoutingSignal, RoutingTracker};
     use session::fingerprint;
     use session::offer::OfferMachine;
-    use session::store::{BookmarkStore, StoredPosition};
+    use session::store::BookmarkStore;
+    use crate::{after_execute, set_document_fingerprint};
     use tauri::{AppHandle, Manager, State, command};
     use base64::{Engine as _, engine::general_purpose};
     use std::io::Write;
@@ -431,11 +670,10 @@ pub mod commands {
             Some(session::offer::Offer::StartOver) | None => ShellVerb::Play,
         };
 
-        // Store the fingerprint for heartbeat (T011).
-        {
-            let mut fp_guard = state.current_fingerprint.lock().map_err(|e| e.to_string())?;
-            *fp_guard = Some(fp);
-        }
+        // Record the fingerprint for the 20 s heartbeat and
+        // the event-durable puts (T011) — the one call site
+        // every document-opening path shares.
+        set_document_fingerprint(&state, &document_bytes);
 
         // Synthesize the document (same as play() but without executing a verb yet).
         let document_str = String::from_utf8(document_bytes)
@@ -534,21 +772,18 @@ pub mod commands {
             }));
         }
 
-        let mut session = state.session.lock().map_err(|e| e.to_string())?;
-        let snapshot = session.execute(verb).map_err(|e| e.to_string())?;
+        let snapshot = {
+            let mut session = state.session.lock().map_err(|e| e.to_string())?;
+            session.execute(verb).map_err(|e| e.to_string())?
+        };
 
-        // Publish mirror snapshot after successful play start.
-        crate::publish::publish_from_session(
-            &state,
-            &state
-                .surface_resolver
-                .lock()
-                .map_err(|e| e.to_string())?
-                .as_ref()
-                .unwrap(),
-            &state.headings.lock().map_err(|e| e.to_string())?,
-            None, // no transient reason for normal play start
-        );
+        // Open the FR-015 clock on the landed Playing
+        // transport (T011).
+        after_execute(&state, &snapshot);
+
+        // Publish mirror snapshot after successful play start —
+        // the same helper every verb path uses.
+        publish_current_state(&state, None);
 
         // Return enhanced result with fingerprint and resume info.
         Ok(serde_json::json!({
@@ -797,9 +1032,14 @@ pub mod commands {
                         "error": failure.reason(),
                     }));
                 }
-                let mut session = state.session.lock().map_err(|e| e.to_string())?;
-                let snap = session.execute(verb).map_err(|e| e.to_string())?;
+                let snap = {
+                    let mut session = state.session.lock().map_err(|e| e.to_string())?;
+                    session.execute(verb).map_err(|e| e.to_string())?
+                };
                 publish_current_state(state, None);
+                // Playing-class landing: open the FR-015 clock
+                // (T011) so the next durable write stamps it.
+                after_execute(state, &snap);
                 Ok(serde_json::json!({
                     "status": snap.transport.to_string(),
                     "position_secs": snap.position_secs,
@@ -812,11 +1052,19 @@ pub mod commands {
                         backend.pause();
                     }
                 }
-                let mut session = state.session.lock().map_err(|e| e.to_string())?;
-                let snap = session
-                    .execute(ShellVerb::Pause)
-                    .map_err(|e| e.to_string())?;
+                let snap = {
+                    let mut session = state.session.lock().map_err(|e| e.to_string())?;
+                    session
+                        .execute(ShellVerb::Pause)
+                        .map_err(|e| e.to_string())?
+                };
                 publish_current_state(state, None);
+                // Event-durable put (T011 skeleton, the US3
+                // call site): the deliberate pause persists
+                // the position with the `paused` end kind,
+                // which opens the FR-032c continue offer on
+                // the next open (storage-schema.md).
+                after_execute(state, &snap);
                 Ok(serde_json::json!({
                     "status": "paused",
                     "position_secs": snap.position_secs,
@@ -829,11 +1077,18 @@ pub mod commands {
                         backend.stop();
                     }
                 }
-                let mut session = state.session.lock().map_err(|e| e.to_string())?;
-                let snap = session
-                    .execute(ShellVerb::Stop)
-                    .map_err(|e| e.to_string())?;
+                let snap = {
+                    let mut session = state.session.lock().map_err(|e| e.to_string())?;
+                    session
+                        .execute(ShellVerb::Stop)
+                        .map_err(|e| e.to_string())?
+                };
                 publish_current_state(state, None);
+                // Terminal end: no bookmark is written (T035
+                // deletes the entry here) and the FR-015
+                // clock closes, so it cannot leak into the
+                // next session.
+                after_execute(state, &snap);
                 Ok(serde_json::json!({
                     "status": "stopped",
                     "position_secs": snap.position_secs,
@@ -855,9 +1110,19 @@ pub mod commands {
                 // `status` mirrors the resulting transport,
                 // so a playing state is reported only from
                 // a session that actually plays (FR-005).
-                let mut session = state.session.lock().map_err(|e| e.to_string())?;
-                let snap = session.execute(verb).map_err(|e| e.to_string())?;
+                let snap = {
+                    let mut session = state.session.lock().map_err(|e| e.to_string())?;
+                    session.execute(verb).map_err(|e| e.to_string())?
+                };
                 publish_current_state(state, None);
+                // A forward skip that reaches or passes the
+                // end lands `Paused` at the duration
+                // (FR-018): that landing is a transport
+                // change to Paused, so the event-durable
+                // put runs through the same bookkeeping.
+                // Every other live control holds its
+                // transport, and the put is a no-op.
+                after_execute(state, &snap);
                 Ok(serde_json::json!({
                     "status": snap.transport.to_string(),
                     "position_secs": snap.position_secs,
@@ -1100,15 +1365,31 @@ pub mod commands {
     /// an ack of its mirror — never an error, never a
     /// playing state. The flag reports whether the verb
     /// moved the session.
+    ///
+    /// A move that lands the session paused runs the
+    /// post-execution bookkeeping (T011): the FR-015
+    /// clock note plus the event-durable put — the
+    /// single US3 call site every pause-class intent
+    /// (silence-demanding, permanent-loss,
+    /// device-disappeared, becoming-noisy, resident-stop,
+    /// swipe-away) reaches through. The `Complete`
+    /// landing records no bookmark and closes the
+    /// clock instead.
     fn execute_or_current(
         state: &State<'_, AppState>,
         verb: ShellVerb,
     ) -> Result<(SessionSnapshot, bool), String> {
-        let mut session = state.session.lock().map_err(|e| e.to_string())?;
-        let current = session.snapshot();
-        Ok(session
-            .execute(verb)
-            .map_or_else(|_| (current, false), |snapshot| (snapshot, true)))
+        let (snapshot, moved) = {
+            let mut session = state.session.lock().map_err(|e| e.to_string())?;
+            let current = session.snapshot();
+            session
+                .execute(verb)
+                .map_or_else(|_| (current, false), |snapshot| (snapshot, true))
+        };
+        if moved {
+            after_execute(state, &snapshot);
+        }
+        Ok((snapshot, moved))
     }
 
     /// Reply for a silence-demanding signal (T110): the
@@ -1120,6 +1401,10 @@ pub mod commands {
     /// focus loss) and [`ShellVerb::Pause`] where the
     /// bookmark must survive residency teardown.
     /// Publishes the mirror state after the pause (T133).
+    /// The verb runs through [`Self::execute_or_current`],
+    /// so a landed pause also persists the position
+    /// event-durably (T011) — `interrupted` for the
+    /// focus-loss verbs, `paused` for the teardowns.
     fn pause_ack(
         state: &State<'_, AppState>,
         status: &'static str,
@@ -1401,12 +1686,9 @@ pub mod commands {
         }
 
         // Compute and store the document's blake3 fingerprint (FR-036 / T059)
-        // for the 20 s heartbeat bookmark persistence (T011).
-        let doc_fingerprint = fingerprint::fingerprint(document.as_bytes());
-        {
-            let mut fp_guard = state.current_fingerprint.lock().map_err(|e| e.to_string())?;
-            *fp_guard = Some(doc_fingerprint);
-        }
+        // for the 20 s heartbeat bookmark persistence (T011) — the same
+        // call site `open_document` routes through.
+        set_document_fingerprint(state, document.as_bytes());
 
         {
             let mut backend = state.backend.lock().map_err(|e| e.to_string())?;
@@ -1418,23 +1700,20 @@ pub mod commands {
             backend.play().map_err(|e| e.to_string())?;
         }
 
-        let mut session = state.session.lock().map_err(|e| e.to_string())?;
-        let snapshot = session
-            .execute(ShellVerb::Play)
-            .map_err(|e| e.to_string())?;
-
-        // Publish mirror snapshot after successful play start.
-        crate::publish::publish_from_session(
-            state,
-            &state
-                .surface_resolver
-                .lock()
+        let snapshot = {
+            let mut session = state.session.lock().map_err(|e| e.to_string())?;
+            session
+                .execute(ShellVerb::Play)
                 .map_err(|e| e.to_string())?
-                .as_ref()
-                .unwrap(),
-            &state.headings.lock().map_err(|e| e.to_string())?,
-            None, // no transient reason for normal play start
-        );
+        };
+
+        // Open the FR-015 clock on the landed Playing
+        // transport (T011).
+        after_execute(state, &snapshot);
+
+        // Publish mirror snapshot after successful play start —
+        // the same helper every verb path uses.
+        publish_current_state(state, None);
 
         Ok(serde_json::json!({
             "status": "playing",
@@ -1537,11 +1816,13 @@ pub mod commands {
         let surface = resolver.resolve(snap.position_secs, &headings_guard);
         let fingerprint_guard = state.current_fingerprint.lock().map_err(|e| e.to_string())?;
         let fingerprint = *fingerprint_guard;
-
-        // Get stored last_rate from bookmark store
-        let last_rate = if let Some(fp) = fingerprint {
-            let bookmark_store_guard = state.bookmark_store.lock().map_err(|e| e.to_string())?;
-            if let Some(store) = bookmark_store_guard.as_ref() {
+        // Get stored last_rate from bookmark store. The
+        // fingerprint gates the read: with no document
+        // loaded there is no key to read beside, and the
+        // view renders the normal-speed default.
+        let last_rate = if fingerprint.is_some() {
+            let mut bookmark_store_guard = state.bookmark_store.lock().map_err(|e| e.to_string())?;
+            if let Some(store) = bookmark_store_guard.as_mut() {
                 store.get_last_rate().ok().flatten()
             } else {
                 None
@@ -1556,7 +1837,7 @@ pub mod commands {
         // don't have a transient reason.
         let reason: Option<(crate::surface::FullReason, crate::surface::ReasonExpiry)> = None;
 
-        let document_title = resolver.title.clone();
+        let document_title = surface.title.clone();
         let fingerprint = fingerprint.unwrap_or([0u8; 32]);
         Ok(crate::status_view::render_status_view(
             last_rate,
@@ -1578,8 +1859,8 @@ pub mod commands {
         fingerprint: [u8; 32],
         state: State<'_, AppState>,
     ) -> Result<(), String> {
-        let bookmark_store_guard = state.bookmark_store.lock().map_err(|e| e.to_string())?;
-        if let Some(store) = bookmark_store_guard.as_ref() {
+        let mut bookmark_store_guard = state.bookmark_store.lock().map_err(|e| e.to_string())?;
+        if let Some(store) = bookmark_store_guard.as_mut() {
             store.delete(&fingerprint).map_err(|e| e.to_string())?;
         }
         Ok(())
@@ -2156,5 +2437,183 @@ pub mod publish {
             let _ = obj.insert("transient_reason".to_string(), Value::String(reason));
         }
         Value::Object(obj)
+    }
+}
+
+/// T011 wiring tests: the 20 s heartbeat put and the
+/// event-durable pause writes share one real redb file
+/// (through [`AppState::test_state_with_bookmark_store`]),
+/// so every written row is read back through the store's
+/// own `get` — the same read the cold-start resume path
+/// performs, never a mock. The held session is driven
+/// through the real transition table, so every transport
+/// landing asserted here is the closed table's own
+/// answer (FR-004 / FR-032c / FR-032d / FR-044).
+#[cfg(test)]
+mod heartbeat_bookmark_tests {
+    use super::*;
+    use engine_core::closed::SessionEnd;
+    use player::cli::ShellVerb;
+    use session::store::StoredPosition;
+
+    /// A document the tests fingerprint: the content, not
+    /// the path, is the key (FR-036).
+    const DOC: &[u8] = b"# Doc\nbody";
+
+    /// A fresh state whose bookmark store lives in a temp
+    /// dir — one redb file per test, dropped with it.
+    fn state_with_store() -> Result<(tempfile::TempDir, AppState), String> {
+        let dir = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let store = BookmarkStore::open(&dir.path().join("bookmarks.redb"))
+            .map_err(|e| e.to_string())?;
+        Ok((dir, AppState::test_state_with_bookmark_store(store)))
+    }
+
+    /// The row the store holds under `fingerprint` — the
+    /// same read the resume path performs.
+    fn stored_row(state: &AppState, fingerprint: [u8; 32]) -> Result<Option<StoredPosition>, String> {
+        let mut guard = state.bookmark_store.lock().map_err(|e| e.to_string())?;
+        let store = guard.as_mut().ok_or("no bookmark store")?;
+        store.get(&fingerprint).map_err(|e| e.to_string())
+    }
+
+    /// Drive the held session to `Playing` through the
+    /// real transition table and run the bookkeeping the
+    /// bridge runs at the same point.
+    fn start_playing(state: &AppState) -> Result<SessionSnapshot, String> {
+        let snapshot = {
+            let mut session = state.session.lock().map_err(|e| e.to_string())?;
+            session
+                .execute(ShellVerb::Play)
+                .map_err(|e| e.to_string())?
+        };
+        after_execute(state, &snapshot);
+        Ok(snapshot)
+    }
+
+    /// The event-durable pause write: a deliberate pause
+    /// persists the position with the `paused` end kind —
+    /// the FR-032c continue-offer kind — and the FR-015
+    /// clock stamped, and a paused session is not
+    /// `Playing`, so a heartbeat tick records nothing new.
+    #[test]
+    fn deliberate_pause_persists_the_paused_row() -> Result<(), String> {
+        let (_dir, state) = state_with_store()?;
+        set_document_fingerprint(&state, DOC);
+        let _playing = start_playing(&state)?;
+
+        let paused = {
+            let mut session = state.session.lock().map_err(|e| e.to_string())?;
+            session
+                .execute(ShellVerb::Pause)
+                .map_err(|e| e.to_string())?
+        };
+        after_execute(&state, &paused);
+
+        let fingerprint = fingerprint::fingerprint(DOC);
+        let row = stored_row(&state, fingerprint)?.ok_or("no row after the deliberate pause")?;
+        assert_eq!(row.offset_secs, paused.position_secs);
+        assert_eq!(row.end_kind, SessionEnd::Paused);
+        assert!(
+            row.first_yield_ms > 0,
+            "the FR-015 clock did not stamp the paused row"
+        );
+
+        // The heartbeat gate: a paused session is not
+        // Playing, so the tick leaves the row untouched.
+        heartbeat_once(&state);
+        let row_again =
+            stored_row(&state, fingerprint)?.ok_or("the row vanished after a paused tick")?;
+        assert_eq!(row_again, row, "a paused heartbeat tick rewrote the bookmark");
+        Ok(())
+    }
+
+    /// A focus-loss interruption records the `interrupted`
+    /// end kind, never the deliberate-pause kind: the offer
+    /// form is resolved solely from the stored end kind, so
+    /// an unexpected end must leave the FR-032d
+    /// explicit-resume requirement.
+    #[test]
+    fn focus_loss_persists_the_interrupted_row() -> Result<(), String> {
+        let (_dir, state) = state_with_store()?;
+        set_document_fingerprint(&state, DOC);
+        let _playing = start_playing(&state)?;
+
+        let interrupted = {
+            let mut session = state.session.lock().map_err(|e| e.to_string())?;
+            session
+                .execute(ShellVerb::Interrupt)
+                .map_err(|e| e.to_string())?
+        };
+        after_execute(&state, &interrupted);
+
+        let fingerprint = fingerprint::fingerprint(DOC);
+        let row = stored_row(&state, fingerprint)?.ok_or("no row after the focus-loss interruption")?;
+        assert_eq!(row.end_kind, SessionEnd::Interrupted);
+        assert_eq!(row.offset_secs, interrupted.position_secs);
+        Ok(())
+    }
+
+    /// The 20 s heartbeat: while `Playing` it persists the
+    /// position with the `interrupted` kind — the write a
+    /// hard kill replays from (FR-004) — and at the
+    /// terminal end it writes nothing and closes the clock.
+    #[test]
+    fn heartbeat_persists_only_while_playing() -> Result<(), String> {
+        let (_dir, state) = state_with_store()?;
+        set_document_fingerprint(&state, DOC);
+        let _playing = start_playing(&state)?;
+
+        heartbeat_once(&state);
+        let fingerprint = fingerprint::fingerprint(DOC);
+        let row = stored_row(&state, fingerprint)?.ok_or("no row after the playing tick")?;
+        assert_eq!(row.end_kind, SessionEnd::Interrupted, "a crash point must record the unexpected-end kind");
+        assert_eq!(row.offset_secs, 0.0);
+
+        let stopped = {
+            let mut session = state.session.lock().map_err(|e| e.to_string())?;
+            session
+                .execute(ShellVerb::Stop)
+                .map_err(|e| e.to_string())?
+        };
+        after_execute(&state, &stopped);
+        assert_eq!(
+            current_first_yield_ms(&state),
+            0,
+            "the terminal end did not close the FR-015 clock"
+        );
+        heartbeat_once(&state);
+        let row_after_stop =
+            stored_row(&state, fingerprint)?.ok_or("the row vanished at the terminal end")?;
+        assert_eq!(
+            row_after_stop, row,
+            "a stopped session rewrote the bookmark"
+        );
+        Ok(())
+    }
+
+    /// No loaded document and no opened store are both
+    /// silent no-ops: durability is best-effort, so the
+    /// transport still lands and no write is attempted
+    /// (storage-schema.md).
+    #[test]
+    fn puts_skip_without_document_or_store() -> Result<(), String> {
+        let state = AppState::test_state();
+        let playing = start_playing(&state)?;
+        assert_eq!(playing.transport, TransportState::Playing);
+
+        // A document but no store: still a silent skip, and
+        // the pause still lands.
+        set_document_fingerprint(&state, DOC);
+        let paused = {
+            let mut session = state.session.lock().map_err(|e| e.to_string())?;
+            session
+                .execute(ShellVerb::Pause)
+                .map_err(|e| e.to_string())?
+        };
+        after_execute(&state, &paused);
+        heartbeat_once(&state);
+        assert_eq!(paused.transport, TransportState::Paused);
+        Ok(())
     }
 }

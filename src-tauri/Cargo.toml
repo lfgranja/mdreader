@@ -32,6 +32,13 @@ jni = { version = "0.22" }
 #[cfg(target_os = "android")]
 blake3 = { version = "1.6.0", default-features = false }
 
+[dev-dependencies]
+# The T011 persistence tests write through a real redb
+# file in a temp dir and read the rows back through the
+# store's own `get`. Pinned through the workspace table
+# (supply chain: latest stable only).
+tempfile = { workspace = true }
+
 [build-dependencies]
 # tauri-build carries its own version line (latest
 # stable 2.7.2), independent of the tauri 2.12.1 pin.

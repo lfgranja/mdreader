@@ -14,6 +14,7 @@ pub mod recovery;
 pub mod resume;
 pub mod rewind;
 pub mod routing;
+pub mod interruption;
 pub mod skip;
 pub mod surface;
 pub mod transport;

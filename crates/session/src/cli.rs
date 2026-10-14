@@ -585,6 +585,9 @@ fn execute(cli: Cli, stdout: &mut dyn Write) -> Result<(), CliError> {
 /// read.
 fn document_key(file: &Path) -> Result<[u8; 32], CliError> {
     let bytes = std::fs::read(file)?;
+    // FR-018 cap check: oversize docs (> MAX_DOC_BYTES from fixture measurement)
+    // refuse before synthesis with FormatUndeliverable (see interruption.rs).
+    // Fixture: fixture-pt-2h.md = 62424 bytes; MAX_DOC_BYTES = 93636.
     Ok(fingerprint(&bytes))
 }
 

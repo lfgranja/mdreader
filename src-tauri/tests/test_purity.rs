@@ -302,12 +302,15 @@ fn assert_no_leaked_values(label: &str, rendered: &str) {
 }
 
 /// The in-app status view for one state, as its JSON object form.
+/// The view renders the session's most-recent-passed section title —
+/// the same pure rule the lock-screen resolver applies (FR-028b).
 fn status_view_object(state: &StateCase) -> Result<Value, Box<dyn std::error::Error>> {
     let view: StatusView = render_status_view(
         state.last_rate,
         state.transport,
         state.position_secs,
         DOCUMENT_TITLE,
+        snapshot_section_title(state.position_secs),
         state.reason,
         TEST_FINGERPRINT,
     );
@@ -362,6 +365,26 @@ fn the_five_states_keep_the_display_projection_and_payload_pure()
             .as_object()
             .ok_or("the status view is not a JSON object")?;
         assert_key_purity(label, view_object);
+        // The in-app DISPLAY projection: the metadata title and the
+        // most-recent-passed section title — the same display set
+        // the lock screen shows (FR-011 / FR-029 / FR-028c).
+        assert_eq!(
+            view_object.get("title").and_then(Value::as_str),
+            Some(DOCUMENT_TITLE),
+            "{label}: the in-app title is the metadata title, never the first sentence"
+        );
+        match snapshot_section_title(state.position_secs) {
+            Some(expected) => assert_eq!(
+                view_object.get("section_title").and_then(Value::as_str),
+                Some(expected.as_str()),
+                "{label}: the in-app section title is the most-recent-passed heading (FR-028c)"
+            ),
+            None => assert_eq!(
+                view_object.get("section_title"),
+                None,
+                "{label}: an absent section title serializes as the absent key, never null"
+            ),
+        }
         assert_no_leaked_values(label, &serde_json::to_string(&view_value)?);
 
         // --- the lock-screen surface snapshot (T061) ---
@@ -420,10 +443,14 @@ fn the_interruption_reason_states_the_pause_statement_and_expires_in_three_secon
         state.transport,
         state.position_secs,
         DOCUMENT_TITLE,
+        snapshot_section_title(state.position_secs),
         state.reason,
         TEST_FINGERPRINT,
     );
-    let statement = view.reason.ok_or("the interruption state states no reason")?;
+    let statement = view
+        .reason
+        .as_deref()
+        .ok_or("the interruption state states no reason")?;
     assert_eq!(statement, full_reason(&FullReason::FocusPermanentLoss, DOCUMENT_TITLE));
     assert_eq!(view.reason_expiry, Some(ReasonExpiry::Focus3s));
     // It names the title (allowed) and never the body prose.
@@ -443,10 +470,14 @@ fn no_reason_statement_ever_quotes_document_prose() -> Result<(), Box<dyn std::e
             TransportState::Paused,
             33.25,
             DOCUMENT_TITLE,
+            None,
             Some((reason, reason.expiry())),
             TEST_FINGERPRINT,
         );
-        let statement = view.reason.ok_or("a stated reason rendered nothing")?;
+        let statement = view
+            .reason
+            .as_deref()
+            .ok_or("a stated reason rendered nothing")?;
         assert!(
             !statement.contains(BODY_PROSE_MARKER),
             "the {reason:?} statement quotes document prose"
@@ -667,6 +698,7 @@ fn the_rate_step_is_value_blind_on_both_surfaces() -> Result<(), Box<dyn std::er
             TransportState::Playing,
             12.5,
             DOCUMENT_TITLE,
+            None,
             None,
             TEST_FINGERPRINT,
         );

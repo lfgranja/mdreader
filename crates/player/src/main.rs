@@ -6,6 +6,7 @@
 
 use clap::{Parser, Subcommand};
 use player::cli::{PlaybackSession, ShellVerb};
+use player::earcon::{EarconDescriptor, EarconKind};
 use std::io::{self, Write};
 
 #[derive(Parser, Debug)]
@@ -46,6 +47,30 @@ enum Commands {
     State,
     /// Read current engine tier.
     EngineTier,
+    /// Earcon PCM descriptor (T030).
+    #[command(subcommand)]
+    Earcon(EarconCommands),
+}
+
+/// Earcon subcommands — one per EarconKind.
+#[derive(Subcommand, Debug)]
+enum EarconCommands {
+    /// Play confirmation.
+    Play,
+    /// Pause confirmation.
+    Pause,
+    /// Skip forward confirmation.
+    #[command(name = "skip-fwd")]
+    SkipFwd,
+    /// Skip backward confirmation.
+    #[command(name = "skip-back")]
+    SkipBack,
+    /// Warning earcon.
+    Warning,
+    /// Failure earcon.
+    Failure,
+    /// Rate step confirmation.
+    Rate,
 }
 
 fn main() -> io::Result<()> {
@@ -98,6 +123,24 @@ fn main() -> io::Result<()> {
         }
         Commands::EngineTier => {
             writeln!(out, "{{\"engine_tier\":\"offline_default\"}}")?;
+            return Ok(());
+        }
+        Commands::Earcon(earcon_cmd) => {
+            let kind = match earcon_cmd {
+                EarconCommands::Play => EarconKind::Play,
+                EarconCommands::Pause => EarconKind::Pause,
+                EarconCommands::SkipFwd => EarconKind::SkipFwd,
+                EarconCommands::SkipBack => EarconKind::SkipBack,
+                EarconCommands::Warning => EarconKind::Warning,
+                EarconCommands::Failure => EarconKind::Failure,
+                EarconCommands::Rate => EarconKind::RateStep,
+            };
+            let descriptor = EarconDescriptor::for_kind(kind);
+            // Output as JSON (--format json is the only supported format per contract)
+            let json = serde_json::to_string(&descriptor).map_err(|e| {
+                io::Error::new(io::ErrorKind::Other, format!("JSON serialization failed: {e}"))
+            })?;
+            writeln!(out, "{json}")?;
             return Ok(());
         }
     }

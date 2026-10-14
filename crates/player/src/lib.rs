@@ -7,6 +7,7 @@
 pub mod backend;
 pub mod buffer;
 pub mod cli;
+pub mod earcon;
 pub mod focus;
 pub mod position;
 pub mod rate;

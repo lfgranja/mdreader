@@ -1,56 +1,432 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>mdreader — Playback Shell (US1 MVP)</title>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;500;700&display=swap');
-  :root { --bg: #0f172a; --surface: #1e293b; --text: #f8fafc; --accent: #2563eb; --muted: #94a3b8; --radius: 16px; }
-  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
-  body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; align-items: center; justify-content: safe center; min-height: 100vh; margin: 0; padding: 2rem 1rem; }
-  .card { background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%); border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius); padding: 2rem; max-width: 420px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
-  h1 { font-weight: 700; font-size: 1.6rem; letter-spacing: -0.03em; margin: 0 0 .25rem; }
-  .subtitle { color: var(--muted); font-size: .85rem; margin-bottom: 1.25rem; }
-  .controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: .6rem; }
-  button { font-family: inherit; font-weight: 500; font-size: 1rem; padding: .85rem; border: none; border-radius: 12px; background: linear-gradient(135deg, #2563eb, #4f6df5); color: white; cursor: pointer; transition: transform .05s, opacity .15s; }
-  button:active { transform: scale(0.97); }
-  button.secondary { background: #334155; }
-  #status { font-family: ui-monospace, SFMono-Regular, monospace; font-size: .8rem; color: #cbd5e1; margin-top: 1rem; padding: .6rem .8rem; background: rgba(255,255,255,0.05); border-radius: 8px; word-break: break-word; }
-  #progress { width: 100%; height: 4px; background: #334155; border-radius: 2px; margin-top: .5rem; overflow: hidden; }
-  #progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #2563eb, #22d3ee); border-radius: 2px; transition: width .3s ease; }
-  #section { font-weight: 300; color: #94a3b8; font-size: .95rem; margin-top: .5rem; }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>mdreader — Playback Shell (US1 MVP)</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;500;700&display=swap');
+    :root {
+      --bg: #0f172a;
+      --surface: #1e293b;
+      --title: #F2F0E6;
+      --section: #A9B8CE;
+      --progress-bg: #55688F;
+      --progress-fill: #ffffff;
+      --accent: #2563eb;
+      --muted: #94a3b8;
+      --warning: #FFD400;
+      --failure: #FF4D63;
+      --radius: 16px;
+      --btn-primary: #2563eb;
+      --btn-primary-hover: #1d4ed8;
+      --btn-secondary: #334155;
+      --btn-stop: #FF4D63;
+      --btn-stop-hover: #e03e55;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--title);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: safe center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 2rem 1rem;
+    }
+    .card {
+      background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: var(--radius);
+      padding: 2rem;
+      max-width: 420px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    }
+    h1 {
+      font-weight: 700;
+      font-size: 1.6rem;
+      letter-spacing: -0.03em;
+      margin: 0 0 .25rem;
+      color: var(--title);
+    }
+    .subtitle {
+      color: var(--section);
+      font-size: .85rem;
+      margin-bottom: 1.25rem;
+    }
+    .section-title {
+      font-weight: 300;
+      color: var(--section);
+      font-size: .95rem;
+      margin-top: .5rem;
+      min-height: 1.4em;
+    }
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: .6rem;
+      margin-top: 1rem;
+    }
+    button {
+      font-family: inherit;
+      font-weight: 500;
+      font-size: 1rem;
+      padding: .85rem;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: transform .05s, opacity .15s, background .15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: .4rem;
+    }
+    button:active { transform: scale(0.97); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    button.primary { background: var(--btn-primary); color: white; }
+    button.primary:hover:not(:disabled) { background: var(--btn-primary-hover); }
+    button.secondary { background: var(--btn-secondary); color: white; }
+    button.secondary:hover:not(:disabled) { background: #475569; }
+    button.stop { background: var(--btn-stop); color: white; }
+    button.stop:hover:not(:disabled) { background: var(--btn-stop-hover); }
+    .speed-control {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: .75rem;
+      margin-top: 1rem;
+      padding: 1rem;
+      background: rgba(255,255,255,0.03);
+      border-radius: 12px;
+    }
+    .speed-btn {
+      width: 48px;
+      height: 48px;
+      font-size: 1.25rem;
+      padding: 0;
+    }
+    .speed-display {
+      font-family: 'Inter', system-ui, sans-serif;
+      font-weight: 700;
+      font-size: 1.5rem;
+      color: var(--title);
+      min-width: 60px;
+      text-align: center;
+    }
+    #progress {
+      width: 100%;
+      height: 6px;
+      background: var(--progress-bg);
+      border-radius: 3px;
+      margin-top: 1rem;
+      overflow: hidden;
+    }
+    #progress-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--progress-fill);
+      border-radius: 3px;
+      transition: width .3s ease;
+    }
+    .reason-banner {
+      margin-top: 1rem;
+      padding: .75rem 1rem;
+      border-radius: 10px;
+      font-size: .85rem;
+      font-weight: 500;
+      display: none;
+      animation: slideIn .2s ease;
+    }
+    .reason-banner.visible { display: block; }
+    .reason-banner.warning { background: rgba(255, 212, 0, 0.15); border: 1px solid var(--warning); color: var(--warning); }
+    .reason-banner.failure { background: rgba(255, 77, 99, 0.15); border: 1px solid var(--failure); color: var(--failure); }
+    @keyframes slideIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+    .version-footer {
+      font-size: .7rem;
+      color: #64748b;
+      margin-top: 1rem;
+      text-align: center;
+    }
+  </style>
 </head>
 <body>
 <div class="card">
   <h1>mdreader</h1>
-  <div class="subtitle" id="section">Seção: — • Determinante desde início da sessão</div>
+  <div class="subtitle" id="sectionTitle">Seção: —</div>
 
-  <div class="controls">
-    <button onclick="postAction('Play')">▶ Play</button>
-    <button onclick="postAction('Pause')">⏸ Pause</button>
-    <button onclick="postAction('Stop')">⏹ Stop</button>
-    <button onclick="postAction('Skip+5')">⏩ +5s</button>
-    <button onclick="postAction('Skip-5')">⏪ -5s</button>
+  <div class="controls" id="transportControls">
+    <button class="secondary" id="btnSkipBack" aria-label="Retroceder 5s">⏪</button>
+    <button class="primary" id="btnPlayPause" aria-label="Reproduzir/Pausar">▶</button>
+    <button class="stop" id="btnStop" aria-label="Parar e limpar posição">⏹</button>
+    <button class="secondary" id="btnSkipForward" aria-label="Avançar 5s">⏩</button>
   </div>
 
-  <div id="status">Status: Pronto — pressione Play (T028 bridge ativo)</div>
-  <div id="progress"><div id="progress-fill" style="width:0%"></div></div>
-  <div class="subtitle" style="font-size:.75rem;color:#64748b;margin-top:.5rem;">v0.1.0 • aarch64-release • gate-9 PASS • T086 pending</div>
+  <div class="speed-control">
+    <button class="secondary speed-btn" id="btnRateDown" aria-label="Diminuir velocidade">−</button>
+    <span class="speed-display" id="speedDisplay">1.0x</span>
+    <button class="secondary speed-btn" id="btnRateUp" aria-label="Aumentar velocidade">+</button>
+  </div>
+
+  <div id="progress"><div id="progressFill"></div></div>
+
+  <div class="reason-banner" id="reasonBanner" role="alert" aria-live="polite"></div>
+
+  <div class="version-footer">v0.1.0 • aarch64-release • DESIGN-SONA palette</div>
 </div>
 
-<script>
-  async function postAction(action) {
-    try {
-      // Call Rust backend via Tauri invoke (same code as external-start / notification)
-      const result = await window.__TAURI__.invoke("run_mobile_plugin", { action: action });
-      document.getElementById('status').textContent = 'Status: ' + action + ' confirmado (Rust playback module)';
-      document.getElementById('progress-fill').style.width = (Math.min(100, parseFloat(document.getElementById('position').textContent?.replace(/[^0-9.]/g,'')||0)+5)) + '%';
-    } catch (e) {
-      document.getElementById('status').textContent = 'Status: ' + action + ' — bridge ativo (SC-035: mirror-only, zero playback logic)';
+<script type="module">
+  // Svelte 5 Runes-inspired reactive state (vanilla JS implementation)
+  // The frontend receives MirrorState updates via Tauri IPC channel
+  // and renders read-only mirror of SurfaceSnapshot from Rust
+
+  const state = {
+    title: 'mdreader',
+    sectionTitle: null,
+    transport: 'stopped',
+    positionSecs: 0,
+    progress: { kind: 'indeterminate' },
+    rate: 1.0,
+    reason: null,
+    reasonExpiry: null,
+    durationKnownAtStart: false,
+  };
+
+  const LADDER = [0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 4.0];
+  let rateIndex = 1; // default 1.0x
+  let fingerprint = null; // blake3 content fingerprint for Stop to clear bookmark
+
+  // DOM elements
+  const els = {
+    sectionTitle: document.getElementById('sectionTitle'),
+    btnPlayPause: document.getElementById('btnPlayPause'),
+    btnStop: document.getElementById('btnStop'),
+    btnSkipBack: document.getElementById('btnSkipBack'),
+    btnSkipForward: document.getElementById('btnSkipForward'),
+    btnRateDown: document.getElementById('btnRateDown'),
+    btnRateUp: document.getElementById('btnRateUp'),
+    speedDisplay: document.getElementById('speedDisplay'),
+    progressFill: document.getElementById('progressFill'),
+    reasonBanner: document.getElementById('reasonBanner'),
+  };
+
+  // Transport icons
+  const transportIcons = {
+    playing: '⏸',
+    paused: '▶',
+    stopped: '▶',
+    completed: '▶',
+    interrupted: '▶',
+  };
+
+  // Transport labels
+  const transportLabels = {
+    playing: 'Pausar',
+    paused: 'Reproduzir',
+    stopped: 'Reproduzir',
+    completed: 'Reproduzir',
+    interrupted: 'Reproduzir',
+  };
+
+  // Render functions
+  function renderTransport() {
+    const icon = transportIcons[state.transport] || '▶';
+    const label = transportLabels[state.transport] || 'Reproduzir';
+    els.btnPlayPause.innerHTML = `${icon} <span>${label}</span>`;
+    els.btnPlayPause.setAttribute('aria-label', label);
+    const isPlaying = state.transport === 'playing';
+    els.btnPlayPause.classList.toggle('primary', isPlaying);
+    els.btnPlayPause.classList.toggle('secondary', !isPlaying);
+    // Disable transport controls when stopped/completed
+    const disabled = state.transport === 'stopped' || state.transport === 'completed';
+    els.btnPlayPause.disabled = disabled;
+    els.btnSkipBack.disabled = disabled;
+    els.btnSkipForward.disabled = disabled;
+    els.btnRateDown.disabled = disabled;
+    els.btnRateUp.disabled = disabled;
+  }
+
+  function renderSectionTitle() {
+    if (state.sectionTitle) {
+      els.sectionTitle.textContent = `Seção: ${state.sectionTitle}`;
+    } else {
+      els.sectionTitle.textContent = 'Seção: —';
     }
   }
+
+  function renderProgress() {
+    let pct = 0;
+    if (state.progress.kind === 'determinate' && state.progress.total_units > 0) {
+      pct = Math.min(100, (state.progress.consumed_units / state.progress.total_units) * 100);
+    } else if (state.progress.kind === 'indeterminate') {
+      // Indeterminate: show subtle animation
+      els.progressFill.style.width = '0%';
+      els.progressFill.style.background = 'linear-gradient(90deg, transparent, var(--progress-fill), transparent)';
+      els.progressFill.style.backgroundSize = '200% 100%';
+      els.progressFill.style.animation = 'indeterminate 1.5s infinite';
+      return;
+    }
+    els.progressFill.style.width = `${pct}%`;
+    els.progressFill.style.background = 'var(--progress-fill)';
+    els.progressFill.style.animation = 'none';
+  }
+
+  function renderSpeed() {
+    els.speedDisplay.textContent = `${state.rate.toFixed(state.rate === 0.75 ? 2 : 1)}x`;
+  }
+
+  function renderReason() {
+    if (state.reason) {
+      els.reasonBanner.textContent = state.reason;
+      els.reasonBanner.className = 'reason-banner visible ' + (state.reasonExpiry === 'focus_3s' ? 'warning' : 'failure');
+      // Auto-hide for focus_3s expiry
+      if (state.reasonExpiry === 'focus_3s') {
+        setTimeout(() => {
+          if (state.reasonExpiry === 'focus_3s') { // still same expiry
+            state.reason = null;
+            state.reasonExpiry = null;
+            renderReason();
+          }
+        }, 3000);
+      }
+    } else {
+      els.reasonBanner.className = 'reason-banner';
+      els.reasonBanner.textContent = '';
+    }
+  }
+
+  function renderAll() {
+    renderTransport();
+    renderSectionTitle();
+    renderProgress();
+    renderSpeed();
+    renderReason();
+  }
+
+  // Tauri invoke wrapper
+  async function invoke(cmd, args = {}) {
+    try {
+      return await window.__TAURI__.invoke(cmd, args);
+    } catch (e) {
+      console.error(`Invoke ${cmd} failed:`, e);
+      throw e;
+    }
+  }
+
+  // Action handlers
+  async function sendAction(action) {
+    const payload = { action };
+    if (fingerprint) payload.fingerprint = fingerprint;
+    try {
+      await invoke('run_mobile_plugin', payload);
+    } catch (e) {
+      console.error(`Action ${action} failed:`, e);
+    }
+  }
+
+  // Button event listeners
+  els.btnPlayPause.addEventListener('click', () => {
+    sendAction(state.transport === 'playing' ? 'pause' : 'play');
+  });
+
+  els.btnStop.addEventListener('click', async () => {
+    await sendAction('stop');
+    // Stop clears stored position - also call session delete if we have fingerprint
+    if (fingerprint) {
+      try {
+        await invoke('session_delete', { fingerprint });
+      } catch (e) {
+        console.warn('session_delete failed:', e);
+      }
+    }
+  });
+
+  els.btnSkipBack.addEventListener('click', () => sendAction('skip_back5s'));
+  els.btnSkipForward.addEventListener('click', () => sendAction('skip_forward5s'));
+
+  els.btnRateDown.addEventListener('click', () => {
+    if (rateIndex > 0) {
+      rateIndex--;
+      state.rate = LADDER[rateIndex];
+      sendAction('rate_down');
+      renderSpeed();
+    }
+  });
+
+  els.btnRateUp.addEventListener('click', () => {
+    if (rateIndex < LADDER.length - 1) {
+      rateIndex++;
+      state.rate = LADDER[rateIndex];
+      sendAction('rate_up');
+      renderSpeed();
+    }
+  });
+
+  // Register for mirror publish channel
+  async function registerPublishListener() {
+    try {
+      await invoke('register_publish_listener');
+      console.log('Publish listener registered');
+    } catch (e) {
+      console.error('Failed to register publish listener:', e);
+    }
+  }
+
+  // Listen for mirror updates from Rust
+  if (window.__TAURI__) {
+    window.__TAURI__.event.listen('tauri://channel/mirror-publish', (event) => {
+      const mirror = event.payload;
+      if (!mirror) return;
+
+      state.transport = mirror.transport;
+      state.positionSecs = mirror.position_secs;
+      state.progress = mirror.progress;
+      state.sectionTitle = mirror.section_title || null;
+
+      // Update rate index from current rate if it changed
+      const rateIdx = LADDER.findIndex(r => Math.abs(r - state.rate) < 0.01);
+      if (rateIdx >= 0) rateIndex = rateIdx;
+
+      renderAll();
+    });
+  }
+
+  // Initialize
+  async function init() {
+    // Try to get initial status view
+    try {
+      const initial = await invoke('get_status_view');
+      if (initial) {
+        state.rate = initial.rate;
+        state.transport = initial.transport;
+        state.positionSecs = initial.position_secs;
+        state.reason = initial.reason;
+        state.reasonExpiry = initial.reason_expiry;
+        rateIndex = LADDER.findIndex(r => Math.abs(r - state.rate) < 0.01);
+        if (rateIndex < 0) rateIndex = 1;
+      }
+    } catch (e) {
+      console.log('No initial status view, using defaults');
+    }
+
+    await registerPublishListener();
+    renderAll();
+  }
+
+  // Add indeterminate animation keyframes
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes indeterminate {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+  `;
+  document.head.appendChild(style);
+
+  init();
 </script>
 </body>
 </html>

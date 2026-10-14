@@ -2,6 +2,7 @@
 //! No computation delegated to Kotlin surface (FR-042 / SC-035).
 
 use crate::transport::{PlaybackRate, SkipDirection};
+use doc_structure::{Document, Heading};
 
 /// Skip ±5.0 s exactly — displacement must land at sentence/node boundary
 /// when re-anchor applies (FR-038 / FR-018). Callers pass ±5.0 s by
@@ -25,6 +26,49 @@ pub fn skip_clamped(position: f64, direction: SkipDirection, duration: f64) -> f
         SkipDirection::Backward => -5.0,
     };
     (position + delta).max(0.0).min(duration)
+}
+
+/// Skip to the next/previous section boundary using document headings (FR-038).
+///
+/// - If `headings` is non-empty: finds the next (forward) or previous (backward)
+///   section boundary from `position`. The boundary is the heading's `position_secs`.
+/// - If `headings` is empty (zero sections): falls back to ±10.0 seconds.
+/// - Result is clamped to `[0.0, duration]`.
+///
+/// # Errors
+///
+/// Never errors; the closed-set direction and explicit clamping ensure
+/// total coverage without catch-all arms.
+#[must_use]
+pub fn skip_section(
+    position: f64,
+    headings: &[Heading],
+    direction: SkipDirection,
+    duration: f64,
+) -> f64 {
+    let doc = Document::new(headings.to_vec());
+    let target = match direction {
+        SkipDirection::Forward => {
+            // Find the first heading strictly after current position
+            doc.headings()
+                .iter()
+                .find(|h| h.position_secs > position)
+                .map(|h| h.position_secs)
+        }
+        SkipDirection::Backward => {
+            // Find the nearest boundary at or before current position
+            doc.nearest_boundary_at_or_before(position)
+                .map(|h| h.position_secs)
+        }
+    };
+
+    let fallback_delta = match direction {
+        SkipDirection::Forward => 10.0,
+        SkipDirection::Backward => -10.0,
+    };
+
+    let new_pos = target.unwrap_or_else(|| position + fallback_delta);
+    new_pos.max(0.0).min(duration)
 }
 
 /// Pre-roll ≤60 s — ring buffer never advances position; empty while idle (FR-015a/FR-015b/FR-015c).

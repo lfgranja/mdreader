@@ -13,6 +13,10 @@ use player::backend::CpalBackend;
 use player::cli::PlaybackSession;
 use player::surface::MirrorState;
 use tauri::Manager;
+use std::time::Duration;
+use session::store::BookmarkStore;
+use session::fingerprint;
+use tokio::time;
 
 /// The permission-state gate (T030b): the pure,
 /// headless half of FR-008/FR-010/FR-021. The Kotlin
@@ -93,6 +97,17 @@ pub struct AppState {
     /// title resolution (FR-028b). Empty when no document
     /// is loaded or document has no headings.
     pub(crate) headings: Mutex<Vec<player::surface::Heading>>,
+    /// The 20 s durable heartbeat bookmark store (T011):
+    /// periodic `put` while Playing for crash-safe
+    /// position recovery (FR-004 / FR-007 / FR-032).
+    /// Opened lazily on first session start with the
+    /// app's data directory.
+    bookmark_store: Mutex<Option<BookmarkStore>>,
+    /// The blake3-256 content fingerprint of the currently
+    /// loaded document (FR-036). `None` when no document
+    /// is loaded. Used by the 20 s heartbeat (T011) to
+    /// persist the position under the correct key.
+    current_fingerprint: Mutex<Option<[u8; 32]>>,
 }
 
 impl std::fmt::Debug for AppState {
@@ -106,6 +121,8 @@ impl std::fmt::Debug for AppState {
             .field("publish_channel", &"<tauri::ipc::Channel<MirrorState>>")
             .field("surface_resolver", &self.surface_resolver)
             .field("headings", &self.headings)
+            .field("bookmark_store", &"<BookmarkStore>")
+            .field("current_fingerprint", &self.current_fingerprint)
             .finish_non_exhaustive()
     }
 }
@@ -126,6 +143,8 @@ impl AppState {
             publish_channel: Mutex::new(None),
             surface_resolver: Mutex::new(None),
             headings: Mutex::new(Vec::new()),
+            bookmark_store: Mutex::new(None),
+            current_fingerprint: Mutex::new(None),
         }
     }
 }
@@ -150,6 +169,8 @@ pub fn run() {
             publish_channel: Mutex::new(None),
             surface_resolver: Mutex::new(None),
             headings: Mutex::new(Vec::new()),
+            bookmark_store: Mutex::new(None),
+            current_fingerprint: Mutex::new(None),
         })
         .setup(|_app| {
             // Voice assets ship inside the APK: extract them to a
@@ -163,6 +184,59 @@ pub fn run() {
                     }
                 }
             }
+
+            // Get the AppState for bookmark store initialization and permission gate
+            let app_state = _app.state::<AppState>();
+            // Initialize the 20 s durable heartbeat (T011): open the
+            // BookmarkStore in the app data directory and start the
+            // periodic timer that calls `put` while Playing.
+            let data_dir = _app.path().app_data_dir().unwrap_or_else(|_| std::env::current_dir().unwrap());
+            let store_for_app = BookmarkStore::open(&data_dir.join("bookmarks.redb")).ok();
+            *app_state.bookmark_store.lock().unwrap() = store_for_app;
+            // Spawn the 20 s heartbeat task (T011): calls `BookmarkStore::put`
+            // while Playing for crash-safe position recovery (FR-004 / FR-007).
+            // The task accesses AppState directly to get the current session
+            // fingerprint and position, then calls put() with end_kind=Interrupted.
+            let app_state_for_heartbeat = _app.state::<AppState>();
+            let _ = tauri::async_runtime::spawn(async move {
+                loop {
+                    time::sleep(Duration::from_secs(20)).await;
+                    // Get the bookmark store from AppState
+                    let store_opt = {
+                        let guard = app_state_for_heartbeat.bookmark_store.lock();
+                        if let Ok(g) = guard { g.clone() } else { continue }
+                    };
+                    let Some(mut store) = store_opt else { continue };
+                    // Get the current fingerprint
+                    let fingerprint_opt = {
+                        let guard = app_state_for_heartbeat.current_fingerprint.lock();
+                        if let Ok(g) = guard { *g } else { continue }
+                    };
+                    let Some(fingerprint) = fingerprint_opt else { continue };
+                    // Get the session snapshot (position and transport)
+                    let snapshot = {
+                        let guard = app_state_for_heartbeat.session.lock();
+                        if let Ok(g) = guard { g.snapshot() } else { continue }
+                    };
+                    // Only persist while Playing (FR-004 / FR-007 / FR-032)
+                    if snapshot.transport != player::transport::TransportState::Playing {
+                        continue;
+                    }
+                    // Persist position with end_kind=Interrupted for crash-safe recovery
+                    // The heartbeat represents a potential crash point, so we use Interrupted.
+                    let stored_pos = session::store::StoredPosition {
+                        offset_secs: snapshot.position_secs,
+                        first_yield_ms: 0,
+                        end_kind: engine_core::closed::SessionEnd::Interrupted,
+                    };
+                    if let Err(e) = store.put(&fingerprint, stored_pos) {
+                        tracing::warn!(error = %e, "heartbeat: BookmarkStore::put failed");
+                    } else {
+                        tracing::debug!(position = snapshot.position_secs, "heartbeat: bookmark persisted");
+                    }
+                }
+            });
+
             // Shell JNI channel (T111, FR-002/FR-003): install
             // the integer-code drain holding a clone of the
             // application handle, so every Kotlin-posted verb or
@@ -194,7 +268,11 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::register_android_plugin,
             commands::run_mobile_plugin,
-            commands::update_permissions
+            commands::update_permissions,
+            commands::get_status_view,
+            commands::session_delete,
+            commands::open_document,
+            publish::register_publish_listener
         ])
         .run(tauri::generate_context!())
         .unwrap_or_else(|error| {
@@ -211,7 +289,12 @@ pub mod commands {
     use player::cli::{SessionSnapshot, ShellVerb};
     use player::focus::{FocusClassification, FocusIntent, FocusOutcome};
     use player::routing::{RoutingDecision, RoutingSignal, RoutingTracker};
+    use session::fingerprint;
+    use session::offer::OfferMachine;
+    use session::store::{BookmarkStore, StoredPosition};
     use tauri::{AppHandle, Manager, State, command};
+    use base64::{Engine as _, engine::general_purpose};
+    use std::io::Write;
 
     /// Declared sample rate of the engine handoff (mono f32).
     const DECLARED_RATE_HZ: f64 = 22_050.0;
@@ -263,6 +346,226 @@ pub mod commands {
         let mut permissions = state.permissions.lock().map_err(|e| e.to_string())?;
         *permissions = snapshot;
         Ok(())
+    }
+
+    /// Open a document from base64-encoded bytes, write snapshot,
+    /// compute fingerprint, check session store for resume offer,
+    /// and start playback (US1).
+    ///
+    /// This is the cold-start path: the document bytes are the sole
+    /// synthesis input. The snapshot is written to the app's data
+    /// directory under `snapshots/<fingerprint-hex>.md`, the BLAKE3
+    /// fingerprint is computed, the session store is consulted for
+    /// any stored position, the resume-offer machine determines the
+    /// resume behavior, and playback starts via the synthesis path.
+    ///
+    /// Returns the session snapshot with status, position, and
+    /// transport state.
+    #[command]
+    pub fn open_document(
+        state: State<'_, AppState>,
+        app: AppHandle,
+        document_base64: String,
+    ) -> Result<serde_json::Value, String> {
+        // Decode base64 document bytes.
+        let document_bytes = general_purpose::STANDARD
+            .decode(&document_base64)
+            .map_err(|e| format!("invalid base64: {e}"))?;
+
+        if document_bytes.is_empty() {
+            return Err("empty document: nothing to synthesize".to_string());
+        }
+
+        // Compute BLAKE3 fingerprint of document content (FR-036).
+        let fp = fingerprint(&document_bytes);
+        let fingerprint_hex = hex::encode(fp);
+
+        // Get app data directory for snapshot storage.
+        let data_dir = app
+            .path()
+            .app_data_dir()
+            .map_err(|e| format!("failed to get app data dir: {e}"))?;
+
+        let snapshots_dir = data_dir.join("snapshots");
+        if !snapshots_dir.exists() {
+            std::fs::create_dir_all(&snapshots_dir)
+                .map_err(|e| format!("failed to create snapshots dir: {e}"))?;
+        }
+
+        // Write snapshot file: <fingerprint-hex>.md
+        let snapshot_path = snapshots_dir.join(format!("{fingerprint_hex}.md"));
+        let mut file = std::fs::File::create(&snapshot_path)
+            .map_err(|e| format!("failed to create snapshot file: {e}"))?;
+        file.write_all(&document_bytes)
+            .map_err(|e| format!("failed to write snapshot: {e}"))?;
+
+        // Trim other snapshots (keep-current-only policy).
+        if let Ok(entries) = std::fs::read_dir(&snapshots_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path != snapshot_path && path.is_file() {
+                    let _ = std::fs::remove_file(&path);
+                }
+            }
+        }
+
+        // Open session store and check for stored position.
+        let db_path = data_dir.join("bookmarks.redb");
+        let mut store = BookmarkStore::open(&db_path)
+            .map_err(|e| format!("failed to open session store: {e}"))?;
+
+        let stored = store
+            .get(&fp)
+            .map_err(|e| format!("failed to get stored position: {e}"))?;
+
+        // Determine resume offer via offer machine.
+        let mut offer_machine = OfferMachine::new();
+        let offer = offer_machine.on_session_end(fp, stored);
+
+        // Decide which verb to execute based on offer:
+        // - Continue offer (deliberate pause, foregrounded) -> ResumeAtStored
+        // - StartOver offer or no offer -> Play (starts from 0.0)
+        // - Interrupted (explicit resume required) -> Play (starts from 0.0, no auto-resume)
+        let verb = match offer {
+            Some(session::offer::Offer::Continue { .. }) => ShellVerb::ResumeAtStored,
+            Some(session::offer::Offer::StartOver) | None => ShellVerb::Play,
+        };
+
+        // Store the fingerprint for heartbeat (T011).
+        {
+            let mut fp_guard = state.current_fingerprint.lock().map_err(|e| e.to_string())?;
+            *fp_guard = Some(fp);
+        }
+
+        // Synthesize the document (same as play() but without executing a verb yet).
+        let document_str = String::from_utf8(document_bytes)
+            .map_err(|e| format!("document is not valid UTF-8: {e}"))?;
+
+        // Split document into segments.
+        let segments = adapter_synthesis::chunk::split_document(&document_str, "");
+        if segments.is_empty() {
+            return Err("empty document: no segments".to_string());
+        }
+
+        // Extract title from first heading segment, or use fallback.
+        let title = segments
+            .iter()
+            .find(|s| s.boundary_kind == adapter_synthesis::chunk::BoundaryKind::Heading)
+            .map(|s| {
+                s.content
+                    .lines()
+                    .next()
+                    .unwrap_or("")
+                    .trim_start_matches('#')
+                    .trim()
+                    .to_string()
+            })
+            .filter(|t| !t.is_empty())
+            .unwrap_or_else(|| "Document".to_string());
+
+        // Synthesize PCM first to get total duration.
+        let mut pcm = Vec::new();
+        for segment in &segments {
+            let buffer = adapter_synthesis::synth::synthesize(segment)
+                .map_err(|failure| format!("synthesis failed: {failure:?}"))?;
+            pcm.extend_from_slice(&buffer);
+        }
+        let pcm_samples = pcm.len();
+        let duration_secs = pcm_samples as f64 / DECLARED_RATE_HZ;
+
+        // Extract headings from segments with Heading boundary_kind.
+        let heading_segments: Vec<_> = segments
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| s.boundary_kind == adapter_synthesis::chunk::BoundaryKind::Heading)
+            .collect();
+        let mut headings = Vec::new();
+        for (idx, segment) in heading_segments {
+            let estimated_position = (idx as f64 / segments.len() as f64) * duration_secs;
+            let heading_title = segment
+                .content
+                .lines()
+                .next()
+                .unwrap_or("")
+                .trim_start_matches('#')
+                .trim()
+                .to_string();
+            if !heading_title.is_empty() {
+                headings.push(player::surface::Heading {
+                    position_secs: estimated_position,
+                    title: heading_title,
+                });
+            }
+        }
+
+        // Create surface resolver with known duration.
+        let resolver = player::surface::SurfaceResolver::new(
+            Some(title.clone()),
+            "document.md".to_string(),
+            true, // duration_known_at_start = true (total PCM duration known)
+        );
+
+        // Store resolver and headings in AppState for publish path.
+        {
+            let mut resolver_guard = state.surface_resolver.lock().map_err(|e| e.to_string())?;
+            *resolver_guard = Some(resolver);
+            let mut headings_guard = state.headings.lock().map_err(|e| e.to_string())?;
+            *headings_guard = headings;
+        }
+
+        // Enqueue PCM and start backend.
+        {
+            let mut backend = state.backend.lock().map_err(|e| e.to_string())?;
+            if backend.is_none() {
+                *backend = Some(CpalBackend::new().map_err(|e| e.to_string())?);
+            }
+            let backend = backend.as_ref().ok_or("no audio backend")?;
+            backend.enqueue_pcm(pcm);
+            backend.play().map_err(|e| e.to_string())?;
+        }
+
+        // Execute the determined verb (Play or ResumeAtStored).
+        // Both verbs take the pre-play permission gate.
+        let permissions = state.permissions.lock().map_err(|e| e.to_string())?;
+        if let Err(failure) = permissions::check_pre_play(&permissions) {
+            return Ok(serde_json::json!({
+                "ok": false,
+                "error": failure.reason(),
+            }));
+        }
+
+        let mut session = state.session.lock().map_err(|e| e.to_string())?;
+        let snapshot = session.execute(verb).map_err(|e| e.to_string())?;
+
+        // Publish mirror snapshot after successful play start.
+        crate::publish::publish_from_session(
+            &state,
+            &state
+                .surface_resolver
+                .lock()
+                .map_err(|e| e.to_string())?
+                .as_ref()
+                .unwrap(),
+            &state.headings.lock().map_err(|e| e.to_string())?,
+            None, // no transient reason for normal play start
+        );
+
+        // Return enhanced result with fingerprint and resume info.
+        Ok(serde_json::json!({
+            "status": "playing",
+            "segments": segments.len(),
+            "pcm_samples": pcm_samples,
+            "duration_secs": duration_secs,
+            "position_secs": snapshot.position_secs,
+            "transport": snapshot.transport.to_string(),
+            "fingerprint": fingerprint_hex,
+            "snapshot_path": snapshot_path.to_string_lossy().to_string(),
+            "resume_offset_secs": match offer {
+                Some(session::offer::Offer::Continue { offset_secs, .. }) => offset_secs,
+                _ => 0.0,
+            },
+            "has_stored_position": stored.is_some(),
+        }))
     }
 
     /// The classified bridge action (T110): every closed
@@ -1097,6 +1400,14 @@ pub mod commands {
             *headings_guard = headings;
         }
 
+        // Compute and store the document's blake3 fingerprint (FR-036 / T059)
+        // for the 20 s heartbeat bookmark persistence (T011).
+        let doc_fingerprint = fingerprint::fingerprint(document.as_bytes());
+        {
+            let mut fp_guard = state.current_fingerprint.lock().map_err(|e| e.to_string())?;
+            *fp_guard = Some(doc_fingerprint);
+        }
+
         {
             let mut backend = state.backend.lock().map_err(|e| e.to_string())?;
             if backend.is_none() {
@@ -1200,6 +1511,78 @@ pub mod commands {
             .map(|meta| meta.len())
             .unwrap_or(0);
         (total, espeak_is_dir, espeak_files, onnx_bytes)
+    }
+
+    /// Get the current in-app status view (T065b): the read-only
+    /// mirror of the session's authoritative state plus the
+    /// stored last_rate. The view owns no state and computes no
+    /// position, rate, or transport — it renders what the
+    /// session already states (SC-035, FR-042).
+    ///
+    /// Returns the rendered `StatusView` with rate, transport,
+    /// position, reason, and reason_expiry.
+    #[command]
+    pub fn get_status_view(
+        state: State<'_, AppState>,
+    ) -> Result<crate::status_view::StatusView, String> {
+        let session = state.session.lock().map_err(|e| e.to_string())?;
+        let snap = session.snapshot();
+        let resolver_guard = state.surface_resolver.lock().map_err(|e| e.to_string())?;
+        let headings_guard = state.headings.lock().map_err(|e| e.to_string())?;
+
+        let resolver = resolver_guard
+            .as_ref()
+            .ok_or_else(|| "no document loaded".to_string())?;
+
+        let surface = resolver.resolve(snap.position_secs, &headings_guard);
+        let fingerprint_guard = state.current_fingerprint.lock().map_err(|e| e.to_string())?;
+        let fingerprint = *fingerprint_guard;
+
+        // Get stored last_rate from bookmark store
+        let last_rate = if let Some(fp) = fingerprint {
+            let bookmark_store_guard = state.bookmark_store.lock().map_err(|e| e.to_string())?;
+            if let Some(store) = bookmark_store_guard.as_ref() {
+                store.get_last_rate().ok().flatten()
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // Build transient reason from the surface's reason if any
+        // The surface doesn't carry reason directly, so we rely on the
+        // publish path's transient_reason. For the initial view, we
+        // don't have a transient reason.
+        let reason: Option<(crate::surface::FullReason, crate::surface::ReasonExpiry)> = None;
+
+        let document_title = resolver.title.clone();
+        let fingerprint = fingerprint.unwrap_or([0u8; 32]);
+        Ok(crate::status_view::render_status_view(
+            last_rate,
+            snap.transport,
+            snap.position_secs,
+            &document_title,
+            reason,
+            fingerprint,
+        ))
+    }
+
+    /// Delete the session bookmark for a fingerprint (Stop control).
+    /// This clears the stored position so the next open starts at 0.0
+    /// with no resume offer (FR-032f, storage-schema.md).
+    ///
+    /// Called when the user presses the dedicated Stop button in-app.
+    #[command]
+    pub fn session_delete(
+        fingerprint: [u8; 32],
+        state: State<'_, AppState>,
+    ) -> Result<(), String> {
+        let bookmark_store_guard = state.bookmark_store.lock().map_err(|e| e.to_string())?;
+        if let Some(store) = bookmark_store_guard.as_ref() {
+            store.delete(&fingerprint).map_err(|e| e.to_string())?;
+        }
+        Ok(())
     }
 }
 
@@ -1658,11 +2041,15 @@ pub mod publish {
 
         let progress = match surface.progress {
             Progress::Determinate {
-                position_secs,
-                duration_secs,
+                consumed_units,
+                total_units,
+                k,
+                n,
             } => Progress::Determinate {
-                position_secs,
-                duration_secs,
+                consumed_units,
+                total_units,
+                k,
+                n,
             },
             Progress::Indeterminate => Progress::Indeterminate,
         };
@@ -1742,12 +2129,20 @@ pub mod publish {
             Value::Object({
                 let mut m = Map::new();
                 let _ = m.insert(
-                    "position_secs".to_string(),
-                    serde_json::to_value(position_secs).unwrap(),
+                    "consumed_units".to_string(),
+                    serde_json::to_value(position_secs as u64).unwrap(),
                 );
                 let _ = m.insert(
-                    "duration_secs".to_string(),
-                    serde_json::to_value(120.0).unwrap(),
+                    "total_units".to_string(),
+                    serde_json::to_value(120.0 as u64).unwrap(),
+                );
+                let _ = m.insert(
+                    "k".to_string(),
+                    serde_json::to_value(1u32).unwrap(),
+                );
+                let _ = m.insert(
+                    "n".to_string(),
+                    serde_json::to_value(1u32).unwrap(),
                 );
                 let mut outer = Map::new();
                 let _ = outer.insert("determinate".to_string(), Value::Object(m));

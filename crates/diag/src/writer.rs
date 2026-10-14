@@ -599,6 +599,111 @@ const fn marker_event(
     }
 }
 
+/// Measured latency detail keys (004 contract).
+///
+/// These typed keys are written as `key=value` pairs in the
+/// `detail` field — never prose, ≤200 chars total, hash refs only.
+pub mod detail_keys {
+    /// Latency from play request to first audible audio (milliseconds).
+    pub const PLAY_TO_AUDIO_MS: &str = "play_to_audio_ms";
+    /// Pause duration after output device removal (milliseconds).
+    pub const REMOVAL_PAUSE_MS: &str = "removal_pause_ms";
+    /// Replay duration after power loss or kill (seconds).
+    pub const REPLAY_SECS: &str = "replay_secs";
+}
+
+/// Constructs a conforming `detail` string from `key=value` pairs.
+///
+/// Each pair must match the non-prose pattern: alphanumeric/underscore
+/// key, `=`, and alphanumeric/`./+/-/_` value. Pairs are space-separated.
+/// Returns `None` if `pairs` is empty.
+///
+/// # Errors
+///
+/// Returns an error if any key or value contains invalid characters,
+/// or if the resulting string exceeds 200 characters.
+pub fn detail_from_pairs(pairs: &[(&str, &str)]) -> Result<Option<String>, DetailError> {
+    if pairs.is_empty() {
+        return Ok(None);
+    }
+    let mut tokens = Vec::with_capacity(pairs.len());
+    for (key, value) in pairs {
+        validate_key(key)?;
+        validate_value(value)?;
+        tokens.push(format!("{}={}", key, value));
+    }
+    let detail = tokens.join(" ");
+    if detail.chars().count() > 200 {
+        return Err(DetailError::TooLong(detail.chars().count()));
+    }
+    Ok(Some(detail))
+}
+
+/// Constructs a `detail` string with the three measured latency keys.
+///
+/// All three values are required. Returns a conforming space-separated
+/// `key=value` string, or an error if the result exceeds 200 characters.
+///
+/// # Errors
+///
+/// Returns [`DetailError::TooLong`] if the formatted string exceeds
+/// 200 characters (unlikely with numeric values).
+pub fn detail_measured_latency(
+    play_to_audio_ms: u64,
+    removal_pause_ms: u64,
+    replay_secs: f64,
+) -> Result<Option<String>, DetailError> {
+    detail_from_pairs(&[
+        (detail_keys::PLAY_TO_AUDIO_MS, &play_to_audio_ms.to_string()),
+        (detail_keys::REMOVAL_PAUSE_MS, &removal_pause_ms.to_string()),
+        (detail_keys::REPLAY_SECS, &format!("{:.3}", replay_secs)),
+    ])
+}
+
+/// Validates a detail key: non-empty, ASCII alphanumeric or underscore only.
+fn validate_key(key: &str) -> Result<(), DetailError> {
+    if key.is_empty() {
+        return Err(DetailError::InvalidKey(key.to_string()));
+    }
+    if !key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+        return Err(DetailError::InvalidKey(key.to_string()));
+    }
+    Ok(())
+}
+
+/// Validates a detail value: non-empty, ASCII alphanumeric or `./+/-/_` only.
+fn validate_value(value: &str) -> Result<(), DetailError> {
+    if value.is_empty() {
+        return Err(DetailError::InvalidValue(value.to_string()));
+    }
+    if !value.chars().all(|c| {
+        c.is_ascii_alphanumeric() || matches!(c, '.' | '+' | '-' | '_')
+    }) {
+        return Err(DetailError::InvalidValue(value.to_string()));
+    }
+    Ok(())
+}
+
+/// Errors from constructing a `detail` string.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum DetailError {
+    /// The key contains invalid characters.
+    #[error("invalid detail key: {0}")]
+    InvalidKey(String),
+    /// The value contains invalid characters.
+    #[error("invalid detail value: {0}")]
+    InvalidValue(String),
+    /// The resulting detail string exceeds 200 characters.
+    #[error("detail too long: {0} characters (max 200)")]
+    TooLong(usize),
+}
+
+impl From<DetailError> for crate::writer::DiagError {
+    fn from(err: DetailError) -> Self {
+        DiagError::Serialize(serde_json::Error::io(std::io::Error::other(err.to_string())))
+    }
+}
+
 impl From<TransportValue> for engine_core::closed::TransportState {
     fn from(value: TransportValue) -> Self {
         match value {

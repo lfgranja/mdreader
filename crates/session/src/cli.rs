@@ -40,7 +40,7 @@
 //! arms.
 
 use std::fmt::Write as FmtWrite;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::iter;
 use std::path::{Path, PathBuf};
 
@@ -246,6 +246,18 @@ enum OutputFormat {
 /// exercises.
 #[derive(Subcommand, Debug)]
 enum Command {
+    /// Ingest a document: compute its fingerprint and
+    /// report the resume state (FR-036 / FR-036a).
+    Ingest {
+        /// The document file: its bytes are
+        /// blake3-256 fingerprinted into the bookmark
+        /// key — never its path.
+        #[arg(long, conflicts_with = "bytes")]
+        path: Option<PathBuf>,
+        /// Read document bytes from stdin instead of a file.
+        #[arg(long, conflicts_with = "path")]
+        bytes: bool,
+    },
     /// Read the stored position for a document, keyed
     /// by its content fingerprint (FR-036).
     Get {
@@ -418,6 +430,34 @@ enum Visibility {
 /// completes the failure half of the protocol.
 fn execute(cli: Cli, stdout: &mut dyn Write) -> Result<(), CliError> {
     match cli.command {
+        Command::Ingest { path, bytes } => {
+            let document_bytes = if let Some(path) = path {
+                std::fs::read(&path)?
+            } else if bytes {
+                let mut buf = Vec::new();
+                let _ = std::io::stdin().read_to_end(&mut buf)?;
+                buf
+            } else {
+                return Err(CliError::Usage(
+                    "ingest requires either --path <PATH> or --bytes".to_string(),
+                ));
+            };
+            let key = fingerprint(&document_bytes);
+            let mut store = BookmarkStore::open(&cli.db)?;
+            let stored = store.get(&key)?;
+            let fingerprint_hex = hex_key(key);
+            let (resume, offset_secs) = match stored {
+                Some(pos) if pos.end_kind == SessionEnd::Paused => (true, pos.offset_secs),
+                _ => (false, 0.0),
+            };
+            let payload = IngestPayload {
+                capability: "ingest",
+                fingerprint: &fingerprint_hex,
+                resume,
+                offset_secs,
+            };
+            write_payload(stdout, &ingest_payload(&payload, cli.format)?)
+        }
         Command::Get { file } => {
             let key = document_key(&file)?;
             let mut store = BookmarkStore::open(&cli.db)?;
@@ -888,6 +928,24 @@ struct ForegroundPayload {
     foregrounded: bool,
 }
 
+/// The `ingest` payload: the document fingerprint
+/// and resume state.
+#[derive(Serialize)]
+struct IngestPayload<'a> {
+    /// The capability the payload mirrors.
+    capability: &'static str,
+    /// The document's blake3-256 content
+    /// fingerprint, in hex (FR-036).
+    fingerprint: &'a str,
+    /// Whether a resume offer applies — `true`
+    /// when a paused position exists for this
+    /// fingerprint.
+    resume: bool,
+    /// The stored offset in seconds when
+    /// `resume` is `true`; otherwise `0.0`.
+    offset_secs: f64,
+}
+
 /// The `get` / `put` payload: the stored position
 /// under the document's content fingerprint, for the
 /// selected format.
@@ -1051,6 +1109,19 @@ fn foreground_payload(foregrounded: bool, format: OutputFormat) -> Result<String
     Ok(match format {
         OutputFormat::Json => render_json(&payload)?,
         OutputFormat::Human => human_foreground(&payload),
+    })
+}
+
+/// The `ingest` payload, for the selected format.
+///
+/// The `Result` return already carries `#[must_use]`.
+fn ingest_payload(
+    payload: &IngestPayload<'_>,
+    format: OutputFormat,
+) -> Result<String, CliError> {
+    Ok(match format {
+        OutputFormat::Json => render_json(payload)?,
+        OutputFormat::Human => human_ingest(payload),
     })
 }
 
@@ -1227,5 +1298,15 @@ fn human_foreground(payload: &ForegroundPayload) -> String {
     format!(
         "capability: {}\nforegrounded: {}\n",
         payload.capability, payload.foregrounded,
+    )
+}
+
+/// The human-readable plain form of the `ingest`
+/// payload.
+#[must_use]
+fn human_ingest(payload: &IngestPayload<'_>) -> String {
+    format!(
+        "capability: {}\nfingerprint: {}\nresume: {}\noffset-secs: {}\n",
+        payload.capability, payload.fingerprint, payload.resume, payload.offset_secs,
     )
 }

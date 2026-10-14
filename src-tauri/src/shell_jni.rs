@@ -24,13 +24,12 @@
 // Allow unsafe code for JNI operations (FFI boundary).
 #![allow(unsafe_code)]
 
+use std::ffi::c_void;
+use std::sync::mpsc::{Receiver, Sender};
+use std::sync::{Mutex, OnceLock};
+
 #[cfg(target_os = "android")]
-use std::ffi::{c_void, CString};
-#[cfg(target_os = "android")]
-use std::sync::{
-    Mutex, OnceLock,
-    mpsc::{Receiver, Sender},
-};
+use std::ffi::CString;
 
 #[cfg(target_os = "android")]
 use jni::objects::{JClass, JString, JValue};
@@ -307,4 +306,143 @@ mod tests {
             );
         }
     }
+}
+
+/// JNI: BLAKE3-256 hash computation (T017).
+///
+/// Called from Kotlin `DocIngest.Blake3Hasher.nativeBlake3`
+/// to compute the document fingerprint. Matches Rust
+/// `session::fingerprint::fingerprint` exactly.
+///
+/// # Safety
+/// JNI entry point — the JVM parameters are opaque and
+/// only the byte array argument is read. The returned
+/// byte array is a new JVM primitive array.
+#[cfg(target_os = "android")]
+#[expect(
+    unsafe_code,
+    reason = "JNI entry point: the JNI export requires the exact symbol name. Body only reads the input byte array and returns a new byte array; no other unsafe operations."
+)]
+#[unsafe(no_mangle)]
+pub extern "C" fn Java_app_mdreader_DocIngest_Blake3Hasher_nativeBlake3(
+    env: *mut c_void,
+    _class: *mut c_void,
+    data: *mut c_void,
+) -> *mut c_void {
+    use blake3::Hasher;
+    use jni::objects::{JByteArray, JClass};
+    use jni::JNIEnv;
+
+    let env = unsafe { JNIEnv::from_raw(env).expect("valid JNIEnv") };
+    let data_array = unsafe { JByteArray::from_raw(data) };
+
+    // Get the input bytes
+    let input_bytes = match env.convert_byte_array(data_array) {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            tracing::error!("JNI BLAKE3: failed to convert input array: {e}");
+            return std::ptr::null_mut();
+        }
+    };
+
+    // Compute BLAKE3-256
+    let mut hasher = Hasher::new();
+    let _ = hasher.update(&input_bytes);
+    let hash = hasher.finalize();
+    let hash_bytes = hash.as_bytes();
+
+    // Create output byte array
+    let output_array = match env.new_byte_array(hash_bytes.len() as i32) {
+        Ok(arr) => arr,
+        Err(e) => {
+            tracing::error!("JNI BLAKE3: failed to allocate output array: {e}");
+            return std::ptr::null_mut();
+        }
+    };
+
+    if let Err(e) = env.set_byte_array_region(&output_array, 0, hash_bytes) {
+        tracing::error!("JNI BLAKE3: failed to set output array: {e}");
+        return std::ptr::null_mut();
+    }
+
+    // Return the raw pointer to the JVM array
+    output_array.into_raw()
+}
+
+/// JNI: Document ingest result callback (T017).
+///
+/// Called from Kotlin `DocIngest.handlePickResult` after
+/// successfully picking, reading, snapshotting, and hashing
+/// a document. Receives the snapshot file path and the
+/// fingerprint hex string, and forwards to Rust for the
+/// resume-offer lookup and playback start.
+///
+/// # Safety
+/// JNI entry point — reads only the string arguments.
+#[cfg(target_os = "android")]
+#[expect(
+    unsafe_code,
+    reason = "JNI entry point: the JNI export requires the exact symbol name. Body only reads string arguments and forwards to Rust; no other unsafe operations."
+)]
+#[unsafe(no_mangle)]
+pub extern "C" fn Java_app_mdreader_DocIngest_onDocumentIngested(
+    env: *mut c_void,
+    _class: *mut c_void,
+    snapshot_path: *mut c_void,
+    fingerprint_hex: *mut c_void,
+    original_uri: *mut c_void,
+    mime_type: *mut c_void,
+) {
+    use jni::objects::{JString, JClass};
+    use jni::JNIEnv;
+
+    let env = unsafe { JNIEnv::from_raw(env).expect("valid JNIEnv") };
+
+    // Convert JVM strings to Rust strings
+    let snapshot_path = unsafe { JString::from_raw(snapshot_path) };
+    let fingerprint_hex = unsafe { JString::from_raw(fingerprint_hex) };
+    let original_uri = unsafe { JString::from_raw(original_uri) };
+    let mime_type = unsafe { JString::from_raw(mime_type) };
+
+    let snapshot_path = match env.get_string(&snapshot_path) {
+        Ok(s) => s.into(),
+        Err(e) => {
+            tracing::error!("JNI onDocumentIngested: failed to get snapshot_path: {e}");
+            return;
+        }
+    };
+    let fingerprint_hex = match env.get_string(&fingerprint_hex) {
+        Ok(s) => s.into(),
+        Err(e) => {
+            tracing::error!("JNI onDocumentIngested: failed to get fingerprint_hex: {e}");
+            return;
+        }
+    };
+    let original_uri = match env.get_string(&original_uri) {
+        Ok(s) => s.into(),
+        Err(e) => {
+            tracing::error!("JNI onDocumentIngested: failed to get original_uri: {e}");
+            return;
+        }
+    };
+    let mime_type = match env.get_string(&mime_type) {
+        Ok(s) => s.into(),
+        Err(e) => {
+            tracing::error!("JNI onDocumentIngested: failed to get mime_type: {e}");
+            return;
+        }
+    };
+
+    tracing::info!(
+        snapshot_path = %snapshot_path,
+        fingerprint = %fingerprint_hex,
+        original_uri = %original_uri,
+        mime_type = %mime_type,
+        "Document ingested via Kotlin picker"
+    );
+
+    // TODO(T018): Forward to session crate for resume-offer lookup
+    // and playback start. The snapshot path is the synthesis input
+    // (never the URI). The fingerprint keys the bookmark store.
+    // For now, just log the result.
 }

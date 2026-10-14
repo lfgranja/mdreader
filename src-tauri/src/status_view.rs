@@ -67,6 +67,11 @@ pub struct StatusView {
     /// failure or denied-permission statement, which persists
     /// until it is read.
     pub reason_expiry: Option<ReasonExpiry>,
+    /// The blake3-256 content fingerprint of the currently
+    /// loaded document (FR-036). Used by the Stop control to
+    /// clear the stored position (FR-032f). Array of 32 bytes.
+    #[serde(with = "serde_bytes")]
+    pub fingerprint: [u8; 32],
 }
 
 /// Render the in-app status view (T065b) from the values the
@@ -90,6 +95,9 @@ pub struct StatusView {
 ///   pause (FR-041, FR-037a); a failure or denied-permission
 ///   statement persists until it is read (FR-037). `None`
 ///   renders a view with no stated reason.
+/// * `fingerprint` is the blake3-256 content fingerprint of the
+///   currently loaded document (FR-036), used by the Stop
+///   control to clear the stored position (FR-032f).
 ///
 /// The caller (bridge or CLI) supplies every value — the same
 /// Rust getters serve the CLI, the IPC, and this view
@@ -101,6 +109,7 @@ pub fn render_status_view(
     position_secs: f64,
     document_title: &str,
     reason: Option<(FullReason, ReasonExpiry)>,
+    fingerprint: [u8; 32],
 ) -> StatusView {
     let (statement, expiry) = match reason {
         Some((full, expiry)) => (Some(full_reason(&full, document_title)), Some(expiry)),
@@ -112,6 +121,7 @@ pub fn render_status_view(
         position_secs,
         reason: statement,
         reason_expiry: expiry,
+        fingerprint,
     }
 }
 
@@ -176,6 +186,9 @@ mod tests {
         PlaybackRate::R4_0,
     ];
 
+    /// Test fingerprint — all zeros for unit tests.
+    const TEST_FINGERPRINT: [u8; 32] = [0u8; 32];
+
     #[test]
     fn rate_mirror_shows_the_stored_last_rate() {
         // SC-027 / FR-019b: the rate shown in-app is the
@@ -188,6 +201,7 @@ mod tests {
                 0.0,
                 DOCUMENT_TITLE,
                 None,
+                TEST_FINGERPRINT,
             );
             assert_eq!(view.rate, rate);
         }
@@ -198,7 +212,7 @@ mod tests {
         // storage-schema.md: last_rate defaults to 1.0 on
         // first use — an empty store renders the normal-speed
         // rung, never an unset or zero rate.
-        let view = render_status_view(None, TransportState::Paused, 0.0, DOCUMENT_TITLE, None);
+        let view = render_status_view(None, TransportState::Paused, 0.0, DOCUMENT_TITLE, None, TEST_FINGERPRINT);
         assert_eq!(view.rate, PlaybackRate::R1_0);
     }
 
@@ -223,6 +237,7 @@ mod tests {
                 position_secs,
                 DOCUMENT_TITLE,
                 None,
+                TEST_FINGERPRINT,
             );
             assert_eq!(view.transport, transport);
             assert_eq!(view.position_secs.to_bits(), position_secs.to_bits());
@@ -242,6 +257,7 @@ mod tests {
                 33.25,
                 DOCUMENT_TITLE,
                 Some((failure, ReasonExpiry::FailurePersistent)),
+                TEST_FINGERPRINT,
             );
             assert_eq!(view.reason, Some(full_reason(&failure, DOCUMENT_TITLE)));
             assert_eq!(view.reason_expiry, Some(ReasonExpiry::FailurePersistent));
@@ -271,6 +287,7 @@ mod tests {
                 33.25,
                 DOCUMENT_TITLE,
                 Some((focus, ReasonExpiry::Focus3s)),
+                TEST_FINGERPRINT,
             );
             let statement = full_reason(&focus, DOCUMENT_TITLE);
             assert_eq!(statement, format!("{PAUSE_STATEMENT}: {DOCUMENT_TITLE}"));
@@ -296,6 +313,7 @@ mod tests {
                 FullReason::NotificationDenied,
                 ReasonExpiry::FailurePersistent,
             )),
+            TEST_FINGERPRINT,
         );
         let denied = PermissionSnapshot {
             foreground_service_media_playback: PermissionState::Granted,
@@ -321,6 +339,7 @@ mod tests {
             12.5,
             DOCUMENT_TITLE,
             None,
+            TEST_FINGERPRINT,
         );
         assert_eq!(view.reason, None);
         assert_eq!(view.reason_expiry, None);
@@ -336,7 +355,8 @@ mod tests {
                 TransportState::Playing,
                 12.5,
                 DOCUMENT_TITLE,
-                None
+                None,
+                TEST_FINGERPRINT
             )
         );
     }
@@ -357,6 +377,7 @@ mod tests {
                 0.0,
                 DOCUMENT_TITLE,
                 Some((reason, reason.expiry())),
+                TEST_FINGERPRINT,
             );
             assert_eq!(view.reason_expiry, Some(reason.expiry()));
         }
@@ -385,6 +406,7 @@ mod tests {
                 0.0,
                 DOCUMENT_TITLE,
                 Some((failure, ReasonExpiry::FailurePersistent)),
+                TEST_FINGERPRINT,
             );
             let statement = view.reason.unwrap_or_default();
             assert!(!statement.contains(DOCUMENT_TITLE));

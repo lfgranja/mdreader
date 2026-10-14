@@ -3959,7 +3959,10 @@ name = "src-tauri"
 version = "0.1.0"
 dependencies = [
  "adapter-synthesis",
+ "base64 0.22.1",
+ "blake3",
  "engine-core",
+ "hex",
  "jni 0.22.4",
  "player",
  "serde",
@@ -3967,6 +3970,7 @@ dependencies = [
  "session",
  "tauri",
  "tauri-build",
+ "tokio",
  "tracing",
 ]
 

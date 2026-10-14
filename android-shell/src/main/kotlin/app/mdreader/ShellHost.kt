@@ -205,6 +205,15 @@ object ShellHost {
     }
 
     /**
+     * Sets the foreground starter callback on the MediaMirror.
+     * Called by PlaybackService after init() to wire the foreground
+     * service to the MediaMirror's MediaStyle notification.
+     */
+    fun setMediaMirrorForegroundStarter(starter: (Notification) -> Unit) {
+        media?.setForegroundStarter(starter)
+    }
+
+    /**
      * Relays one closed verb wire string to Rust as its channel code.
      * Unknown values are recorded as diagnostic logs and dropped —
      * never absorbed, never crashing the caller.

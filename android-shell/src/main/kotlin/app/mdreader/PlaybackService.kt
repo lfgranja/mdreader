@@ -1,8 +1,6 @@
 package app.mdreader
 
 import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
@@ -42,7 +40,6 @@ class PlaybackService : Service() {
 
     companion object {
         private const val TAG = "PlaybackService"
-        private const val CHANNEL_ID = "mdreader_playback"
 
         /** Service intent action for the Play command. */
         const val ACTION_PLAY = "app.mdreader.PLAY"
@@ -91,6 +88,19 @@ class PlaybackService : Service() {
         super.onCreate()
         ensureChannel()
         ShellHost.init(this)
+        // Wire the foreground service to MediaMirror's MediaStyle notification
+        // so the MediaStyle notification IS the foreground service notification
+        // (same ID), enabling lock-screen controls and screen-off continuity.
+        ShellHost.setMediaMirrorForegroundStarter { notification ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(
+                    FOREGROUND_ID, notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+                )
+            } else {
+                startForeground(FOREGROUND_ID, notification)
+            }
+        }
     }
 
     override fun onDestroy() {
@@ -115,7 +125,8 @@ class PlaybackService : Service() {
                 Log.d(TAG, "Play: len=${document.length} pos=$position")
                 ShellHost.requestFocus()
                 ShellHost.forwardVerb(MediaMirror.VERB_PLAY)
-                startForegroundHolder()
+                // Foreground service started by MediaMirror.publish() via callback
+                // when Rust publishes the first mirror state (MediaStyle notification)
             }
             ACTION_PAUSE -> {
                 Log.d(TAG, "Pause")
@@ -162,52 +173,5 @@ class PlaybackService : Service() {
             stopForeground(true)
         }
         stopSelf()
-    }
-
-    private fun ensureChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val manager = getSystemService(NotificationManager::class.java) ?: return
-            if (manager.getNotificationChannel(CHANNEL_ID) == null) {
-                val channel = NotificationChannel(
-                    CHANNEL_ID,
-                    "Playback",
-                    NotificationManager.IMPORTANCE_LOW
-                )
-                manager.createNotificationChannel(channel)
-            }
-        }
-    }
-
-    /**
-     * Builds the foreground holder: the application label as the title
-     * and nothing else. The tap target opens the application — the
-     * reader's route to choosing another document.
-     */
-    private fun foregroundPlaceholder(): Notification {
-        val label = applicationInfo.loadLabel(packageManager).toString()
-        val launch = packageManager.getLaunchIntentForPackage(packageName)?.let {
-            PendingIntent.getActivity(
-                this, 0, it,
-                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-            )
-        }
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Notification.Builder(this, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_media_play)
-                .setContentTitle(label)
-                .setContentIntent(launch)
-                .setOngoing(true)
-                .setVisibility(Notification.VISIBILITY_PUBLIC)
-                .build()
-        } else {
-            @Suppress("DEPRECATION")
-            Notification.Builder(this)
-                .setSmallIcon(android.R.drawable.ic_media_play)
-                .setContentTitle(label)
-                .setContentIntent(launch)
-                .setOngoing(true)
-                .setVisibility(Notification.VISIBILITY_PUBLIC)
-                .build()
-        }
     }
 }

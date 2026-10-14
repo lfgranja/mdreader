@@ -293,11 +293,14 @@ class MediaMirror(
          * id is one surface: every publish replaces the
          * previous render instead of adding a second
          * notification, and teardown cancels exactly this
-         * id. Distinct from the resident surface id
-         * (Residency) so the host can reconcile which
-         * surface carries a resident pause — the two are
-         * never both up for the same session. */
-        private const val NOTIFICATION_ID = 2
+         * id. This ID is shared with the foreground service
+         * (PlaybackService.FOREGROUND_ID) so the MediaStyle
+         * notification IS the foreground service notification,
+         * enabling lock-screen controls and screen-off
+         * continuity. The resident surface (Residency) also
+         * uses this ID, replacing the playing surface on
+         * pause. */
+        private const val NOTIFICATION_ID = 1
 
         /** Broadcast action of the resume control on a
          * resident-pause surface. */
@@ -464,6 +467,25 @@ class MediaMirror(
      * registered. */
     private var registered = false
 
+    /**
+     * Callback to start the foreground service with the MediaStyle
+     * notification on the first publish. Set by PlaybackService
+     * after ShellHost.init() so the MediaStyle notification becomes
+     * the foreground service notification (same ID), enabling
+     * lock-screen controls and screen-off continuity.
+     */
+    private var foregroundStarter: ((Notification) -> Unit)? = null
+
+    /**
+     * Sets the callback to start the foreground service with the
+     * MediaStyle notification. Called by PlaybackService after
+     * ShellHost.init() to wire the foreground service to the
+     * MediaMirror's notification.
+     */
+    fun setForegroundStarter(starter: (Notification) -> Unit) {
+        foregroundStarter = starter
+    }
+
     init {
         mediaSession.setFlags(
             MediaSession.FLAG_HANDLES_MEDIA_BUTTONS or
@@ -543,7 +565,13 @@ class MediaMirror(
         handler.removeCallbacks(autoDismiss)
         val ongoing = state.dismissal is Dismissal.NonDismissable
         val built = buildSurface(state, ongoing, deleteIntent)
-        manager.notify(NOTIFICATION_ID, built)
+        // First publish: start foreground service with MediaStyle notification
+        // Subsequent publishes: update via notify() (same ID replaces)
+        if (surface == null && foregroundStarter != null) {
+            foregroundStarter!!(built)
+        } else {
+            manager.notify(NOTIFICATION_ID, built)
+        }
         surface = built
         val transient = state.dismissal as? Dismissal.AutoDismiss
         if (transient != null) {

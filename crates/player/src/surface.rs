@@ -137,6 +137,46 @@ pub enum Progress {
     Indeterminate,
 }
 
+/// The frozen progress label (contracts/surface.md).
+///
+/// The template `"Section {k} of {N} — {p}% (content-offset)"`
+/// is an ENGLISH IDENTIFIER: the machine-readable surfaces
+/// (CLI `--format json`, the IPC payload) emit it verbatim;
+/// the rendered user-visible pt-BR translation is a separate
+/// rendering step that MUST NOT change this identifier
+/// (contracts/surface.md "CLI surface").
+///
+/// `{p}` is the integer percent `(consumed × 100) / total`,
+/// truncated toward zero with no decimals — the contract
+/// freezes the template but not the rounding, so the
+/// truncated-integer form is the chosen and pinned one.
+///
+/// Returns `None` for [`Progress::Indeterminate`] — no
+/// determinable percent, no label (zero sections ⇒
+/// indeterminate + null title, whole session, no flip:
+/// contracts/surface.md / FR-028a).
+#[must_use]
+pub fn progress_label(progress: &Progress) -> Option<String> {
+    match progress {
+        Progress::Determinate {
+            consumed_units,
+            total_units,
+            k,
+            n,
+        } => {
+            let percent = if *total_units == 0 {
+                0
+            } else {
+                (consumed_units * 100) / total_units
+            };
+            Some(format!(
+                "Section {k} of {n} — {percent}% (content-offset)"
+            ))
+        }
+        Progress::Indeterminate => None,
+    }
+}
+
 /// The dismissal policy of the notification surface
 /// (FR-028e) — how the surface may go away.
 ///
@@ -400,5 +440,68 @@ fn marked_document_total(headings: &[Heading]) -> f64 {
     match headings.last() {
         Some(heading) => heading.position_secs,
         None => 0.0,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The frozen label for a determinate progress at the
+    /// contract's chosen rounding: `(consumed × 100) / total`
+    /// truncated toward zero, no decimals.
+    #[test]
+    fn determinate_label_is_the_frozen_template() {
+        let progress = Progress::Determinate {
+            consumed_units: 30,
+            total_units: 120,
+            k: 2,
+            n: 7,
+        };
+        assert_eq!(
+            progress_label(&progress).as_deref(),
+            Some("Section 2 of 7 — 25% (content-offset)")
+        );
+    }
+
+    /// The truncating rounding: 1/3 ⇒ 33, never 33.33 and never
+    /// a rounded 34 (the contract freezes the template; the
+    /// truncated-integer percent is the pinned form).
+    #[test]
+    fn percent_truncates_toward_zero() {
+        let progress = Progress::Determinate {
+            consumed_units: 1,
+            total_units: 3,
+            k: 1,
+            n: 1,
+        };
+        assert_eq!(
+            progress_label(&progress).as_deref(),
+            Some("Section 1 of 1 — 33% (content-offset)")
+        );
+    }
+
+    /// Zero total (zero sections with a known-at-start session):
+    /// the percent is defined as 0, never a division panic and
+    /// never NaN.
+    #[test]
+    fn zero_total_labels_zero_percent() {
+        let progress = Progress::Determinate {
+            consumed_units: 0,
+            total_units: 0,
+            k: 0,
+            n: 0,
+        };
+        assert_eq!(
+            progress_label(&progress).as_deref(),
+            Some("Section 0 of 0 — 0% (content-offset)")
+        );
+    }
+
+    /// Indeterminate carries no label — no determinable percent
+    /// (contracts/surface.md / FR-028a).
+    #[test]
+    fn indeterminate_labels_nothing() {
+        assert_eq!(progress_label(&Progress::Indeterminate), None);
     }
 }

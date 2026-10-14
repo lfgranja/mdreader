@@ -8,7 +8,7 @@ FR-016. Every driving-time control confirms without looking; fully operable with
 |---|---|---|
 | Play | Adagio caricature C5→E5, sine, 120 ms/note | ≤500 ms |
 | Pause | Andante caricature E5→C5, sine, 120 ms/note | ≤500 ms |
-| Skip fwd/back | Allegro tick +40 ms directional contour | ≤500 ms |
+| Skip fwd/back | Allegro tick 880 Hz base +40 ms directional contour (fwd: rising 880→1108 Hz; back: falling 880→660 Hz) | ≤500 ms |
 | Warning (pause-demanding interruption) | Ostinato abstract double-tick A5, 60+80 ms, dissonant | ≤500 ms |
 | Failure (undeliverable voice) | E4 ~330 Hz square + minor-2nd, 200 ms + repeat | ≤500 ms |
 | Rate step | Unison 880 Hz / 60 ms | ≤500 ms |
@@ -31,3 +31,10 @@ All in 300–2500 Hz; play/pause/skip differ in timbre + rhythm + contour from t
 ## CLI surface (Principle II)
 
 `player` binary: `earcon <play|pause|skip-fwd|skip-back|warning|failure|rate> [--format json]` emits the PCM descriptor + duration assertion; Tauri IPC calls the same constructor.
+
+## Named contract constants
+
+| Constant | Value | Meaning |
+|---|---|---|
+| `DUCK_GAIN` | `0.20 ± 0.02` | Duck gain factor for `AUDIOFOCUS_LOSS_TRANSIENT_MAY_DUCK` (FR-004); applied to speech stream, never to earcon short-mix |
+| `PITCH_TOLERANCE_CENTS` | `50` | Maximum permitted pitch deviation in cents at any rate rung (SC-007); engine-contract stretch, tested blind |

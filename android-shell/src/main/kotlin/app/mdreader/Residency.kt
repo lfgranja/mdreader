@@ -180,6 +180,10 @@ class Residency(
      */
     fun documentEnd() {
         forwardIntent(INTENT_DOCUMENT_END)
+        // Keep-current-only trim on the document-end path: every
+        // other snapshot in the directory is deleted
+        // (contracts/ingest.md).
+        DocIngest.trimToCurrent(context)
         teardown()
     }
 

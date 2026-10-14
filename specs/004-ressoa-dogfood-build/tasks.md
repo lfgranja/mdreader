@@ -303,3 +303,4 @@ Subagent E: "T032 rewind.rs + resume.rs sentence-snap (independent)"
   - F2 — contracts/surface.md token edits serialize with T044 wave (T044 designs the DESIGN-SONA tokens in contracts/surface.md + MediaMirror + status_view.html; same file edits serialized with T044 wave).
   - G1 — FR-005/FR-006 split confirmed deliberate: no merge needed; FR-005 = outcome+reason mapping (D1 at line 297); FR-006 = timing bound ≤1 s for DeviceRemoved subset; T024/T027/T031 cover separately.
   - D1 — constitution compliance confirmed: `.specify/memory/constitution.md` v1.5.0 gates (Rust rigor, closed-set gate 7, supply-chain gates 5–6, single playback authority, manual manifest) already present in plan.md; tasks.md notes confirm no relaxation (see execution rules 1–5 + Notes D1/A3/U2/C2).
+  - A1 — FR-002/FR-006 timing split and FR-004/FR-005 duck mapping overlap are deliberate; see spec.md clarifications (2026-10-13 session) and data-model.md interruption table.

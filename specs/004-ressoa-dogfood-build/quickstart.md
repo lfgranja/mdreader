@@ -33,7 +33,7 @@ Expect: installs on the reference phone; no reviewer/listing/changelog involved.
 
 ## 3. On-device acceptance (reference phone only)
 
-1. **Commute loop (SC-001)**: open fixture via system file picker → Play → lock → 30 min continuous audible reading with screen off, lock-screen controls only, zero unlocks. Repeat at each of the 7 speeds incl. 4.0x.
+1. **Commute loop (SC-001)**: one 30-minute session per rate rung (7 separate trials, not combined): open fixture via system file picker → Play → lock → 30 min continuous audible reading with screen off, lock-screen controls only, zero unlocks; repeat independently at each of the 7 speeds incl. 4.0x.
 2. **First audio (SC-002)**: 10/10 cold-start trials (cold start = process-killed, fixture unopened, radios off), first audible speech ≤3 s after Play.
 3. **Interruptions (SC-003)**: 10/10 per class — nav-transient → duck ~20% + restore; call/alarm → pause + 3 s reason, never auto-resume; headphone removal → pause ≤1 s, never on speaker; permanent loss → pause + 3 s, never auto-resume.
 4. **Blind confirmations (SC-004)**: no-look, 10/10 per type (play, pause, skip, rate-step, warning, failure) via earcon + state change + haptic, sounds-on and sounds-off.
@@ -41,7 +41,9 @@ Expect: installs on the reference phone; no reviewer/listing/changelog involved.
 6. **Lock-screen purity (SC-006)**: 10/10 inspections across playing/paused/section-change/rate-change/interruption — title + section + progress only, zero prose/time/rate/voice leaks; dismissal attempted while playing refused 10/10.
 7. **Rate (SC-007)**: chosen rung persists across sessions/documents (10/10 per rung); voice quicker/slower never pitched (PITCH_TOLERANCE_CENTS=50) + blind listener check.
 8. **Record (SC-008)**: `adb pull` app-private JSONL → full trace present (session/transport/per-section/per-rate/buffer/interruptions + measured latencies + failures), retained within 30-day/10 MB bounds, zero entries with prose.
-9. **Lock-screen privacy (manual inspection)**: enable the phone's lock-screen privacy-hide-contents setting → app obeys, lock-screen hides contents, no workaround attempted.
+9. **Offline (SC-009)**: enable airplane mode (all radios off) → 15-minute session on the reference phone using the fixed fixture → 10/10 trials with zero network-dependent voice errors, playback continues uninterrupted from start to end.
+10. **In-app screen (SC-010)**: 10/10 inspections — title, section, progress, speed control, transport (play, pause, skip, Stop) only; zero prose/time/rate/voice leaks; Stop clears stored position 10/10; all user-visible strings verified pt-BR.
+11. **Lock-screen privacy (manual inspection)**: enable the phone's lock-screen privacy-hide-contents setting → app obeys, lock-screen hides contents, no workaround attempted.
 
 ## 4. Privacy + scope glance
 

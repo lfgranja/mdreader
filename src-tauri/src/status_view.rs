@@ -69,9 +69,29 @@ pub struct StatusView {
     pub reason_expiry: Option<ReasonExpiry>,
     /// The blake3-256 content fingerprint of the currently
     /// loaded document (FR-036). Used by the Stop control to
-    /// clear the stored position (FR-032f). Array of 32 bytes.
-    #[serde(with = "serde_bytes")]
+    /// clear the stored position (FR-032f). Serialized as a
+    /// 64-char lowercase hex string for the JSON IPC wire
+    /// (no `serde_bytes` dependency: the hex form is the
+    /// identifier pattern the diagnostic record already
+    /// uses, and JSON arrays of 32 integers are neither
+    /// compact nor recognizable).
+    #[serde(serialize_with = "serialize_fingerprint_hex")]
     pub fingerprint: [u8; 32],
+}
+
+/// Serialize a blake3-256 fingerprint as 64 lowercase hex
+/// chars — the same identifier form the session store and
+/// the diagnostic record use (FR-036 / FR-044: one form,
+/// never a second).
+fn serialize_fingerprint_hex<S: serde::Serializer>(
+    fingerprint: &[u8; 32],
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    let mut hex = String::with_capacity(64);
+    for byte in fingerprint {
+        hex.push_str(&format!("{byte:02x}"));
+    }
+    serializer.serialize_str(&hex)
 }
 
 /// Render the in-app status view (T065b) from the values the

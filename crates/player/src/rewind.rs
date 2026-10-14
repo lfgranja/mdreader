@@ -37,6 +37,22 @@ use crate::position::{REWIND_CAP_SECS, REWIND_FRACTION};
 /// real energy peak as a gap.
 const GAP_EPS_SECS: f64 = 0.001;
 
+/// The FR-007 context cue distance: the resume lands a fixed
+/// 5 s BEFORE the containing-sentence start (data-model.md:
+/// "the 004 cue distance is fixed 5 s further-backward from
+/// containing-sentence-start per FR-007"), so the listener
+/// re-hears the tail of the previous sentence and
+/// re-establishes context before the snapped boundary. The
+/// 5–10 s band the contract names is satisfied at its floor
+/// by the fixed distance; cap-precedence clamps the cue when
+/// the containing sentence is longer than the rewind cap
+/// (total backward movement never exceeds
+/// [`REWIND_CAP_SECS`]). The degrade paths hold the raw
+/// cursor and cut no cue: the algorithm never moved there,
+/// and rewinding further would spend budget re-hearing
+/// content delivered at full attention.
+pub const CUE_SECS: f64 = 5.0;
+
 /// Raw rewind distance for a pause, in seconds (FR-015).
 ///
 /// Exactly `min(0.05 × paused_duration_secs, 30.0)` — the single
@@ -119,18 +135,23 @@ pub const fn supersede(previous_first_yield_ms: u64, now_ms: u64) -> SupersedeLi
 ///
 /// * Raw cursor = `yield − cursor(paused)`, clamped at `0.0`.
 /// * No granularity (`None`) or an empty boundary list degrades to
-///   the raw cursor — never to document start.
-/// * Otherwise the resume is the containing-sentence start (greatest
+///   the raw cursor — never to document start — and cuts no cue.
+/// * Otherwise the snap is the containing-sentence start (greatest
 ///   boundary at or before the raw cursor); when that start lies
 ///   more than 30 s behind the yield — the sentence is longer than
-///   the cap — the resume lands exactly at the cap point.
-/// * A cap-point landing that is mid-word snaps forward to the next
+///   the cap — the snap lands exactly at the cap point.
+/// * FR-007 cue: the resume then steps back the fixed
+///   [`CUE_SECS`] from the snap, never before the cap point
+///   (cap-precedence: the cap absorbs the cue) and never before
+///   0.0 — the listener re-hears the tail of the previous
+///   sentence for context.
+/// * A cue landing that is mid-word snaps forward to the next
 ///   inter-word gap, unless that gap lies past the raw cursor (past
-///   the capped rewind window) — then it lands exactly at the cap.
-///   "Beyond the cap" is read here as beyond the window's
-///   cursor-side bound: snapping past the raw cursor would resume
-///   ahead of the formula point, skipping content the rewind owed.
-/// * The resume therefore always lands in a gap, never on an energy
+///   the capped rewind window) — then it lands exactly at the cue
+///   point. Snapping past the raw cursor would resume ahead of the
+///   formula point, skipping content the rewind owed.
+/// * The resume therefore always lands in a gap (or holds the
+///   unmoved raw cursor on a degrade path), never on an energy
 ///   peak, and total backward movement never exceeds 30.0 s.
 #[must_use]
 pub fn resolve_resume(input: &ResumeInput<'_>) -> ResumeResult {
@@ -139,9 +160,13 @@ pub fn resolve_resume(input: &ResumeInput<'_>) -> ResumeResult {
     let cap_point = (yield_secs - REWIND_CAP_SECS).max(0.0);
 
     let granularity_none = input.granularity == AlignmentGranularity::None;
-    let snapped = if granularity_none || input.sentence_starts.is_empty() {
+    // The snap decision, and whether a cue may be cut from it:
+    // the cue applies only when the resume actually moved to a
+    // boundary (containing-sentence start) or the cap — the
+    // degrade paths hold the raw cursor and cut no cue.
+    let (snapped, cued) = if granularity_none || input.sentence_starts.is_empty() {
         // No-granularity degrade path: raw cursor, never document start.
-        raw_cursor
+        (raw_cursor, false)
     } else {
         let mut best: Option<f64> = None;
         for boundary in input.sentence_starts.iter() {
@@ -150,38 +175,56 @@ pub fn resolve_resume(input: &ResumeInput<'_>) -> ResumeResult {
                 best = Some(b);
             }
         }
-        if let Some(boundary) = best {
-            if boundary >= cap_point {
-                boundary
-            } else {
-                // Sentence longer than the cap: land exactly at cap.
-                cap_point
+        match best {
+            Some(boundary) => {
+                if boundary >= cap_point {
+                    (boundary, true)
+                } else {
+                    // Sentence longer than the cap: land exactly at cap.
+                    (cap_point, true)
+                }
             }
-        } else {
             // Cursor precedes every declared boundary: no backward
             // snap exists, so hold the raw cursor rather than jumping
-            // to document start or forward into unplayed audio.
-            raw_cursor
+            // to document start or forward into unplayed audio — and
+            // cut no cue from an unmoved cursor.
+            None => (raw_cursor, false),
         }
     };
 
-    let at_cap = (snapped - cap_point).abs() <= GAP_EPS_SECS;
-    let mid_word = !is_gap(snapped, input.word_gaps);
-    let resume_secs = if at_cap && mid_word && cap_point < raw_cursor {
+    // FR-007 cue: step back the fixed cue distance from the
+    // snapped boundary, never before the cap point
+    // (cap-precedence — the cap absorbs the cue when the
+    // sentence is longer than the cap) and never before 0.0.
+    let cue_point = if cued {
+        (snapped - CUE_SECS).max(cap_point).max(0.0)
+    } else {
+        snapped
+    };
+
+    // Never mid-word: a cue landing that sits on an energy peak
+    // snaps forward to the next inter-word gap inside the
+    // rewind window (never past the raw cursor — past the
+    // window's cursor-side bound would resume ahead of the
+    // formula point, skipping content the rewind owed). When
+    // no gap lies inside the window the landing holds the cue
+    // point exactly. A raw-cursor degrade path is exempt: the
+    // algorithm cut no word there — it simply never moved.
+    let mid_word = !is_gap(cue_point, input.word_gaps);
+    let resume_secs = if cued && mid_word && cue_point < raw_cursor {
         let mut next_gap: Option<f64> = None;
         for gap in input.word_gaps.iter() {
             let g = *gap;
-            if g > cap_point && next_gap.is_none_or(|prev| g < prev) {
+            if g > cue_point && next_gap.is_none_or(|prev| g < prev) {
                 next_gap = Some(g);
             }
         }
-        if let Some(gap) = next_gap {
-            if gap <= raw_cursor { gap } else { cap_point }
-        } else {
-            cap_point
+        match next_gap {
+            Some(gap) if gap <= raw_cursor => gap,
+            _ => cue_point,
         }
     } else {
-        snapped
+        cue_point
     };
 
     ResumeResult {

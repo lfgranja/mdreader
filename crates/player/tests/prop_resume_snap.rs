@@ -64,7 +64,7 @@ use proptest::prelude::*;
 
 use engine_core::trait_::AlignmentGranularity;
 use player::position::{PlayerError, PositionClock, REWIND_CAP_SECS, REWIND_FRACTION};
-use player::rewind::{ResumeInput, ResumeResult, cursor, resolve_resume};
+use player::rewind::{CUE_SECS, ResumeInput, ResumeResult, cursor, resolve_resume};
 
 /// Gap-membership tolerance for the test oracles, in seconds.
 ///
@@ -257,30 +257,60 @@ proptest! {
 
         // The snap oracle: the greatest boundary at or before the raw
         // cursor when the engine declares a granularity and the
-        // boundary list is non-empty; the cap point when that
-        // boundary lies more than 30 s behind the yield (the sentence
-        // is longer than the cap); the raw cursor on both degrade
+        // boundary list is non-empty; the raw cursor on both degrade
         // paths (no granularity, or no boundary at or before the
-        // cursor) — never document start.
-        let expected = if granularity == AlignmentGranularity::None || boundaries.is_empty() {
-            raw
+        // cursor) — never document start. The cue contract (FR-007 /
+        // T032): the resume steps the fixed cue distance back from
+        // the snap (or from the cap when the sentence is longer than
+        // the cap), so the window floor is the cue point and the
+        // landing snaps forward into a gap when the cue point is
+        // mid-word.
+        let degrade = granularity == AlignmentGranularity::None || boundaries.is_empty();
+        let containing = if degrade {
+            None
         } else {
-            match containing_start(raw, &boundaries) {
-                Some(boundary) if boundary >= cap => boundary,
-                Some(_) => cap,
-                None => raw,
-            }
+            containing_start(raw, &boundaries)
         };
-        prop_assert_eq!(
-            result.resume_secs,
-            expected,
-            "the resume {} was not the containing-sentence start {} (raw cursor {}, cap {}, yield {})",
-            result.resume_secs,
-            expected,
-            raw,
-            cap,
-            yield_secs
-        );
+        if degrade || containing.is_none() {
+            // The degrade paths hold the raw cursor exactly and cut
+            // no cue (rewind.rs: the algorithm never moved there).
+            prop_assert_eq!(
+                result.resume_secs,
+                raw,
+                "the resume {} was not the raw cursor {} on the degrade path (never document start)",
+                result.resume_secs,
+                raw
+            );
+        } else {
+            let boundary = containing.expect("checked above");
+            let cue_floor = if boundary >= cap {
+                (boundary - CUE_SECS).max(cap)
+            } else {
+                // Sentence longer than the cap: the cap absorbs the cue.
+                cap
+            };
+            prop_assert!(
+                result.resume_secs >= cue_floor && result.resume_secs <= raw,
+                "the resume {} left the [cue floor {}, raw cursor {}] window (raw cursor {}, cap {}, yield {})",
+                result.resume_secs,
+                cue_floor,
+                raw,
+                raw,
+                cap,
+                yield_secs
+            );
+            // Never mid-word: the resume sits on a declared gap, or
+            // holds the cue floor when no gap lies inside the window
+            // (the forward snap's documented fallback).
+            let in_gap = is_test_gap(result.resume_secs, &gaps);
+            let at_cue_floor = (result.resume_secs - cue_floor).abs() < 1e-9;
+            prop_assert!(
+                in_gap || at_cue_floor,
+                "the resume {} landed on an energy peak — neither in a declared gap nor the cue floor {}",
+                result.resume_secs,
+                cue_floor
+            );
+        }
 
         // Never mid-word: the resume sits on a declared gap, unless it
         // is the raw last-spoken cursor held by a degrade path (the

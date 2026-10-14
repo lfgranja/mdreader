@@ -126,8 +126,8 @@
 
 ### Tests for US3 (BLOCKING — write first, FAIL before T035+; per-phase gate holds even in a global test wave) ⚠️
 
-- [ ] T033 [P] [US3] Property `prop_bookmark_lifecycle` in `crates/session/tests/prop_bookmark.rs` (invariants: `put` atomic single-row; `Stopped|Completed` ⇒ deleted; `Paused`⇒deliberate 3 s offer silence-continues; `Interrupted`⇒explicit resume never auto-starts; content-change hash ⇒ miss ⇒ `0.0` no offer)
-- [ ] T034 [P] [US3] Offer-window test in `crates/session/tests/test_offer3s.rs` (deliberate reopen ⇒ visual dialog 3 s continue-vs-start-over; kill/power-loss ⇒ paused + lock-screen resume control; `Stop` clears before next open)
+- [X] T033 [P] [US3] Property `prop_bookmark_lifecycle` in `crates/session/tests/prop_bookmark.rs` (invariants: `put` atomic single-row; `Stopped|Completed` ⇒ deleted; `Paused`⇒deliberate 3 s offer silence-continues; `Interrupted`⇒explicit resume never auto-starts; content-change hash ⇒ miss ⇒ `0.0` no offer)
+- [X] T034 [P] [US3] Offer-window test in `crates/session/tests/test_offer3s.rs` (deliberate reopen ⇒ visual dialog 3 s continue-vs-start-over; kill/power-loss ⇒ paused + lock-screen resume control; `Stop` clears before next open)
 
 ### Implementation for US3
 

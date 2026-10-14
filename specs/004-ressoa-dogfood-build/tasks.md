@@ -62,7 +62,7 @@
 ### Wiring (starts only after T006–T010 are red)
 
 - [ ] T011 [P] 20 s durable heartbeat scheduler skeleton in `src-tauri/src/lib.rs` (timer calls `BookmarkStore::put` while Playing; event-durable `put` call sites listed for US3; atomic single-row tx shape — parallel-safe with T012, different file; starts only after T006–T010 red)
-- [ ] T012 [P] Diagnostic measured-latency `detail` keys (`play_to_audio_ms`, `removal_pause_ms`, `replay_secs`) in `crates/diag/src/writer.rs` (typed fields, ≤200 ch, hash refs only, never prose — parallel-safe with T011, different file; starts only after T006–T010 red)
+- [X] T012 [P] Diagnostic measured-latency `detail` keys (`play_to_audio_ms`, `removal_pause_ms`, `replay_secs`) in `crates/diag/src/writer.rs` (typed fields, ≤200 ch, hash refs only, never prose — parallel-safe with T011, different file; starts only after T006–T010 red)
 
 **Checkpoint (TDD gate — Foundational global block)**: `cargo nextest run --workspace` shows T006–T010 FAIL (red) before T011–T012 and before any Phase 3+ implementation. Per-phase gates still hold per rule 1; this checkpoint adds a cross-phase block. Record the red output in the commit message.
 

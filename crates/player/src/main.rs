@@ -7,6 +7,7 @@
 use clap::{Parser, Subcommand};
 use player::cli::{PlaybackSession, ShellVerb};
 use player::earcon::{EarconDescriptor, EarconKind};
+use serde_json::Value;
 use std::io::{self, Write};
 
 #[derive(Parser, Debug)]
@@ -50,6 +51,29 @@ enum Commands {
     /// Earcon PCM descriptor (T030).
     #[command(subcommand)]
     Earcon(EarconCommands),
+    /// Content-offset progress payload (T030b): the machine-readable
+    /// progress shape the lock-screen and in-app surfaces share,
+    /// with the frozen contract label.
+    Progress {
+        /// Parsed-content units consumed (content-offset, never
+        /// audio-duration).
+        #[arg(long, required_unless_present = "indeterminate")]
+        consumed: Option<u64>,
+        /// Total parsed-content units known at session start.
+        #[arg(long, required_unless_present = "indeterminate")]
+        total: Option<u64>,
+        /// Current section index `k` (1-based; 0 with zero sections).
+        #[arg(long, required_unless_present = "indeterminate")]
+        k: Option<u32>,
+        /// Total sections `n` (0 with zero sections).
+        #[arg(long, required_unless_present = "indeterminate")]
+        n: Option<u32>,
+        /// The indeterminate form: no determinable percent. Zero
+        /// sections (`--k 0 --n 0`) resolves here too — the whole
+        /// session stays indeterminate, never a flip.
+        #[arg(long, conflicts_with_all = ["consumed", "total", "k", "n"])]
+        indeterminate: bool,
+    },
 }
 
 /// Earcon subcommands — one per EarconKind.
@@ -123,6 +147,60 @@ fn main() -> io::Result<()> {
         }
         Commands::EngineTier => {
             writeln!(out, "{{\"engine_tier\":\"offline_default\"}}")?;
+            return Ok(());
+        }
+        Commands::Progress {
+            consumed,
+            total,
+            k,
+            n,
+            indeterminate,
+        } => {
+            // The payload: exactly {progress, label, section_title}
+            // — the machine-readable progress contract
+            // (contracts/surface.md "CLI surface"; Principle II: the
+            // Tauri IPC drives this same code).
+            let progress = if indeterminate {
+                player::surface::Progress::Indeterminate
+            } else {
+                // clap's required_unless_present guarantees the four
+                // values are present on this branch; the zero-sections
+                // case (k = 0, n = 0) resolves indeterminate — the
+                // whole session stays indeterminate, never a flip.
+                match (consumed, total, k, n) {
+                    (Some(_), Some(_), Some(0), Some(0)) => {
+                        player::surface::Progress::Indeterminate
+                    }
+                    (
+                        Some(consumed_units),
+                        Some(total_units),
+                        Some(k),
+                        Some(n),
+                    ) => player::surface::Progress::Determinate {
+                        consumed_units,
+                        total_units,
+                        k,
+                        n,
+                    },
+                    _ => {
+                        // Unreachable through clap (the flags are
+                        // required unless --indeterminate), but the
+                        // failure half of the protocol — diagnostic
+                        // to stderr, nothing on stdout — is the
+                        // closed-set-safe answer if it ever were.
+                        eprintln!("usage: player progress (--consumed <u> --total <u> --k <k> --n <n> | --indeterminate)");
+                        std::process::exit(2);
+                    }
+                }
+            };
+            let label = player::surface::progress_label(&progress);
+            let payload = serde_json::json!({
+                "progress": progress,
+                "label": label,
+                "section_title": Value::Null,
+            });
+            let json = serde_json::to_string(&payload)?;
+            writeln!(out, "{json}")?;
             return Ok(());
         }
         Commands::Earcon(earcon_cmd) => {

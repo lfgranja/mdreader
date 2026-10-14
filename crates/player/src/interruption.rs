@@ -117,3 +117,38 @@ pub fn from_routing_pause(decision: &crate::routing::RoutingDecision) -> Option<
         crate::routing::RoutingDecision::NoChange => None,
     }
 }
+
+/// The earcon kind a reason sounds (contracts/earcon.md mirror
+/// contract: "Trigger + lock-screen mirror publish is one Rust
+/// call — impossible to sound without showing").
+///
+/// The N:1 mapping onto the closed 7-kind set (Principle VII —
+/// the match is exhaustive, no catch-all): the four
+/// pause-demanding reasons sound `Warning` (the
+/// abstract-dissonant confirmation that a pause stands); the
+/// three undeliverables sound `Failure` (the E4 transposed
+/// dissonant pair, persistent on the surface); `FocusDelayed`
+/// sounds nothing (the zero-audio hold states no line and
+/// confirms nothing — data-model.md interruption table).
+// §3/§5-style explicitness: every trigger pairs with its earcon on its own
+// arm so the mirror contract's 1:1 pairing is expressed once, per trigger —
+// grouping the arms would weaken the per-trigger mapping the test pins
+// (test_earcon_mirror.rs assertion 1); sanctioned per API_CONTRACT.md §0.1
+// entry 1 convention.
+#[expect(
+    clippy::match_same_arms,
+    reason = "contracts/earcon.md mirror contract pairs every trigger with its earcon on its own arm (test_earcon_mirror.rs assertion 1 pins the pairing); the four pause-demanding reasons legitimately share the Warning arm and the three undeliverables the Failure arm — grouping them into or-patterns would hide the per-trigger pairing"
+)]
+#[must_use]
+pub const fn earcon_for(reason: InterruptionReason) -> Option<crate::earcon::EarconKind> {
+    match reason {
+        InterruptionReason::TransientPaused => Some(crate::earcon::EarconKind::Warning),
+        InterruptionReason::FocusDenied => Some(crate::earcon::EarconKind::Warning),
+        InterruptionReason::PermanentLoss => Some(crate::earcon::EarconKind::Warning),
+        InterruptionReason::DeviceRemoved => Some(crate::earcon::EarconKind::Warning),
+        InterruptionReason::VoiceUnavailable => Some(crate::earcon::EarconKind::Failure),
+        InterruptionReason::FormatUndeliverable => Some(crate::earcon::EarconKind::Failure),
+        InterruptionReason::DecodeFailed => Some(crate::earcon::EarconKind::Failure),
+        InterruptionReason::FocusDelayed => None,
+    }
+}

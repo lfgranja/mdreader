@@ -66,6 +66,14 @@ struct SampleQueue {
     /// Output gain in `[0.0, 1.0]`; full gain by default, so a
     /// fresh queue is bit-identical to the unscaled path.
     gain: f32,
+    /// Duck-exempt short-mix buffer (contracts/earcon.md): the
+    /// procedural earcon PCM rides the SAME stream and the
+    /// SAME clock as speech, but is never scaled by the gain —
+    /// a nav-duck never quiets a confirmation. Consumed
+    /// independently of the speech queue and never counted as
+    /// audible speech, so it can never advance the position
+    /// bookmark.
+    short_mix: VecDeque<f32>,
 }
 
 impl Default for SampleQueue {
@@ -73,6 +81,7 @@ impl Default for SampleQueue {
         Self {
             samples: VecDeque::new(),
             gain: FULL_GAIN,
+            short_mix: VecDeque::new(),
         }
     }
 }
@@ -81,6 +90,13 @@ impl SampleQueue {
     /// Append synthesized samples to the tail.
     fn push(&mut self, pcm: &[f32]) {
         self.samples.extend(pcm.iter().copied());
+    }
+
+    /// Append duck-exempt earcon PCM to the short-mix buffer
+    /// (contracts/earcon.md): mixed at full gain on the same
+    /// stream, never scaled by the duck actuator.
+    fn push_short_mix(&mut self, pcm: &[f32]) {
+        self.short_mix.extend(pcm.iter().copied());
     }
 
     /// The currently applied output gain.
@@ -102,23 +118,49 @@ impl SampleQueue {
     }
 
     /// Move up to `out.len()` samples into `out`, scaling each
-    /// audible sample by the current gain and filling the
-    /// remainder with silence. Returns the consumed count.
+    /// audible speech sample by the current gain, mixing in the
+    /// duck-exempt short-mix (earcon) samples at full gain, and
+    /// filling the remainder with silence. Returns the count of
+    /// SPEECH samples consumed — the only count that may advance
+    /// the position clock (contracts/earcon.md: "Must not
+    /// advance the position bookmark — clock counts speech
+    /// samples only").
     fn consume_into(&mut self, out: &mut [f32]) -> usize {
         let gain = self.gain;
-        let mut consumed = 0;
+        let mut speech_consumed = 0;
         for slot in out.iter_mut() {
-            if let Some(sample) = self.samples.pop_front() {
-                *slot = sample * gain;
-                consumed += 1;
-            } else {
-                *slot = 0.0;
+            let speech = self.samples.pop_front();
+            let earcon = self.short_mix.pop_front();
+            match (speech, earcon) {
+                (Some(sample), Some(tone)) => {
+                    *slot = sample * gain + tone;
+                    speech_consumed += 1;
+                }
+                (Some(sample), None) => {
+                    *slot = sample * gain;
+                    speech_consumed += 1;
+                }
+                (None, Some(tone)) => {
+                    // Duck-exempt: the confirmation plays at full
+                    // gain even while the speech stream is ducked.
+                    *slot = tone;
+                }
+                (None, None) => *slot = 0.0,
             }
         }
-        consumed
+        speech_consumed
     }
 
-    /// Buffered sample count.
+    /// Drop every buffered sample, speech and short-mix alike:
+    /// a pause or stop stands the confirmation down too (the
+    /// trigger path re-fires it once Playing is restored, per
+    /// contracts/earcon.md).
+    fn clear(&mut self) {
+        self.samples.clear();
+        self.short_mix.clear();
+    }
+
+    /// Buffered speech sample count.
     #[must_use]
     fn len(&self) -> usize {
         self.samples.len()
@@ -261,6 +303,23 @@ impl CpalBackend {
         }
     }
 
+    /// Enqueue duck-exempt earcon PCM (contracts/earcon.md):
+    /// the procedural confirmation rides the same stream and
+    /// the same clock as speech, is mixed at FULL gain even
+    /// while the speech stream is ducked, files no
+    /// `AudioFocusRequest`, and never advances the position
+    /// bookmark (the clock counts speech samples only).
+    ///
+    /// The caller (the T029 trigger path) drops and re-fires
+    /// the confirmation when a pause stands; a pause or stop
+    /// through [`pause`](Self::pause) / [`stop`](Self::stop)
+    /// stands the short mix down with the speech queue.
+    pub fn enqueue_earcon(&self, pcm: Vec<f32>) {
+        if let Ok(mut queue) = self.queue.lock() {
+            queue.push_short_mix(&pcm);
+        }
+    }
+
     /// Buffered sample count not yet consumed by the stream.
     #[must_use]
     pub fn buffered_samples(&self) -> usize {
@@ -336,7 +395,9 @@ impl CpalBackend {
             let _ignored = stream.pause();
         }
         if let Ok(mut queue) = self.queue.lock() {
-            queue.samples.clear();
+            // The short mix stands down with the speech queue: a
+            // stop or pause drops any standing confirmation.
+            queue.clear();
         }
         if let Ok(mut clock) = self.position_clock.lock() {
             *clock = PositionClock::new(0.0);

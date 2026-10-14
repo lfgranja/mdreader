@@ -38,13 +38,13 @@ Listener's place in content: section + sentence-anchored offset + monotonic cloc
 | `offset_units` | parsed-content offset | progress numerator; resume anchor |
 | `offset_secs` | `f64 ≥ 0` audible position | compat with 001 `PositionClock`; pre-roll never advances it |
 | `sentence_start` | snapped boundary at/before cursor | snap-back target; mid-word cap-point forward-snaps to next word-gap |
-| `first_yield_ms` | `u64` unix-ms cumulative | 5%-of-pause (REWIND_FRACTION=0.05 capped 30 s) accounting basis only, never reset at supersede; the 004 cue distance is 5–10 s further-backward from containing-sentence-start per FR-007 |
+| `first_yield_ms` | `u64` unix-ms cumulative | 5%-of-pause (REWIND_FRACTION=0.05 capped 30 s) accounting basis only, never reset at supersede; the 004 cue distance is fixed 5 s further-backward from containing-sentence-start per FR-007 |
 
-Cadence (Option C): in-RAM tick ~1 s; non-durable commit per sentence-end/5 s (snap-back source only); **durable every 20 s fixed** (within the FR-007 15–30 s envelope) while Playing + on every pause, focus-loss, device-removal, section-change, Stop (then `delete`), app-background, `DocumentEnd`. Worst-case loss = one interval (20 s); caps: 30 s interruption replay, 60 s kill/power-loss replay. Resume rendering: containing-sentence-start snap, then further backward 5–10 s cue, never mid-word, total backward ≤ cap; degrade to raw last-spoken cursor, never doc start.
+Cadence (Option C): in-RAM tick ~1 s; non-durable commit per sentence-end/5 s (snap-back source only); **durable every 20 s fixed** (within the FR-007 15–30 s envelope) while Playing + on every pause, focus-loss, device-removal, section-change, Stop (then `delete`), app-background, `DocumentEnd`. Worst-case loss = one interval (20 s); caps: 30 s interruption replay, 60 s kill/power-loss replay. Resume rendering: containing-sentence-start snap, then further backward fixed 5 s cue, never mid-word, total backward ≤ cap; degrade to raw last-spoken cursor, never doc start.
 
 ## Playback Session (extends 001 `PlaybackSession`)
 
-Transport STATE (single authority): Playing | Paused | Stopped. Stop is an in-app CONTROL only, never a lock-screen control. EndKind (separate closed enum): Paused | Stopped | Completed | Interrupted (Completed=document end; Interrupted=kill/power-loss/permanent loss/engine failure). Stopped and Completed delete the stored position. Deltas for 004:
+Transport STATE (single authority): Playing | Paused | Stopped. Stop is an in-app CONTROL only, never a lock-screen control. EndKind (separate closed enum; wire name `session_end_reason` in `contracts/diagnostic-record.schema.json`): Paused | Stopped | Completed | Interrupted (Completed=document end; Interrupted=kill/power-loss/permanent loss/engine failure). Stopped and Completed delete the stored position. Deltas for 004:
 
 - Ingest binds `snapshot_path` + `fingerprint` at session start; totals (`total_n`, `total_units`) fixed at session start for progress determinacy.
 - `end_kind`: `Paused | Stopped | Completed | Interrupted` — `Stopped` (in-app Stop only) and `Completed` delete the stored position; `Paused` → 3 s visual-dialog offer (silence = continue from stored); `Interrupted` (kill/power-loss/permanent loss/engine failure) → wait paused + explicit lock-screen resume control, never auto-start.
@@ -74,7 +74,7 @@ Closed ladder `0.75x | 1.0x | 1.25x | 1.5x | 1.75x | 2.0x | 4.0x`, default `1.0x
 
 | Field | Type | Rule |
 |---|---|---|
-| `consumed_units` / `total_units` | parsed-content offsets | bar = fraction; audio-duration estimates never feed it |
+| `consumed_units` / `total_units` | parsed-content offsets (sentence-level units from `adapter-synthesis::chunk::split_document`) | bar = fraction; audio-duration estimates never feed it |
 | `label` | `Section k of N + position %` | text alongside bar |
 | `determinacy` | fixed at session start | determinate only when `total_n` + `total_units` both known then; else indeterminate whole session; no flip, no backward jump; freeze-then-drop on re-parse |
 | zero sections | — | bar indeterminate + no section title |

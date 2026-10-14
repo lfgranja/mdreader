@@ -82,12 +82,12 @@
 
 ### Implementation for US1
 
-- [ ] T017 [P] [US1] Kotlin picker + snapshot write in `android-shell/src/main/kotlin/app/mdreader/DocIngest.kt` (per `contracts/ingest.md`: `ACTION_OPEN_DOCUMENT`, `text/markdown`+`text/plain` filter, persistable grant best-effort `try/catch(SecurityException)`, `ContentResolver` single read, `filesDir/snapshots/<hex>.{md,txt}` write/trim; keep-current-only (trim all but current on new pick / Stop / document-end); forward-only, zero position logic)
+- [X] T017 [P] [US1] Kotlin picker + snapshot write in `android-shell/src/main/kotlin/app/mdreader/DocIngest.kt` (per `contracts/ingest.md`: `ACTION_OPEN_DOCUMENT`, `text/markdown`+`text/plain` filter, persistable grant best-effort `try/catch(SecurityException)`, `ContentResolver` single read, `filesDir/snapshots/<hex>.{md,txt}` write/trim; keep-current-only (trim all but current on new pick / Stop / document-end); forward-only, zero position logic)
 - [ ] T018 [P] [US1] `session ingest` CLI verb in `crates/session/src/cli.rs` (hash + `store.get` → `{fingerprint, resume: bool, offset}` JSON; Tauri IPC calls same fn; `--format json` default)
 - [ ] T019 [US1] `open_document(bytes)` command reusing `play()` path in `src-tauri/src/lib.rs` (depends on T017, T018; snapshot bytes are the sole synthesis input; totals `total_n`+`total_units` fixed at session start; pure-offline, zero network; cold-start budget owned here — if T016/T051 miss ≤3 s, file perf fix under this task, never renegotiate the bound (spec Assumptions stop-the-line))
 - [ ] T020 [P] [US1] Section-boundary skip in `crates/player/src/skip.rs` (next/previous boundary via `doc-structure`, ±10 s fallback when zero sections, boundary clamp)
 - [ ] T021 [US1] Single minimal in-app screen transport + Stop in `src-tauri/src/status_view.rs` (+ frontend view `src-tauri/src/status_view.html`) (depends on T019; title/section/progress/speed/transport + dedicated Stop clearing stored position; never prose; read-only mirror owning no state)
-- [ ] T022 [P] [US1] Foreground residency + screen-off continuity assertion in `android-shell/src/main/kotlin/app/mdreader/PlaybackService.kt` (reuse existing holder; assert audio continues locked; dismissal refused while playing — independent of T019/T021, different file, no depends; Foundational-green only)
+- [X] T022 [P] [US1] Foreground residency + screen-off continuity assertion in `android-shell/src/main/kotlin/app/mdreader/PlaybackService.kt` (reuse existing holder; assert audio continues locked; dismissal refused while playing — independent of T019/T021, different file, no depends; Foundational-green only)
 
 **Checkpoint**: US1 host-green only (`cargo nextest` green for T013–T016); device steps (30-min locked session + 10/10 ≤3 s trials per quickstart §3.1–3.2) deferred to T051 — no on-device attestation here.
 

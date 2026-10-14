@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>mdreader — Playback Shell (US1 MVP)</title>
+  <title>Leitura</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;500;700&display=swap');
     :root {
@@ -117,6 +117,25 @@
       min-width: 60px;
       text-align: center;
     }
+    .speed-dots {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: .4rem;
+      min-width: 60px;
+      min-height: 1.5rem;
+    }
+    .speed-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--progress-bg);
+      transition: background .15s, transform .15s;
+    }
+    .speed-dot.active {
+      background: var(--progress-fill);
+      transform: scale(1.25);
+    }
     #progress {
       width: 100%;
       height: 6px;
@@ -155,19 +174,19 @@
 </head>
 <body>
 <div class="card">
-  <h1>mdreader</h1>
+  <h1 id="documentTitle"></h1>
   <div class="subtitle" id="sectionTitle">Seção: —</div>
 
   <div class="controls" id="transportControls">
-    <button class="secondary" id="btnSkipBack" aria-label="Retroceder 5s">⏪</button>
+    <button class="secondary" id="btnSkipBack" aria-label="Retroceder">⏪</button>
     <button class="primary" id="btnPlayPause" aria-label="Reproduzir/Pausar">▶</button>
     <button class="stop" id="btnStop" aria-label="Parar e limpar posição">⏹</button>
-    <button class="secondary" id="btnSkipForward" aria-label="Avançar 5s">⏩</button>
+    <button class="secondary" id="btnSkipForward" aria-label="Avançar">⏩</button>
   </div>
 
   <div class="speed-control">
     <button class="secondary speed-btn" id="btnRateDown" aria-label="Diminuir velocidade">−</button>
-    <span class="speed-display" id="speedDisplay">1.0x</span>
+    <div class="speed-dots" id="speedDots" aria-hidden="true"></div>
     <button class="secondary speed-btn" id="btnRateUp" aria-label="Aumentar velocidade">+</button>
   </div>
 
@@ -175,7 +194,7 @@
 
   <div class="reason-banner" id="reasonBanner" role="alert" aria-live="polite"></div>
 
-  <div class="version-footer">v0.1.0 • aarch64-release • DESIGN-SONA palette</div>
+  <div class="version-footer" id="versionFooter"></div>
 </div>
 
 <script type="module">
@@ -184,7 +203,7 @@
   // and renders read-only mirror of SurfaceSnapshot from Rust
 
   const state = {
-    title: 'mdreader',
+    title: '',
     sectionTitle: null,
     transport: 'stopped',
     positionSecs: 0,
@@ -201,6 +220,7 @@
 
   // DOM elements
   const els = {
+    documentTitle: document.querySelector('h1'),
     sectionTitle: document.getElementById('sectionTitle'),
     btnPlayPause: document.getElementById('btnPlayPause'),
     btnStop: document.getElementById('btnStop'),
@@ -208,7 +228,7 @@
     btnSkipForward: document.getElementById('btnSkipForward'),
     btnRateDown: document.getElementById('btnRateDown'),
     btnRateUp: document.getElementById('btnRateUp'),
-    speedDisplay: document.getElementById('speedDisplay'),
+    speedDots: document.getElementById('speedDots'),
     progressFill: document.getElementById('progressFill'),
     reasonBanner: document.getElementById('reasonBanner'),
   };
@@ -257,6 +277,15 @@
     }
   }
 
+  function renderDocumentTitle() {
+    // FR-011: title is document metadata (or the filename
+    // placeholder) — never the first sentence, never prose.
+    // Empty when no document is loaded: no internal build
+    // name ever reaches a user-visible surface (naming
+    // boundary, T047).
+    els.documentTitle.textContent = state.title || '';
+  }
+
   function renderProgress() {
     let pct = 0;
     if (state.progress.kind === 'determinate' && state.progress.total_units > 0) {
@@ -275,7 +304,21 @@
   }
 
   function renderSpeed() {
-    els.speedDisplay.textContent = `${state.rate.toFixed(state.rate === 0.75 ? 2 : 1)}x`;
+    // FR-012: rate-value blind — the numeric rung MUST NOT
+    // appear on any surface. The stepper orients by position
+    // on the closed 7-rung ladder (dots), earcon and haptic.
+    if (els.speedDots.childElementCount !== LADDER.length) {
+      els.speedDots.innerHTML = '';
+      for (let i = 0; i < LADDER.length; i++) {
+        const dot = document.createElement('span');
+        dot.className = 'speed-dot';
+        els.speedDots.appendChild(dot);
+      }
+    }
+    const dots = els.speedDots.children;
+    for (let i = 0; i < dots.length; i++) {
+      dots[i].classList.toggle('active', i === rateIndex);
+    }
   }
 
   function renderReason() {
@@ -299,6 +342,7 @@
   }
 
   function renderAll() {
+    renderDocumentTitle();
     renderTransport();
     renderSectionTitle();
     renderProgress();
@@ -400,6 +444,8 @@
     try {
       const initial = await invoke('get_status_view');
       if (initial) {
+        state.title = initial.title || state.title;
+        state.sectionTitle = initial.section_title || null;
         state.rate = initial.rate;
         state.transport = initial.transport;
         state.positionSecs = initial.position_secs;

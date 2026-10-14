@@ -17,7 +17,7 @@ struct Cli {
     #[command(subcommand)]
     command: Commands,
     /// Output format.
-    #[arg(long, default_value = "json")]
+    #[arg(long, default_value = "json", global = true)]
     format: String,
 }
 

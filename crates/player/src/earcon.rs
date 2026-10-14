@@ -110,6 +110,16 @@ pub struct EarconDescriptor {
     /// Perceptual fingerprint for distinctness verification.
     pub perceptual_fingerprint: PerceptualFingerprint,
     /// Generated PCM samples (mono f32).
+    ///
+    /// Skipped in the serialized descriptor: the wire form is
+    /// the descriptor (kind, duration, band, format) — the
+    /// PCM itself reaches the backend through
+    /// [`EarconDescriptor::samples`], never through the JSON
+    /// descriptor a `--format json` consumer reads (FR-045:
+    /// no bulk payload in the machine-readable shape; the
+    /// descriptor is the contract, the samples are the
+    /// delivery).
+    #[serde(skip)]
     pub samples: Vec<f32>,
 }
 

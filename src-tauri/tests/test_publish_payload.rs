@@ -43,7 +43,7 @@ fn publish_payload_carries_exactly_the_five_contract_keys_for_each_transport() {
 
     for transport in transports {
         let position_secs = 30.0;
-        let duration_secs = 120.0;
+        let _duration_secs = 120.0;
         let section_title = Some("Chapter 1".to_string());
 
         // This call will fail until T133 implements publish_mirror.
@@ -92,17 +92,26 @@ fn publish_payload_carries_exactly_the_five_contract_keys_for_each_transport() {
             "progress must be determinate for known-duration session"
         );
         let det = progress.get("determinate").unwrap();
+        // 004 content-offset shape (contracts/surface.md / T005):
+        // the determinate payload carries parsed-content units and the
+        // section counts — never the time-based position/duration the
+        // 001 shell-ipc wire form carried (audio-duration estimates never
+        // feed progress).
         assert_eq!(
-            det.get("position_secs"),
-            Some(&Value::Number(
-                serde_json::Number::from_f64(position_secs).unwrap()
-            ))
+            det.get("consumed_units"),
+            Some(&Value::Number(30_u64.into())),
+            "consumed_units must be the content-offset numerator (T005 shape)"
         );
         assert_eq!(
-            det.get("duration_secs"),
-            Some(&Value::Number(
-                serde_json::Number::from_f64(duration_secs).unwrap()
-            ))
+            det.get("total_units"),
+            Some(&Value::Number(120_u64.into())),
+            "total_units must be the session-start content-offset total (T005 shape)"
+        );
+        assert!(det.get("k").is_some(), "k (current section) must be present");
+        assert!(det.get("n").is_some(), "n (total sections) must be present");
+        assert!(
+            det.get("position_secs").is_none() && det.get("duration_secs").is_none(),
+            "the 001 time-based progress fields must not survive the 004 content-offset shape (T005)"
         );
 
         // Verify no extra keys (especially no body text, rate, voice, etc.)

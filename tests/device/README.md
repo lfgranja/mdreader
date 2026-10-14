@@ -117,6 +117,16 @@ Verdict: ___/10   Operator:          Evidence ref:
 | SC-057 | **N/A on-device** — host gate | T081 closed-set/registry-reference check |
 | SC-044 | **CARRIED-FORWARD** — not runnable here | owner: synthesis feature (`002-fr-024-synthesis-adapter`); SC-051 discharges the mechanism meanwhile |
 
+**Feature 004 (`004-ressoa-dogfood-build`)** — the dogfood build's own
+acceptance set lives in `trials-004.md` (executed by T051, attested by the
+Phase 8 tasks T048–T052, reference phone Redmi 2201117TY only, fixture
+`fixtures/fixture-pt-2h.md`, every section 10/10):
+
+| Criterion | Category | Discharged by |
+|---|---|---|
+| SC-001 (commute loop, per rung) · SC-002 (first audible ≤ 3 s) · SC-003 (interruptions per class) · SC-004 (blind confirmations, sounds on/off) · SC-005 (resume matrix + replay caps) · SC-006 (lock-screen purity + dismissal refusal) · SC-007 (rate persistence + unpitched) · SC-008 (record bounds + zero prose) · SC-009 (offline) · SC-010 (in-app purity + Stop clears) | **On-device trial, 10/10** | `trials-004.md` §T051-01…T051-10, executed by T051 |
+| Lock-screen privacy (hide-contents) | **Manual inspection** | `trials-004.md` §T051-11 |
+
 Coverage check: 57 SCs + FR-026 = 58 entries; 48 trials + 9 routed/non-trial
 procedures = 58. Nothing is unrouted.
 

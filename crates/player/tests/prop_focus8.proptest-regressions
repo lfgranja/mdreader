@@ -1,7 +1,0 @@
-# Seeds for failure cases proptest has generated in the past. It is
-# automatically read and these particular cases re-run before any
-# novel cases are generated.
-#
-# It is recommended to check this file in to source control so that
-# everyone who runs the test benefits from these saved cases.
-cc 77a7917eef1cd4d6679532890fc1ce46e67719a058db9a012806f353a2d2a01b # shrinks to intents = [FocusRegained, DeviceDisappeared]

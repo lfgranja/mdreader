@@ -1838,12 +1838,14 @@ pub mod commands {
         let reason: Option<(crate::surface::FullReason, crate::surface::ReasonExpiry)> = None;
 
         let document_title = surface.title.clone();
+        let section_title = surface.section_title.clone();
         let fingerprint = fingerprint.unwrap_or([0u8; 32]);
         Ok(crate::status_view::render_status_view(
             last_rate,
             snap.transport,
             snap.position_secs,
             &document_title,
+            section_title,
             reason,
             fingerprint,
         ))

@@ -77,6 +77,7 @@ fn status_view_object(transport: TransportState) -> Value {
         30.0,
         "Rota da Manhã",
         None,
+        None,
         [0u8; 32],
     );
     serde_json::to_value(&view).expect("status view serializes")
@@ -94,6 +95,7 @@ fn status_payload_carries_title_section_and_progress_only() {
         let object = obj.as_object().expect("status payload is a JSON object");
         for key in object.keys() {
             let permitted = PERMITTED_STATE_KEYS.contains(&key.as_str())
+                || key == "title"
                 || key == "section_title"
                 || key == "progress"
                 || key == "position_secs";
@@ -171,7 +173,7 @@ fn rate_mirror_is_the_stored_rung_not_a_display_value() {
         PlaybackRate::R2_0,
         PlaybackRate::R4_0,
     ] {
-        let view = render_status_view(Some(rung), TransportState::Playing, 10.0, "Doc", None, [0u8; 32]);
+        let view = render_status_view(Some(rung), TransportState::Playing, 10.0, "Doc", None, None, [0u8; 32]);
         // The rung round-trips through the stored-rate mirror.
         assert_eq!(
             view.rate, rung,

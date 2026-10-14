@@ -37,11 +37,31 @@ use crate::surface::{FullReason, ReasonExpiry, full_reason};
 ///
 /// The wire form follows the case-mapping table
 /// (contracts/shell-ipc.md): `rate` as its JSON rung number,
-/// `transport` and `reason_expiry` as their `snake_case` wire
-/// strings, `position_secs` as its JSON number, and `reason`
-/// as the final statement string the T065 getter renders.
+/// The in-app status view (T065b): the read-only mirror of
+/// the session's authoritative state, the document title and
+/// current section title (FR-011: title + section + progress
+/// only — never document prose), the stored last_rate, the
+/// current reason statement with its expiry, and the content
+/// fingerprint the Stop control clears.
+///
+/// The wire form: `transport` and `reason_expiry` as their
+/// `snake_case` wire strings, `position_secs` as its JSON
+/// number, `reason` as the final statement string the T065
+/// getter renders, `title`/`section_title` as the display
+/// projection (`section_title` skipped when absent — the
+/// absent key, not null, is the contract).
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct StatusView {
+    /// The document title (FR-011/FR-029): the metadata
+    /// title when present, else the filename placeholder —
+    /// never the first spoken sentence, never document prose.
+    pub title: String,
+    /// The most-recent-passed section title (FR-028c), or
+    /// `None` before the first heading / for a heading-less
+    /// document — never forward-looking, never document
+    /// body text. Skipped on the wire when `None`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub section_title: Option<String>,
     /// The playback rate shown in-app (SC-027): the session
     /// store's `last_rate` (FR-019b), the same source the
     /// lock screen reads. The wire form is the rung's JSON
@@ -128,6 +148,7 @@ pub fn render_status_view(
     transport: TransportState,
     position_secs: f64,
     document_title: &str,
+    section_title: Option<String>,
     reason: Option<(FullReason, ReasonExpiry)>,
     fingerprint: [u8; 32],
 ) -> StatusView {
@@ -136,6 +157,8 @@ pub fn render_status_view(
         None => (None, None),
     };
     StatusView {
+        title: document_title.to_owned(),
+        section_title,
         rate: last_rate.unwrap_or(PlaybackRate::R1_0),
         transport,
         position_secs,
@@ -221,6 +244,7 @@ mod tests {
                 0.0,
                 DOCUMENT_TITLE,
                 None,
+                None,
                 TEST_FINGERPRINT,
             );
             assert_eq!(view.rate, rate);
@@ -232,7 +256,7 @@ mod tests {
         // storage-schema.md: last_rate defaults to 1.0 on
         // first use — an empty store renders the normal-speed
         // rung, never an unset or zero rate.
-        let view = render_status_view(None, TransportState::Paused, 0.0, DOCUMENT_TITLE, None, TEST_FINGERPRINT);
+        let view = render_status_view(None, TransportState::Paused, 0.0, DOCUMENT_TITLE, None, None, TEST_FINGERPRINT);
         assert_eq!(view.rate, PlaybackRate::R1_0);
     }
 
@@ -257,6 +281,7 @@ mod tests {
                 position_secs,
                 DOCUMENT_TITLE,
                 None,
+                None,
                 TEST_FINGERPRINT,
             );
             assert_eq!(view.transport, transport);
@@ -276,6 +301,7 @@ mod tests {
                 TransportState::Paused,
                 33.25,
                 DOCUMENT_TITLE,
+                None,
                 Some((failure, ReasonExpiry::FailurePersistent)),
                 TEST_FINGERPRINT,
             );
@@ -306,6 +332,7 @@ mod tests {
                 TransportState::Paused,
                 33.25,
                 DOCUMENT_TITLE,
+                None,
                 Some((focus, ReasonExpiry::Focus3s)),
                 TEST_FINGERPRINT,
             );
@@ -329,6 +356,7 @@ mod tests {
             TransportState::Playing,
             12.5,
             DOCUMENT_TITLE,
+            None,
             Some((
                 FullReason::NotificationDenied,
                 ReasonExpiry::FailurePersistent,
@@ -359,6 +387,7 @@ mod tests {
             12.5,
             DOCUMENT_TITLE,
             None,
+            None,
             TEST_FINGERPRINT,
         );
         assert_eq!(view.reason, None);
@@ -375,6 +404,7 @@ mod tests {
                 TransportState::Playing,
                 12.5,
                 DOCUMENT_TITLE,
+                None,
                 None,
                 TEST_FINGERPRINT
             )
@@ -396,6 +426,7 @@ mod tests {
                 TransportState::Paused,
                 0.0,
                 DOCUMENT_TITLE,
+                None,
                 Some((reason, reason.expiry())),
                 TEST_FINGERPRINT,
             );
@@ -425,6 +456,7 @@ mod tests {
                 TransportState::Paused,
                 0.0,
                 DOCUMENT_TITLE,
+                None,
                 Some((failure, ReasonExpiry::FailurePersistent)),
                 TEST_FINGERPRINT,
             );
@@ -448,6 +480,7 @@ mod tests {
             TransportState::Paused,
             33.25,
             DOCUMENT_TITLE,
+            None,
             Some((
                 FullReason::EngineDeviceLost,
                 ReasonExpiry::FailurePersistent,
@@ -457,6 +490,7 @@ mod tests {
         assert_eq!(
             serde_json::to_value(&failure).ok(),
             Some(serde_json::json!({
+                "title": DOCUMENT_TITLE,
                 "rate": 1.5,
                 "transport": "paused",
                 "position_secs": 33.25,
@@ -470,12 +504,14 @@ mod tests {
             TransportState::Interrupted,
             7.75,
             DOCUMENT_TITLE,
+            None,
             Some((FullReason::FocusPermanentLoss, ReasonExpiry::Focus3s)),
             TEST_FINGERPRINT,
         );
         assert_eq!(
             serde_json::to_value(&focus).ok(),
             Some(serde_json::json!({
+                "title": DOCUMENT_TITLE,
                 "rate": 1.0,
                 "transport": "interrupted",
                 "position_secs": 7.75,

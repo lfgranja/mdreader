@@ -23,16 +23,18 @@
 //!
 //! Why the 3 s bound is NOT asserted here: a host measurement is
 //! dominated by a cold sherpa-onnx / Piper VITS model load in a
-//! DEBUG build on x86 — 7 432 ms to 9 355 ms across three
-//! measured runs on this host (2026-10-14), over the device bound
+//! DEBUG build on x86 — 6 699 ms to 28 488 ms across twelve
+//! measured runs on this host (2026-10-14, with several parallel
+//! cargo test sessions loading the machine), over the device bound
 //! and irrelevant to it, because the bound's endpoint is the
-//! device transducer, not the adapter. Asserting 3 s on the host would
-//! make the suite flaky on slow hosts for a bound that was never
-//! device-scoped, so the host assertion is the generous
-//! [`HOST_SANITY_CEILING_MS`] (60 000 ms): a cold debug x86 run is
-//! comfortably inside it, while a >60 s or failed synthesis means
-//! the Play path itself is broken (a missing voice model, a dead
-//! engine, an empty/corrupt buffer) and must fail loudly.
+//! device transducer, not the adapter. Asserting 3 s on the host
+//! would make the suite flaky on slow or loaded hosts for a bound
+//! that was never device-scoped, so the host assertion is the
+//! generous [`HOST_SANITY_CEILING_MS`] (60 000 ms) — still more
+//! than twice the slowest host run measured — while a >60 s or
+//! failed synthesis means the Play path itself is broken (a missing
+//! voice model, a dead engine, an empty/corrupt buffer) and must
+//! fail loudly.
 //!
 //! Bind only to public surfaces: [`adapter_synthesis::chunk`]
 //! (`split_document`), [`adapter_synthesis::synth`] (`synthesize`)
@@ -80,9 +82,10 @@ const PLAY_TO_AUDIO_BOUND_MS: u128 = 3_000;
 /// harness asserts against a host measurement.
 ///
 /// Sixty seconds is deliberately generous — twenty times the
-/// normative bound, and more than six times the slowest host run
-/// measured (9 355 ms on this host, 2026-10-14) — so the suite can
-/// never go flaky on a slow or loaded host. Exceeding it, or a
+/// normative bound, and more than twice the slowest of twelve runs
+/// measured on this host (28 488 ms, 2026-10-14, on a machine
+/// loaded by several parallel cargo test sessions) — so the suite
+/// can never go flaky on a slow or loaded host. Exceeding it, or a
 /// synthesis failure, means the Play path is broken rather than
 /// slow.
 const HOST_SANITY_CEILING_MS: u128 = 60_000;

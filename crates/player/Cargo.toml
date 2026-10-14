@@ -26,6 +26,12 @@ ndk = "0.9"
 [dev-dependencies]
 proptest = { workspace = true }
 tempfile = { workspace = true }
+# The headings provider type the section-boundary
+# skip resolves through (T020 / T013): the crate
+# depends on it already, and the property test
+# constructs the same Heading values a parsed
+# document supplies.
+doc-structure = { path = "../doc-structure" }
 # Direct redb access for the bookmark round-trip tests
 # (session::BOOKMARKS is a redb table; the crate itself does not
 # re-export the redb types the round-trip needs).

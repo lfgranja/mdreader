@@ -28,17 +28,47 @@ pub fn skip_clamped(position: f64, direction: SkipDirection, duration: f64) -> f
     (position + delta).max(0.0).min(duration)
 }
 
-/// Skip to the next/previous section boundary using document headings (FR-038).
+/// Skip to the next/previous section boundary using
+/// document headings (FR-038 / FR-002): the
+/// lock-screen skip control jumps to the NEXT
+/// section boundary going forward — the first
+/// boundary strictly after the press position — and
+/// the PREVIOUS one going backward — the greatest
+/// boundary strictly before it, because a skip that
+/// does not move is not a skip (T013).
 ///
-/// - If `headings` is non-empty: finds the next (forward) or previous (backward)
-///   section boundary from `position`. The boundary is the heading's `position_secs`.
-/// - If `headings` is empty (zero sections): falls back to ±10.0 seconds.
-/// - Result is clamped to `[0.0, duration]`.
+/// The ±10 s fallback is a ZERO-SECTIONS rule only
+/// (FR-002: "falling back to ±10 seconds when the
+/// document has no sections"): an empty heading list
+/// displaces the position by exactly ±10.0 s. A
+/// document WITH sections but no boundary in the
+/// skip direction clamps to the document's own end
+/// instead — a forward skip past the last section
+/// lands at the duration, a backward skip before the
+/// first at the `0.0` floor — never at an arbitrary
+/// interior point, so the FR-038 re-anchor anchor is
+/// preserved by construction.
 ///
-/// # Errors
+/// The boundary resolution delegates to
+/// [`doc_structure::Document`] — the ordered-headings
+/// provider normalizes any input order, so the
+/// landing is a pure function of the heading set,
+/// never of the list's input order. The result is
+/// clamped into `[0.0, duration]` (SC-016: a skip
+/// that would leave the document clamps to the
+/// bound, never an error). Pass `f64::INFINITY` for
+/// `duration` on a session with no known end — the
+/// identity for the `.min` clamp, the unknown-
+/// duration pattern
+/// [`PlaybackSession`](crate::cli::PlaybackSession)
+/// uses.
 ///
-/// Never errors; the closed-set direction and explicit clamping ensure
-/// total coverage without catch-all arms.
+/// The section-boundary skip is the FR-002 verb
+/// path for a document whose headings are known;
+/// [`skip_clamped`] remains the canonical ±5.0 s
+/// displacement of FR-018, and the verb wiring over
+/// the headings lands with the session's heading
+/// input (T041).
 #[must_use]
 pub fn skip_section(
     position: f64,
@@ -47,28 +77,41 @@ pub fn skip_section(
     duration: f64,
 ) -> f64 {
     let doc = Document::new(headings.to_vec());
-    let target = match direction {
-        SkipDirection::Forward => {
-            // Find the first heading strictly after current position
-            doc.headings()
-                .iter()
-                .find(|h| h.position_secs > position)
-                .map(|h| h.position_secs)
-        }
+    // A document with no sections has no boundary
+    // to land on in either direction: the ±10 s
+    // displacement is that document's skip.
+    let zero_sections = headings.is_empty();
+    match direction {
+        SkipDirection::Forward => match doc
+            .headings()
+            .iter()
+            .find(|heading| heading.position_secs > position)
+        {
+            Some(boundary) => boundary.position_secs.max(0.0).min(duration),
+            None if zero_sections => (position + 10.0).max(0.0).min(duration),
+            // Past the last section of a sectioned
+            // document: the skip lands at the document
+            // end, never at an interior point.
+            None => duration,
+        },
         SkipDirection::Backward => {
-            // Find the nearest boundary at or before current position
-            doc.nearest_boundary_at_or_before(position)
-                .map(|h| h.position_secs)
+            // The greatest boundary strictly before the
+            // press position — the reverse scan of the
+            // provider's ascending list.
+            match doc
+                .headings()
+                .iter()
+                .rev()
+                .find(|heading| heading.position_secs < position)
+            {
+                Some(boundary) => boundary.position_secs.max(0.0),
+                None if zero_sections => (position - 10.0).max(0.0).min(duration),
+                // Before the first section of a sectioned
+                // document: the skip lands at the start.
+                None => 0.0,
+            }
         }
-    };
-
-    let fallback_delta = match direction {
-        SkipDirection::Forward => 10.0,
-        SkipDirection::Backward => -10.0,
-    };
-
-    let new_pos = target.unwrap_or_else(|| position + fallback_delta);
-    new_pos.max(0.0).min(duration)
+    }
 }
 
 /// Pre-roll ≤60 s — ring buffer never advances position; empty while idle (FR-015a/FR-015b/FR-015c).

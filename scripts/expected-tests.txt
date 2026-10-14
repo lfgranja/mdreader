@@ -31,6 +31,7 @@ player::prop_lifecycle
 player::prop_resume_boundary
 player::prop_rewind
 player::prop_routing
+player::prop_skip
 player::prop_skip_clamp
 player::prop_surface
 player::prop_transport_math

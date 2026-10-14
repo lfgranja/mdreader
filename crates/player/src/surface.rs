@@ -99,28 +99,41 @@ pub struct Heading {
 ///
 /// The wire form is the externally-tagged variant
 /// name (contracts/shell-ipc.md case-mapping table):
-/// `{"determinate": {"position_secs": …,
-/// "duration_secs": …}}` and `"indeterminate"` — the
-/// indeterminate variant carries no duration field.
+/// `{"determinate": {"consumed_units": …,
+/// "total_units": …, "k": …, "n": …}}`
+/// and `"indeterminate"` — the indeterminate
+/// variant carries no unit fields.
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Progress {
-    /// The total spoken length is known: the progress
-    /// carries the session's position and the marked
-    /// document extent (never an estimate).
+    /// The total content offset is known at session
+    /// start: the progress carries the consumed and
+    /// total content units (parsed-content offsets,
+    /// never audio-duration estimates), the current
+    /// section `k` (1-based), and the total sections `n`.
+    /// Fixed at session start — never estimated, never
+    /// flipped mid-session. Freeze-then-drop on
+    /// re-parse.
     Determinate {
-        /// The session's authoritative position, in
-        /// seconds (FR-002 / FR-003).
-        position_secs: f64,
-        /// The marked document extent, in seconds — the
-        /// greatest heading position the heading list
-        /// marks (the resolver's only duration input).
-        duration_secs: f64,
+        /// Parsed-content units consumed (content-offset,
+        /// never audio-duration or time-based).
+        consumed_units: u64,
+        /// Total parsed-content units marked at session
+        /// start (content-offset, never an estimate,
+        /// never time-based).
+        total_units: u64,
+        /// Current section index `k` (1-based) from the
+        /// heading list at the resolve position.
+        k: u32,
+        /// Total sections `n` from the heading list
+        /// (0 when no headings / zero sections).
+        n: u32,
     },
-    /// The total spoken length was unknown at session
-    /// start: the progress carries no total — the
+    /// The total content offset was unknown at session
+    /// start: the progress carries no units — the
     /// whole session stays indeterminate, never an
-    /// estimate (FR-028a).
+    /// estimate (FR-028a). Zero sections resolve to
+    /// indeterminate with a null section title.
     Indeterminate,
 }
 
@@ -283,13 +296,21 @@ impl SurfaceResolver {
     /// extent — never an estimate.
     #[must_use]
     pub fn resolve(&self, position_secs: f64, headings: &[Heading]) -> SurfaceSnapshot {
+        let k = headings
+            .iter()
+            .rposition(|h| h.position_secs <= position_secs)
+            .map(|i| (i + 1) as u32)
+            .unwrap_or(0);
+        let n = headings.len() as u32;
         SurfaceSnapshot {
             title: self.title.clone(),
             section_title: most_recent_passed_section(headings, position_secs),
             progress: if self.duration_known_at_start {
                 Progress::Determinate {
-                    position_secs,
-                    duration_secs: marked_document_total(headings),
+                    consumed_units: position_secs as u64,
+                    total_units: marked_document_total(headings) as u64,
+                    k,
+                    n,
                 }
             } else {
                 Progress::Indeterminate

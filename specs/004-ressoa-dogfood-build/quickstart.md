@@ -33,7 +33,7 @@ Expect: installs on the reference phone; no reviewer/listing/changelog involved.
 
 ## 3. On-device acceptance (reference phone only)
 
-1. **Commute loop (SC-001)**: one 30-minute session per rate rung (7 separate trials, not combined): open fixture via system file picker → Play → lock → 30 min continuous audible reading with screen off, lock-screen controls only, zero unlocks; repeat independently at each of the 7 speeds incl. 4.0x.
+1. **Commute loop (SC-001) (E1)**: one 30-minute session per rate rung (7 separate trials, not combined; 7 × 30 min individually, not a single 210-min trial): open fixture via system file picker → Play → lock → 30 min continuous audible reading with screen off, lock-screen controls only, zero unlocks; repeat independently at each of the 7 speeds incl. 4.0x.
 2. **First audio (SC-002)**: 10/10 cold-start trials (cold start = process-killed, fixture unopened, radios off), first audible speech ≤3 s after Play.
 3. **Interruptions (SC-003)**: 10/10 per class — nav-transient → duck ~20% + restore; call/alarm → pause + 3 s reason, never auto-resume; headphone removal → pause ≤1 s, never on speaker; permanent loss → pause + 3 s, never auto-resume.
 4. **Blind confirmations (SC-004)**: no-look, 10/10 per type (play, pause, skip, rate-step, warning, failure) via earcon + state change + haptic, sounds-on and sounds-off.

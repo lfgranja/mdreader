@@ -100,11 +100,11 @@ fn session_at_rung(index: usize) -> Result<PlaybackSession, PropError> {
     // The fresh session starts at LADDER[1] (R1_0).
     if index >= 1 {
         for _ in 0..(index - 1) {
-            session.execute(ShellVerb::RateUp)?;
+            let _stepped = session.execute(ShellVerb::RateUp)?;
         }
     } else {
         for _ in 0..(1 - index) {
-            session.execute(ShellVerb::RateDown)?;
+            let _stepped = session.execute(ShellVerb::RateDown)?;
         }
     }
     Ok(session)

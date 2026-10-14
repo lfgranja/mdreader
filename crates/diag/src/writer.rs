@@ -630,7 +630,7 @@ pub fn detail_from_pairs(pairs: &[(&str, &str)]) -> Result<Option<String>, Detai
     for (key, value) in pairs {
         validate_key(key)?;
         validate_value(value)?;
-        tokens.push(format!("{}={}", key, value));
+        tokens.push(format!("{key}={value}"));
     }
     let detail = tokens.join(" ");
     if detail.chars().count() > 200 {
@@ -656,7 +656,7 @@ pub fn detail_measured_latency(
     detail_from_pairs(&[
         (detail_keys::PLAY_TO_AUDIO_MS, &play_to_audio_ms.to_string()),
         (detail_keys::REMOVAL_PAUSE_MS, &removal_pause_ms.to_string()),
-        (detail_keys::REPLAY_SECS, &format!("{:.3}", replay_secs)),
+        (detail_keys::REPLAY_SECS, &format!("{replay_secs:.3}")),
     ])
 }
 
@@ -676,9 +676,10 @@ fn validate_value(value: &str) -> Result<(), DetailError> {
     if value.is_empty() {
         return Err(DetailError::InvalidValue(value.to_string()));
     }
-    if !value.chars().all(|c| {
-        c.is_ascii_alphanumeric() || matches!(c, '.' | '+' | '-' | '_')
-    }) {
+    if !value
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '+' | '-' | '_'))
+    {
         return Err(DetailError::InvalidValue(value.to_string()));
     }
     Ok(())
@@ -698,9 +699,11 @@ pub enum DetailError {
     TooLong(usize),
 }
 
-impl From<DetailError> for crate::writer::DiagError {
+impl From<DetailError> for DiagError {
     fn from(err: DetailError) -> Self {
-        DiagError::Serialize(serde_json::Error::io(std::io::Error::other(err.to_string())))
+        Self::Serialize(serde_json::Error::io(std::io::Error::other(
+            err.to_string(),
+        )))
     }
 }
 

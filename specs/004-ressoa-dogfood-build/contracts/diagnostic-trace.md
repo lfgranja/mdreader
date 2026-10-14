@@ -16,7 +16,7 @@ FR-017. Extends `specs/001-android-media-shell/contracts/diagnostic-record.schem
 
 - Timestamps + content-hash refs only; **zero document prose** in any entry (`scan.rs` `ProseInDetail` predicate enforces).
 - `detail` ≤200 chars identifier-pattern (`key=value`) or typed fields only.
-- Trim: oldest-first; `Trim` markers flushed before retained entries, never silent.
+- Trim: oldest-first; `Trim` markers flushed before retained entries, never silent. Design estimate: ~100k entries max within the 30-day/10 MB bounds (informative, not a hard limit).
 
 ## Schema delta (new required kinds vs 001)
 

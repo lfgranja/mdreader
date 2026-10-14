@@ -60,3 +60,7 @@ Thumbs.db
 *.key
 target/
 .env*
+
+# Snapshots — repo-local snapshot content (device filesDir/snapshots never enters git)
+/snapshots/
+/snapshots/*

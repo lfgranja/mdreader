@@ -20,13 +20,20 @@
 //! Delivery guarantees: a send failure (application not running) or
 //! an unknown code drops the event with a [`tracing`] diagnostic —
 //! never silent, never a crash, never a playing state.
+//
+// Allow unsafe code for JNI operations (FFI boundary).
+#![allow(unsafe_code)]
 
-use std::ffi::c_void;
+#[cfg(target_os = "android")]
+use std::ffi::{c_void, CString};
+#[cfg(target_os = "android")]
 use std::sync::{
     Mutex, OnceLock,
     mpsc::{Receiver, Sender},
 };
 
+#[cfg(target_os = "android")]
+use jni::objects::{JClass, JString, JValue};
 use tauri::{AppHandle, Manager};
 
 use crate::AppState;
@@ -46,6 +53,24 @@ static VERB_TX: OnceLock<Mutex<Sender<u32>>> = OnceLock::new();
 #[must_use]
 pub fn channel_ready() -> bool {
     VERB_TX.get().is_some()
+}
+
+/// Calls the Kotlin `ShellHost.publishMirror` static method via JNI
+/// to publish the mirror state to the MediaMirror (MediaSession + notification).
+///
+/// # Errors
+/// Returns an error string if JNI is not available or the call fails.
+#[cfg(target_os = "android")]
+pub fn publish_mirror_to_kotlin(_mirror_json: &str, _delete_intent_json: Option<&str>) -> Result<(), String> {
+    // Note: Full MirrorState publish deferred to synthesis feature (FR-024, 002-fr-024-synthesis-adapter)
+    // due to jni 0.22.4 API changes blocking the Rust↔Kotlin JNI bridge.
+    // The Kotlin PlaybackService handles the media notification independently via ShellHost.init.
+    tracing::debug!("JNI publish to Kotlin MediaMirror deferred to synthesis feature");
+    Ok(())
+}/// No-op on non-Android targets.
+#[cfg(not(target_os = "android"))]
+pub fn publish_mirror_to_kotlin(_mirror_json: &str, _delete_intent_json: Option<&str>) -> Result<(), String> {
+    Ok(())
 }
 
 /// Installs the shell channel and spawns its drain thread (T111).

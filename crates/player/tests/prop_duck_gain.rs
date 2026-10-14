@@ -47,8 +47,8 @@
 
 use proptest::prelude::*;
 
-use player::backend::CpalBackend;
 use player::backend::BackendError;
+use player::backend::CpalBackend;
 use player::focus::{DUCK_GAIN, FULL_GAIN};
 
 /// Baseline gain for the rejection cases: a mid-interval factor whose

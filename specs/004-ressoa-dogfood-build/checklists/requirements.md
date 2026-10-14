@@ -8,7 +8,7 @@
 
 - [ ] No implementation details (languages, frameworks, APIs) — POST-CLARIFICATION SUPERSEDED 2026-10-13 (C1): spec normatively contains ACTION_OPEN_DOCUMENT, AUDIOFOCUS_* classes, BLAKE3, MediaStyle/MediaSession for testability; see iteration-2 note.
 - [x] Focused on user value and business needs
-- [x] Written for non-technical stakeholders
+- [ ] Written for non-technical stakeholders
 - [x] All mandatory sections completed
 
 ## Requirement Completeness
@@ -27,7 +27,7 @@
 - [x] All functional requirements have clear acceptance criteria
 - [x] User scenarios cover primary flows
 - [x] Feature meets measurable outcomes defined in Success Criteria
-- [x] No implementation details leak into specification
+- [ ] No implementation details leak into specification
 
 ## Notes
 

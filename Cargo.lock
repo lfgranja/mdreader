@@ -3914,6 +3914,7 @@ version = "0.1.0"
 dependencies = [
  "adapter-synthesis",
  "engine-core",
+ "jni 0.22.4",
  "player",
  "serde",
  "serde_json",

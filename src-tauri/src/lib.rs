@@ -1679,6 +1679,14 @@ pub mod publish {
         // next registration.
         let _ = channel.send(mirror);
 
+        // Note: Rust→Kotlin MediaMirror publish (via JNI) deferred to
+        // synthesis feature (FR-024) due to jni 0.22.4 API changes blocking
+        // the bridge. The Kotlin PlaybackService handles notification
+        // and MediaSession through its own lifecycle (ShellHost.init),
+        // not through Rust JNI publish. For T-01 trial, the notification
+        // surface is handled by Kotlin's PlaybackService.startForegroundHolder().
+        // The full mirror synchronization requires resolving jni APIs.
+
         // Also log the transient reason if present (diagnostic).
         if let Some(reason) = transient_reason {
             tracing::debug!(%reason, "publish mirror with transient reason");

@@ -1,0 +1,14 @@
+<resources>
+    <string name="app_name">Focus Injector</string>
+    <string name="btn_duckable">Duckable Transient (MAY_DUCK)</string>
+    <string name="btn_silence">Silence Demanding (TRANSIENT)</string>
+    <string name="btn_permanent">Permanent Loss</string>
+    <string name="btn_abandon">Abandon Focus</string>
+    <string name="btn_becoming_noisy">Simulate Becoming Noisy</string>
+    <string name="btn_device_removed">Simulate Device Removed</string>
+    <string name="status_ready">Ready — select a focus type</string>
+    <string name="status_active">ACTIVE: %s — press ABANDON to release</string>
+    <string name="toast_focus_requested">Focus requested: %s</string>
+    <string name="toast_focus_abandoned">Focus abandoned</string>
+    <string name="toast_error">Error: %s</string>
+</resources>

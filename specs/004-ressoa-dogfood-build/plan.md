@@ -16,7 +16,7 @@ Integrate the proven pieces (001 shell + 002 `sherpa-onnx`/`faber` synthesis + 0
 
 **Storage**: `redb` — `bookmarks` (blake3 → `{offset_secs, first_yield_ms, end_kind}` atomic single-row tx; `stopped|completed` delete) + `settings.last_rate` (default `1.0x`); transient snapshots `filesDir/snapshots/<hex>.{md,txt}` (synthesis reads only this); diagnostic JSONL append-only in app-private `/data/data/<pkg>/files/`, 30-day + 10 MB oldest-first trim with `Trim`/`Gap` markers, best-effort never blocks playback
 
-**Testing**: `cargo nextest run --workspace` (host: rewind/snap math, ladder, BLAKE3, content-offset progress, earcon-duration/band asserts, trim bounds, closed-set exhaustiveness, schema conformance; property tests via workspace `proptest` dev-dependency, latest stable at implementation time (re-verified on crates.io per tasks.md T002c, never hardcoded here), crates.io-only, locked, `deny`+`audit` gates); new public APIs require rustdoc (`missing_docs` deny, gate 3); `scripts/expected-tests.txt` lists the expected suite inventory and gate 2 fails closed when it diverges; `check-manifest.sh` (SC-006) + `check-shell-purity.sh` (SC-035); committed Portuguese fixture (~2 h at 1.0x, headings + numbers/currency); on-device 10/10 trials per SC-001…SC-008 on the reference phone only
+**Testing**: `cargo nextest run --workspace` (host: rewind/snap math, ladder, BLAKE3, content-offset progress, earcon-duration/band asserts, trim bounds, closed-set exhaustiveness, schema conformance; property tests via workspace `proptest` dev-dependency, latest stable at implementation time (re-verified on crates.io per tasks.md T002c, never hardcoded here), crates.io-only, locked, `deny`+`audit` gates); new public APIs require rustdoc (`missing_docs` deny, gate 3); `scripts/expected-tests.txt` lists the expected suite inventory and gate 2 fails closed when it diverges; `check-manifest.sh` (SC-006) + `check-shell-purity.sh` (SC-035); committed Portuguese fixture (~2 h at 1.0x, headings + numbers/currency); on-device 10/10 trials per SC-001…SC-010 on the reference phone only
 
 **Target Platform**: Android 10 (API 29) min through API 34 FGS-start rules; `aarch64-linux-android`; reference phone Redmi 2201117TY (Note 11, Snapdragon 680, Android 13/API 33) normative for all time bounds; headless Linux CI + gate 9 (`cargo tauri android build --target aarch64`); sideload install only
 
@@ -26,7 +26,7 @@ Integrate the proven pieces (001 shell + 002 `sherpa-onnx`/`faber` synthesis + 0
 
 **Constraints**: Pure offline (zero network voice code ships); exactly one CC0 voice; closed sets everywhere (8 product reasons, 7 rate rungs, 3 transports (playing|paused|stopped — STATE; Stop is an in-app CONTROL only, per contracts/surface.md), 4 end-kinds; no `Other`/`Unknown`, no `_ =>`, gate 7); Rust rigor lints (`unsafe` deny, pedantic clippy deny, no unwrap/expect/println); mono-f32-22050 handoff (mismatch = named `EngineError`, never silent); lock-screen + in-app never show prose/times/rate/voice (rate-step is a lock-screen custom action without value display — stepping reachable without unlock, no numeric leak); rate memory app-wide via `settings.last_rate`; diag never transmitted, no in-app surface, zero prose, `error` on failure *and* refusal; dismissal refused while playing; Ressoa-external / mdreader-technical naming boundary
 
-**Scale/Scope**: Single-document sessions (no queue/playlist/library); one stored position per content hash; one resident component + one notification; fixture ~2 h at 1.0x; 30-min acceptance session valid at every speed incl. 4.0x; diag ~100k entries max; maintainer-only distribution (no store/listing/support)
+**Scale/Scope**: Single-document sessions (no queue/playlist/library); one stored position per content hash; one resident component + one notification; fixture ~2 h at 1.0x; oversize-document byte cap `MAX_DOC_BYTES` = fixture_bytes × 1.5 (fixed by T001b after fixture measurement, FormatUndeliverable refusal per FR-018); 30-min acceptance session valid at every speed incl. 4.0x; diag ~100k entries max; maintainer-only distribution (no store/listing/support)
 
 ## Constitution Check
 
@@ -64,6 +64,7 @@ specs/004-ressoa-dogfood-build/
 │   ├── surface.md
 │   ├── earcon.md
 │   ├── diagnostic-trace.md
+│   ├── resume-algorithm.md
 │   └── diagnostic-record.schema.json
 ├── checklists/          # Reviewer-owned requirements-quality reviews
 │   └── requirements.md
@@ -135,6 +136,6 @@ No violations — table intentionally empty.
 
 ## Post-Design Re-check (Phase 1 complete)
 
-- All Phase 1 artifacts (`data-model.md`, `contracts/ingest.md`, `contracts/surface.md`, `contracts/earcon.md`, `contracts/diagnostic-trace.md` + `diagnostic-record.schema.json`, `quickstart.md`) resolve into the crates above without moving logic into the Kotlin shell or the Tauri app layer; `engine-core` untouched (no semver bump); no new dependency, licence, or tier.
+- All Phase 1 artifacts (`data-model.md`, `contracts/ingest.md`, `contracts/surface.md`, `contracts/earcon.md`, `contracts/diagnostic-trace.md` + `contracts/resume-algorithm.md` + `diagnostic-record.schema.json`, `quickstart.md`) resolve into the crates above without moving logic into the Kotlin shell or the Tauri app layer; `engine-core` untouched (no semver bump); no new dependency, licence, or tier.
 - Voice fixed `pt_BR-faber-medium` (CC0, already bundled); durable interval fixed 20 s (worst loss inside 30 s cap); failure E4 transposition (~330 Hz square + minor-2nd dissonance) keeps FR-016 300–2500 Hz (abstract-dissonant, in-band); progress uses parsed units (audio-duration never feeds it); `DecodeFailed` rides `Unreachable` on the wire with `decode_failed` in diag (revisit only if trials show confusion).
 - Gates: no ERROR, one ownership clarification (2026-10-13 remediation I4): constitution gate 8 (byte-budget + SSML + sentence-alignment) was DEFERRED for 001-shell per Exceptions Log 8 (owner=synthesis, SC-044). 004 integrates 002 faber synthesis, so T048 MUST attempt gate-8-full discharge with evidence; only if synthesis SC-044 remains open per specs/002 status does T048 record `gate-8-full: DEFERRED (owner=synthesis, reason=SC-044-open)` — never claim constitution gate 8 PASS without the full discharge. Proceed to /speckit.tasks (implement T048 as written 2026-10-13).

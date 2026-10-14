@@ -6,7 +6,7 @@
 
 - Rust 1.85+ (Edition 2024), `cargo-nextest`, Android SDK (`aarch64` target), reference phone Redmi 2201117TY (Android 13 / API 33) per `specs/003-reference-device/`.
 - Single fixed voice `pt_BR-faber-medium` bundled (`crates/adapter-synthesis/assets/voices/`); pure offline (Wi-Fi/data off for all trials).
-- Fixed fixture committed to repo: Portuguese Markdown with headings + numbers/currency, ~2 h of material at 1.0x (validates SC-001 at every speed incl. 4.0x).
+- Fixed fixture committed to repo: Portuguese Markdown with headings + numbers/currency, ~2 h of material at 1.0x (validates SC-001 at every speed incl. 4.0x). (H1) MAX_DOC_BYTES derived from fixture measurement (post-T001b), approximate expected range only — not a contract-bound threshold.
 - Contracts: [ingest.md](contracts/ingest.md), [surface.md](contracts/surface.md), [earcon.md](contracts/earcon.md), [diagnostic-trace.md](contracts/diagnostic-trace.md) + `diagnostic-record.schema.json`.
 
 ## 1. Host gates (Linux, no device)

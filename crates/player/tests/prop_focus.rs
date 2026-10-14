@@ -431,8 +431,8 @@ fn duck_then_silence_clears_duck_restore_and_holds_paused_at_full_gain() {
         "escalation duck→silence must clear the duck-restore flag — gain is restored, not re-ducked"
     );
     assert!(
-        tracker.resume_due,
-        "a regain-owed resume survives a duck→silence pause: only an escalation into PermanentLoss clears it (FR-014, T033 closed-set invariant)"
+        !tracker.resume_due,
+        "a regain-owed resume must NOT survive a pause-demanding outcome: FR-005 (004 data-model.md interruption table: every pause outcome — silence-demanding OR permanent — is 'pause immediately, never auto-resume') requires explicit Play. The 001-era reading ('only an escalation into PermanentLoss clears it', T033) is SUPERSEDED by the 004 FR-005 contract, whose prop_focus8 property (test written first, RED against this behavior) pins the clear on any non-duck outcome — see crates/player/src/focus.rs FocusTracker::apply and the commit that closed it"
     );
     assert!(
         !tracker.ducked,

@@ -1,11 +1,9 @@
 package app.mdreader
 
+import android.app.Notification
 import android.content.Context
 import android.media.AudioManager
 import android.util.Log
-import app.mdreader.MediaMirror.MirrorState
-import app.mdreader.MediaMirror.Progress
-import app.mdreader.MediaMirror.Dismissal
 
 /**
  * Shell host — the single construction site of the four platform
@@ -214,6 +212,18 @@ object ShellHost {
     }
 
     /**
+     * Builds the media mirror's foreground holder — the application
+     * label alone, on the mirror's own channel and the shared
+     * surface id — or null when the mirror is unbuilt. The service
+     * host posts it synchronously on every command so the platform's
+     * foreground-service window is always satisfied; the first
+     * mirror publish replaces it.
+     */
+    fun foregroundHolder(): Notification? {
+        return media?.foregroundHolder()
+    }
+
+    /**
      * Relays one closed verb wire string to Rust as its channel code.
      * Unknown values are recorded as diagnostic logs and dropped —
      * never absorbed, never crashing the caller.
@@ -351,65 +361,26 @@ object ShellHost {
      * Called from Rust's publish path to update the MediaSession and
      * media notification on the lock screen.
      *
+     * Routing only: the wire JSON is the media mirror's own form
+     * (contracts/shell-ipc.md) and is parsed by
+     * [MediaMirror.publishJson] — the mirror owns its wire form and
+     * this host applies nothing locally. The swipe-away token rides
+     * the resident lifecycle (FR-028e): the host attaches the same
+     * intent the resident surface carries to the playing surface, so
+     * where a platform or OEM build permits dismissal regardless of
+     * the ongoing flag, the gesture reaches Rust and pauses first.
+     * The `deleteIntentJson` parameter is reserved for a
+     * Rust-supplied token — deferred with the JNI publish bridge —
+     * and is recorded, never parsed, today.
+     *
      * @param mirrorJson JSON string of the MirrorState (wire form per contracts/shell-ipc.md).
-     * @param deleteIntentJson optional JSON for the swipe-away delete intent.
+     * @param deleteIntentJson reserved for a Rust-supplied swipe-away
+     * token; unused while the publish bridge is deferred.
      */
     @JvmStatic
     fun publishMirror(mirrorJson: String, deleteIntentJson: String?) {
         val mirror = media ?: return
-        // Parse JSON to MirrorState - using the existing data class structure
-        // The JSON matches the wire form: transport, positionSecs, title, sectionTitle, progress, transientReason, dismissal
-        try {
-            val json = org.json.JSONObject(mirrorJson)
-            val transport = json.getString("transport")
-            val positionSecs = json.getDouble("positionSecs")
-            val title = json.optString("title", "Document")
-            val sectionTitle = if (json.has("sectionTitle") && !json.isNull("sectionTitle")) json.getString("sectionTitle") else null
-            val transientReason = if (json.has("transientReason") && !json.isNull("transientReason")) json.getString("transientReason") else null
-
-            val progressObj = json.getJSONObject("progress")
-            val progress: Progress = if (progressObj.has("determinate")) {
-                val det = progressObj.getJSONObject("determinate")
-                Progress.Determinate(
-                    positionSecs = det.getDouble("positionSecs"),
-                    durationSecs = det.getDouble("durationSecs")
-                )
-            } else {
-                Progress.Indeterminate
-            }
-
-            val dismissalObj = json.getJSONObject("dismissal")
-            val dismissal: Dismissal = when (dismissalObj.keys().next()) {
-                "nonDismissable" -> Dismissal.NonDismissable
-                "autoDismiss" -> Dismissal.AutoDismiss(afterMs = dismissalObj.getLong("autoDismiss"))
-                "dismissable" -> Dismissal.Dismissable
-                else -> Dismissal.NonDismissable
-            }
-
-            val state = MirrorState(
-                transport = transport,
-                positionSecs = positionSecs,
-                title = title,
-                sectionTitle = sectionTitle,
-                progress = progress,
-                transientReason = transientReason,
-                dismissal = dismissal
-            )
-
-            val deleteIntent = deleteIntentJson?.let { jsonStr ->
-                // Parse delete intent JSON if needed
-                null // For now, omit delete intent
-            }
-
-            mirror.publish(state, deleteIntent)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to parse mirror JSON: ${e.message}")
-        }
+        val deleteIntent = resident?.swipeAwayIntent()
+        mirror.publishJson(mirrorJson, deleteIntent)
     }
-
-    /**
-     * Native entry for publishing mirror state from Rust to Kotlin MediaMirror.
-     * Implemented in Rust (`shell_jni.rs`).
-     */
-    external fun postPublishMirror(mirrorJson: String, deleteIntentJson: String?)
 }

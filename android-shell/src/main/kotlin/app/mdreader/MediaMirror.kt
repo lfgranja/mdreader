@@ -13,6 +13,7 @@ import android.media.session.PlaybackState
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 
 /**
  * MediaSession + notification mirror (FR-003, FR-028 series,
@@ -62,9 +63,14 @@ import android.os.Looper
  * Control routing: the MediaSession callback forwards each
  * platform control event to Rust through [forwardVerb] as
  * the closed verb wire string (onPlay to play, onPause to
- * pause, onStop to stop, onSkipToNext to skip_forward5s,
- * onSkipToPrevious to skip_back5s), never honoured
- * locally; the rate and voice controls have no
+ * pause, onSkipToNext to skip_forward5s, onSkipToPrevious to
+ * skip_back5s), never honoured locally. The Stop control has
+ * no platform route — the session's action mask never
+ * advertises it and no callback forwards it — because the
+ * lock-screen control set is play, pause and skip: the Stop
+ * control exists in-app only (contracts/surface.md), distinct
+ * from the `stopped` transport STATE this mirror renders. The
+ * rate and voice controls have no
  * MediaSession callback route, so they ride the
  * notification's action buttons as broadcast PendingIntents
  * classified at the boundary (the Residency idiom). An
@@ -207,8 +213,11 @@ class MediaMirror(
          * onPause route). */
         const val VERB_PAUSE = "pause"
 
-        /** Wire verb for the Stop control (the session's
-         * onStop route). */
+        /** Wire verb for the Stop control — the in-app route only
+         * (the service intent that the status_view Stop press
+         * drives). The lock-screen media controls carry no Stop
+         * (contracts/surface.md: the Stop control exists in-app,
+         * distinct from the `stopped` transport STATE). */
         const val VERB_STOP = "stop"
 
         /** Wire verb for the skip-forward control (the
@@ -279,11 +288,18 @@ class MediaMirror(
          * classification, which Rust fixes at this value. */
         const val TRANSIENT_DISMISS_MS = 3000L
 
-        /** Notification channel of the media surface. */
-        private const val CHANNEL_ID = "mdreader_media"
+        /** Notification channel of the media surface. Public
+         * because the foreground holder (see [foregroundHolder])
+         * posts on this same channel: one channel, one id, one
+         * surface — the holder is replaced by the first publish
+         * instead of joining it as a second surface. */
+        const val CHANNEL_ID = "mdreader_media"
 
         /** Notification channel display name. */
         private const val CHANNEL_NAME = "Media"
+
+        /** Log tag of the mirror. */
+        private const val TAG = "MediaMirror"
 
         /** MediaSession tag — the platform's session
          * identifier for this application's playback. */
@@ -370,18 +386,20 @@ class MediaMirror(
         private const val VOICE_PREV_LABEL = "Voice prev"
 
         /**
-         * The session's action mask — the closed transport
-         * control set the MediaSession exposes to the
-         * platform's media controls (play, pause, stop, skip
-         * forward 5 s, skip back 5 s). The rate and voice
-         * controls are not transport actions: they ride the
-         * notification's action buttons, classified at the
+         * The session's action mask — the closed lock-screen
+         * transport control set the MediaSession exposes to the
+         * platform's media controls (play, pause, skip forward
+         * 5 s, skip back 5 s). Stop is deliberately absent: the
+         * Stop control exists in-app only
+         * (contracts/surface.md — distinct from the `stopped`
+         * transport STATE, which this mirror renders). The rate
+         * and voice controls are not transport actions: they ride
+         * the notification's action buttons, classified at the
          * boundary.
          */
         private val CONTROL_ACTIONS: Long =
             PlaybackState.ACTION_PLAY or
                 PlaybackState.ACTION_PAUSE or
-                PlaybackState.ACTION_STOP or
                 PlaybackState.ACTION_SKIP_TO_NEXT or
                 PlaybackState.ACTION_SKIP_TO_PREVIOUS
     }
@@ -407,10 +425,6 @@ class MediaMirror(
 
         override fun onPause() {
             forwardVerb(VERB_PAUSE)
-        }
-
-        override fun onStop() {
-            forwardVerb(VERB_STOP)
         }
 
         override fun onSkipToNext() {
@@ -492,6 +506,76 @@ class MediaMirror(
                 MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS
         )
         mediaSession.setCallback(sessionCallback)
+    }
+
+    /**
+     * Parses one Rust-published mirror state from its wire JSON
+     * (contracts/shell-ipc.md) and renders it through [publish].
+     * The wire form is this mirror's own, so the parsing lives
+     * here and the host only routes the call; every field is read
+     * verbatim from the published state — nothing is computed,
+     * estimated, or defaulted from another value (SC-035).
+     *
+     * @param mirrorJson JSON string of the MirrorState (wire form
+     * per contracts/shell-ipc.md).
+     * @param deleteIntent the host-supplied swipe-away delete
+     * intent (see [publish]); null omits it.
+     */
+    fun publishJson(mirrorJson: String, deleteIntent: PendingIntent? = null) {
+        try {
+            val json = org.json.JSONObject(mirrorJson)
+            val transport = json.getString("transport")
+            val positionSecs = json.getDouble("positionSecs")
+            val title = json.optString("title", "Document")
+            val sectionTitle =
+                if (json.has("sectionTitle") && !json.isNull("sectionTitle")) {
+                    json.getString("sectionTitle")
+                } else {
+                    null
+                }
+            val transientReason =
+                if (json.has("transientReason") && !json.isNull("transientReason")) {
+                    json.getString("transientReason")
+                } else {
+                    null
+                }
+
+            val progressObj = json.getJSONObject("progress")
+            val progress: Progress = if (progressObj.has("determinate")) {
+                val det = progressObj.getJSONObject("determinate")
+                Progress.Determinate(
+                    positionSecs = det.getDouble("positionSecs"),
+                    durationSecs = det.getDouble("durationSecs")
+                )
+            } else {
+                Progress.Indeterminate
+            }
+
+            val dismissalObj = json.getJSONObject("dismissal")
+            val dismissal: Dismissal = when (dismissalObj.keys().next()) {
+                "nonDismissable" -> Dismissal.NonDismissable
+                "autoDismiss" -> Dismissal.AutoDismiss(
+                    afterMs = dismissalObj.getLong("autoDismiss")
+                )
+                "dismissable" -> Dismissal.Dismissable
+                else -> Dismissal.NonDismissable
+            }
+
+            publish(
+                MirrorState(
+                    transport = transport,
+                    positionSecs = positionSecs,
+                    title = title,
+                    sectionTitle = sectionTitle,
+                    progress = progress,
+                    transientReason = transientReason,
+                    dismissal = dismissal
+                ),
+                deleteIntent
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to parse mirror JSON: ${e.message}")
+        }
     }
 
     /**
@@ -783,6 +867,51 @@ class MediaMirror(
         } else {
             @Suppress("DEPRECATION")
             configure(Notification.Builder(context)).build()
+        }
+    }
+
+    /**
+     * Creates the media channel if the platform requires one and it
+     * does not exist yet (API 26+). Public because the foreground
+     * holder and the media surface share this mirror's channel and
+     * id: one creation site keeps the channel's name and importance
+     * a single source.
+     */
+    fun ensureChannel() {
+        val manager = context.getSystemService(NotificationManager::class.java) ?: return
+        ensureChannel(manager)
+    }
+
+    /**
+     * Builds the foreground holder: the application label as the
+     * title and nothing else — no body, no clock, no section — on
+     * the media channel and the shared surface id, so the first
+     * [publish] (or the resident post) replaces this holder instead
+     * of adding a second surface (the exactly-one invariant). The
+     * hosting service posts it synchronously on every command to
+     * satisfy the platform's foreground-service window, which the
+     * first mirror publish may arrive after. Rendering beyond the
+     * label stays mirror-only, so the holder can carry nothing that
+     * drifts from the published state (FR-028 series).
+     */
+    fun foregroundHolder(): Notification {
+        ensureChannel()
+        val label = context.packageManager
+            .getApplicationLabel(context.applicationInfo)
+        val launch = launchPendingIntent()
+        fun build(builder: Notification.Builder): Notification =
+            builder
+                .setSmallIcon(android.R.drawable.ic_media_play)
+                .setContentTitle(label)
+                .setContentIntent(launch)
+                .setOngoing(true)
+                .setVisibility(Notification.VISIBILITY_PUBLIC)
+                .build()
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            build(Notification.Builder(context, CHANNEL_ID))
+        } else {
+            @Suppress("DEPRECATION")
+            build(Notification.Builder(context))
         }
     }
 

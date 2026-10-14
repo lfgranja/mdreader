@@ -337,6 +337,20 @@ impl FocusTracker {
                 }
             }
             self.current = Some(next);
+            // FR-005 / FR-014: a pause-demanding outcome
+            // (silence-demanding or permanent loss) clears any
+            // pending resume an earlier regain owed — a gain
+            // followed by a pause waits for explicit Play and
+            // never auto-resumes. This must hold whatever
+            // stood before it, INCLUDING no standing outcome:
+            // a regain leaves `current = None` with the resume
+            // still owed, so the supersede path above (which
+            // runs only when a previous outcome stood) does
+            // not cover it — the auto-resume defect the
+            // prop_focus8 property caught.
+            if next != FocusOutcome::DuckableTransient {
+                self.resume_due = false;
+            }
             if next == FocusOutcome::DuckableTransient {
                 self.ducked = true;
                 self.duck_restore_due = true;

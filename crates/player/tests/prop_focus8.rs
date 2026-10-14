@@ -316,6 +316,17 @@ impl ReferenceTracker {
                 self.duck_restore_due = false;
             }
         }
+        // FR-005: ANY pause-demanding outcome clears the resume a
+        // regain owed — a gain followed by a pause waits for
+        // explicit Play and never auto-resumes. This holds
+        // whatever stood before it, INCLUDING no standing
+        // outcome: a regain leaves `current = None` with the
+        // resume still owed, so the supersede block above (gated
+        // on `current.is_some()`) does not cover it — the
+        // auto-resume defect prop_focus_latest_wins caught.
+        if next != FocusOutcome::DuckableTransient {
+            self.resume_due = false;
+        }
         self.current = Some(next);
         if next == FocusOutcome::DuckableTransient {
             self.ducked = true;

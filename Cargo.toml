@@ -4,7 +4,7 @@ exclude = []
 resolver = "3"
 
 [workspace.dependencies]
-proptest = "1.6.0"
+proptest = "1.12.0"
 tempfile = "3.14.0"
 jsonschema = "0.29.0"
 serde = { version = "1.0.215", features = ["derive"] }

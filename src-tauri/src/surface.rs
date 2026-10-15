@@ -264,8 +264,8 @@ impl ShortReason {
     /// FR-041): a focus-loss pause reason expires 3 s after the pause
     /// on both surfaces; every other reason persists until it is read.
     #[must_use]
-    pub fn expiry(&self) -> ReasonExpiry {
-        match self {
+    pub const fn expiry(&self) -> ReasonExpiry {
+        match *self {
             Self::FocusSilenceDemanding | Self::FocusPermanentLoss => ReasonExpiry::Focus3s,
             Self::EngineUnreachable
             | Self::EngineInitFailed
@@ -289,7 +289,7 @@ impl ShortReason {
     /// expiry contradicts, and the payload's `reason_ttl_ms` field is
     /// this getter's output verbatim (`3000` or `null`).
     #[must_use]
-    pub fn reason_ttl_ms(&self) -> Option<u64> {
+    pub const fn reason_ttl_ms(&self) -> Option<u64> {
         match self.expiry() {
             ReasonExpiry::Focus3s => Some(PAUSE_REASON_TTL_MS),
             ReasonExpiry::FailurePersistent => None,
@@ -302,8 +302,8 @@ impl FullReason {
     /// FR-041): a focus-loss pause reason expires 3 s after the pause
     /// on both surfaces; every other reason persists until it is read.
     #[must_use]
-    pub fn expiry(&self) -> ReasonExpiry {
-        match self {
+    pub const fn expiry(&self) -> ReasonExpiry {
+        match *self {
             Self::FocusSilenceDemanding | Self::FocusPermanentLoss => ReasonExpiry::Focus3s,
             Self::EngineUnreachable
             | Self::EngineInitFailed
@@ -329,7 +329,7 @@ impl FullReason {
     /// renders it: the expiry of FR-037a governs BOTH surfaces
     /// (FR-041).
     #[must_use]
-    pub fn reason_ttl_ms(&self) -> Option<u64> {
+    pub const fn reason_ttl_ms(&self) -> Option<u64> {
         match self.expiry() {
             ReasonExpiry::Focus3s => Some(PAUSE_REASON_TTL_MS),
             ReasonExpiry::FailurePersistent => None,
@@ -998,8 +998,9 @@ mod tests {
         // the whole closed set fits.
         for reason in ALL_SHORT {
             let app_text = match reason {
-                ShortReason::FocusSilenceDemanding
-                | ShortReason::FocusPermanentLoss => PAUSE_STATEMENT,
+                ShortReason::FocusSilenceDemanding | ShortReason::FocusPermanentLoss => {
+                    PAUSE_STATEMENT
+                }
                 ShortReason::EngineUnreachable
                 | ShortReason::EngineInitFailed
                 | ShortReason::EngineRateMismatch
@@ -1021,7 +1022,10 @@ mod tests {
         // app-generated text.
         assert_eq!(words(PAUSE_STATEMENT), 8);
         assert_eq!(
-            words(&short_reason(&ShortReason::FocusPermanentLoss, DOCUMENT_TITLE)),
+            words(&short_reason(
+                &ShortReason::FocusPermanentLoss,
+                DOCUMENT_TITLE
+            )),
             words(PAUSE_STATEMENT) + words(DOCUMENT_TITLE)
         );
     }
@@ -1039,8 +1043,7 @@ mod tests {
         for reason in ALL_SHORT {
             let rendered = short_reason(&reason, DOCUMENT_TITLE);
             let app_text = match reason {
-                ShortReason::FocusSilenceDemanding
-                | ShortReason::FocusPermanentLoss => continue,
+                ShortReason::FocusSilenceDemanding | ShortReason::FocusPermanentLoss => continue,
                 ShortReason::EngineUnreachable
                 | ShortReason::EngineInitFailed
                 | ShortReason::EngineRateMismatch
@@ -1111,7 +1114,11 @@ mod tests {
                 assert_eq!(policy, Dismissal::NonDismissableWhilePlaying);
                 assert!(!policy.is_dismissable());
             } else {
-                assert_eq!(policy, Dismissal::Dismissable, "{transport:?} must be dismissable");
+                assert_eq!(
+                    policy,
+                    Dismissal::Dismissable,
+                    "{transport:?} must be dismissable"
+                );
                 assert!(policy.is_dismissable());
             }
         }

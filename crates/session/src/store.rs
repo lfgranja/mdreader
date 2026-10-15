@@ -366,6 +366,16 @@ impl BookmarkStore {
     /// written on every rate change, crossing
     /// sessions and documents.
     ///
+    /// This is the store half of the T042 wiring —
+    /// the write-on-change half: the call site
+    /// (the shell, over the `player::rate` stepper)
+    /// writes the rung every time a rate move
+    /// changes it, and reads it back at the next
+    /// session open through [`get_last_rate`](Self::get_last_rate).
+    /// The setting is document-independent (the
+    /// `settings` table), so it survives a
+    /// document change and a store reopen.
+    ///
     /// # Errors
     ///
     /// [`Error::Storage`] when the write
@@ -387,6 +397,13 @@ impl BookmarkStore {
     /// The last playback rate (FR-019b), or `None`
     /// on first use — the call-site default is the
     /// normal-speed rung `1.0` (storage-schema.md).
+    ///
+    /// This is the store half of the T042 wiring —
+    /// the read-at-start half: the call site reads
+    /// it when a session opens and resolves the
+    /// default (the normal-speed rung) once on the
+    /// player side (`player::rate::rate_at_start`),
+    /// so no second default exists.
     ///
     /// # Errors
     ///
@@ -638,6 +655,71 @@ mod tests {
         let lookup = lookup_on_open(&mut store, DOC)?;
         assert_eq!(lookup.stored, None);
         assert_eq!(lookup.offer, OpenOffer::NoOffer);
+        Ok(())
+    }
+
+    #[test]
+    fn last_rate_round_trips_through_a_reopened_tempdir_store()
+    -> Result<(), Box<dyn std::error::Error>> {
+        // T042 / FR-019b: the store half of the
+        // persistence wiring over a real redb file —
+        // first use reads no rung; every write-on-change
+        // is read back at the next session open (the
+        // store closed and reopened); and another
+        // document's bookmark write never disturbs the
+        // document-independent setting. The exhaustive
+        // seven-rung round-trip is pinned in
+        // `tests/prop_resume.rs`; this half walks the
+        // reopen lifecycle at the ladder's bounds and
+        // its middle.
+        let dir = tempfile::tempdir()?;
+        let path = dir.path().join("bookmarks.redb");
+
+        // First use (read-at-start on a fresh store):
+        // no row, so the call site resolves its default.
+        {
+            let mut store = BookmarkStore::open(&path)?;
+            assert_eq!(store.get_last_rate()?, None);
+        }
+
+        for rung in [PlaybackRate::R0_75, PlaybackRate::R1_25, PlaybackRate::R4_0] {
+            // Write-on-change: the rate move persists the
+            // rung the stepper reported.
+            {
+                let mut store = BookmarkStore::open(&path)?;
+                store.put_last_rate(rung)?;
+            }
+            // Another document's bookmark write must not
+            // disturb the document-independent setting.
+            {
+                let mut store = BookmarkStore::open(&path)?;
+                let key = fingerprint(DOC);
+                store.put(
+                    &key,
+                    StoredPosition {
+                        offset_secs: 1.5,
+                        first_yield_ms: 0,
+                        end_kind: SessionEnd::Paused,
+                    },
+                )?;
+                assert_eq!(
+                    store.get_last_rate()?,
+                    Some(rung),
+                    "a bookmark write changed the stored last_rate"
+                );
+            }
+            // A new session — the store closed and
+            // reopened — reads the chosen rung back at
+            // start (read-at-start).
+            {
+                let mut store = BookmarkStore::open(&path)?;
+                assert_eq!(
+                    store.get_last_rate()?,
+                    Some(rung),
+                    "the stored last_rate did not survive the reopen (rung {rung:?} lost)"
+                );
+            }
+        }
         Ok(())
     }
 }

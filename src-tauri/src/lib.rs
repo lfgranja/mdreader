@@ -31,14 +31,22 @@
 //! publishes the resume-offer route (T037), and reuses the
 //! `play` path for the one synthesis path (Principle II). It
 //! owns the ≤3 s press-to-first-audio budget (SC-002) end-to-end.
+//!
+//! Rate persistence (T042 / FR-019b): the shell composes the two
+//! halves the player crate and the store define — at session
+//! open it seeds the session at the stored `last_rate` (read-at
+//! start), and every rate dispatch persists the new rung
+//! (write-on-change) through `persist_last_rate`, value-blind at
+//! every step (FR-012).
 
 use std::sync::Mutex;
 
 use engine_core::closed::SessionEnd;
 use player::backend::CpalBackend;
-use player::cli::{PlaybackSession, SessionSnapshot};
+use player::cli::{PlaybackSession, SessionSnapshot, ShellVerb};
+use player::rate::RateStep;
 use player::surface::MirrorState;
-use player::transport::TransportState;
+use player::transport::{PlaybackRate, TransportState};
 use session::fingerprint;
 use session::offer::ExpiryOutcome;
 use session::store::{BookmarkStore, StoredPosition};
@@ -424,6 +432,186 @@ fn delete_bookmark(state: &AppState) {
         tracing::warn!(%error, "bookmark not deleted: the store delete failed");
     } else {
         tracing::debug!("bookmark deleted");
+    }
+}
+
+/// Persist the last playback rate (T042, write-on-change /
+/// FR-019b): the store half every rate dispatch calls with
+/// the rung the press moved to. The rung is written exactly
+/// when a press changes it — a press that saturated at a
+/// ladder end reports no change and writes nothing — and
+/// the setting is document-independent (the `settings`
+/// table), so it survives a document change and a store
+/// reopen.
+///
+/// Best-effort by construction, exactly like
+/// [`persist_bookmark`]: an unopened store (the setting
+/// survives only as far as the store does) or a poisoned
+/// lock skips the write with a tracing record — the rate
+/// is a preference, never a failure of the control that set
+/// it, and a storage failure is a warn, never a panic
+/// (storage-schema.md). Lock discipline matches too: the
+/// store is locked last and no other state lock is ever
+/// held with it.
+fn persist_last_rate(state: &AppState, rate: PlaybackRate) {
+    let mut store_guard = match state.bookmark_store.lock() {
+        Ok(guard) => guard,
+        Err(_) => {
+            tracing::warn!("last rate not persisted: the store lock is poisoned");
+            return;
+        }
+    };
+    let Some(store) = store_guard.as_mut() else {
+        return; // the store never opened — the setting degrades to unpersisted
+    };
+    if let Err(error) = store.put_last_rate(rate) {
+        tracing::warn!(%error, "last rate not persisted: the store write failed");
+    } else {
+        tracing::debug!("last rate persisted");
+    }
+}
+
+/// The direction and the number of one-rung rate presses
+/// that carry `current` to `target` — the minimum move the
+/// rate seed drives — or `None` when the two rungs are
+/// equal, or when either names no member of the closed
+/// seven-rung ladder order in [`player::rate::LADDER`].
+///
+/// The ladder is the one ordering over
+/// `engine_core::closed::PlaybackRate` (FR-019 / FR-044),
+/// so this is an index distance, never a second ladder.
+#[must_use]
+fn rate_seed_moves(current: PlaybackRate, target: PlaybackRate) -> Option<(RateStep, usize)> {
+    let current_index = player::rate::LADDER
+        .iter()
+        .position(|rung| *rung == current)?;
+    let target_index = player::rate::LADDER
+        .iter()
+        .position(|rung| *rung == target)?;
+    let current_index = isize::try_from(current_index).ok()?;
+    let target_index = isize::try_from(target_index).ok()?;
+    let delta = target_index.checked_sub(current_index)?;
+    if delta == 0 {
+        return None; // already at the stored rung — nothing to drive
+    }
+    let step = if delta > 0 {
+        RateStep::Up
+    } else {
+        RateStep::Down
+    };
+    Some((step, delta.unsigned_abs()))
+}
+
+/// The rate-step direction a live-control press names
+/// (T042), or `None` for a press that moves no rung — the
+/// exhaustive match over the closed verb set with no
+/// catch-all arm, so a new verb is a compile error here
+/// (FR-044 / Principle VII).
+#[must_use]
+fn rate_press_of(verb: ShellVerb) -> Option<RateStep> {
+    match verb {
+        ShellVerb::RateUp => Some(RateStep::Up),
+        ShellVerb::RateDown => Some(RateStep::Down),
+        ShellVerb::Play
+        | ShellVerb::Pause
+        | ShellVerb::Stop
+        | ShellVerb::Complete
+        | ShellVerb::Interrupt
+        | ShellVerb::CycleVoiceNext
+        | ShellVerb::CycleVoicePrev
+        | ShellVerb::SkipForward
+        | ShellVerb::SkipBackward
+        | ShellVerb::ResumeAtStored
+        | ShellVerb::StartOver
+        | ShellVerb::ChooseEngine
+        | ShellVerb::ExternalStart => None,
+    }
+}
+
+/// Seed the session's playback rate from the stored
+/// `last_rate` at session open (T042, read-at-start /
+/// FR-019b) — the shell half of the persistence wiring the
+/// rate stepper and the store define.
+///
+/// The player crate exposes no seeding constructor — a
+/// session opens at the normal-speed rung and only the
+/// `ShellVerb` rate moves change it — so the shell composes
+/// the halves itself: it reads the stored rung (resolving
+/// the first-use default once through
+/// [`player::rate::rate_at_start`]), compares it with the
+/// session's live rung read from the session's own
+/// snapshot, and drives the MINIMUM number of one-rung rate
+/// verbs ([`rate_seed_moves`]) that carry the live rung to
+/// the stored one. The move is value-blind throughout: no
+/// rung value is ever rendered on the way (FR-012).
+///
+/// The seed writes nothing: the store already carries the
+/// rung being read, so read-at-start is a read (the
+/// write-on-change half is [`persist_last_rate`]).
+///
+/// Best-effort by construction: a poisoned store or session
+/// lock, an unopened store, an unreadable stored rung, or a
+/// press the closed transition table rejects (a torn-down
+/// session) is recorded and skipped — the stored rung is a
+/// preference, never a precondition for reading.
+fn seed_session_rate(state: &AppState) {
+    // The stored rung: `None` on first use, or when the store
+    // never opened (the setting then degrades to unpersisted
+    // and the default below resolves).
+    let stored = {
+        let mut store_guard = match state.bookmark_store.lock() {
+            Ok(guard) => guard,
+            Err(_) => {
+                tracing::warn!("rate seed skipped: the store lock is poisoned");
+                return;
+            }
+        };
+        match store_guard.as_mut() {
+            Some(store) => match store.get_last_rate() {
+                Ok(stored) => stored,
+                Err(error) => {
+                    tracing::warn!(
+                        %error,
+                        "rate seed skipped: the stored last_rate could not be read"
+                    );
+                    return;
+                }
+            },
+            None => None,
+        }
+    };
+    let target = player::rate::rate_at_start(stored);
+    // The minimum move from the live rung to the stored one,
+    // read under the session lock and released before the
+    // presses run (one lock at a time, never two together).
+    let Some((step, moves)) = (match state.session.lock() {
+        Ok(session) => rate_seed_moves(session.snapshot().rate, target),
+        Err(_) => {
+            tracing::warn!("rate seed skipped: the session lock is poisoned");
+            return;
+        }
+    }) else {
+        return; // already at the stored rung — nothing to drive
+    };
+    let mut session = match state.session.lock() {
+        Ok(session) => session,
+        Err(_) => {
+            tracing::warn!("rate seed stopped: the session lock is poisoned");
+            return;
+        }
+    };
+    for _ in 0..moves {
+        let verb = match step {
+            RateStep::Up => ShellVerb::RateUp,
+            RateStep::Down => ShellVerb::RateDown,
+        };
+        if let Err(error) = session.execute(verb) {
+            // A torn-down session rejects the rate verb: the
+            // seed stops where it is — the rung is a
+            // preference, never a precondition for reading.
+            tracing::warn!(%error, "rate seed stopped mid-ladder: the press was rejected");
+            break;
+        }
     }
 }
 
@@ -843,10 +1031,12 @@ pub mod commands {
     use super::{AppState, CpalBackend, OpenError};
     use crate::{
         OfferRoute, after_background, after_execute, after_skip, current_fingerprint,
-        delete_bookmark, offer_route_wire, route_offer, set_document_fingerprint,
+        delete_bookmark, offer_route_wire, persist_last_rate, rate_press_of, route_offer,
+        seed_session_rate, set_document_fingerprint,
     };
     use player::cli::{SessionSnapshot, ShellVerb};
     use player::focus::{FocusClassification, FocusIntent, FocusOutcome};
+    use player::rate::RateStepper;
     use player::routing::{RoutingDecision, RoutingSignal, RoutingTracker};
     use session::fingerprint;
     use tauri::{AppHandle, Manager, State, command};
@@ -1368,37 +1558,7 @@ pub mod commands {
             | ShellVerb::RateUp
             | ShellVerb::RateDown
             | ShellVerb::CycleVoiceNext
-            | ShellVerb::CycleVoicePrev => {
-                // Live-session controls: no permission gate
-                // (they can never reach `Playing`) and no
-                // backend action — the session owns the
-                // rate/skip/voice state. An illegal press
-                // from a torn-down session is the named
-                // rejection, never a playing state. The
-                // `status` mirrors the resulting transport,
-                // so a playing state is reported only from
-                // a session that actually plays (FR-005).
-                let snap = {
-                    let mut session = state.session.lock().map_err(|e| e.to_string())?;
-                    session.execute(verb).map_err(|e| e.to_string())?
-                };
-                publish_current_state(state, None);
-                // Section change (T035): a skip moves the
-                // position without a pause, so the durable row
-                // is refreshed through the section-change
-                // bookkeeping — `interrupted` for the
-                // transport-holding skip, `paused` for a
-                // forward skip that reaches the duration and
-                // lands `Paused` (FR-018). Every other live
-                // control holds its transport, and the write
-                // is a no-op.
-                after_skip(state, &snap);
-                Ok(serde_json::json!({
-                    "status": snap.transport.to_string(),
-                    "position_secs": snap.position_secs,
-                    "transport": snap.transport.to_string(),
-                }))
-            }
+            | ShellVerb::CycleVoicePrev => execute_live_control(state, verb),
             ShellVerb::ChooseEngine => {
                 // A selection, not a transition: legal from
                 // every state, changing no transport or
@@ -1426,6 +1586,69 @@ pub mod commands {
                 Err(format!("verb '{verb}' has no bridge wire"))
             }
         }
+    }
+
+    /// Execute one live-session control verb (T042 / T035):
+    /// the skips, the rate moves, and the voice cycles share
+    /// this arm — no permission gate (they can never reach
+    /// `Playing`) and no backend action (the session owns the
+    /// rate/skip/voice state). An illegal press from a
+    /// torn-down session is the named rejection, never a
+    /// playing state. The `status` mirrors the resulting
+    /// transport, so a playing state is reported only from a
+    /// session that actually plays (FR-005).
+    ///
+    /// The live rate path resolves its persistence through
+    /// the canonical [`RateStepper`] (write-on-change, T042 /
+    /// FR-019b): the press is replayed on a stepper opened at
+    /// the session's own pre-press rung — the session stays
+    /// the sole rate authority, the stepper only answers
+    /// WHETHER the press moved the rung — and the `Some` rung
+    /// it reports is exactly the value persisted through
+    /// [`persist_last_rate`]. A press that saturated at a
+    /// ladder end reports `None`, so nothing is written. The
+    /// rung is never rendered anywhere on this path:
+    /// value-blind by contract (FR-012).
+    ///
+    /// Extracted from the `dispatch_verb` arm so the rate
+    /// persistence is exercisable on the host (a `State`
+    /// handle cannot be constructed outside a running Tauri
+    /// app), never as a second dispatch.
+    pub(crate) fn execute_live_control(
+        state: &AppState,
+        verb: ShellVerb,
+    ) -> Result<serde_json::Value, String> {
+        let (snapshot, previous_rate) = {
+            let mut session = state.session.lock().map_err(|e| e.to_string())?;
+            let previous_rate = session.snapshot().rate;
+            let snapshot = session.execute(verb).map_err(|e| e.to_string())?;
+            (snapshot, previous_rate)
+        };
+        publish_current_state(state, None);
+        // Section change (T035): a skip moves the
+        // position without a pause, so the durable row
+        // is refreshed through the section-change
+        // bookkeeping — `interrupted` for the
+        // transport-holding skip, `paused` for a
+        // forward skip that reaches the duration and
+        // lands `Paused` (FR-018). Every other live
+        // control holds its transport, and the write
+        // is a no-op.
+        after_skip(state, &snapshot);
+        // T042 write-on-change (FR-019b): only a rate press
+        // persists, and only when it moved the rung — the
+        // stepper's `None` (a saturating press) writes
+        // nothing new.
+        if let Some(step) = rate_press_of(verb) {
+            if let Some(rung) = RateStepper::open(Some(previous_rate)).step(step) {
+                persist_last_rate(state, rung);
+            }
+        }
+        Ok(serde_json::json!({
+            "status": snapshot.transport.to_string(),
+            "position_secs": snapshot.position_secs,
+            "transport": snapshot.transport.to_string(),
+        }))
     }
 
     /// Route one parsed platform intent (T110) to the
@@ -1943,6 +2166,11 @@ pub mod commands {
         if document.trim().is_empty() {
             return Err(OpenError::EmptyDocument);
         }
+        // T042 read-at-start (FR-019b): the session opens at
+        // the stored rung — seeded through the rate verbs
+        // before anything else happens, so a fresh session
+        // never starts at the wrong speed.
+        seed_session_rate(state);
         // Same code path as the adapter CLI (Principle II): the
         // adapter owns the chunk boundary; the engine receives
         // bounded chunks only.
@@ -3698,5 +3926,242 @@ mod open_document_tests {
                 Err("the session-start totals were not fed to the resolver".to_string())
             }
         }
+    }
+}
+
+/// T042's shell wiring: the two halves the player crate and the
+/// store define, composed on the shell side (src-tauri).
+///
+/// * read-at-start: a session open seeds the stored `last_rate`
+///   through the rate verbs, driving the minimum number of
+///   one-rung presses that reach the stored rung (the player
+///   crate exposes no seeding constructor, so the shell is the
+///   composition point);
+/// * write-on-change: a rate press that moved the rung persists
+///   the new rung, and a press that saturated at a ladder end
+///   persists nothing new (the stepper's `None`);
+/// * value-blind: no rung value is rendered on any shell
+///   payload (FR-012).
+#[cfg(test)]
+mod rate_persistence_tests {
+    use super::*;
+    use crate::commands::{execute_live_control, open_document_bytes};
+    use player::transport::PlaybackRate;
+    use session::store::StoredPosition;
+
+    /// A document the tests open through the cold-start path.
+    const DOC: &[u8] = b"# Rota da Manha\n\nO onibus sai as seis.";
+
+    /// A fresh state whose bookmark store lives in a temp dir.
+    fn state_with_store() -> Result<(tempfile::TempDir, AppState), String> {
+        let dir = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let store =
+            BookmarkStore::open(&dir.path().join("bookmarks.redb")).map_err(|e| e.to_string())?;
+        Ok((dir, AppState::test_state_with_bookmark_store(store)))
+    }
+
+    /// The stored `last_rate` rung, read through the store's own
+    /// getter.
+    fn stored_rate(state: &AppState) -> Result<Option<PlaybackRate>, String> {
+        let mut guard = state.bookmark_store.lock().map_err(|e| e.to_string())?;
+        let store = guard.as_mut().ok_or("no bookmark store")?;
+        store.get_last_rate().map_err(|e| e.to_string())
+    }
+
+    /// Store a `last_rate` rung, as an earlier session's dispatch
+    /// would have written it.
+    fn put_stored_rate(state: &AppState, rate: PlaybackRate) -> Result<(), String> {
+        let mut guard = state.bookmark_store.lock().map_err(|e| e.to_string())?;
+        let store = guard.as_mut().ok_or("no bookmark store")?;
+        store.put_last_rate(rate).map_err(|e| e.to_string())
+    }
+
+    /// The live rung the held session states.
+    fn session_rate(state: &AppState) -> Result<PlaybackRate, String> {
+        state
+            .session
+            .lock()
+            .map_err(|e| e.to_string())
+            .map(|session| session.snapshot().rate)
+    }
+
+    /// Read-at-start (FR-019b): the session opens at the stored
+    /// rung — the seed drives the minimum number of rate verbs
+    /// that reach it, and the store is read, never written (the
+    /// store already carries the rung being read).
+    #[test]
+    fn open_document_seeds_the_stored_last_rate_at_session_start() -> Result<(), String> {
+        let (_dir, state) = state_with_store()?;
+        put_stored_rate(&state, PlaybackRate::R2_0)?;
+
+        // The open path seeds before it synthesizes, so the seed
+        // lands whether or not this host's audio tail answers.
+        let _opened = open_document_bytes(&state, DOC.to_vec());
+        assert_eq!(
+            session_rate(&state)?,
+            PlaybackRate::R2_0,
+            "the open did not seed the stored last_rate"
+        );
+        Ok(())
+    }
+
+    /// A fresh store opens at the normal-speed default: first use
+    /// carries no rung, and the seed resolves the default once
+    /// (FR-019b / storage-schema.md).
+    #[test]
+    fn a_fresh_store_seeds_the_default_rung() -> Result<(), String> {
+        let (_dir, state) = state_with_store()?;
+        let _opened = open_document_bytes(&state, DOC.to_vec());
+        assert_eq!(
+            session_rate(&state)?,
+            player::rate::DEFAULT_RATE,
+            "first use must open at the normal-speed rung"
+        );
+        assert_eq!(stored_rate(&state)?, None, "the seed must write nothing");
+        Ok(())
+    }
+
+    /// Write-on-change (FR-019b): a rate press that moved the
+    /// rung persists the new rung, read back through the store's
+    /// own getter.
+    #[test]
+    fn a_rate_dispatch_persists_the_new_rung() -> Result<(), String> {
+        let (_dir, state) = state_with_store()?;
+        let payload =
+            execute_live_control(&state, ShellVerb::RateUp).map_err(|error| error.to_string())?;
+        assert_eq!(
+            payload["transport"], "paused",
+            "a rate press holds the transport it was pressed from"
+        );
+        assert_eq!(
+            session_rate(&state)?,
+            PlaybackRate::R1_25,
+            "the rate press did not move one rung"
+        );
+        assert_eq!(
+            stored_rate(&state)?,
+            Some(PlaybackRate::R1_25),
+            "a rate change did not persist the new rung (write-on-change)"
+        );
+        Ok(())
+    }
+
+    /// A saturating press persists nothing new: the session is
+    /// walked to the top rung through the real dispatch, a fresh
+    /// store is then installed under the same held session, and
+    /// the saturating press that follows leaves that store with no
+    /// `last_rate` — because the stepper reported no change.
+    #[test]
+    fn a_saturating_rate_press_persists_nothing_new() -> Result<(), String> {
+        let (_dir, state) = state_with_store()?;
+        for _ in 0..10 {
+            let _pressed = execute_live_control(&state, ShellVerb::RateUp)?;
+        }
+        assert_eq!(session_rate(&state)?, PlaybackRate::R4_0);
+
+        // A fresh store under the same session: only a write would
+        // leave a rung in it, and a saturating press reports no
+        // change, so nothing is written.
+        let dir = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let fresh =
+            BookmarkStore::open(&dir.path().join("bookmarks.redb")).map_err(|e| e.to_string())?;
+        {
+            let mut guard = state.bookmark_store.lock().map_err(|e| e.to_string())?;
+            *guard = Some(fresh);
+        }
+        let _pressed = execute_live_control(&state, ShellVerb::RateUp)?;
+        assert_eq!(
+            session_rate(&state)?,
+            PlaybackRate::R4_0,
+            "a saturating press moved the top rung"
+        );
+        assert_eq!(
+            stored_rate(&state)?,
+            None,
+            "a saturating press persisted a rung (write-on-change was violated)"
+        );
+        Ok(())
+    }
+
+    /// Value-blind by contract (FR-012 / T042): no shell payload
+    /// renders a rung value — no rate key at all, and none of the
+    /// display forms the ladder would render as.
+    #[test]
+    fn no_rate_value_is_rendered_on_the_shell_payloads() -> Result<(), String> {
+        const FORBIDDEN: [&str; 8] = [
+            "rate", "0.75x", "1.0x", "1.25x", "1.5x", "1.75x", "2.0x", "4.0x",
+        ];
+        let (_dir, state) = state_with_store()?;
+        let pressed = execute_live_control(&state, ShellVerb::RateUp)?;
+        let pressed_wire = serde_json::to_string(&pressed).map_err(|e| e.to_string())?;
+        for forbidden in FORBIDDEN {
+            assert!(
+                !pressed_wire.contains(forbidden),
+                "the rate dispatch payload renders the forbidden {forbidden:?}"
+            );
+        }
+        // The open payload carries the resume facts, never a rate.
+        let opened = open_document_bytes(&state, DOC.to_vec());
+        let open_wire = match &opened {
+            Ok(payload) => serde_json::to_string(payload).map_err(|e| e.to_string())?,
+            Err(OpenError::Backend { .. }) => {
+                // Device-gated host: no payload is produced, so
+                // nothing can carry a rate value.
+                return Ok(());
+            }
+            Err(other) => return Err(format!("the open failed unexpectedly: {other}")),
+        };
+        for forbidden in FORBIDDEN {
+            assert!(
+                !open_wire.contains(forbidden),
+                "the open payload renders the forbidden {forbidden:?}"
+            );
+        }
+        Ok(())
+    }
+
+    /// The write-on-change write lands in the `settings` table
+    /// only: with no document loaded the durable bookmark
+    /// writes are skipped entirely (there is no fingerprint to
+    /// key a row under, FR-036), so a rate press cannot
+    /// disturb the stored position a reader left behind. The
+    /// settings/bookmarks table isolation itself is pinned by
+    /// the store's own round-trip test
+    /// (`crates/session/src/store.rs`).
+    #[test]
+    fn a_rate_press_writes_no_stored_position_without_a_loaded_document() -> Result<(), String> {
+        let (_dir, state) = state_with_store()?;
+        let key = fingerprint::fingerprint(DOC);
+        {
+            let mut guard = state.bookmark_store.lock().map_err(|e| e.to_string())?;
+            let store = guard.as_mut().ok_or("no bookmark store")?;
+            store
+                .put(
+                    &key,
+                    StoredPosition {
+                        offset_secs: 12.5,
+                        first_yield_ms: 700,
+                        end_kind: engine_core::closed::SessionEnd::Paused,
+                    },
+                )
+                .map_err(|e| e.to_string())?;
+        }
+        let _pressed = execute_live_control(&state, ShellVerb::RateUp)?;
+        let stored = {
+            let mut guard = state.bookmark_store.lock().map_err(|e| e.to_string())?;
+            let store = guard.as_mut().ok_or("no bookmark store")?;
+            store.get(&key).map_err(|e| e.to_string())?
+        };
+        let stored = stored.ok_or("the rate press disturbed the stored position")?;
+        assert_eq!(
+            stored.offset_secs, 12.5,
+            "a rate change rewrote a stored position"
+        );
+        assert_eq!(
+            stored.end_kind,
+            engine_core::closed::SessionEnd::Paused,
+            "a rate change rewrote a stored end kind"
+        );
+        Ok(())
     }
 }

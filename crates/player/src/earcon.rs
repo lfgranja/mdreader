@@ -1,5 +1,5 @@
-//! EarconKind — procedural audio confirmation grammar (FR-016 / SC-004 / SC-008).
-//! Mono f32 @ 22050 Hz; no `.wav`/`SoundPool`/`ToneGenerator` assets.
+//! `EarconKind` — procedural audio confirmation grammar (FR-016 / SC-004 / SC-008).
+//! Mono f32 @ 22050 Hz; no `.wav` / `SoundPool` / `ToneGenerator` assets.
 //!
 //! Closed set: exactly the seven named variants below. No `Other`/`Unknown`
 //! — every surface match must be exhaustive with no `_ =>` catch-all.
@@ -125,6 +125,7 @@ pub struct EarconDescriptor {
 
 impl EarconDescriptor {
     /// Create an earcon descriptor for the given kind.
+    #[must_use]
     pub fn for_kind(kind: EarconKind) -> Self {
         match kind {
             EarconKind::Play => Self::play(),
@@ -193,7 +194,7 @@ impl EarconDescriptor {
         }
     }
 
-    /// SkipFwd: 880→1108 Hz rising, 40 ms tick.
+    /// `SkipFwd`: `880`→`1108` Hz rising, 40 ms tick.
     fn skip_fwd() -> Self {
         const SAMPLE_RATE: u32 = 22_050;
         const TICK_DURATION_MS: u32 = 40;
@@ -226,7 +227,7 @@ impl EarconDescriptor {
         }
     }
 
-    /// SkipBack: 880→660 Hz falling, 40 ms tick.
+    /// `SkipBack`: `880`→`660` Hz falling, 40 ms tick.
     fn skip_back() -> Self {
         const SAMPLE_RATE: u32 = 22_050;
         const TICK_DURATION_MS: u32 = 40;
@@ -278,7 +279,7 @@ impl EarconDescriptor {
         samples.extend(tick1);
 
         // Gap (silence)
-        let gap_samples = (SAMPLE_RATE as f32 * GAP_MS as f32 / 1000.0) as usize;
+        let gap_samples = (SAMPLE_RATE * GAP_MS / 1000) as usize;
         samples.extend(vec![0.0; gap_samples]);
 
         // Second tick: same dissonant pair
@@ -319,7 +320,7 @@ impl EarconDescriptor {
         samples.extend(note1);
 
         // Gap (silence)
-        let gap_samples = (SAMPLE_RATE as f32 * GAP_MS as f32 / 1000.0) as usize;
+        let gap_samples = (SAMPLE_RATE * GAP_MS / 1000) as usize;
         samples.extend(vec![0.0; gap_samples]);
 
         // Repeat
@@ -342,7 +343,7 @@ impl EarconDescriptor {
         }
     }
 
-    /// RateStep: Unison 880 Hz / 60 ms.
+    /// `RateStep`: Unison 880 Hz / 60 ms.
     fn rate_step() -> Self {
         const SAMPLE_RATE: u32 = 22_050;
         const DURATION_MS: u32 = 60;
@@ -376,8 +377,12 @@ enum Waveform {
 }
 
 /// Generate a simple tone.
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the earcon domain is exact in f32: the sample rate is the declared 22050 Hz (< 2^24) and every duration is a whole millisecond count <= 500, so u32->f32, usize->f32 and the derived sample counts are exactly representable; the casts exist because the PCM phase math is f32 while the sample counts are integer-domain (the exact-integer form (rate * ms / 1000) is used for the counts)"
+)]
 fn generate_tone(sample_rate: u32, duration_ms: u32, freq_hz: f32, waveform: Waveform) -> Vec<f32> {
-    let num_samples = (sample_rate as f32 * duration_ms as f32 / 1000.0) as usize;
+    let num_samples = (sample_rate * duration_ms / 1000) as usize;
     let mut samples = Vec::with_capacity(num_samples);
 
     for i in 0..num_samples {
@@ -396,6 +401,10 @@ fn generate_tone(sample_rate: u32, duration_ms: u32, freq_hz: f32, waveform: Wav
 }
 
 /// Generate a frequency sweep (chirp).
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the earcon domain is exact in f32: the sample rate is the declared 22050 Hz (< 2^24) and every duration is a whole millisecond count <= 500, so u32->f32, usize->f32 and the derived sample counts are exactly representable; the casts exist because the PCM phase math is f32 while the sample counts are integer-domain (the exact-integer form (rate * ms / 1000) is used for the counts)"
+)]
 fn generate_frequency_sweep(
     sample_rate: u32,
     duration_ms: u32,
@@ -403,20 +412,20 @@ fn generate_frequency_sweep(
     end_hz: f32,
     waveform: Waveform,
 ) -> Vec<f32> {
-    let num_samples = (sample_rate as f32 * duration_ms as f32 / 1000.0) as usize;
+    let num_samples = (sample_rate * duration_ms / 1000) as usize;
     let mut samples = Vec::with_capacity(num_samples);
-    let duration_s = duration_ms as f32 / 1000.0;
+    let duration_secs = duration_ms as f32 / 1000.0;
 
     for i in 0..num_samples {
         let t = i as f32 / sample_rate as f32;
         // Linear frequency sweep
-        let freq = start_hz + (end_hz - start_hz) * (t / duration_s);
+        let freq = (end_hz - start_hz).mul_add(t / duration_secs, start_hz);
         let phase = 2.0 * std::f32::consts::PI * freq * t;
         let sample = match waveform {
             Waveform::Sine => phase.sin(),
             Waveform::Square => phase.sin().signum(),
         };
-        let envelope = envelope(t, duration_s);
+        let envelope = envelope(t, duration_secs);
         samples.push(sample * envelope * 0.3);
     }
 
@@ -445,22 +454,29 @@ fn generate_two_note_sequence(
 }
 
 /// Generate a dissonant pair (two close frequencies summed).
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the earcon domain is exact in f32: the sample rate is the declared 22050 Hz (< 2^24) and every duration is a whole millisecond count <= 500, so u32->f32, usize->f32 and the derived sample counts are exactly representable; the casts exist because the PCM phase math is f32 while the sample counts are integer-domain (the exact-integer form (rate * ms / 1000) is used for the counts)"
+)]
 fn generate_dissonant_pair(
     sample_rate: u32,
     duration_ms: u32,
     freq1_hz: f32,
     freq2_hz: f32,
 ) -> Vec<f32> {
-    let num_samples = (sample_rate as f32 * duration_ms as f32 / 1000.0) as usize;
+    let num_samples = (sample_rate * duration_ms / 1000) as usize;
     let mut samples = Vec::with_capacity(num_samples);
-    let duration_s = duration_ms as f32 / 1000.0;
+    let duration_secs = duration_ms as f32 / 1000.0;
 
     for i in 0..num_samples {
         let t = i as f32 / sample_rate as f32;
         let phase1 = 2.0 * std::f32::consts::PI * freq1_hz * t;
         let phase2 = 2.0 * std::f32::consts::PI * freq2_hz * t;
-        let sample = (phase1.sin() + phase2.sin()) * 0.5; // Mix at equal amplitude
-        let envelope = envelope(t, duration_s);
+        // Mix at equal amplitude (f32::midpoint — the manual (a + b) * 0.5
+        // form overflows for large same-sign operands; the clippy midpoint
+        // lint is deny-level).
+        let sample = phase1.sin().midpoint(phase2.sin());
+        let envelope = envelope(t, duration_secs);
         samples.push(sample * envelope * 0.3);
     }
 
@@ -468,23 +484,27 @@ fn generate_dissonant_pair(
 }
 
 /// Generate square wave with minor second cluster.
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the earcon domain is exact in f32: the sample rate is the declared 22050 Hz (< 2^24) and every duration is a whole millisecond count <= 500, so u32->f32, usize->f32 and the derived sample counts are exactly representable; the casts exist because the PCM phase math is f32 while the sample counts are integer-domain (the exact-integer form (rate * ms / 1000) is used for the counts)"
+)]
 fn generate_square_with_minor_second(
     sample_rate: u32,
     duration_ms: u32,
     freq1_hz: f32,
     freq2_hz: f32,
 ) -> Vec<f32> {
-    let num_samples = (sample_rate as f32 * duration_ms as f32 / 1000.0) as usize;
+    let num_samples = (sample_rate * duration_ms / 1000) as usize;
     let mut samples = Vec::with_capacity(num_samples);
-    let duration_s = duration_ms as f32 / 1000.0;
+    let duration_secs = duration_ms as f32 / 1000.0;
 
     for i in 0..num_samples {
         let t = i as f32 / sample_rate as f32;
         let phase1 = 2.0 * std::f32::consts::PI * freq1_hz * t;
         let phase2 = 2.0 * std::f32::consts::PI * freq2_hz * t;
         // Square wave for both frequencies (using Waveform::Square)
-        let sample = (square_wave(phase1) + square_wave(phase2)) * 0.5;
-        let envelope = envelope(t, duration_s);
+        let sample = square_wave(phase1).midpoint(square_wave(phase2));
+        let envelope = envelope(t, duration_secs);
         samples.push(sample * envelope * 0.25); // Lower gain for square wave
     }
 
@@ -500,14 +520,14 @@ fn square_wave(phase: f32) -> f32 {
 }
 
 /// Simple ADSR-like envelope (attack + release only for short sounds).
-fn envelope(t: f32, duration_s: f32) -> f32 {
+fn envelope(t: f32, duration_secs: f32) -> f32 {
     const ATTACK_S: f32 = 0.005; // 5 ms attack
     const RELEASE_S: f32 = 0.010; // 10 ms release
 
     if t < ATTACK_S {
         t / ATTACK_S
-    } else if t > duration_s - RELEASE_S {
-        (duration_s - t) / RELEASE_S
+    } else if t > duration_secs - RELEASE_S {
+        (duration_secs - t) / RELEASE_S
     } else {
         1.0
     }

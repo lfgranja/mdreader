@@ -13,6 +13,9 @@ import android.media.session.PlaybackState
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.util.Log
 
 /**
@@ -87,6 +90,26 @@ import android.util.Log
  * to the playing surface, so that where a platform or OEM
  * build permits dismissal regardless of the ongoing flag,
  * the gesture reaches Rust and pauses first (FR-028e).
+ *
+ * The haptic confirmation (FR-016, contracts/earcon.md)
+ * rides this same publish: Rust selects the pattern id
+ * per action/trigger and publishes it with the state, and
+ * [publish] renders the handed id verbatim — one distinct
+ * [VibrationEffect] from a closed seven-pattern table,
+ * with zero selection or computation on this side
+ * (SC-035). The pattern never depends on any state this
+ * class mirrors. The [Vibrator] is no audio stream: no
+ * AudioTrack, no stream attribute, no focus request, so
+ * the confirmation rides outside `STREAM_MUSIC` — never
+ * ducked, never silenced with the media stream — which is
+ * what keeps the muted/DND path of the silent
+ * confirmation alive. The render is best-effort
+ * ([renderHaptic]): a missing vibrator or a platform
+ * refusal logs and continues, and the visual mirror this
+ * same publish renders — the giant transport glyph, the
+ * progress indication and the banner state change — is the
+ * covering path when the haptic is fully disabled, so no
+ * haptic failure ever blocks a publish.
  *
  * @param context service context used to post and dismiss
  * the media surface and to register the control receiver.
@@ -164,9 +187,10 @@ class MediaMirror(
      * the session's authoritative transport and position,
      * the resolved surface content, the progress indication
      * fixed at session start, the stated reason of a
-     * transient surface, and the dismissal classification.
-     * The mirror holds no state of its own; every publish
-     * replaces the previous render.
+     * transient surface, the dismissal classification, and
+     * the published haptic pattern id. The mirror holds no
+     * state of its own; every publish replaces the previous
+     * render.
      */
     data class MirrorState(
         /** The transport wire string — the closed
@@ -196,8 +220,76 @@ class MediaMirror(
         val transientReason: String?,
         /** The dismissal classification (FR-028e), decided
          * by the Rust resolver. */
-        val dismissal: Dismissal
+        val dismissal: Dismissal,
+        /** The published haptic pattern id (FR-016) — the
+         * confirmation pattern Rust selected for this
+         * trigger, mirrored verbatim: one of the closed 1–7
+         * id table (see [HapticPattern]), published on the
+         * wire's `haptic` key, or null when the publish
+         * carries no confirmation. Selecting the pattern
+         * per action/trigger is Rust's act; this mirror only
+         * renders the handed id through the closed
+         * vibration table (SC-035) — never a pattern chosen
+         * from the transport, the action or any other state
+         * this class mirrors. */
+        val hapticId: Int?
     )
+
+    /**
+     * The closed set of published haptic pattern ids
+     * (FR-016) — the seven confirmations of
+     * contracts/earcon.md, enumerated here as the id codes
+     * the mirror wire's `haptic` key carries. Rust selects
+     * the pattern per action/trigger and publishes the id
+     * with the trigger's mirror state; this enum is the
+     * mirror's render vocabulary — a closed table with no
+     * eighth member, no default and no fallthrough.
+     *
+     * The ids are fixed from the Rust `EarconKind`
+     * declaration order (crates/player/src/earcon.rs:
+     * Play, Pause, SkipFwd, SkipBack, Warning, Failure,
+     * RateStep), so the published id and the rendered
+     * pattern stay one closed set on both sides of the
+     * wire.
+     */
+    private enum class HapticPattern(val code: Int) {
+        /** Play confirmation — wire id 1. */
+        Play(1),
+
+        /** Pause confirmation — wire id 2. */
+        Pause(2),
+
+        /** Skip-forward confirmation — wire id 3. */
+        SkipFwd(3),
+
+        /** Skip-backward confirmation — wire id 4. */
+        SkipBack(4),
+
+        /** Warning confirmation — the pause-demanding
+         * interruption, wire id 5. */
+        Warning(5),
+
+        /** Failure confirmation — the undeliverable voice,
+         * wire id 6. */
+        Failure(6),
+
+        /** Rate-step confirmation — wire id 7. */
+        RateStep(7);
+
+        companion object {
+            /**
+             * The pattern for one published id, or null for
+             * an id outside the closed set. A well-formed
+             * publish always resolves — the published ids
+             * are this closed set — so a null is the
+             * fail-closed branch for a malformed wire value:
+             * it drops with a diagnostic at [renderHaptic],
+             * never a default pattern.
+             */
+            fun of(code: Int): HapticPattern? =
+                values().firstOrNull { it.code == code }
+        }
+    }
 
     /** Wire verb strings of the closed verb set
      * (contracts/shell-ipc.md) and the transport wire
@@ -370,6 +462,81 @@ class MediaMirror(
          * and the notification progress report millis). */
         private const val MILLIS_PER_SECOND = 1000.0
 
+        // ---------------------------------------------------------------
+        // Haptic pattern table (FR-016, contracts/earcon.md).
+        //
+        // The seven closed patterns below are pairwise-
+        // distinguishable by buzz duration and count, which
+        // is the acceptance dimension of SC-004 (10/10 blind
+        // per confirmation type, sounds on and off):
+        //
+        //   id  pattern     buzzes (ms)   rendered effect
+        //   1   Play        30            one 30 ms one-shot
+        //   2   Pause       80            one 80 ms one-shot
+        //   3   SkipFwd     20 + 40       buzz 20, gap, buzz 40
+        //   4   SkipBack    40 + 20       buzz 40, gap, buzz 20
+        //   5   Warning     15 + 15 + 30  buzz 15, gap, buzz
+        //                                     15, gap, buzz 30
+        //   6   Failure     80 + 80       buzz 80, gap, buzz 80
+        //   7   RateStep    10            one 10 ms one-shot
+        //
+        // The three singles differ by duration (30 / 80 /
+        // 10); the three doubles differ by duration pair
+        // ((20,40) / (40,20) / (80,80)); the warning is the
+        // only triple. All render at default amplitude —
+        // identity rests on duration and count alone, so no
+        // pattern hides inside another. `createWaveform`
+        // timings alternate buzz/gap/buzz, so every
+        // multi-buzz pattern carries the fixed gap between
+        // its buzzes: the gap separates, it never
+        // distinguishes.
+        // ---------------------------------------------------------------
+
+        /** Play confirmation buzz — a single 30 ms
+         * one-shot. */
+        private const val HAPTIC_PLAY_MS = 30L
+
+        /** Pause confirmation buzz — a single 80 ms
+         * one-shot, distinct from play by duration alone. */
+        private const val HAPTIC_PAUSE_MS = 80L
+
+        /** Rate-step confirmation tick — a single 10 ms
+         * one-shot, the shortest pattern of the table. */
+        private const val HAPTIC_RATE_STEP_MS = 10L
+
+        /** The inter-buzz gap of every multi-buzz pattern —
+         * 20 ms, fixed. */
+        private const val HAPTIC_GAP_MS = 20L
+
+        /** Skip-forward confirmation waveform — buzz 20 ms,
+         * gap, buzz 40 ms: the forward gesture renders
+         * short to long. */
+        private val HAPTIC_SKIP_FWD_TIMINGS =
+            longArrayOf(20, HAPTIC_GAP_MS, 40)
+
+        /** Skip-backward confirmation waveform — buzz 40 ms,
+         * gap, buzz 20 ms: the backward gesture renders long
+         * to short, the exact mirror of
+         * [HAPTIC_SKIP_FWD_TIMINGS]. */
+        private val HAPTIC_SKIP_BACK_TIMINGS =
+            longArrayOf(40, HAPTIC_GAP_MS, 20)
+
+        /** Warning confirmation waveform — buzz 15 ms, gap,
+         * buzz 15 ms, gap, buzz 30 ms: the triple of the
+         * pause-demanding interruption. */
+        private val HAPTIC_WARNING_TIMINGS =
+            longArrayOf(15, HAPTIC_GAP_MS, 15, HAPTIC_GAP_MS, 30)
+
+        /** Failure confirmation waveform — buzz 80 ms, gap,
+         * buzz 80 ms: the repeated long buzz of the
+         * undeliverable voice. */
+        private val HAPTIC_FAILURE_TIMINGS =
+            longArrayOf(80, HAPTIC_GAP_MS, 80)
+
+        /** `createWaveform` repeat index — play the pattern
+         * once: a confirmation, never a looping alert. */
+        private const val HAPTIC_NO_REPEAT = -1
+
         /** Label of the resume control. */
         private const val RESUME_LABEL = "Resume"
 
@@ -469,6 +636,30 @@ class MediaMirror(
     private val autoDismiss = Runnable { withdrawSurface() }
 
     /**
+     * The device vibrator, acquired once at the API level
+     * boundary (contracts/earcon.md): the
+     * [VibratorManager] route on API 31+, the legacy
+     * `VIBRATOR_SERVICE` route below. Null only where the
+     * platform exposes no vibrator service at all — the
+     * haptic render then logs and the visual mirror covers
+     * ([renderHaptic]). The vibrator is no audio stream:
+     * it is never routed through the playback backend, so
+     * the confirmation rides outside `STREAM_MUSIC`, is
+     * never ducked and is never silenced with the media
+     * stream — the muted/DND path of the silent
+     * confirmation (contracts/earcon.md).
+     */
+    @Suppress("DEPRECATION")
+    private val vibrator: Vibrator? by lazy {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            context.getSystemService(VibratorManager::class.java)
+                ?.defaultVibrator
+        } else {
+            context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+        }
+    }
+
+    /**
      * The single media surface — the one notification this
      * mirror has posted (the structural form of the
      * exactly-one invariant: one reference, replaced by
@@ -516,6 +707,13 @@ class MediaMirror(
      * verbatim from the published state — nothing is computed,
      * estimated, or defaulted from another value (SC-035).
      *
+     * The optional `haptic` key is read verbatim as the
+     * published pattern id (FR-016): the selection is Rust's
+     * (the pattern id rides the same publish as the trigger,
+     * so a confirmation cannot sound without the mirror) and
+     * the render is the closed vibration table inside
+     * [publish].
+     *
      * @param mirrorJson JSON string of the MirrorState (wire form
      * per contracts/shell-ipc.md).
      * @param deleteIntent the host-supplied swipe-away delete
@@ -536,6 +734,16 @@ class MediaMirror(
             val transientReason =
                 if (json.has("transientReason") && !json.isNull("transientReason")) {
                     json.getString("transientReason")
+                } else {
+                    null
+                }
+
+            // FR-016: the published haptic pattern id — Rust's
+            // selection, read verbatim; absent (or null) carries
+            // no confirmation.
+            val hapticId =
+                if (json.has("haptic") && !json.isNull("haptic")) {
+                    json.getInt("haptic")
                 } else {
                     null
                 }
@@ -569,7 +777,8 @@ class MediaMirror(
                     sectionTitle = sectionTitle,
                     progress = progress,
                     transientReason = transientReason,
-                    dismissal = dismissal
+                    dismissal = dismissal,
+                    hapticId = hapticId
                 ),
                 deleteIntent
             )
@@ -622,8 +831,20 @@ class MediaMirror(
      * previous render — the same notification id, the same
      * single surface reference — and cancels any pending
      * auto-dismiss of the superseded surface.
+     *
+     * When the published state carries a haptic pattern id,
+     * this same call renders the confirmation first: the
+     * [VibrationEffect] of the published pattern, from the
+     * closed table, best-effort and never blocking the
+     * surface render below (FR-016; see [renderHaptic]).
+     * The confirmation rides the publish itself — Rust
+     * publishes trigger and pattern in one call, so a
+     * haptic cannot fire without the mirror (contracts/
+     * earcon.md) — and a failure of the haptic path is
+     * covered by the visual render, which always happens.
      */
     fun publish(state: MirrorState, deleteIntent: PendingIntent? = null) {
+        renderHaptic(state.hapticId)
         registerControlReceiver()
         mediaSession.isActive = true
         val mirrored = PlaybackState.Builder()
@@ -708,6 +929,116 @@ class MediaMirror(
         }
         surface = null
     }
+
+    /**
+     * Renders the published haptic confirmation (FR-016):
+     * the [VibrationEffect] of the published pattern id,
+     * and nothing else. Selection is not this side's act —
+     * Rust picks the pattern per action/trigger and the id
+     * rides the mirror payload, so this method maps the
+     * handed id through a closed table ([HapticPattern],
+     * [effectOf]) with no pattern ever chosen from the
+     * transport, the action or any other mirrored state
+     * (SC-035).
+     *
+     * Every outcome is best-effort and none can block
+     * [publish]: a null id renders nothing (a publish
+     * without confirmation); an id outside the closed set
+     * — impossible for a well-formed payload — logs and
+     * drops rather than defaulting to some other pattern; a
+     * device with no vibrator logs and continues; and any
+     * platform exception is caught and logged. The visual
+     * mirror — the transport glyph, the progress indication
+     * and the banner state change this same publish
+     * renders — is the covering path when the haptic is
+     * fully disabled, so the confirmation never depends on
+     * the vibrator delivering.
+     *
+     * @param hapticId the published pattern id, or null when
+     * the publish carries no confirmation.
+     */
+    private fun renderHaptic(hapticId: Int?) {
+        if (hapticId == null) {
+            return
+        }
+        val pattern = HapticPattern.of(hapticId)
+        if (pattern == null) {
+            Log.w(
+                TAG,
+                "haptic pattern id $hapticId outside the closed set; dropped"
+            )
+            return
+        }
+        val device = vibrator
+        if (device == null || !device.hasVibrator()) {
+            Log.i(
+                TAG,
+                "no vibrator on this device; haptic $pattern dropped; " +
+                    "the visual mirror covers"
+            )
+            return
+        }
+        try {
+            device.vibrate(effectOf(pattern))
+        } catch (e: Exception) {
+            Log.w(TAG, "haptic $pattern not delivered: ${e.message}")
+        }
+    }
+
+    /**
+     * The distinct [VibrationEffect] of one closed haptic
+     * pattern — the render table, fixed here and nowhere
+     * else. All seven patterns are pairwise-distinguishable
+     * by buzz duration and count (the table lives on
+     * [MediaMirror]'s companion constants):
+     *
+     * | pattern   | effect |
+     * | play      | one 30 ms buzz |
+     * | pause     | one 80 ms buzz |
+     * | skip-fwd  | buzz 20 ms + 40 ms |
+     * | skip-back | buzz 40 ms + 20 ms |
+     * | warning   | buzz 15 + 15 + 30 ms |
+     * | failure   | buzz 80 + 80 ms |
+     * | rate-step | one 10 ms tick |
+     *
+     * The `when` is exhaustive over the closed set with no
+     * else and no default: [HapticPattern] is the whole
+     * vocabulary, so no unknown pattern can reach here — one
+     * handed in from the wire is dropped at [renderHaptic].
+     * All effects render at default amplitude; identity
+     * rests on duration and count alone.
+     */
+    private fun effectOf(pattern: HapticPattern): VibrationEffect =
+        when (pattern) {
+            HapticPattern.Play ->
+                VibrationEffect.createOneShot(
+                    HAPTIC_PLAY_MS, VibrationEffect.DEFAULT_AMPLITUDE
+                )
+            HapticPattern.Pause ->
+                VibrationEffect.createOneShot(
+                    HAPTIC_PAUSE_MS, VibrationEffect.DEFAULT_AMPLITUDE
+                )
+            HapticPattern.SkipFwd ->
+                VibrationEffect.createWaveform(
+                    HAPTIC_SKIP_FWD_TIMINGS, HAPTIC_NO_REPEAT
+                )
+            HapticPattern.SkipBack ->
+                VibrationEffect.createWaveform(
+                    HAPTIC_SKIP_BACK_TIMINGS, HAPTIC_NO_REPEAT
+                )
+            HapticPattern.Warning ->
+                VibrationEffect.createWaveform(
+                    HAPTIC_WARNING_TIMINGS, HAPTIC_NO_REPEAT
+                )
+            HapticPattern.Failure ->
+                VibrationEffect.createWaveform(
+                    HAPTIC_FAILURE_TIMINGS, HAPTIC_NO_REPEAT
+                )
+            HapticPattern.RateStep ->
+                VibrationEffect.createOneShot(
+                    HAPTIC_RATE_STEP_MS, VibrationEffect.DEFAULT_AMPLITUDE
+                )
+        }
 
     /**
      * The PlaybackState constant for a published transport

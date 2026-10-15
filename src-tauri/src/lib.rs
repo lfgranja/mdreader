@@ -23,6 +23,14 @@
 //! pre-suspend app-background write, and the two DELETING ends
 //! (a `Stop` press and `DocumentEnd`, FR-032 / FR-032b). A hard
 //! kill therefore replays at most ~30 s (FR-004).
+//!
+//! Cold-start open (T019): [`commands::open_document`] takes the
+//! snapshot BYTES — the sole synthesis input, never a URI or
+//! path — fingerprints them as content (FR-036), resolves the
+//! open lookup through [`session::store::lookup_on_open`] (T036),
+//! publishes the resume-offer route (T037), and reuses the
+//! `play` path for the one synthesis path (Principle II). It
+//! owns the ≤3 s press-to-first-audio budget (SC-002) end-to-end.
 
 use std::sync::Mutex;
 
@@ -31,11 +39,11 @@ use player::backend::CpalBackend;
 use player::cli::{PlaybackSession, SessionSnapshot};
 use player::surface::MirrorState;
 use player::transport::TransportState;
-use tauri::Manager;
-use std::time::Duration;
-use session::store::{BookmarkStore, StoredPosition};
 use session::fingerprint;
 use session::offer::ExpiryOutcome;
+use session::store::{BookmarkStore, StoredPosition};
+use std::time::Duration;
+use tauri::Manager;
 use tokio::time;
 
 /// The permission-state gate (T030b): the pure,
@@ -214,7 +222,9 @@ const HEARTBEAT_PERIOD_SECS: u64 = 20;
 fn now_ms() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |elapsed| u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX))
+        .map_or(0, |elapsed| {
+            u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX)
+        })
 }
 
 /// The loaded document's blake3-256 content
@@ -417,6 +427,71 @@ fn delete_bookmark(state: &AppState) {
     }
 }
 
+/// The named failures of the cold-start open and play paths
+/// (T019) — a closed set with no catch-all variant: every
+/// rejection names its cause, which is the failure half of
+/// the text-I/O protocol (the diagnostic on stderr, nothing
+/// on stdout, never a playing state — FR-005).
+#[derive(Debug)]
+pub(crate) enum OpenError {
+    /// The snapshot bytes are empty: there is nothing to
+    /// synthesize.
+    EmptyDocument,
+    /// The snapshot bytes are not valid UTF-8 text: the
+    /// synthesis input is text, so a non-text document is
+    /// refused before any split, fingerprint, or synthesis.
+    InvalidUtf8,
+    /// The parsed document yields no bounded segment:
+    /// nothing is spoken, so nothing starts.
+    NoSegments,
+    /// A bounded segment could not be synthesized by the
+    /// bound offline engine.
+    Synthesis {
+        /// The engine's named failure, rendered for the
+        /// diagnostic.
+        reason: String,
+    },
+    /// The document-open lookup could not read the session
+    /// store: the resume decision is never guessed from an
+    /// unreadable store — a fail-closed refusal.
+    Store {
+        /// Why the stored row could not be read.
+        reason: String,
+    },
+    /// The audio backend could not be opened (or started) at
+    /// the declared handoff shape — a refusal, never a
+    /// silent start, so no playing state is reported
+    /// (FR-005).
+    Backend {
+        /// Why the backend refused the handoff.
+        reason: String,
+    },
+    /// The session could not take the press: the closed
+    /// transition table rejected it (a torn-down session
+    /// takes no play), or the session lock is poisoned.
+    NoStart {
+        /// Why the start did not happen.
+        reason: String,
+    },
+}
+
+impl std::fmt::Display for OpenError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::EmptyDocument => f.write_str("empty document: nothing to synthesize")?,
+            Self::InvalidUtf8 => f.write_str("document is not valid UTF-8 text")?,
+            Self::NoSegments => f.write_str("empty document: no segments")?,
+            Self::Synthesis { reason } => write!(f, "synthesis failed: {reason}")?,
+            Self::Store { reason } => write!(f, "session store read failed: {reason}")?,
+            Self::Backend { reason } => write!(f, "audio backend unavailable: {reason}")?,
+            Self::NoStart { reason } => write!(f, "the session could not start: {reason}")?,
+        }
+        Ok(())
+    }
+}
+
+impl std::error::Error for OpenError {}
+
 /// The post-execution bookkeeping every verb path
 /// runs once the session has landed (T011 clock,
 /// T035 event-durable puts): note the landed
@@ -578,6 +653,22 @@ pub(crate) fn route_offer(state: &AppState, end_kind: SessionEnd) -> OfferRoute 
         // branch above; arriving here means nothing opened at
         // all (a terminal end, or no stored row).
         ExpiryOutcome::AutoStart { .. } | ExpiryOutcome::NoOffer => OfferRoute::NoRoute,
+    }
+}
+
+/// The resume-offer route in wire form (T037): the route's
+/// wire name plus the FR-032c 3-second window an in-app
+/// dialog opens — the ONE mapping from [`OfferRoute`] to the
+/// wire vocabulary every surface reads (the `offer_route`
+/// command and the cold-start open payload), so no second
+/// definition of the route names can drift (Principle II /
+/// FR-044). A route that opens no dialog carries no window.
+#[must_use]
+pub(crate) fn offer_route_wire(route: OfferRoute) -> (&'static str, Option<u64>) {
+    match route {
+        OfferRoute::InAppDialog => ("in_app_dialog", Some(OFFER_WINDOW_MS)),
+        OfferRoute::LockScreenResume => ("lockscreen_resume", None),
+        OfferRoute::NoRoute => ("none", None),
     }
 }
 
@@ -749,20 +840,16 @@ pub mod commands {
     //! Plugin commands exposed via IPC.
 
     use super::permissions::{self, PermissionSnapshot};
-    use super::{AppState, CpalBackend};
+    use super::{AppState, CpalBackend, OpenError};
+    use crate::{
+        OfferRoute, after_background, after_execute, after_skip, current_fingerprint,
+        delete_bookmark, offer_route_wire, route_offer, set_document_fingerprint,
+    };
     use player::cli::{SessionSnapshot, ShellVerb};
     use player::focus::{FocusClassification, FocusIntent, FocusOutcome};
     use player::routing::{RoutingDecision, RoutingSignal, RoutingTracker};
     use session::fingerprint;
-    use session::offer::OfferMachine;
-    use session::store::BookmarkStore;
-    use crate::{
-        OFFER_WINDOW_MS, OfferRoute, after_background, after_execute, after_skip,
-        current_fingerprint, delete_bookmark, route_offer, set_document_fingerprint,
-    };
     use tauri::{AppHandle, Manager, State, command};
-    use base64::{Engine as _, engine::general_purpose};
-    use std::io::Write;
 
     /// Declared sample rate of the engine handoff (mono f32).
     const DECLARED_RATE_HZ: f64 = 22_050.0;
@@ -816,220 +903,162 @@ pub mod commands {
         Ok(())
     }
 
-    /// Open a document from base64-encoded bytes, write snapshot,
-    /// compute fingerprint, check session store for resume offer,
-    /// and start playback (US1).
+    /// Open a document from its snapshot BYTES and start
+    /// reading (T019 / US1) — the cold-start path.
     ///
-    /// This is the cold-start path: the document bytes are the sole
-    /// synthesis input. The snapshot is written to the app's data
-    /// directory under `snapshots/<fingerprint-hex>.md`, the BLAKE3
-    /// fingerprint is computed, the session store is consulted for
-    /// any stored position, the resume-offer machine determines the
-    /// resume behavior, and playback starts via the synthesis path.
+    /// The bytes are the SOLE synthesis input: no URI, no
+    /// path, no second document object ever enters this
+    /// command. They are decoded and validated as UTF-8 text,
+    /// blake3-256 fingerprinted as content (FR-036 — the key
+    /// the durable writes persist under), resolved through
+    /// the open lookup ([`session::store::lookup_on_open`],
+    /// T036 — the same library fn the `session ingest` CLI
+    /// verb runs), and handed to [`play`] for the ONE
+    /// synthesis path (Principle II). The resume decision
+    /// renders from the published offer route (T037).
     ///
-    /// Returns the session snapshot with status, position, and
-    /// transport state.
+    /// Totals (`total_n` + `total_units`) are fixed at
+    /// session start, once, inside [`play`]: the heading count
+    /// and the marked document total the surface resolver
+    /// derives from the heading list written to the shared
+    /// state at open are never re-estimated mid-session
+    /// (FR-028a).
+    ///
+    /// ## Cold-start budget (SC-002; T016 measures the host
+    /// half, T051 gates the device half)
+    ///
+    /// This command owns the ≤3 s press-to-first-audio bound
+    /// end-to-end: from the picked bytes to the first audible
+    /// PCM. Within the bound, the engine's voice model is
+    /// loaded exactly once (the adapter caches it — never a
+    /// per-segment load), the document is split into bounded
+    /// chunks before any synthesis, and the PCM is enqueued
+    /// and started the moment the document is synthesized.
+    /// The bound's endpoint is the device transducer, so its
+    /// gating measurement is the on-device trial; if that
+    /// trial misses the bound, the fix lives HERE (ordering
+    /// the first segment first so the first chunk starts while
+    /// the rest synthesizes) — the bound is never renegotiated
+    /// and never deferred.
+    ///
+    /// Pure offline: the path holds zero network call sites
+    /// (the T047 guard enforces that app-wide) — fingerprint,
+    /// lookup, synthesis, and playback are all local.
+    ///
+    /// # Errors
+    ///
+    /// The named [`OpenError`] rejections: empty bytes, non-
+    /// UTF-8 bytes, no bounded segments, a synthesis failure,
+    /// an unreadable session store, an unavailable audio
+    /// backend, or a press the closed transition table
+    /// rejects. Every rejection carries the stated reason and
+    /// produces no payload — a refusal, never a playing state
+    /// (FR-005).
     #[command]
     pub fn open_document(
+        bytes: Vec<u8>,
         state: State<'_, AppState>,
-        app: AppHandle,
-        document_base64: String,
     ) -> Result<serde_json::Value, String> {
-        // Decode base64 document bytes.
-        let document_bytes = general_purpose::STANDARD
-            .decode(&document_base64)
-            .map_err(|e| format!("invalid base64: {e}"))?;
+        open_document_bytes(&state, bytes).map_err(|error| error.to_string())
+    }
 
-        if document_bytes.is_empty() {
-            return Err("empty document: nothing to synthesize".to_string());
+    /// The cold-start open core (T019): everything the
+    /// [`open_document`] command does, over the shared state
+    /// directly — the seam the tests drive (no `State` handle
+    /// can be constructed outside a running Tauri app, and the
+    /// path must stay exercisable on the host).
+    ///
+    /// The validation order is deliberate: every check that
+    /// can run before the session is touched runs first, so a
+    /// refused open leaves no document loaded — the failure
+    /// half of the text-I/O protocol (the diagnostic on
+    /// stderr, nothing on stdout).
+    pub(crate) fn open_document_bytes(
+        state: &AppState,
+        bytes: Vec<u8>,
+    ) -> Result<serde_json::Value, OpenError> {
+        if bytes.is_empty() {
+            return Err(OpenError::EmptyDocument);
         }
+        // The snapshot bytes are text: decode and validate
+        // before anything is derived from them.
+        let document = String::from_utf8(bytes).map_err(|_| OpenError::InvalidUtf8)?;
 
-        // Compute BLAKE3 fingerprint of document content (FR-036).
-        let fp = fingerprint(&document_bytes);
-        let fingerprint_hex = hex::encode(fp);
+        // The content fingerprint (FR-036): the key the 20 s
+        // heartbeat and every event-durable put persist under,
+        // recorded through the one call site every
+        // document-opening path shares (T011 / T035).
+        let fingerprint_hex = hex::encode(fingerprint::fingerprint(document.as_bytes()));
+        set_document_fingerprint(state, document.as_bytes());
 
-        // Get app data directory for snapshot storage.
-        let data_dir = app
-            .path()
-            .app_data_dir()
-            .map_err(|e| format!("failed to get app data dir: {e}"))?;
-
-        let snapshots_dir = data_dir.join("snapshots");
-        if !snapshots_dir.exists() {
-            std::fs::create_dir_all(&snapshots_dir)
-                .map_err(|e| format!("failed to create snapshots dir: {e}"))?;
-        }
-
-        // Write snapshot file: <fingerprint-hex>.md
-        let snapshot_path = snapshots_dir.join(format!("{fingerprint_hex}.md"));
-        let mut file = std::fs::File::create(&snapshot_path)
-            .map_err(|e| format!("failed to create snapshot file: {e}"))?;
-        file.write_all(&document_bytes)
-            .map_err(|e| format!("failed to write snapshot: {e}"))?;
-
-        // Trim other snapshots (keep-current-only policy).
-        if let Ok(entries) = std::fs::read_dir(&snapshots_dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path != snapshot_path && path.is_file() {
-                    let _ = std::fs::remove_file(&path);
+        // The open lookup (T036): bytes → fingerprint → the
+        // stored row → the offer form, through the library fn
+        // the `session ingest` CLI verb runs — never
+        // re-assembled here (Principle II / FR-044). The store
+        // is the application's own: a second redb handle over
+        // the same file cannot exist, and the heartbeat
+        // already writes through this one.
+        let lookup = {
+            let mut store_guard =
+                state
+                    .bookmark_store
+                    .lock()
+                    .map_err(|error| OpenError::Store {
+                        reason: error.to_string(),
+                    })?;
+            let store = store_guard.as_mut().ok_or_else(|| OpenError::Store {
+                reason: "the session store never opened".to_string(),
+            })?;
+            session::store::lookup_on_open(store, document.as_bytes()).map_err(|error| {
+                OpenError::Store {
+                    reason: error.to_string(),
                 }
-            }
-        }
-
-        // Open session store and check for stored position.
-        let db_path = data_dir.join("bookmarks.redb");
-        let mut store = BookmarkStore::open(&db_path)
-            .map_err(|e| format!("failed to open session store: {e}"))?;
-
-        let stored = store
-            .get(&fp)
-            .map_err(|e| format!("failed to get stored position: {e}"))?;
-
-        // Determine resume offer via offer machine.
-        let mut offer_machine = OfferMachine::new();
-        let offer = offer_machine.on_session_end(fp, stored);
-
-        // Decide which verb to execute based on offer:
-        // - Continue offer (deliberate pause, foregrounded) -> ResumeAtStored
-        // - StartOver offer or no offer -> Play (starts from 0.0)
-        // - Interrupted (explicit resume required) -> Play (starts from 0.0, no auto-resume)
-        let verb = match offer {
-            Some(session::offer::Offer::Continue { .. }) => ShellVerb::ResumeAtStored,
-            Some(session::offer::Offer::StartOver) | None => ShellVerb::Play,
-        };
-
-        // Record the fingerprint for the 20 s heartbeat and
-        // the event-durable puts (T011) — the one call site
-        // every document-opening path shares.
-        set_document_fingerprint(&state, &document_bytes);
-
-        // Synthesize the document (same as play() but without executing a verb yet).
-        let document_str = String::from_utf8(document_bytes)
-            .map_err(|e| format!("document is not valid UTF-8: {e}"))?;
-
-        // Split document into segments.
-        let segments = adapter_synthesis::chunk::split_document(&document_str, "");
-        if segments.is_empty() {
-            return Err("empty document: no segments".to_string());
-        }
-
-        // Extract title from first heading segment, or use fallback.
-        let title = segments
-            .iter()
-            .find(|s| s.boundary_kind == adapter_synthesis::chunk::BoundaryKind::Heading)
-            .map(|s| {
-                s.content
-                    .lines()
-                    .next()
-                    .unwrap_or("")
-                    .trim_start_matches('#')
-                    .trim()
-                    .to_string()
             })
-            .filter(|t| !t.is_empty())
-            .unwrap_or_else(|| "Document".to_string());
+        }?;
 
-        // Synthesize PCM first to get total duration.
-        let mut pcm = Vec::new();
-        for segment in &segments {
-            let buffer = adapter_synthesis::synth::synthesize(segment)
-                .map_err(|failure| format!("synthesis failed: {failure:?}"))?;
-            pcm.extend_from_slice(&buffer);
-        }
-        let pcm_samples = pcm.len();
-        let duration_secs = pcm_samples as f64 / DECLARED_RATE_HZ;
-
-        // Extract headings from segments with Heading boundary_kind.
-        let heading_segments: Vec<_> = segments
-            .iter()
-            .enumerate()
-            .filter(|(_, s)| s.boundary_kind == adapter_synthesis::chunk::BoundaryKind::Heading)
-            .collect();
-        let mut headings = Vec::new();
-        for (idx, segment) in heading_segments {
-            let estimated_position = (idx as f64 / segments.len() as f64) * duration_secs;
-            let heading_title = segment
-                .content
-                .lines()
-                .next()
-                .unwrap_or("")
-                .trim_start_matches('#')
-                .trim()
-                .to_string();
-            if !heading_title.is_empty() {
-                headings.push(player::surface::Heading {
-                    position_secs: estimated_position,
-                    title: heading_title,
-                });
-            }
-        }
-
-        // Create surface resolver with known duration.
-        let resolver = player::surface::SurfaceResolver::new(
-            Some(title.clone()),
-            "document.md".to_string(),
-            true, // duration_known_at_start = true (total PCM duration known)
-        );
-
-        // Store resolver and headings in AppState for publish path.
-        {
-            let mut resolver_guard = state.surface_resolver.lock().map_err(|e| e.to_string())?;
-            *resolver_guard = Some(resolver);
-            let mut headings_guard = state.headings.lock().map_err(|e| e.to_string())?;
-            *headings_guard = headings;
-        }
-
-        // Enqueue PCM and start backend.
-        {
-            let mut backend = state.backend.lock().map_err(|e| e.to_string())?;
-            if backend.is_none() {
-                *backend = Some(CpalBackend::new().map_err(|e| e.to_string())?);
-            }
-            let backend = backend.as_ref().ok_or("no audio backend")?;
-            backend.enqueue_pcm(pcm);
-            backend.play().map_err(|e| e.to_string())?;
-        }
-
-        // Execute the determined verb (Play or ResumeAtStored).
-        // Both verbs take the pre-play permission gate.
-        let permissions = state.permissions.lock().map_err(|e| e.to_string())?;
-        if let Err(failure) = permissions::check_pre_play(&permissions) {
-            return Ok(serde_json::json!({
-                "ok": false,
-                "error": failure.reason(),
-            }));
-        }
-
-        let snapshot = {
-            let mut session = state.session.lock().map_err(|e| e.to_string())?;
-            session.execute(verb).map_err(|e| e.to_string())?
+        // The offer route (T037): the stored end kind resolves
+        // to the surface that renders the resume decision, and
+        // driving the held machine at this open is the
+        // lifecycle point that opens the FR-032c continue
+        // offer the in-app dialog renders — never mid-window.
+        let route = match lookup.stored {
+            Some(stored) => route_offer(state, stored.end_kind),
+            None => OfferRoute::NoRoute,
         };
 
-        // Open the FR-015 clock on the landed Playing
-        // transport (T011).
-        after_execute(&state, &snapshot);
+        // The one synthesis path (Principle II): split,
+        // synthesize, enqueue, start — with the totals fixed
+        // at open and the rate seeded from the store.
+        let mut payload = play(document, state)?;
 
-        // Publish mirror snapshot after successful play start —
-        // the same helper every verb path uses.
-        publish_current_state(&state, None);
-
-        // Return enhanced result with fingerprint and resume info.
-        Ok(serde_json::json!({
-            "status": "playing",
-            "segments": segments.len(),
-            "pcm_samples": pcm_samples,
-            "duration_secs": duration_secs,
-            "position_secs": snapshot.position_secs,
-            "transport": snapshot.transport.to_string(),
-            "fingerprint": fingerprint_hex,
-            "snapshot_path": snapshot_path.to_string_lossy().to_string(),
-            "resume_offset_secs": match offer {
-                Some(session::offer::Offer::Continue { offset_secs, .. }) => offset_secs,
-                _ => 0.0,
-            },
-            "has_stored_position": stored.is_some(),
-        }))
+        // The open facts the resume decision renders: the
+        // content fingerprint, the stored row, and the offer
+        // route the stored end kind resolved to.
+        let (offer_route, offer_window_ms) = offer_route_wire(route);
+        if let Some(object) = payload.as_object_mut() {
+            let _ignored = object.insert(
+                "fingerprint".to_string(),
+                serde_json::Value::String(fingerprint_hex),
+            );
+            let _ignored = object.insert(
+                "offer_route".to_string(),
+                serde_json::Value::String(offer_route.to_string()),
+            );
+            if let Some(window_ms) = offer_window_ms {
+                let _ignored =
+                    object.insert("offer_window_ms".to_string(), serde_json::json!(window_ms));
+            }
+            let _ignored = object.insert(
+                "has_stored_position".to_string(),
+                serde_json::Value::Bool(lookup.stored.is_some()),
+            );
+            let stored_offset_secs = lookup.stored.map_or(0.0, |stored| stored.offset_secs);
+            let _ignored = object.insert(
+                "stored_offset_secs".to_string(),
+                serde_json::json!(stored_offset_secs),
+            );
+        }
+        Ok(payload)
     }
 
     /// The classified bridge action (T110): every closed
@@ -1246,7 +1275,7 @@ pub mod commands {
                         "error": failure.reason(),
                     }));
                 }
-                play(document.unwrap_or_default(), state)
+                play(document.unwrap_or_default(), state).map_err(|error| error.to_string())
             }
             ShellVerb::ResumeAtStored | ShellVerb::StartOver | ShellVerb::ExternalStart => {
                 // The same pre-play gate as `Play`: these are
@@ -1762,7 +1791,7 @@ pub mod commands {
     /// changes the session state. Reads the surface resolver
     /// and headings from AppState and emits a `MirrorState`
     /// snapshot via the `tauri::ipc::Channel`.
-    fn publish_current_state(state: &State<'_, AppState>, transient_reason: Option<String>) {
+    fn publish_current_state(state: &AppState, transient_reason: Option<String>) {
         let resolver_guard = match state.surface_resolver.lock() {
             Ok(g) => g,
             Err(_) => return,
@@ -1866,17 +1895,60 @@ pub mod commands {
         }))
     }
 
-    /// Split, synthesize, enqueue, and start one document.
-    fn play(document: String, state: &State<'_, AppState>) -> Result<serde_json::Value, String> {
+    /// Split, synthesize, enqueue, and start one document —
+    /// the single synthesis path every surface routes through
+    /// (Principle II: the `play` wire action, the T019
+    /// cold-start [`open_document_bytes`], and every later
+    /// consumer land here exactly once).
+    ///
+    /// ## Session-start totals (T019 / FR-028a)
+    ///
+    /// The parsed segments fix the totals once, here: the
+    /// heading count (`total_n`) and the marked document total
+    /// (`total_units`) the surface resolver derives from the
+    /// heading list this body writes to the shared state at
+    /// open. The list is never re-estimated mid-session, so
+    /// the progress determinacy the resolver resolves for the
+    /// whole session comes from this one feeding.
+    ///
+    /// ## Cold-start budget (SC-002; T016 measures the host
+    /// half, T051 gates the device half)
+    ///
+    /// This body owns the ≤3 s press-to-first-audio bound: the
+    /// engine's voice model is loaded exactly once (the
+    /// adapter caches it — never a per-segment load), the
+    /// document is split into bounded chunks before any
+    /// synthesis, and the PCM is enqueued and started the
+    /// moment synthesis completes. A missed bound is fixed
+    /// HERE — the first-segment ordering (start the first
+    /// chunk's PCM while the rest synthesizes) is this body's
+    /// change, never another task's — and the bound is never
+    /// renegotiated.
+    ///
+    /// # Errors
+    ///
+    /// * [`OpenError::EmptyDocument`] when the document is
+    ///   blank — nothing to synthesize.
+    /// * [`OpenError::NoSegments`] when the parse yields no
+    ///   bounded chunk.
+    /// * [`OpenError::Synthesis`] when a chunk cannot be
+    ///   synthesized by the bound offline engine.
+    /// * [`OpenError::Backend`] when the audio backend cannot
+    ///   be opened or started at the declared handoff shape —
+    ///   a refusal, never a silent start (FR-005).
+    /// * [`OpenError::NoStart`] when the closed transition
+    ///   table rejects the press (a torn-down session takes no
+    ///   play).
+    fn play(document: String, state: &AppState) -> Result<serde_json::Value, OpenError> {
         if document.trim().is_empty() {
-            return Err("empty document: nothing to synthesize".to_string());
+            return Err(OpenError::EmptyDocument);
         }
         // Same code path as the adapter CLI (Principle II): the
         // adapter owns the chunk boundary; the engine receives
         // bounded chunks only.
         let segments = adapter_synthesis::chunk::split_document(&document, "");
         if segments.is_empty() {
-            return Err("empty document: no segments".to_string());
+            return Err(OpenError::NoSegments);
         }
 
         // Extract title from first heading segment, or use fallback.
@@ -1898,8 +1970,11 @@ pub mod commands {
         // Synthesize PCM first to get total duration.
         let mut pcm = Vec::new();
         for segment in &segments {
-            let buffer = adapter_synthesis::synth::synthesize(segment)
-                .map_err(|failure| format!("synthesis failed: {failure:?}"))?;
+            let buffer = adapter_synthesis::synth::synthesize(segment).map_err(|failure| {
+                OpenError::Synthesis {
+                    reason: format!("{failure:?}"),
+                }
+            })?;
             pcm.extend_from_slice(&buffer);
         }
         let pcm_samples = pcm.len();
@@ -1938,11 +2013,23 @@ pub mod commands {
             true, // duration_known_at_start = true (total PCM duration known)
         );
 
-        // Store resolver and headings in AppState for publish path.
+        // Store resolver and headings in AppState for publish path:
+        // the one feeding of the session-start totals — the
+        // heading list the resolver derives `total_n` and
+        // `total_units` from is written here, once, and never
+        // re-estimated mid-session (FR-028a).
         {
-            let mut resolver_guard = state.surface_resolver.lock().map_err(|e| e.to_string())?;
+            let mut resolver_guard =
+                state
+                    .surface_resolver
+                    .lock()
+                    .map_err(|e| OpenError::NoStart {
+                        reason: e.to_string(),
+                    })?;
             *resolver_guard = Some(resolver);
-            let mut headings_guard = state.headings.lock().map_err(|e| e.to_string())?;
+            let mut headings_guard = state.headings.lock().map_err(|e| OpenError::NoStart {
+                reason: e.to_string(),
+            })?;
             *headings_guard = headings;
         }
 
@@ -1952,20 +2039,33 @@ pub mod commands {
         set_document_fingerprint(state, document.as_bytes());
 
         {
-            let mut backend = state.backend.lock().map_err(|e| e.to_string())?;
+            let mut backend = state.backend.lock().map_err(|error| OpenError::Backend {
+                reason: error.to_string(),
+            })?;
             if backend.is_none() {
-                *backend = Some(CpalBackend::new().map_err(|e| e.to_string())?);
+                let opened = CpalBackend::new().map_err(|error| OpenError::Backend {
+                    reason: error.to_string(),
+                })?;
+                *backend = Some(opened);
             }
-            let backend = backend.as_ref().ok_or("no audio backend")?;
+            let backend = backend.as_ref().ok_or_else(|| OpenError::Backend {
+                reason: "no audio backend".to_string(),
+            })?;
             backend.enqueue_pcm(pcm);
-            backend.play().map_err(|e| e.to_string())?;
+            backend.play().map_err(|error| OpenError::Backend {
+                reason: error.to_string(),
+            })?;
         }
 
         let snapshot = {
-            let mut session = state.session.lock().map_err(|e| e.to_string())?;
+            let mut session = state.session.lock().map_err(|e| OpenError::NoStart {
+                reason: e.to_string(),
+            })?;
             session
                 .execute(ShellVerb::Play)
-                .map_err(|e| e.to_string())?
+                .map_err(|e| OpenError::NoStart {
+                    reason: e.to_string(),
+                })?
         };
 
         // Open the FR-015 clock on the landed Playing
@@ -2075,14 +2175,18 @@ pub mod commands {
             .ok_or_else(|| "no document loaded".to_string())?;
 
         let surface = resolver.resolve(snap.position_secs, &headings_guard);
-        let fingerprint_guard = state.current_fingerprint.lock().map_err(|e| e.to_string())?;
+        let fingerprint_guard = state
+            .current_fingerprint
+            .lock()
+            .map_err(|e| e.to_string())?;
         let fingerprint = *fingerprint_guard;
         // Get stored last_rate from bookmark store. The
         // fingerprint gates the read: with no document
         // loaded there is no key to read beside, and the
         // view renders the normal-speed default.
         let last_rate = if fingerprint.is_some() {
-            let mut bookmark_store_guard = state.bookmark_store.lock().map_err(|e| e.to_string())?;
+            let mut bookmark_store_guard =
+                state.bookmark_store.lock().map_err(|e| e.to_string())?;
             if let Some(store) = bookmark_store_guard.as_mut() {
                 store.get_last_rate().ok().flatten()
             } else {
@@ -2118,10 +2222,7 @@ pub mod commands {
     ///
     /// Called when the user presses the dedicated Stop button in-app.
     #[command]
-    pub fn session_delete(
-        fingerprint: [u8; 32],
-        state: State<'_, AppState>,
-    ) -> Result<(), String> {
+    pub fn session_delete(fingerprint: [u8; 32], state: State<'_, AppState>) -> Result<(), String> {
         let mut bookmark_store_guard = state.bookmark_store.lock().map_err(|e| e.to_string())?;
         if let Some(store) = bookmark_store_guard.as_mut() {
             store.delete(&fingerprint).map_err(|e| e.to_string())?;
@@ -2166,15 +2267,16 @@ pub mod commands {
         let Some(stored) = stored else {
             return Ok(serde_json::json!({ "offer_route": "none" }));
         };
-        Ok(match route_offer(&state, stored.end_kind) {
-            OfferRoute::InAppDialog => serde_json::json!({
-                "offer_route": "in_app_dialog",
-                "window_ms": OFFER_WINDOW_MS,
+        // The one route-to-wire mapping (T037), shared with the
+        // cold-start open payload — never a second definition
+        // of the route vocabulary.
+        let (offer_route, window_ms) = offer_route_wire(route_offer(&state, stored.end_kind));
+        Ok(match window_ms {
+            Some(window_ms) => serde_json::json!({
+                "offer_route": offer_route,
+                "window_ms": window_ms,
             }),
-            OfferRoute::LockScreenResume => serde_json::json!({
-                "offer_route": "lockscreen_resume",
-            }),
-            OfferRoute::NoRoute => serde_json::json!({ "offer_route": "none" }),
+            None => serde_json::json!({ "offer_route": offer_route }),
         })
     }
 }
@@ -2618,7 +2720,7 @@ pub mod publish {
     /// state on its next registration or via the diagnostic
     /// `diagnose` query.
     pub fn publish_mirror_to_channel(
-        state: &State<'_, AppState>,
+        state: &AppState,
         snapshot: &SessionSnapshot,
         surface: &SurfaceSnapshot,
         transient_reason: Option<String>,
@@ -2676,11 +2778,11 @@ pub mod publish {
     /// Build a `SessionSnapshot` and `SurfaceSnapshot` from the
     /// current session state and publish the mirror.
     ///
-    /// Convenience helper for the dispatch paths that have a
-    /// `State<'_, AppState>` but need the surface resolver to
+    /// Convenience helper for the dispatch paths that have an
+    /// `AppState` but need the surface resolver to
     /// compute the section title and progress.
     pub fn publish_from_session(
-        state: &State<'_, AppState>,
+        state: &AppState,
         resolver: &SurfaceResolver,
         headings: &[Heading],
         transient_reason: Option<String>,
@@ -2729,14 +2831,8 @@ pub mod publish {
                     "total_units".to_string(),
                     serde_json::to_value(120.0 as u64).unwrap(),
                 );
-                let _ = m.insert(
-                    "k".to_string(),
-                    serde_json::to_value(1u32).unwrap(),
-                );
-                let _ = m.insert(
-                    "n".to_string(),
-                    serde_json::to_value(1u32).unwrap(),
-                );
+                let _ = m.insert("k".to_string(), serde_json::to_value(1u32).unwrap());
+                let _ = m.insert("n".to_string(), serde_json::to_value(1u32).unwrap());
                 let mut outer = Map::new();
                 let _ = outer.insert("determinate".to_string(), Value::Object(m));
                 outer
@@ -2776,14 +2872,17 @@ mod heartbeat_bookmark_tests {
     /// dir — one redb file per test, dropped with it.
     fn state_with_store() -> Result<(tempfile::TempDir, AppState), String> {
         let dir = tempfile::tempdir().map_err(|e| e.to_string())?;
-        let store = BookmarkStore::open(&dir.path().join("bookmarks.redb"))
-            .map_err(|e| e.to_string())?;
+        let store =
+            BookmarkStore::open(&dir.path().join("bookmarks.redb")).map_err(|e| e.to_string())?;
         Ok((dir, AppState::test_state_with_bookmark_store(store)))
     }
 
     /// The row the store holds under `fingerprint` — the
     /// same read the resume path performs.
-    fn stored_row(state: &AppState, fingerprint: [u8; 32]) -> Result<Option<StoredPosition>, String> {
+    fn stored_row(
+        state: &AppState,
+        fingerprint: [u8; 32],
+    ) -> Result<Option<StoredPosition>, String> {
         let mut guard = state.bookmark_store.lock().map_err(|e| e.to_string())?;
         let store = guard.as_mut().ok_or("no bookmark store")?;
         store.get(&fingerprint).map_err(|e| e.to_string())
@@ -2836,7 +2935,10 @@ mod heartbeat_bookmark_tests {
         heartbeat_once(&state);
         let row_again =
             stored_row(&state, fingerprint)?.ok_or("the row vanished after a paused tick")?;
-        assert_eq!(row_again, row, "a paused heartbeat tick rewrote the bookmark");
+        assert_eq!(
+            row_again, row,
+            "a paused heartbeat tick rewrote the bookmark"
+        );
         Ok(())
     }
 
@@ -2860,7 +2962,8 @@ mod heartbeat_bookmark_tests {
         after_execute(&state, &interrupted);
 
         let fingerprint = fingerprint::fingerprint(DOC);
-        let row = stored_row(&state, fingerprint)?.ok_or("no row after the focus-loss interruption")?;
+        let row =
+            stored_row(&state, fingerprint)?.ok_or("no row after the focus-loss interruption")?;
         assert_eq!(row.end_kind, SessionEnd::Interrupted);
         assert_eq!(row.offset_secs, interrupted.position_secs);
         Ok(())
@@ -2879,7 +2982,11 @@ mod heartbeat_bookmark_tests {
         heartbeat_once(&state);
         let fingerprint = fingerprint::fingerprint(DOC);
         let row = stored_row(&state, fingerprint)?.ok_or("no row after the playing tick")?;
-        assert_eq!(row.end_kind, SessionEnd::Interrupted, "a crash point must record the unexpected-end kind");
+        assert_eq!(
+            row.end_kind,
+            SessionEnd::Interrupted,
+            "a crash point must record the unexpected-end kind"
+        );
         assert_eq!(row.offset_secs, 0.0);
 
         let stopped = {
@@ -3234,5 +3341,362 @@ mod event_durable_tests {
             );
         }
         Ok(())
+    }
+}
+
+/// T019 — the cold-start open path, over the same real redb file
+/// and real transition table the heartbeat/event-durable tests use
+/// (the `bookmark_store` is opened in a temp dir and every row is
+/// read back through the store's own getters — never a mock).
+///
+/// What these tests pin, for `commands::open_document_bytes` (the
+/// core the `open_document` command wraps):
+///
+/// * the snapshot BYTES are the sole synthesis input — valid bytes
+///   synthesize and return the session payload;
+/// * empty bytes and non-UTF-8 bytes are the named rejections with
+///   nothing on stdout (the text-I/O protocol's failure half), and
+///   a refused open leaves no document loaded;
+/// * a stored row publishes its offer route (T037) — the in-app
+///   dialog for the deliberate end, with the continue offer open on
+///   the held machine for the dialog to render;
+/// * the session-start totals are fed to the surface resolver once,
+///   at open, and never move with the position (FR-028a).
+///
+/// The audio tail is device-gated: `CpalBackend::new` needs an
+/// output device at the declared 22 050 Hz mono f32 shape, which
+/// a CI host does not offer (the ALSA devices here report
+/// 44 100–48 000 Hz stereo), so the command answers that host with
+/// the named `Backend` refusal — the same device-gated idiom
+/// `crates/player/tests/prop_duck_gain.rs` documents. The
+/// device-independent half (synthesis, fingerprint, totals, offer
+/// route, rate seed) is asserted unconditionally on either branch.
+#[cfg(test)]
+mod open_document_tests {
+    use super::*;
+    use crate::commands::open_document_bytes;
+    use player::surface::Progress;
+    use session::offer::ExpiryOutcome;
+    use session::store::StoredPosition;
+
+    /// A document the tests open: two headings and two spoken
+    /// paragraphs. The content, never the path, is the key
+    /// (FR-036).
+    const DOC: &[u8] =
+        b"# Rota da Manha\n\nO onibus sai as seis.\n\n## Volta\n\nEle passa na praca.";
+
+    /// A fresh state whose bookmark store lives in a temp dir —
+    /// one redb file per test, dropped with it.
+    fn state_with_store() -> Result<(tempfile::TempDir, AppState), String> {
+        let dir = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let store =
+            BookmarkStore::open(&dir.path().join("bookmarks.redb")).map_err(|e| e.to_string())?;
+        Ok((dir, AppState::test_state_with_bookmark_store(store)))
+    }
+
+    /// Whether the backend open succeeded on this host — the
+    /// device-gated twin of `prop_duck_gain`'s hardware note.
+    fn backend_available() -> bool {
+        CpalBackend::new().is_ok()
+    }
+
+    /// The document's content fingerprint (FR-036): the key the
+    /// open lookup resolves the stored row under.
+    fn fingerprint() -> [u8; 32] {
+        fingerprint::fingerprint(DOC)
+    }
+
+    /// A stored row under the document's fingerprint, written
+    /// straight into the real store.
+    fn store_row(
+        state: &AppState,
+        offset_secs: f64,
+        end_kind: engine_core::closed::SessionEnd,
+    ) -> Result<(), String> {
+        let mut guard = state.bookmark_store.lock().map_err(|e| e.to_string())?;
+        let store = guard.as_mut().ok_or("no bookmark store")?;
+        store
+            .put(
+                &fingerprint(),
+                StoredPosition {
+                    offset_secs,
+                    first_yield_ms: 500,
+                    end_kind,
+                },
+            )
+            .map_err(|e| e.to_string())
+    }
+
+    /// The cold-start open synthesizes valid bytes and returns the
+    /// session payload (T019): the segments, the PCM samples, the
+    /// duration, the transport, and the content fingerprint — with
+    /// the device-gated backend refusal this host answers in place
+    /// of the audio tail.
+    #[test]
+    fn open_document_with_valid_bytes_synthesizes_and_returns_the_session_payload()
+    -> Result<(), String> {
+        let (_dir, state) = state_with_store()?;
+        let opened = open_document_bytes(&state, DOC.to_vec());
+        if backend_available() {
+            let payload = opened.map_err(|error| error.to_string())?;
+            assert_eq!(
+                payload["status"], "playing",
+                "a valid open must start reading (device branch)"
+            );
+            let segments = payload["segments"]
+                .as_u64()
+                .ok_or("segments must be a number")?;
+            assert!(segments >= 1, "the document split into no segments");
+            let samples = payload["pcm_samples"]
+                .as_u64()
+                .ok_or("pcm_samples must be a number")?;
+            assert!(samples > 0, "the synthesis produced no PCM");
+            assert_eq!(
+                payload["fingerprint"],
+                serde_json::json!(hex::encode(fingerprint())),
+                "the open must report the content fingerprint (FR-036)"
+            );
+        } else {
+            assert!(
+                matches!(opened, Err(OpenError::Backend { .. })),
+                "a device-less host must answer the named backend refusal, got {opened:?}"
+            );
+            // The synthesis ran before the audio tail failed: the
+            // surface resolver and headings are already fed.
+            let resolver = state.surface_resolver.lock().map_err(|e| e.to_string())?;
+            assert!(
+                resolver.is_some(),
+                "the open failed before the resolver was fed at session start"
+            );
+        }
+        Ok(())
+    }
+
+    /// The device-independent half of the open, on either branch:
+    /// the document's fingerprint is recorded for the durable
+    /// writes, the headings the totals derive from are fixed at
+    /// open, and the payload carries no offer route for a miss
+    /// (a fresh document starts at 0.0 with no offer — FR-036a).
+    #[test]
+    fn open_document_records_the_fingerprint_and_fixes_the_totals_at_open() -> Result<(), String> {
+        let (_dir, state) = state_with_store()?;
+        let _opened = open_document_bytes(&state, DOC.to_vec());
+        assert_eq!(
+            current_fingerprint(&state),
+            Some(fingerprint()),
+            "the open did not record the document's content fingerprint"
+        );
+        assert!(
+            !matches!(
+                _opened,
+                Err(OpenError::EmptyDocument | OpenError::InvalidUtf8)
+            ),
+            "valid bytes must not be refused as empty or non-text"
+        );
+        // The totals are read back through the resolver itself:
+        // the heading list fixed at open resolves determinate
+        // progress at every position, and neither the section
+        // count nor the marked total moves with the position
+        // (FR-028a).
+        let resolver_guard = state.surface_resolver.lock().map_err(|e| e.to_string())?;
+        let resolver = resolver_guard
+            .as_ref()
+            .ok_or("no surface resolver after the open")?;
+        let headings_guard = state.headings.lock().map_err(|e| e.to_string())?;
+        assert_eq!(
+            headings_guard.len(),
+            2,
+            "the document carries two headings — the session-start section count"
+        );
+        let at_start = resolver.resolve(0.0, &headings_guard);
+        let later = resolver.resolve(600.0, &headings_guard);
+        let (start_total, start_sections) = totals_of(&at_start)?;
+        let (later_total, later_sections) = totals_of(&later)?;
+        assert_eq!(
+            start_sections, 2,
+            "the section total is not the heading count fixed at open"
+        );
+        assert_eq!(
+            start_total, later_total,
+            "the marked document total moved with the position — it must be fixed at session start"
+        );
+        assert_eq!(
+            start_sections, later_sections,
+            "the section total moved with the position — it must be fixed at session start"
+        );
+        Ok(())
+    }
+
+    /// Empty bytes are the named rejection, and nothing is written
+    /// on the stdout half: the open leaves no document loaded, no
+    /// fingerprint recorded, and no route to render.
+    #[test]
+    fn open_document_refuses_empty_bytes_with_nothing_on_stdout() -> Result<(), String> {
+        let (_dir, state) = state_with_store()?;
+        assert!(
+            matches!(
+                open_document_bytes(&state, Vec::new()),
+                Err(OpenError::EmptyDocument)
+            ),
+            "empty bytes must be refused with the named empty-document error"
+        );
+        let resolver = state.surface_resolver.lock().map_err(|e| e.to_string())?;
+        assert!(
+            resolver.is_none(),
+            "a refused open loaded a document — the stdout half is not empty"
+        );
+        assert_eq!(
+            current_fingerprint(&state),
+            None,
+            "a refused open fingerprinted a document"
+        );
+        Ok(())
+    }
+
+    /// Non-UTF-8 bytes are refused before anything is derived from
+    /// them: the synthesis input is text, so a non-text document
+    /// never reaches the split or the store.
+    #[test]
+    fn open_document_refuses_non_utf8_bytes() -> Result<(), String> {
+        let (_dir, state) = state_with_store()?;
+        let refused = open_document_bytes(&state, vec![0xFF, 0xFE, 0x00, 0x01]);
+        assert!(
+            matches!(refused, Err(OpenError::InvalidUtf8)),
+            "non-UTF-8 bytes must be refused with the named error, got {refused:?}"
+        );
+        assert_eq!(current_fingerprint(&state), None);
+        Ok(())
+    }
+
+    /// A stored row publishes its offer route (T037): the
+    /// deliberate end routes to the in-app 3-second dialog, the
+    /// stored offset is reported, and the continue offer is open
+    /// on the held machine for the dialog to render.
+    #[test]
+    fn the_offer_route_is_published_for_a_stored_row() -> Result<(), String> {
+        let (_dir, state) = state_with_store()?;
+        store_row(&state, 42.0, engine_core::closed::SessionEnd::Paused)?;
+
+        let opened = open_document_bytes(&state, DOC.to_vec());
+        if backend_available() {
+            let payload = opened.map_err(|error| error.to_string())?;
+            assert_eq!(
+                payload["offer_route"], "in_app_dialog",
+                "a deliberate pause must route to the in-app dialog (FR-032c)"
+            );
+            assert_eq!(
+                payload["offer_window_ms"], 3000,
+                "the in-app dialog route must carry the FR-032c window"
+            );
+            assert_eq!(payload["has_stored_position"], true);
+            assert_eq!(
+                payload["stored_offset_secs"], 42.0,
+                "the open must report the stored offset the offer continues from"
+            );
+        } else {
+            assert!(
+                matches!(opened, Err(OpenError::Backend { .. })),
+                "a device-less host must answer the named backend refusal, got {opened:?}"
+            );
+        }
+        // The route is computed at the open (never mid-window): the
+        // held machine carries the open continue offer the dialog
+        // renders — the FR-009 silence rule auto-starts from the
+        // offer's offset when no choice is made inside the window.
+        // The route resolves the FORM solely from the stored end
+        // kind, so the machine's offer carries the probe
+        // placeholder offset `route_offer` drives it with; the
+        // offset the reader resumes from is the stored row, which
+        // the open payload reports above (T037 / FR-044).
+        let mut offer = state.offer.lock().map_err(|e| e.to_string())?;
+        assert!(
+            offer.continue_offer().is_some(),
+            "the open left no continue offer open for the dialog to render"
+        );
+        offer.on_foregrounded();
+        assert_eq!(
+            offer.expire(),
+            ExpiryOutcome::AutoStart { offset_secs: 0.0 },
+            "the silence rule did not auto-start the open offer (FR-009)"
+        );
+        Ok(())
+    }
+
+    /// An unexpected stored end routes to the lock-screen resume
+    /// control (FR-032d / FR-031): no continue offer opens, so no
+    /// auto-start exists for that row. The route is the same
+    /// `route_offer` call the open path runs, asserted here on the
+    /// device-independent half (a device host asserts it through
+    /// the payload's `offer_route`).
+    #[test]
+    fn an_unexpected_stored_end_routes_to_the_lock_screen_resume() -> Result<(), String> {
+        let (_dir, state) = state_with_store()?;
+        store_row(&state, 42.0, engine_core::closed::SessionEnd::Interrupted)?;
+
+        let opened = open_document_bytes(&state, DOC.to_vec());
+        if backend_available() {
+            let payload = opened.map_err(|error| error.to_string())?;
+            assert_eq!(
+                payload["offer_route"], "lockscreen_resume",
+                "an unexpected end must route to the lock-screen resume control (FR-032d)"
+            );
+            assert_eq!(payload["has_stored_position"], true);
+            assert_eq!(payload["stored_offset_secs"], 42.0);
+        } else {
+            assert!(
+                matches!(opened, Err(OpenError::Backend { .. })),
+                "a device-less host must answer the named backend refusal, got {opened:?}"
+            );
+        }
+        // The route the open path resolves for that end kind: the
+        // explicit-resume control, never a continue offer — and
+        // the stored offset the payload reports is what the
+        // control resumes from. The form/offset split is T037's:
+        // `route_offer` resolves the form solely from the end
+        // kind, so the offset the reader resumes from arrives in
+        // the payload's `stored_offset_secs` (FR-044).
+        assert_eq!(
+            route_offer(&state, engine_core::closed::SessionEnd::Interrupted),
+            OfferRoute::LockScreenResume,
+            "an unexpected end did not route to the lock-screen resume control"
+        );
+        Ok(())
+    }
+
+    /// No stored row opens nothing: a fresh document (an edited
+    /// one, FR-036a) starts at 0.0 with no route to render.
+    #[test]
+    fn a_miss_routes_to_nothing() -> Result<(), String> {
+        let (_dir, state) = state_with_store()?;
+        // A different document's bytes: a miss under this key.
+        let edited = b"# Rota da Manha\n\nO onibus sai as seis.";
+        let opened = open_document_bytes(&state, edited.to_vec());
+        if backend_available() {
+            let payload = opened.map_err(|error| error.to_string())?;
+            assert_eq!(
+                payload["offer_route"], "none",
+                "a miss must open no route (FR-036a)"
+            );
+            assert_eq!(payload["has_stored_position"], false);
+            assert_eq!(payload["stored_offset_secs"], 0.0);
+        } else {
+            assert!(
+                matches!(opened, Err(OpenError::Backend { .. })),
+                "a device-less host must answer the named backend refusal, got {opened:?}"
+            );
+        }
+        Ok(())
+    }
+
+    /// The session-start totals of a resolved surface
+    /// (`total_units`, `n`), or the error naming a resolve that
+    /// was not determinate at session start.
+    fn totals_of(surface: &player::surface::SurfaceSnapshot) -> Result<(u64, u32), String> {
+        match surface.progress {
+            Progress::Determinate { total_units, n, .. } => Ok((total_units, n)),
+            Progress::Indeterminate => {
+                Err("the session-start totals were not fed to the resolver".to_string())
+            }
+        }
     }
 }

@@ -23,18 +23,30 @@
 
 use std::path::{Path, PathBuf};
 
-/// The repository root: the workspace Cargo.toml's parent.
+/// The repository root: the WORKSPACE Cargo.toml's parent — the
+/// ancestor whose manifest declares `[workspace]`, not merely any
+/// `Cargo.toml` (this crate's own manifest would otherwise match
+/// first and resolve the root to `src-tauri/`).
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
-        .find(|candidate| candidate.join("Cargo.toml").is_file())
+        .find(|candidate| {
+            candidate.join("Cargo.toml").is_file()
+                && std::fs::read_to_string(candidate.join("Cargo.toml"))
+                    .map(|text| text.contains("[workspace]"))
+                    .unwrap_or(false)
+        })
         .map(Path::to_path_buf)
-        .expect("the workspace root carries the Cargo.toml")
+        .expect("the workspace root carries the Cargo.toml with [workspace]")
 }
 
 /// The network call-site vocabulary (tasks.md T047 verbatim):
 /// HTTP clients, gRPC, async runtimes' net modules, and the
-/// raw socket entry points.
+/// raw socket entry points. Each pattern is matched as a
+/// CRATE PATH (`pattern::`), a `use` item, or a Cargo.toml
+/// dependency declaration — never a bare substring, which
+/// would match ordinary English ("surface" contains "surf")
+/// and fail the guard on its own vocabulary.
 const NETWORK_PATTERNS: [&str; 10] = [
     "reqwest",
     "hyper",
@@ -47,6 +59,46 @@ const NETWORK_PATTERNS: [&str; 10] = [
     "tokio::net",
     "std::net::Tcp",
 ];
+
+/// Whether `text` references `pattern` as a crate path, a
+/// `use` item, or a dependency declaration — the three forms
+/// a network call site takes in Rust source or a manifest.
+/// Word boundaries matter: "we use surface" must not match
+/// the `surf` pattern (a bare substring or a loose prefix
+/// rule both fail there), while `use surf::Client` must.
+fn references_crate(text: &str, pattern: &str) -> bool {
+    let bytes = text.as_bytes();
+    let mut search_from = 0;
+    while let Some(offset) = text[search_from..].find(pattern) {
+        let start = search_from + offset;
+        let end = start + pattern.len();
+        let boundary_before = start == 0 || !is_ident_char(bytes[start - 1]);
+        let boundary_after = end == bytes.len() || !is_ident_char(bytes[end]);
+        if boundary_before && boundary_after {
+            // A whole-word occurrence: a crate path (`surf::`), a
+            // `use` item, or a manifest dependency (`surf = "1"`).
+            let after = text[end..].trim_start();
+            let before = text[..start].trim_end();
+            if after.starts_with("::")
+                || after.starts_with('=')
+                || before.ends_with("use")
+                || before.ends_with('}')
+                || before.ends_with(']')
+            {
+                return true;
+            }
+        }
+        search_from = end;
+    }
+    false
+}
+
+/// Whether `byte` can appear inside a crate/identifier name
+/// (ASCII alphanumeric or `_`), the complement of a word
+/// boundary.
+fn is_ident_char(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || byte == b'_'
+}
 
 /// The crates whose sources the egress guard scans: every
 /// workspace member's `src/` and `tests/` tree (the app-wide
@@ -93,16 +145,23 @@ fn source_files(dir: &Path) -> Vec<PathBuf> {
 #[test]
 fn no_network_call_sites_app_wide() {
     let root = repo_root();
+    // The guard names the network vocabulary in its own patterns and
+    // documentation (e.g. an illustrative `use surf::Client`) — it is
+    // the scanner, never a scanned surface.
+    let guard = root.join("src-tauri/tests/test_noscope.rs");
     let mut offenders: Vec<String> = Vec::new();
     for source_root in source_roots(&root) {
         for file in source_files(&source_root) {
+            if file == guard {
+                continue;
+            }
             let Ok(text) = std::fs::read_to_string(&file) else {
                 continue;
             };
             for pattern in NETWORK_PATTERNS {
-                if text.contains(pattern) {
+                if references_crate(&text, pattern) {
                     offenders.push(format!(
-                        "{} contains network call-site pattern {pattern:?}",
+                        "{} references network crate {pattern:?}",
                         file.strip_prefix(&root).unwrap_or(&file).display()
                     ));
                 }
@@ -184,8 +243,14 @@ fn no_library_view_no_auto_service_no_diag_surface() {
     }
     // No in-app diagnostics surface: the record is adb-pull only.
     let src_files = source_files(&root.join("src-tauri"));
+    let guard = root.join("src-tauri/tests/test_noscope.rs");
     let mut diag_surface_hits = Vec::new();
     for file in src_files {
+        // The guard itself names the writer and the publish path in
+        // its assertions — it is the scanner, never a surface.
+        if file == guard {
+            continue;
+        }
         if let Ok(file_text) = std::fs::read_to_string(&file) {
             if file_text.contains("DiagnosticWriter") && file_text.contains("publish") {
                 diag_surface_hits.push(format!(

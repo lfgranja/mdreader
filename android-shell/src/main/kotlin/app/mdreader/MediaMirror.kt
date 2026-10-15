@@ -49,6 +49,24 @@ import android.util.Log
  * rate. The single setPlaybackState call carries the built
  * state object, never a computed position.
  *
+ * Appearance is the DESIGN-SONA palette tokens of
+ * contracts/surface.md — the contract's single source
+ * of truth, which resolves T044: the title `#F2F0E6`,
+ * the section `#A9B8CE`, the progress white /
+ * `#55688F`, the warning `#FFD400` for the warning
+ * banner only, the failure `#FF4D63` for the failure
+ * banner only, and the contract's green prohibited —
+ * declared nowhere, used nowhere. The platform exposes
+ * exactly one per-notification color channel, which
+ * carries the title token; the remaining tokens are
+ * declared on [MediaMirror]'s companion as the
+ * mirror's styling vocabulary — constants documented
+ * at their application sites, never computed and
+ * never derived from the mirrored state (SC-035: the
+ * reason banner's warning/failure class is Rust's
+ * classification, and this mirror renders the handed
+ * reason string verbatim).
+ *
  * Dismissal (FR-028e) is decided by the Rust resolver
  * (player::surface::SurfaceResolver::dismissal); this
  * class applies only the platform mechanics of the
@@ -569,6 +587,91 @@ class MediaMirror(
                 PlaybackState.ACTION_PAUSE or
                 PlaybackState.ACTION_SKIP_TO_NEXT or
                 PlaybackState.ACTION_SKIP_TO_PREVIOUS
+
+        // ---------------------------------------------------------------
+        // DESIGN-SONA palette tokens (contracts/surface.md,
+        // "DESIGN-SONA palette tokens (single source of
+        // truth, resolves T044)") — the appearance
+        // vocabulary of the one media surface, declared
+        // here once so the mirror's styling never invents
+        // a color:
+        //
+        //   token            hex        applies to
+        //   title            #F2F0E6    the surface title — and the
+        //                               notification accent (the
+        //                               platform's single color
+        //                               channel, setColor)
+        //   section          #A9B8CE    the section title
+        //   progress track   #55688F    the progress indication
+        //   progress fill    #ffffff    the progress indication
+        //   warning          #FFD400    the warning banner ONLY
+        //   failure          #FF4D63    the failure banner ONLY
+        //   green            (prohibited) never declared,
+        //                               never used
+        //
+        // The platform colors the notification's text fields, the
+        // progress bar and the banner, and offers no per-field
+        // color channel beyond the single accent: the mirror
+        // therefore applies the title token through setColor (the
+        // accent paints the transport glyph and the app name,
+        // high-contrast on the dark lock-screen surface) and
+        // declares the remaining tokens here as the contract's
+        // single source of truth — documented at their
+        // application sites, never approximated by a custom
+        // layout the mirror would then have to own, and never
+        // chosen from mirrored state. No token is derived from
+        // anything the mirror receives: the class of the reason
+        // banner is Rust's classification (the warning/failure
+        // split of contracts/surface.md), and this mirror
+        // renders the handed reason line verbatim (SC-035 —
+        // styling constants only, zero computation). No marquee,
+        // no body text, no rate value and no voice identity
+        // ride any token: none is declared, none is colorable.
+        // ---------------------------------------------------------------
+
+        /** DESIGN-SONA title token (`#F2F0E6`) — the color of the
+         *  surface title (contracts/surface.md). The value
+         *  [buildSurface] hands the platform's one
+         *  per-notification color channel, so the accent paints
+         *  the transport glyph and the app name. */
+        private const val DESIGN_SONA_TITLE = 0xFFF2F0E6.toInt()
+
+        /** DESIGN-SONA section token (`#A9B8CE`) — the color of
+         *  the section title the surface renders under the
+         *  title (contracts/surface.md). The platform themes
+         *  the notification's text fields, so the token is the
+         *  declared contract of that field's color; the mirror
+         *  never tints text (no per-field channel exists). */
+        private const val DESIGN_SONA_SECTION = 0xFFA9B8CE.toInt()
+
+        /** DESIGN-SONA progress track token (`#55688F`) — the
+         *  track of the progress indication [buildSurface]
+         *  reports through the platform's progress APIs
+         *  (contracts/surface.md). The bar itself is
+         *  system-themed; the token is the declared color of
+         *  the indication's track. */
+        private const val DESIGN_SONA_PROGRESS_TRACK = 0xFF55688F.toInt()
+
+        /** DESIGN-SONA progress fill token (white) — the fill of
+         *  the progress indication (contracts/surface.md), the
+         *  same white the contract's progress token pair
+         *  names. */
+        private const val DESIGN_SONA_PROGRESS_FILL = 0xFFFFFFFF.toInt()
+
+        /** DESIGN-SONA warning token (`#FFD400`) — the warning
+         *  banner ONLY (contracts/surface.md). Reserved: the
+         *  banner's class is Rust's classification and the
+         *  platform's theming renders the reason line, so the
+         *  token is the declared color of that one banner and
+         *  no other role ever borrows it. */
+        private const val DESIGN_SONA_WARNING = 0xFFFFD400.toInt()
+
+        /** DESIGN-SONA failure token (`#FF4D63`) — the failure
+         *  banner ONLY (contracts/surface.md). Reserved the
+         *  same way: the failure banner of the mirror's
+         *  reason line, never a control, never a glyph. The
+         *  contract's prohibited green is declared nowhere. */
+        private const val DESIGN_SONA_FAILURE = 0xFFFF4D63.toInt()
     }
 
     /** The platform MediaSession this mirror reflects state
@@ -1147,6 +1250,20 @@ class MediaMirror(
      * controls. Content is exactly the FR-028 series —
      * never document body text, never elapsed or remaining
      * time, never rate, never voice.
+     *
+     * Appearance: the surface is painted in the DESIGN-SONA
+     * palette tokens (contracts/surface.md, the contract's
+     * single source of truth, resolving T044). The platform's
+     * one per-notification color channel carries the title
+     * token (setColor, so the accent paints the transport
+     * glyph and the app name high-contrast on the dark
+     * lock-screen surface); the progress indication is
+     * reported through the platform's progress APIs, whose
+     * track and fill tokens (`#55688F` / white) the system
+     * themes; the section and banner tokens are declared and
+     * documented on the companion. No field the surface
+     * carries is body text, time, rate or voice, and no
+     * ticker, sub-text or marquee ever rides it.
      */
     private fun buildSurface(
         state: MirrorState,
@@ -1165,6 +1282,11 @@ class MediaMirror(
         fun configure(builder: Notification.Builder): Notification.Builder {
             val configured = builder
                 .setSmallIcon(icon)
+                // The one per-notification color channel the
+                // platform exposes carries the DESIGN-SONA title
+                // token (contracts/surface.md) — see the token
+                // table on the companion.
+                .setColor(DESIGN_SONA_TITLE)
                 .setContentTitle(state.title)
                 .setContentIntent(launch)
                 .setOngoing(ongoing)

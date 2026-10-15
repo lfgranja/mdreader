@@ -7,6 +7,12 @@
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;500;700&display=swap');
     :root {
+      /* DESIGN-SONA palette tokens — contracts/surface.md
+         "DESIGN-SONA palette tokens (single source of truth,
+         resolves T044)": title #F2F0E6, section #A9B8CE,
+         progress white / #55688F, warning #FFD400 banner-only,
+         failure #FF4D63 banner-only; the contract's green is
+         prohibited and appears nowhere on this surface. */
       --bg: #0f172a;
       --surface: #1e293b;
       --title: #F2F0E6;
@@ -109,14 +115,6 @@
       font-size: 1.25rem;
       padding: 0;
     }
-    .speed-display {
-      font-family: 'Inter', system-ui, sans-serif;
-      font-weight: 700;
-      font-size: 1.5rem;
-      color: var(--title);
-      min-width: 60px;
-      text-align: center;
-    }
     .speed-dots {
       display: flex;
       align-items: center;
@@ -215,7 +213,7 @@
   };
 
   const LADDER = [0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 4.0];
-  let rateIndex = 1; // default 1.0x
+  let rateIndex = 1; // default rung
   let fingerprint = null; // blake3 content fingerprint for Stop to clear bookmark
 
   // DOM elements

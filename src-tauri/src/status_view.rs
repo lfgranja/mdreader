@@ -256,7 +256,15 @@ mod tests {
         // storage-schema.md: last_rate defaults to 1.0 on
         // first use — an empty store renders the normal-speed
         // rung, never an unset or zero rate.
-        let view = render_status_view(None, TransportState::Paused, 0.0, DOCUMENT_TITLE, None, None, TEST_FINGERPRINT);
+        let view = render_status_view(
+            None,
+            TransportState::Paused,
+            0.0,
+            DOCUMENT_TITLE,
+            None,
+            None,
+            TEST_FINGERPRINT,
+        );
         assert_eq!(view.rate, PlaybackRate::R1_0);
     }
 

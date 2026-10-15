@@ -26,10 +26,10 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use engine_core::closed::SessionEnd;
 use session::cli::run as session_cli;
 use session::fingerprint;
 use session::store::{BookmarkStore, StoredPosition};
-use engine_core::closed::SessionEnd;
 
 /// A tempdir wrapper that removes itself on drop.
 struct TempDir(PathBuf);
@@ -111,7 +111,8 @@ fn write_document(dir: &Path, name: &str, bytes: &[u8]) -> PathBuf {
     path
 }
 
-const DOC_A: &[u8] = b"# Rota da Manha\n\nPrimeira secao com numeros 123 e R$ 45,90.\n\nSegunda secao.\n";
+const DOC_A: &[u8] =
+    b"# Rota da Manha\n\nPrimeira secao com numeros 123 e R$ 45,90.\n\nSegunda secao.\n";
 const DOC_B: &[u8] = b"# Outro Documento\n\nConteudo diferente por completo.\n";
 
 #[test]
@@ -256,7 +257,10 @@ fn an_edited_document_resolves_to_no_resume() {
     let edited_key = fingerprint(&edited);
     assert_eq!(
         json_field(&payload, "fingerprint"),
-        edited_key.iter().map(|b| format!("{b:02x}")).collect::<String>(),
+        edited_key
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect::<String>(),
         "the edited document must fingerprint to the edited content"
     );
     assert_eq!(
@@ -290,8 +294,7 @@ fn switching_documents_never_deletes_the_first_documents_position() {
                 end_kind: SessionEnd::Paused,
             },
         )
-        .expect("put A")
-    ;
+        .expect("put A");
     // Document B is ingested and stored separately.
     let key_b = fingerprint(DOC_B);
     store

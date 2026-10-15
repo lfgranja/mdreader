@@ -60,15 +60,22 @@ pub fn channel_ready() -> bool {
 /// # Errors
 /// Returns an error string if JNI is not available or the call fails.
 #[cfg(target_os = "android")]
-pub fn publish_mirror_to_kotlin(_mirror_json: &str, _delete_intent_json: Option<&str>) -> Result<(), String> {
+pub fn publish_mirror_to_kotlin(
+    _mirror_json: &str,
+    _delete_intent_json: Option<&str>,
+) -> Result<(), String> {
     // Note: Full MirrorState publish deferred to synthesis feature (FR-024, 002-fr-024-synthesis-adapter)
     // due to jni 0.22.4 API changes blocking the Rust↔Kotlin JNI bridge.
     // The Kotlin PlaybackService handles the media notification independently via ShellHost.init.
     tracing::debug!("JNI publish to Kotlin MediaMirror deferred to synthesis feature");
     Ok(())
-}/// No-op on non-Android targets.
+}
+/// No-op on non-Android targets.
 #[cfg(not(target_os = "android"))]
-pub fn publish_mirror_to_kotlin(_mirror_json: &str, _delete_intent_json: Option<&str>) -> Result<(), String> {
+pub fn publish_mirror_to_kotlin(
+    _mirror_json: &str,
+    _delete_intent_json: Option<&str>,
+) -> Result<(), String> {
     Ok(())
 }
 
@@ -330,8 +337,8 @@ pub extern "C" fn Java_app_mdreader_DocIngest_Blake3Hasher_nativeBlake3(
     data: *mut c_void,
 ) -> *mut c_void {
     use blake3::Hasher;
-    use jni::objects::{JByteArray, JClass};
     use jni::JNIEnv;
+    use jni::objects::{JByteArray, JClass};
 
     let env = unsafe { JNIEnv::from_raw(env).expect("valid JNIEnv") };
     let data_array = unsafe { JByteArray::from_raw(data) };
@@ -393,8 +400,8 @@ pub extern "C" fn Java_app_mdreader_DocIngest_onDocumentIngested(
     original_uri: *mut c_void,
     mime_type: *mut c_void,
 ) {
-    use jni::objects::{JString, JClass};
     use jni::JNIEnv;
+    use jni::objects::{JClass, JString};
 
     let env = unsafe { JNIEnv::from_raw(env).expect("valid JNIEnv") };
 

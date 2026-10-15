@@ -384,13 +384,11 @@ proptest! {
 fn prop_persist_cadence_replay_cap_at_interval_boundary() {
     // The maximum allowed interval equals the replay cap.
     assert_eq!(
-        REPLAY_INTERRUPTION_CAP_SECS,
-        30.0,
+        REPLAY_INTERRUPTION_CAP_SECS, 30.0,
         "the replay interruption cap must equal the contract REWIND_CAP_SECS (30.0 s, FR-004)"
     );
     assert_eq!(
-        REPLAY_KILL_CAP_SECS,
-        60.0,
+        REPLAY_KILL_CAP_SECS, 60.0,
         "the kill replay cap must be 60.0 s (FR-004)"
     );
     // When the durable interval reaches the 30 s upper

@@ -17,16 +17,11 @@ use player::surface::{Progress, SurfaceResolver};
 /// unit-based fields, not the old time-based ones.
 #[test]
 fn progress_determinate_has_new_shape_not_old_time_fields() {
-    let resolver = SurfaceResolver::new(
-        Some("Title".to_string()),
-        "doc.wav".to_string(),
-        true,
-    );
+    let resolver = SurfaceResolver::new(Some("Title".to_string()), "doc.wav".to_string(), true);
     let snapshot = resolver.resolve(10.0, &[]);
     match snapshot.progress {
         Progress::Determinate { .. } => {
-            let value = serde_json::to_value(&snapshot.progress)
-                .expect("serialize progress");
+            let value = serde_json::to_value(&snapshot.progress).expect("serialize progress");
             let obj = value.get("determinate").expect("determinate key present");
             // The new shape requires these four keys.
             assert!(
@@ -66,11 +61,7 @@ fn progress_determinate_has_new_shape_not_old_time_fields() {
 /// progress must stay `Indeterminate` for every call.
 #[test]
 fn fixed_at_session_start_is_false_for_zero_sections() {
-    let resolver = SurfaceResolver::new(
-        None,
-        "doc.wav".to_string(),
-        false,
-    );
+    let resolver = SurfaceResolver::new(None, "doc.wav".to_string(), false);
     let snapshot = resolver.resolve(0.0, &[]);
     assert!(
         matches!(snapshot.progress, Progress::Indeterminate),

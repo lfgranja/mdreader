@@ -47,7 +47,9 @@ impl InterruptionReason {
             InterruptionReason::FocusDenied => "Foco de áudio negado — pausado",
             InterruptionReason::FocusDelayed => "",
             InterruptionReason::PermanentLoss => "Áudio perdido — pausado",
-            InterruptionReason::TransientPaused => "Pausado por interrupção — retome para continuar",
+            InterruptionReason::TransientPaused => {
+                "Pausado por interrupção — retome para continuar"
+            }
             InterruptionReason::DeviceRemoved => "Fones removidos — pausado",
             InterruptionReason::VoiceUnavailable => "Voz indisponível — leitura não pode iniciar",
             InterruptionReason::FormatUndeliverable => "Formato do documento não pode ser lido",
@@ -110,7 +112,9 @@ pub const fn from_focus_grant(grant: crate::focus::FocusGrant) -> Option<Interru
 /// Both BecomingNoisy and DeviceDisappeared while playing → DeviceRemoved.
 /// Privacy-precedence pause (private→public switch) → DeviceRemoved.
 #[must_use]
-pub fn from_routing_pause(decision: &crate::routing::RoutingDecision) -> Option<InterruptionReason> {
+pub fn from_routing_pause(
+    decision: &crate::routing::RoutingDecision,
+) -> Option<InterruptionReason> {
     match decision {
         crate::routing::RoutingDecision::Pause { .. } => Some(InterruptionReason::DeviceRemoved),
         crate::routing::RoutingDecision::Follow { .. } => None,

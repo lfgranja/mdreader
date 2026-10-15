@@ -113,9 +113,7 @@ const FORBIDDEN_KEY_FRAGMENTS: [&str; 12] = [
 /// Every rendered rate VALUE string — the FR-012 value-blind set. A
 /// surface may carry a rate-step ACTION and the stored rung for
 /// stepper orientation, but no rendered value string like `1.5x`.
-const RATE_VALUE_STRINGS: [&str; 7] = [
-    "0.75x", "1.0x", "1.25x", "1.5x", "1.75x", "2.0x", "4.0x",
-];
+const RATE_VALUE_STRINGS: [&str; 7] = ["0.75x", "1.0x", "1.25x", "1.5x", "1.75x", "2.0x", "4.0x"];
 
 /// Time-display words (both surface languages): no elapsed or
 /// remaining time ever renders on a surface.
@@ -336,7 +334,9 @@ fn publish_payload_object(state: &StateCase) -> Result<Value, Box<dyn std::error
         state.position_secs,
         section_title,
         true,
-        state.reason.map(|(reason, _)| full_reason(&reason, DOCUMENT_TITLE)),
+        state
+            .reason
+            .map(|(reason, _)| full_reason(&reason, DOCUMENT_TITLE)),
     );
     Ok(payload)
 }
@@ -354,8 +354,11 @@ fn snapshot_section_title(position_secs: f64) -> Option<String> {
 #[test]
 fn the_five_states_keep_the_display_projection_and_payload_pure()
 -> Result<(), Box<dyn std::error::Error>> {
-    let resolver =
-        SurfaceResolver::new(Some(DOCUMENT_TITLE.to_string()), FILENAME_PLACEHOLDER.to_string(), true);
+    let resolver = SurfaceResolver::new(
+        Some(DOCUMENT_TITLE.to_string()),
+        FILENAME_PLACEHOLDER.to_string(),
+        true,
+    );
     for state in state_cases() {
         let label = state.name;
 
@@ -451,7 +454,10 @@ fn the_interruption_reason_states_the_pause_statement_and_expires_in_three_secon
         .reason
         .as_deref()
         .ok_or("the interruption state states no reason")?;
-    assert_eq!(statement, full_reason(&FullReason::FocusPermanentLoss, DOCUMENT_TITLE));
+    assert_eq!(
+        statement,
+        full_reason(&FullReason::FocusPermanentLoss, DOCUMENT_TITLE)
+    );
     assert_eq!(view.reason_expiry, Some(ReasonExpiry::Focus3s));
     // It names the title (allowed) and never the body prose.
     assert!(statement.contains(DOCUMENT_TITLE));
@@ -521,12 +527,16 @@ fn the_section_title_is_the_most_recent_passed_heading_never_forward_looking()
     let mut keys: Vec<&str> = object.keys().map(String::as_str).collect();
     keys.sort_unstable();
     assert_eq!(keys, ["progress", "section_title", "title"]);
-    assert_eq!(object.get("title").and_then(Value::as_str), Some(DOCUMENT_TITLE));
+    assert_eq!(
+        object.get("title").and_then(Value::as_str),
+        Some(DOCUMENT_TITLE)
+    );
     Ok(())
 }
 
 #[test]
-fn determinacy_is_fixed_at_session_start_and_never_flips() -> Result<(), Box<dyn std::error::Error>> {
+fn determinacy_is_fixed_at_session_start_and_never_flips() -> Result<(), Box<dyn std::error::Error>>
+{
     // FR-028a: a session that knew its total at start resolves
     // determinate at EVERY position (freeze-then-drop); one that did
     // not stays indeterminate for the whole session. The five states
@@ -566,7 +576,10 @@ fn determinacy_is_fixed_at_session_start_and_never_flips() -> Result<(), Box<dyn
         else {
             return Err("a duration-known session produced no determinate progress".into());
         };
-        assert_eq!(total_units, 150, "the marked extent is the greatest heading position");
+        assert_eq!(
+            total_units, 150,
+            "the marked extent is the greatest heading position"
+        );
         assert_eq!(n, 3, "the heading list marks three sections");
         assert_eq!(k, expected_section_index(state.position_secs));
         assert_eq!(consumed_units, expected_consumed_units(state.position_secs));
@@ -664,7 +677,11 @@ fn zero_sections_resolve_no_section_title_and_indeterminate_progress()
     // contract's `null`) and tags the progress indeterminate.
     let value = serde_json::to_value(&snapshot)?;
     let object = value.as_object().ok_or("the snapshot is not an object")?;
-    assert_eq!(object.get("section_title"), None, "the null section title serializes as the absent key");
+    assert_eq!(
+        object.get("section_title"),
+        None,
+        "the null section title serializes as the absent key"
+    );
     assert_eq!(
         object.get("progress").and_then(Value::as_str),
         Some("indeterminate"),

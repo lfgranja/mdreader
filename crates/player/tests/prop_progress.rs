@@ -36,11 +36,14 @@ fn position_strategy() -> impl Strategy<Value = f64> {
 /// quarter-second grid — exactly the T061b provider shape.
 fn headings_strategy() -> impl Strategy<Value = Vec<Heading>> {
     proptest::collection::vec(
-        (0u64..=14_400, prop_oneof![
-            Just("alpha".to_string()),
-            Just("bravo".to_string()),
-            Just("charlie".to_string()),
-        ]),
+        (
+            0u64..=14_400,
+            prop_oneof![
+                Just("alpha".to_string()),
+                Just("bravo".to_string()),
+                Just("charlie".to_string()),
+            ],
+        ),
         0..=12,
     )
     .prop_map(|mut entries| {

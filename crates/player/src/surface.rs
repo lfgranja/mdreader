@@ -169,9 +169,7 @@ pub fn progress_label(progress: &Progress) -> Option<String> {
             } else {
                 (consumed_units * 100) / total_units
             };
-            Some(format!(
-                "Section {k} of {n} — {percent}% (content-offset)"
-            ))
+            Some(format!("Section {k} of {n} — {percent}% (content-offset)"))
         }
         Progress::Indeterminate => None,
     }

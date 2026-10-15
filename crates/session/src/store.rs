@@ -20,11 +20,25 @@
 //! replaying at most 30 s). Only the two terminal
 //! ends delete — the Stop press and the document
 //! end; nothing else deletes (storage-schema.md).
+//!
+//! A document open composes the three pieces the
+//! store owns into one callable decision
+//! ([`lookup_on_open`], T036): the document bytes
+//! are blake3-256 fingerprinted (FR-036), the
+//! `bookmarks` table is read under that key, and
+//! the offer form is resolved through the
+//! canonical offer machine (`offer.rs`) — so the
+//! identical-bytes-any-path rule (FR-036) and the
+//! end-kind routing (FR-044) hold in one place and
+//! no caller re-derives either.
 
 use std::path::Path;
 
 use engine_core::closed::{PlaybackRate, SessionEnd};
 use redb::{Database, TableDefinition};
+
+use crate::fingerprint::fingerprint;
+use crate::offer::{OfferMachine, OpenOffer};
 
 /// Bookmarks table: fingerprint → offset, paused-at,
 /// end kind (FR-044). The value keeps the legacy
@@ -393,6 +407,84 @@ impl BookmarkStore {
     }
 }
 
+/// The decision a document-open lookup resolves
+/// (T036): the document's content fingerprint, the
+/// stored position it keys to, and the offer form
+/// that end kind opens — the one callable form of
+/// the re-hash-on-open rule (FR-036 / FR-044).
+///
+/// `Eq` is precluded by the `f64` field; every
+/// offset lives on the quarter-second grid, an
+/// exact binary-fraction grid, so `PartialEq` is
+/// exact.
+#[derive(Debug, Clone, PartialEq)]
+pub struct OpenLookup {
+    /// The blake3-256 fingerprint of the document's
+    /// CONTENT (FR-036) — a pure function of the
+    /// bytes, never of the path: identical bytes at
+    /// any path (a move, a rename, a file URI)
+    /// fingerprint here, so they share the row and
+    /// therefore the stored position.
+    pub fingerprint: [u8; 32],
+    /// The stored position under the fingerprint,
+    /// or `None` on a miss — an edited document
+    /// (FR-036a) or a terminal end (FR-032 /
+    /// FR-032b), each resolving to a start at `0.0`
+    /// with no offer.
+    pub stored: Option<StoredPosition>,
+    /// The offer form the stored end kind opens
+    /// (FR-032c / FR-032d / FR-032e), resolved
+    /// through the canonical offer machine
+    /// ([`OfferMachine::resolve_open`]) — never
+    /// re-derived here (FR-044).
+    pub offer: OpenOffer,
+}
+
+/// The re-hash-on-open lookup (T036): the
+/// document-open decision in one callable form —
+/// the document `bytes` are blake3-256
+/// fingerprinted (FR-036), the `bookmarks` table
+/// is read under that key ([`BookmarkStore::get`]),
+/// and the offer form is resolved through the
+/// canonical offer machine
+/// ([`OfferMachine::resolve_open`], T060) — the
+/// same decision the `ingest` verb composes by
+/// hand, so no caller re-assembles the pieces
+/// (FR-044).
+///
+/// The rule the composition establishes:
+/// identical bytes at ANY path ⇒ the same
+/// fingerprint ⇒ the same row (FR-036 —
+/// path/URI-independent), so a moved or renamed
+/// document shares its stored position, while a
+/// single edited byte fingerprints elsewhere and
+/// resolves to a miss — a start at `0.0` with no
+/// offer (FR-036a).
+///
+/// # Errors
+///
+/// [`Error::Storage`] when the read transaction
+/// cannot begin, [`Error::UnknownEndKind`] when a
+/// stored discriminant names no session-end kind
+/// (FR-044).
+pub fn lookup_on_open(store: &mut BookmarkStore, bytes: &[u8]) -> Result<OpenLookup, Error> {
+    // The key is the CONTENT hash — never the path
+    // (FR-036): the bytes are all this function
+    // sees, so no path can enter the decision.
+    let fingerprint = fingerprint(bytes);
+    let stored = store.get(&fingerprint)?;
+    // The offer form routes through the canonical
+    // machine's decision — the one core
+    // `on_session_end` also runs (FR-044).
+    let mut machine = OfferMachine::new();
+    let offer = machine.resolve_open(stored);
+    Ok(OpenLookup {
+        fingerprint,
+        stored,
+        offer,
+    })
+}
+
 /// Stored bookmark entry cleared only by Stop or document end (FR-032f).
 /// Super-session is a sequence invariant (two ordered entries), not per-entry (see T035/T067).
 ///
@@ -409,4 +501,143 @@ pub fn clear_bookmark(db: &Database, fp: &[u8; 32]) -> Result<(), redb::Error> {
     }
     write_tx.commit()?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The document bytes every test opens — the
+    /// lookup sees bytes only, never a path (FR-036).
+    const DOC: &[u8] = b"# Chapter\n\nThe document bytes.";
+
+    /// A store over a tempdir redb file.
+    fn store_in(dir: &tempfile::TempDir) -> Result<BookmarkStore, Error> {
+        BookmarkStore::open(&dir.path().join("bookmarks.redb"))
+    }
+
+    /// A stored position on the quarter-second grid.
+    fn position(end_kind: SessionEnd) -> StoredPosition {
+        StoredPosition {
+            offset_secs: 30.25,
+            first_yield_ms: 500,
+            end_kind,
+        }
+    }
+
+    #[test]
+    fn lookup_on_open_continues_a_paused_row() -> Result<(), Box<dyn std::error::Error>> {
+        // T036: bytes → fingerprint → get → the
+        // end-kind-routed offer. A deliberate pause
+        // carries the continue offer with the stored
+        // offset and the FR-015 interval start.
+        let dir = tempfile::tempdir()?;
+        let mut store = store_in(&dir)?;
+        store.put(&fingerprint(DOC), position(SessionEnd::Paused))?;
+
+        let lookup = lookup_on_open(&mut store, DOC)?;
+        assert_eq!(lookup.fingerprint, fingerprint(DOC));
+        assert_eq!(lookup.stored, Some(position(SessionEnd::Paused)));
+        assert_eq!(
+            lookup.offer,
+            OpenOffer::Continue {
+                offset_secs: 30.25,
+                first_yield_ms: 500,
+            }
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn lookup_on_open_routes_every_end_kind() -> Result<(), Box<dyn std::error::Error>> {
+        // The offer form is resolved solely from the
+        // stored end kind: `paused` continues,
+        // `interrupted` demands the explicit resume,
+        // the terminal kinds and a deleted row open
+        // nothing (FR-032c / FR-032d / FR-032e).
+        let dir = tempfile::tempdir()?;
+        let mut store = store_in(&dir)?;
+        for end_kind in [
+            SessionEnd::Paused,
+            SessionEnd::Interrupted,
+            SessionEnd::Stopped,
+            SessionEnd::Completed,
+        ] {
+            store.put(&fingerprint(DOC), position(end_kind))?;
+            let expected = match end_kind {
+                SessionEnd::Paused => OpenOffer::Continue {
+                    offset_secs: 30.25,
+                    first_yield_ms: 500,
+                },
+                SessionEnd::Interrupted => OpenOffer::ExplicitResume,
+                SessionEnd::Stopped | SessionEnd::Completed => OpenOffer::NoOffer,
+            };
+            assert_eq!(
+                lookup_on_open(&mut store, DOC)?.offer,
+                expected,
+                "{end_kind:?} must resolve to {expected:?}"
+            );
+        }
+        // The terminal ends' real state is the
+        // deleted row: a miss opens nothing.
+        store.delete(&fingerprint(DOC))?;
+        let lookup = lookup_on_open(&mut store, DOC)?;
+        assert_eq!(lookup.stored, None);
+        assert_eq!(lookup.offer, OpenOffer::NoOffer);
+        Ok(())
+    }
+
+    #[test]
+    fn identical_bytes_at_any_path_share_the_stored_position()
+    -> Result<(), Box<dyn std::error::Error>> {
+        // FR-036: the key is the content hash, never
+        // the path — the lookup carries no path at
+        // all, so the same bytes opened "from
+        // anywhere" (a move, a rename, a URI) resolve
+        // to the same row and share the position,
+        // while one edited byte is a different
+        // document: a miss, a start at `0.0`, no
+        // offer (FR-036a).
+        let dir = tempfile::tempdir()?;
+        let mut store = store_in(&dir)?;
+        // The document opened "at path A" stored its
+        // position; the bytes are the only key.
+        store.put(&fingerprint(DOC), position(SessionEnd::Paused))?;
+
+        // The same bytes opened "at path B".
+        let second = lookup_on_open(&mut store, DOC)?;
+        assert_eq!(second.fingerprint, fingerprint(DOC));
+        assert_eq!(second.stored, Some(position(SessionEnd::Paused)));
+        assert_eq!(
+            second.offer,
+            OpenOffer::Continue {
+                offset_secs: 30.25,
+                first_yield_ms: 500,
+            }
+        );
+
+        // One edited byte: a different fingerprint,
+        // no row, no offer.
+        let edited = b"# Chapter\n\nThe document bytes!";
+        let edited_lookup = lookup_on_open(&mut store, edited)?;
+        assert_ne!(edited_lookup.fingerprint, fingerprint(DOC));
+        assert_eq!(edited_lookup.stored, None);
+        assert_eq!(edited_lookup.offer, OpenOffer::NoOffer);
+        Ok(())
+    }
+
+    #[test]
+    fn lookup_on_open_miss_starts_at_zero_with_no_offer()
+    -> Result<(), Box<dyn std::error::Error>> {
+        // First use: no row survives, so the session
+        // starts at `0.0` with no offer (FR-036a) —
+        // the lookup reports the miss rather than a
+        // position.
+        let dir = tempfile::tempdir()?;
+        let mut store = store_in(&dir)?;
+        let lookup = lookup_on_open(&mut store, DOC)?;
+        assert_eq!(lookup.stored, None);
+        assert_eq!(lookup.offer, OpenOffer::NoOffer);
+        Ok(())
+    }
 }

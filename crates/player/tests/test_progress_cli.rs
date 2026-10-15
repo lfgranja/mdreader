@@ -196,15 +196,16 @@ fn the_frozen_label_uses_the_integer_percent_with_no_decimals()
         "json",
     ])?;
     assert_eq!(
-        payload["label"], serde_json::json!(expected),
+        payload["label"],
+        serde_json::json!(expected),
         "the label must render the integer percent with no decimals"
     );
     Ok(())
 }
 
 #[test]
-fn the_indeterminate_flag_reports_the_indeterminate_shape()
--> Result<(), Box<dyn std::error::Error>> {
+fn the_indeterminate_flag_reports_the_indeterminate_shape() -> Result<(), Box<dyn std::error::Error>>
+{
     let payload = progress_payload(&["progress", "--indeterminate", "--format", "json"])?;
     // The indeterminate progress carries no units (FR-028a).
     assert_eq!(
@@ -226,8 +227,8 @@ fn the_indeterminate_flag_reports_the_indeterminate_shape()
 }
 
 #[test]
-fn zero_sections_resolve_indeterminate_with_a_null_label()
--> Result<(), Box<dyn std::error::Error>> {
+fn zero_sections_resolve_indeterminate_with_a_null_label() -> Result<(), Box<dyn std::error::Error>>
+{
     // Zero sections (k = 0, n = 0, no marked units): the whole session
     // is indeterminate and nothing renders — the percent is
     // undeterminable, so the label and the section title are null

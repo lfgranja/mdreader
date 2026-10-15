@@ -51,7 +51,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use diag::scan::{ScanReport, ScanViolation, scan_record};
 use diag::writer::{
-    DetailError, DiagError, DiagnosticWriter, EventKind, RecordEvent, RETENTION_DAYS,
+    DetailError, DiagError, DiagnosticWriter, EventKind, RETENTION_DAYS, RecordEvent,
     SIZE_CAP_BYTES, SessionEndValue, TransportValue, TrimMarker, detail_from_pairs,
 };
 use proptest::prelude::*;
@@ -95,7 +95,10 @@ const NETWORK_PATTERNS: [&str; 11] = [
 /// name itself here).
 const DIAG_SOURCES: [(&str, &str); 6] = [
     ("crates/diag/src/lib.rs", include_str!("../src/lib.rs")),
-    ("crates/diag/src/writer.rs", include_str!("../src/writer.rs")),
+    (
+        "crates/diag/src/writer.rs",
+        include_str!("../src/writer.rs"),
+    ),
     ("crates/diag/src/scan.rs", include_str!("../src/scan.rs")),
     ("crates/diag/src/cli.rs", include_str!("../src/cli.rs")),
     ("crates/diag/src/main.rs", include_str!("../src/main.rs")),
@@ -630,11 +633,7 @@ fn a_storage_full_append_records_a_gap_marker_and_returns_ok() -> Result<(), Pro
     );
     let mut writer = DiagnosticWriter::open_with_bounds(full, RETENTION_DAYS, SIZE_CAP_BYTES)?;
     for offset in 0..4_u64 {
-        let event = transport_change(
-            now_ms().saturating_add(offset),
-            0.0,
-            TransportValue::Paused,
-        );
+        let event = transport_change(now_ms().saturating_add(offset), 0.0, TransportValue::Paused);
         let appended = writer.append(&event);
         assert!(
             appended.is_ok(),

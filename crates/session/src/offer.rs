@@ -21,6 +21,15 @@
 //! visible for the whole 3 seconds, never
 //! converting an open offer early (FR-032c's
 //! visibility MUST, spec.md:90).
+//!
+//! A session open resolves the SAME decision with
+//! no fingerprint in hand: [`OpenOffer`] (T036) is
+//! the form the lookup [`crate::store::lookup_on_open`]
+//! carries, routed through
+//! [`OfferMachine::resolve_open`] — the one core
+//! `on_session_end` also runs — so the open
+//! decision exists exactly once and no caller
+//! re-derives it (FR-044).
 
 use engine_core::closed::SessionEnd;
 
@@ -73,6 +82,51 @@ pub enum ExpiryOutcome {
     NoOffer,
 }
 
+/// The offer form a session-open lookup resolves
+/// (T036): the decision the stored session end
+/// carries, resolved SOLELY from the stored
+/// `end_kind` through the same core
+/// [`OfferMachine::resolve_open`] runs — the
+/// session-open form of the offer decision, so no
+/// second decision exists (FR-044).
+///
+/// The three forms are the whole outcome space of
+/// an open: a deliberate pause continues, an
+/// unexpected end demands an explicit resume, and
+/// everything else — a terminal end or no stored
+/// row — opens nothing.
+///
+/// `Eq` is precluded by the `f64` field; every
+/// offset lives on the quarter-second grid, an
+/// exact binary-fraction grid, so `PartialEq` is
+/// exact.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum OpenOffer {
+    /// Continue from the stored position — the
+    /// deliberate-pause offer (FR-032c), the
+    /// default, carrying the stored offset and the
+    /// FR-015 interval start.
+    Continue {
+        /// The stored last spoken position, in
+        /// seconds.
+        offset_secs: f64,
+        /// The start of the continuous
+        /// non-advancing interval, in milliseconds
+        /// (FR-015).
+        first_yield_ms: u64,
+    },
+    /// The explicit-resume requirement an
+    /// unexpected end leaves (FR-032d): no offer
+    /// opens, and audio never begins on its own —
+    /// the reader presses resume (FR-031).
+    ExplicitResume,
+    /// Nothing opens — a terminal end (FR-032 /
+    /// FR-032e) or no stored row (an edited
+    /// document, FR-036a): the session starts at
+    /// `0.0` with no offer.
+    NoOffer,
+}
+
 /// The resume-offer state machine: at most one open
 /// offer, the latched application visibility, and
 /// the explicit-resume requirement an unexpected
@@ -113,6 +167,14 @@ impl OfferMachine {
     /// nothing. A new session-end replaces any
     /// previously open offer — the window never
     /// outlives its session (FR-032f).
+    ///
+    /// The routing is [`resolve_open`](Self::resolve_open)'s
+    /// decision, projected onto the open offer: the
+    /// continue offer is the only form that opens
+    /// one (FR-032c), so the explicit-resume and
+    /// no-offer forms answer `None` — their state is
+    /// read through `resolve_open` / [`expire`](Self::expire),
+    /// never re-derived here (FR-044).
     pub fn on_session_end(
         &mut self,
         fingerprint: [u8; 32],
@@ -124,6 +186,33 @@ impl OfferMachine {
         // (storage-schema.md) — so the machine
         // holds no per-document state.
         let _ = fingerprint;
+        match self.resolve_open(stored) {
+            OpenOffer::Continue { .. } => self.offer.clone(),
+            OpenOffer::ExplicitResume | OpenOffer::NoOffer => None,
+        }
+    }
+
+    /// The open decision over the stored position
+    /// `stored` — the one core every open routes
+    /// through (FR-044): a new end replaces any
+    /// previously open offer (the window never
+    /// outlives its session, FR-032f), a deliberate
+    /// `Paused` opens the 3-second continue offer
+    /// (FR-032c), an `Interrupted` end leaves the
+    /// explicit-resume requirement and opens no
+    /// offer (FR-032d / FR-031), and
+    /// `Stopped`/`Completed` — or a miss — open
+    /// nothing (FR-032 / FR-032e / FR-036a).
+    ///
+    /// A session-open lookup (the re-hash-on-open
+    /// decision, [`crate::store::lookup_on_open`])
+    /// carries the [`OpenOffer`] this resolves;
+    /// [`on_session_end`](Self::on_session_end) projects
+    /// the same decision onto the open offer. The
+    /// form never depends on the document's
+    /// identity, so no fingerprint is in hand here.
+    #[must_use]
+    pub fn resolve_open(&mut self, stored: Option<StoredPosition>) -> OpenOffer {
         // A new session-end replaces any previously
         // open offer (the window never outlives its
         // session, FR-032f).
@@ -131,7 +220,7 @@ impl OfferMachine {
         self.explicit_resume = false;
         let stored = match stored {
             Some(stored) => stored,
-            None => return None,
+            None => return OpenOffer::NoOffer,
         };
         match stored.end_kind {
             SessionEnd::Paused => {
@@ -140,7 +229,10 @@ impl OfferMachine {
                     first_yield_ms: stored.first_yield_ms,
                 };
                 self.offer = Some(offer.clone());
-                Some(offer)
+                OpenOffer::Continue {
+                    offset_secs: stored.offset_secs,
+                    first_yield_ms: stored.first_yield_ms,
+                }
             }
             // An unexpected end leaves the
             // explicit-resume requirement: recovery
@@ -150,12 +242,12 @@ impl OfferMachine {
             // FR-031).
             SessionEnd::Interrupted => {
                 self.explicit_resume = true;
-                None
+                OpenOffer::ExplicitResume
             }
             // Terminal ends never open an offer
             // (FR-032 / FR-032e); the flow deletes
             // their entries instead of offering them.
-            SessionEnd::Stopped | SessionEnd::Completed => None,
+            SessionEnd::Stopped | SessionEnd::Completed => OpenOffer::NoOffer,
         }
     }
 
@@ -243,5 +335,145 @@ impl OfferMachine {
     pub fn on_completion(&mut self) {
         self.offer = None;
         self.explicit_resume = false;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A stored position under `end_kind` at a
+    /// quarter-second-grid offset.
+    fn stored(end_kind: SessionEnd) -> StoredPosition {
+        StoredPosition {
+            offset_secs: 12.5,
+            first_yield_ms: 250,
+            end_kind,
+        }
+    }
+
+    /// The closed session-end set (FR-044) — every
+    /// kind the store can carry.
+    const END_KINDS: [SessionEnd; 4] = [
+        SessionEnd::Paused,
+        SessionEnd::Stopped,
+        SessionEnd::Completed,
+        SessionEnd::Interrupted,
+    ];
+
+    #[test]
+    fn resolve_open_routes_every_end_kind_to_its_form() {
+        // T036: the open decision is resolved solely
+        // from the stored end kind — a deliberate
+        // pause continues, an unexpected end demands
+        // the explicit resume, and the terminal ends
+        // and a miss open nothing (FR-032c / FR-032d /
+        // FR-032e / FR-036a).
+        let mut machine = OfferMachine::new();
+        assert_eq!(
+            machine.resolve_open(Some(stored(SessionEnd::Paused))),
+            OpenOffer::Continue {
+                offset_secs: 12.5,
+                first_yield_ms: 250,
+            }
+        );
+        assert_eq!(
+            machine.resolve_open(Some(stored(SessionEnd::Interrupted))),
+            OpenOffer::ExplicitResume
+        );
+        assert_eq!(
+            machine.resolve_open(Some(stored(SessionEnd::Stopped))),
+            OpenOffer::NoOffer
+        );
+        assert_eq!(
+            machine.resolve_open(Some(stored(SessionEnd::Completed))),
+            OpenOffer::NoOffer
+        );
+        assert_eq!(machine.resolve_open(None), OpenOffer::NoOffer);
+    }
+
+    #[test]
+    fn resolve_open_agrees_with_on_session_end_for_every_end_kind() {
+        // FR-044: one decision, two projections —
+        // `on_session_end` answers the open offer
+        // exactly when `resolve_open` carries the
+        // continue form, and answers `None` on the
+        // explicit-resume and no-offer forms.
+        let mut machine = OfferMachine::new();
+        for end_kind in END_KINDS {
+            let decision = machine.resolve_open(Some(stored(end_kind)));
+            let opened = machine.on_session_end([0u8; 32], Some(stored(end_kind)));
+            match decision {
+                OpenOffer::Continue {
+                    offset_secs,
+                    first_yield_ms,
+                } => assert_eq!(
+                    opened,
+                    Some(Offer::Continue {
+                        offset_secs,
+                        first_yield_ms
+                    }),
+                    "{end_kind:?} resolved Continue but on_session_end opened {opened:?}"
+                ),
+                OpenOffer::ExplicitResume | OpenOffer::NoOffer => assert_eq!(
+                    opened, None,
+                    "{end_kind:?} resolved {decision:?} but on_session_end opened {opened:?}"
+                ),
+            }
+            // A miss opens nothing on either projection.
+            assert_eq!(machine.on_session_end([0u8; 32], None), None);
+        }
+    }
+
+    #[test]
+    fn resolve_open_leaves_the_machine_state_the_form_names() {
+        // The decision is the machine's own state: a
+        // continue offer expires into the auto-start,
+        // the explicit-resume form stands at expiry,
+        // and a no-offer form expires to no outcome
+        // (FR-032c / FR-032d / FR-032f).
+        let mut continued = OfferMachine::new();
+        assert_eq!(
+            continued.resolve_open(Some(stored(SessionEnd::Paused))),
+            OpenOffer::Continue {
+                offset_secs: 12.5,
+                first_yield_ms: 250,
+            }
+        );
+        assert_eq!(
+            continued.continue_offer(),
+            Some(Offer::Continue {
+                offset_secs: 12.5,
+                first_yield_ms: 250,
+            })
+        );
+
+        let mut interrupted = OfferMachine::new();
+        assert_eq!(
+            interrupted.resolve_open(Some(stored(SessionEnd::Interrupted))),
+            OpenOffer::ExplicitResume
+        );
+        assert_eq!(interrupted.expire(), ExpiryOutcome::ExplicitResume);
+
+        let mut stopped = OfferMachine::new();
+        assert_eq!(
+            stopped.resolve_open(Some(stored(SessionEnd::Stopped))),
+            OpenOffer::NoOffer
+        );
+        assert_eq!(stopped.expire(), ExpiryOutcome::NoOffer);
+    }
+
+    #[test]
+    fn resolve_open_replaces_any_previously_open_offer() {
+        // FR-032f: the window never outlives its
+        // session — a later open decision replaces
+        // the offer the previous one opened.
+        let mut machine = OfferMachine::new();
+        let _opened = machine.on_session_end([0u8; 32], Some(stored(SessionEnd::Paused)));
+        assert_eq!(
+            machine.resolve_open(Some(stored(SessionEnd::Interrupted))),
+            OpenOffer::ExplicitResume
+        );
+        assert_eq!(machine.continue_offer(), None);
     }
 }

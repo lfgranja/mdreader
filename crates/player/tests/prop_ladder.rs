@@ -144,8 +144,14 @@ fn one_step_moves_exactly_one_rung_and_saturates_at_both_ends() {
         assert_eq!(up, LADDER[(index + 1).min(LADDER.len() - 1)]);
         assert_eq!(down, LADDER[index.saturating_sub(1)]);
         // Up from anywhere and down from anywhere stays on the ladder.
-        assert!(LADDER.contains(&up), "rate_up_from({rung:?}) left the ladder");
-        assert!(LADDER.contains(&down), "rate_down_from({rung:?}) left the ladder");
+        assert!(
+            LADDER.contains(&up),
+            "rate_up_from({rung:?}) left the ladder"
+        );
+        assert!(
+            LADDER.contains(&down),
+            "rate_down_from({rung:?}) left the ladder"
+        );
     }
     // The ends saturate.
     assert_eq!(rate_up_from(PlaybackRate::R4_0), PlaybackRate::R4_0);
@@ -335,7 +341,11 @@ fn the_rate_stretch_is_engine_side_with_no_player_side_resample() {
     }
     // A deviating delivery is named, never silently adapted.
     assert_eq!(
-        check_handoff(48_000, DeclaredFormat::CHANNELS, DeclaredFormat::SAMPLE_WIDTH_BITS),
+        check_handoff(
+            48_000,
+            DeclaredFormat::CHANNELS,
+            DeclaredFormat::SAMPLE_WIDTH_BITS
+        ),
         Err(engine_core::closed::EngineError::RateMismatch),
         "a rate deviation must surface as a named EngineError, never a silent resample"
     );

@@ -7,9 +7,7 @@
 //! without `error` FAILS; prose predicate FAILS.
 
 use diag::scan::{ScanReport, ScanViolation, scan_record};
-use diag::writer::{
-    DiagnosticWriter, EventKind, FocusValue, RecordEvent, TransportValue,
-};
+use diag::writer::{DiagnosticWriter, EventKind, FocusValue, RecordEvent, TransportValue};
 
 /// The closed event-kind set required by the 004 diagnostic-trace
 /// contract: exactly the nine kinds the schema declares (the base
@@ -29,11 +27,7 @@ const REQUIRED_KINDS: [EventKind; 9] = [
 
 /// The measured latency detail keys that must be representable in
 /// a conforming `detail` string (004 contract, line 12 and 23).
-const MEASURED_DETAIL_KEYS: [&str; 3] = [
-    "play_to_audio_ms",
-    "removal_pause_ms",
-    "replay_secs",
-];
+const MEASURED_DETAIL_KEYS: [&str; 3] = ["play_to_audio_ms", "removal_pause_ms", "replay_secs"];
 
 /// A conforming identifier-pattern `detail` token used across
 /// assertions (matches `^[A-Za-z0-9_]+=[A-Za-z0-9_.+\-]+$`).
@@ -54,9 +48,8 @@ fn is_conforming_detail(detail: &str) -> bool {
         !k.is_empty()
             && k.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
             && !v.is_empty()
-            && v.chars().all(|c| {
-                c.is_ascii_alphanumeric() || matches!(c, '.' | '+' | '-' | '_')
-            })
+            && v.chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '+' | '-' | '_'))
     })
 }
 
@@ -237,17 +230,17 @@ fn failure_and_refusal_require_error() -> Result<(), Box<dyn std::error::Error>>
 
     let report = scan_record(&path)?;
     assert!(
-        report.violations.iter().any(|v| matches!(
-            v,
-            ScanViolation::FailureWithoutError { .. }
-        )),
+        report
+            .violations
+            .iter()
+            .any(|v| matches!(v, ScanViolation::FailureWithoutError { .. })),
         "failure without error must trigger FailureWithoutError"
     );
     assert!(
-        report.violations.iter().any(|v| matches!(
-            v,
-            ScanViolation::RefusalWithoutError { .. }
-        )),
+        report
+            .violations
+            .iter()
+            .any(|v| matches!(v, ScanViolation::RefusalWithoutError { .. })),
         "refusal without error must trigger RefusalWithoutError"
     );
 
@@ -315,10 +308,10 @@ fn prose_predicate_fails() -> Result<(), Box<dyn std::error::Error>> {
         "exactly one ProseInDetail violation expected for the prose canary"
     );
     assert!(
-        !report.violations.iter().any(|v| matches!(
-            v,
-            ScanViolation::DetailTooLong { .. }
-        )),
+        !report
+            .violations
+            .iter()
+            .any(|v| matches!(v, ScanViolation::DetailTooLong { .. })),
         "no DetailTooLong violation should fire (prose is under 200 chars)"
     );
     Ok(())

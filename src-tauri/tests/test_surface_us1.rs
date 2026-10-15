@@ -25,8 +25,8 @@
 
 use serde_json::Value;
 
-use src_tauri::status_view::render_status_view;
 use player::transport::{PlaybackRate, TransportState};
+use src_tauri::status_view::render_status_view;
 
 /// Every transport STATE the mirror payload may carry
 /// (contracts/surface.md). `stopped` is a STATE — the
@@ -138,9 +138,8 @@ fn transport_state_set_is_closed_at_three_with_stopped_permitted() {
         let obj = status_view_object(transport);
         let wire = serde_json::to_string(&obj.get("transport").expect("transport present"))
             .expect("transport renders");
-        let permitted = wire.contains("playing")
-            || wire.contains("paused")
-            || wire.contains("stopped");
+        let permitted =
+            wire.contains("playing") || wire.contains("paused") || wire.contains("stopped");
         assert!(
             permitted,
             "transport {wire} for {transport:?} is outside the closed {{playing,paused,stopped}} state set"
@@ -173,7 +172,15 @@ fn rate_mirror_is_the_stored_rung_not_a_display_value() {
         PlaybackRate::R2_0,
         PlaybackRate::R4_0,
     ] {
-        let view = render_status_view(Some(rung), TransportState::Playing, 10.0, "Doc", None, None, [0u8; 32]);
+        let view = render_status_view(
+            Some(rung),
+            TransportState::Playing,
+            10.0,
+            "Doc",
+            None,
+            None,
+            [0u8; 32],
+        );
         // The rung round-trips through the stored-rate mirror.
         assert_eq!(
             view.rate, rung,
@@ -182,9 +189,7 @@ fn rate_mirror_is_the_stored_rung_not_a_display_value() {
         // No rate VALUE string is produced by the view.
         let rendered = serde_json::to_string(&view).expect("render");
         assert!(
-            !rendered.contains("0.75x")
-                && !rendered.contains("1.0x")
-                && !rendered.contains("4.0x"),
+            !rendered.contains("0.75x") && !rendered.contains("1.0x") && !rendered.contains("4.0x"),
             "the view must not render a numeric rate value (FR-012 value-blind)"
         );
     }

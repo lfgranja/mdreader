@@ -1036,13 +1036,11 @@ fn status_view_rate_equals_the_lock_screen_rate_source() -> Result<(), Box<dyn E
     } = surface.progress
     {
         assert_eq!(
-            consumed_units,
-            snap.position_secs as u64,
+            consumed_units, snap.position_secs as u64,
             "the status view carries the session's position as the consumed content offset — the Rust module only (FR-003)"
         );
         assert_eq!(
-            total_units,
-            marked_extent as u64,
+            total_units, marked_extent as u64,
             "the determinate total is the marked document extent as content units — the greatest heading position the list marks, the resolver's only duration input, never an estimate (FR-028a)"
         );
         determinate = true;

@@ -17,7 +17,7 @@
 
 use proptest::prelude::*;
 
-use player::earcon::{EarconKind, EarconDescriptor, TimbreClass, RhythmClass, ContourClass};
+use player::earcon::{ContourClass, EarconDescriptor, EarconKind, RhythmClass, TimbreClass};
 
 /// The declared sample rate for all earcons (contracts/earcon.md).
 const EARCON_SAMPLE_RATE: u32 = 22_050;

@@ -20,7 +20,37 @@
 //! an audio-device failure, or a refused start — persists in the
 //! application until it is read. The FR-041 3 s focus regime
 //! never applies to a failure: the two reason sets are disjoint,
-//! and a focus loss is not a malfunction.
+//! and a focus loss is not a malfunction. The surface therefore
+//! carries the failure's TTL as `None` — the payload's
+//! `reason_ttl_ms: null` — through the T065 classification the
+//! [`FullReason::reason_ttl_ms`] getter derives, never as a
+//! locally decided window.
+//!
+//! Two axes, never one (contracts/surface.md, the F8 payload
+//! overload fix): the failure's `reason_ttl_ms` says how long its
+//! line stays (here: indefinitely), while the dismissal policy of
+//! the surface carrying it — `non_dismissable_while_playing |
+//! dismissable`, FR-014 / FR-028e — says whether that surface may
+//! be dismissed at all. A persistent failure line rides on a
+//! surface that is non-dismissable while audio plays, so neither
+//! field can be read out of the other's value; the surface
+//! getters ([`FailureSurface::reason_ttl_ms`],
+//! [`crate::surface::dismissal_for`]) keep them separate.
+//!
+//! The never-start + `error`-logged half of the undeliverable
+//! rule (contracts/surface.md: undeliverables ⇒ never start +
+//! persistent line + `error` logged) belongs to the refusal
+//! path, not to this renderer. Refusing playback is playback
+//! authority (FR-042), and this module owns no state and no
+//! transport: it renders the persistent line and carries the
+//! machine's decision so the shell can name the alternatives,
+//! the takeover, or the stated pause reason. The refusal itself
+//! — and the `error` diagnostic entry it must log — live in the
+//! adapter's synthesis refusal and the shell's dispatch path,
+//! which are outside this module. The boundary is pinned by the
+//! tests below: the surface half (a persistent line for every
+//! member of the closed failure set) is asserted here, and the
+//! never-start half is asserted where the refusal is executed.
 //!
 //! Document-text boundary (FR-037): a failure reason MUST NOT
 //! include text drawn from the document — neither its title nor
@@ -73,6 +103,21 @@ pub struct FailureSurface {
     /// failure persists in the application until it is read; the
     /// FR-041 3 s focus regime never applies to a failure.
     pub expiry: ReasonExpiry,
+    /// The payload TTL of this reason (FR-037a): always `None` —
+    /// the payload's `reason_ttl_ms: null` — because a failure
+    /// persists in the application until it is read. The numeric
+    /// form of the T065 classification the [`FullReason`] getter
+    /// derives, never a locally decided window: a failure never
+    /// expires the way a focus-loss pause reason does
+    /// ([`crate::surface::PAUSE_REASON_TTL_MS`]).
+    ///
+    /// Distinct from the dismissal policy of the surface carrying
+    /// this reason ([`crate::surface::Dismissal`], FR-014 /
+    /// FR-028e), which the transport states and this renderer
+    /// never computes (FR-042): a persistent failure line rides on
+    /// a surface that is non-dismissable while audio plays
+    /// (contracts/surface.md, the F8 payload overload fix).
+    pub reason_ttl_ms: Option<u64>,
     /// The recovery decision (T076) the failure produced — the
     /// open offer's alternatives, the takeover, or the machine's
     /// stated pause reason — carried for the shell to name, never
@@ -128,7 +173,11 @@ pub fn failure_reason(error: &EngineError) -> (ShortReason, FullReason) {
 /// getter derives for the named failure — the persistent regime
 /// for every member of the closed failure set (FR-037a): a
 /// failure persists in the application until it is read, and the
-/// FR-041 3 s focus regime never applies to it.
+/// FR-041 3 s focus regime never applies to it. The
+/// [`FailureSurface::reason_ttl_ms`] field is that same
+/// classification in its payload form — `None`, the wire
+/// `null` — so a consumer reads the TTL from the surface instead
+/// of re-deriving the split.
 #[must_use]
 pub fn render_failure(
     error: &EngineError,
@@ -140,6 +189,7 @@ pub fn render_failure(
         short_statement: short_reason(&short, document_title),
         full_statement: full_reason(&full, document_title),
         expiry: full.expiry(),
+        reason_ttl_ms: full.reason_ttl_ms(),
         decision: decision.clone(),
     }
 }
@@ -147,6 +197,9 @@ pub fn render_failure(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::surface::{Dismissal, PAUSE_REASON_TTL_MS, dismissal_for};
+    use engine_core::closed::TransportState;
+    use player::interruption::InterruptionReason;
     use player::recovery::RecoveryMachine;
 
     /// A document title whose words occur in no app-generated
@@ -206,6 +259,36 @@ mod tests {
         ShortReason::FocusSilenceDemanding,
         ShortReason::FocusPermanentLoss,
     ];
+
+    /// Every transport state of the session's closed transport
+    /// reflection (FR-044), so the dismissal axis of a failure
+    /// surface is asserted over the whole set.
+    const ALL_TRANSPORTS: [TransportState; 5] = [
+        TransportState::Playing,
+        TransportState::Paused,
+        TransportState::Stopped,
+        TransportState::Completed,
+        TransportState::Interrupted,
+    ];
+
+    /// The undeliverable members of the player's closed
+    /// interruption set (contracts/surface.md: never start +
+    /// persistent line + `error` logged) — the reasons the
+    /// failure surface is the surface half of, iterated so a test
+    /// can pin the classification the T065 failure reasons carry
+    /// against the player's own set.
+    const UNDELIVERABLE: [InterruptionReason; 3] = [
+        InterruptionReason::VoiceUnavailable,
+        InterruptionReason::FormatUndeliverable,
+        InterruptionReason::DecodeFailed,
+    ];
+
+    /// The whitespace-delimited word count of a rendered line —
+    /// the measurement the ≤8-word bound of contracts/surface.md
+    /// is checked against.
+    fn words(line: &str) -> usize {
+        line.split_whitespace().count()
+    }
 
     /// A takeover decision (T076): the auto-fallback of an
     /// expired offer or the reader's explicit choice, with the
@@ -285,9 +368,120 @@ mod tests {
             assert_eq!(full.expiry(), ReasonExpiry::FailurePersistent);
             let surface = render_failure(&error, &takeover(), DOCUMENT_TITLE);
             assert_eq!(surface.expiry, ReasonExpiry::FailurePersistent);
+            // The TTL is the classification's payload form: `None`
+            // (the wire `null`), never a locally decided window.
+            assert_eq!(surface.reason_ttl_ms, None);
+            assert_eq!(surface.reason_ttl_ms, full.reason_ttl_ms());
         }
         for focus in FOCUS {
             assert_eq!(focus.expiry(), ReasonExpiry::Focus3s);
+            // The expiring half of the classification, for contrast:
+            // a focus-loss reason carries the 3 s window a failure
+            // never carries.
+            assert_eq!(focus.reason_ttl_ms(), Some(PAUSE_REASON_TTL_MS));
+        }
+    }
+
+    #[test]
+    fn a_failure_never_starts_playback_and_its_line_never_expires() {
+        // T043 — the surface half of the undeliverable rule
+        // (contracts/surface.md: undeliverables ⇒ never start +
+        // persistent line + `error` logged). Every member of the
+        // closed failure set renders a line that never expires
+        // (`reason_ttl_ms = null`), so a reader who finds nothing
+        // playing can always find out why — the line outlives the
+        // pause, the reopen, and any number of transport changes.
+        //
+        // The never-start enforcement and the `error` diagnostic
+        // entry are NOT this module's: refusing playback is
+        // playback authority (FR-042), which lives in the refusal
+        // path — the adapter's synthesis refusal and the shell's
+        // dispatch. A renderer that refused playback would be a
+        // second playback authority, and a renderer that logged the
+        // refusal would be a second diagnostic record. This test
+        // pins the surface half and records the boundary; the
+        // player-side classification it agrees with is pinned in
+        // `surface::tests::the_ttl_classification_is_the_one_player_interruption_carries`.
+        for (error, _, _) in FAILURES {
+            let surface = render_failure(&error, &takeover(), DOCUMENT_TITLE);
+            assert_eq!(
+                surface.reason_ttl_ms, None,
+                "{error:?} must render a persistent line — the reader must always learn why nothing plays"
+            );
+            assert!(!surface.short_statement.is_empty());
+            assert!(!surface.full_statement.is_empty());
+        }
+        // The classification is one across both closed sets: the
+        // player's undeliverables persist for the same reason the
+        // surface's failures do, with the same `null` TTL.
+        for reason in UNDELIVERABLE {
+            assert!(reason.is_persistent(), "{reason:?} is undeliverable");
+            assert_eq!(reason.reason_ttl_ms(), None);
+        }
+    }
+
+    #[test]
+    fn the_failure_ttl_and_the_dismissal_policy_are_distinct_axes() {
+        // T043 / contracts/surface.md F8: the payload's
+        // `reason_ttl_ms` and `dismissal` are two fields, and
+        // neither is read out of the other. A failure is persistent
+        // (its line never expires) while the surface carrying it is
+        // non-dismissable — and both values occur across the closed
+        // reason and transport sets, so no collapse of the two
+        // fields can hide: every combination below is reachable.
+        for (error, _, _) in FAILURES {
+            let surface = render_failure(&error, &takeover(), DOCUMENT_TITLE);
+            // Persistent line, non-dismissable surface while playing.
+            assert_eq!(surface.reason_ttl_ms, None);
+            assert_eq!(
+                dismissal_for(TransportState::Playing),
+                Dismissal::NonDismissableWhilePlaying
+            );
+            // The same persistent line on a paused surface, which
+            // the reader may dismiss: the dismissal policy follows
+            // the transport, never the reason's TTL.
+            assert_eq!(
+                dismissal_for(TransportState::Paused),
+                Dismissal::Dismissable
+            );
+        }
+        for transport in ALL_TRANSPORTS {
+            // The dismissal policy is a function of the transport
+            // alone — a failure's persistent TTL never changes it.
+            assert_eq!(
+                dismissal_for(transport),
+                if transport == TransportState::Playing {
+                    Dismissal::NonDismissableWhilePlaying
+                } else {
+                    Dismissal::Dismissable
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn the_failure_short_lines_fit_the_lock_screen_line_bounds() {
+        // contracts/surface.md: the lock-screen reason line is a
+        // ≤8-word pt-BR line under a ≤40-char hard limit (the
+        // Android content-text limit). The short statements the
+        // failure surface renders are declared names, so the whole
+        // closed failure set fits both bounds; the full statements
+        // are the in-app full reason (FR-037) and are not a
+        // notification content text, so the notification bound is
+        // asserted on the short form alone.
+        for (error, _, _) in FAILURES {
+            let surface = render_failure(&error, &takeover(), DOCUMENT_TITLE);
+            assert!(
+                surface.short_statement.chars().count() <= 40,
+                "{error:?} renders a {}-char lock-screen line — the ≤40-char limit is exceeded by {:?}",
+                surface.short_statement.chars().count(),
+                surface.short_statement
+            );
+            assert!(
+                words(&surface.short_statement) <= 8,
+                "{error:?} renders {} words on the lock screen — the ≤8-word bound is exceeded",
+                words(&surface.short_statement)
+            );
         }
     }
 

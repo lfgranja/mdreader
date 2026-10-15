@@ -25,7 +25,11 @@ const EXPECTED_KINDS: [EarconKind; 7] = [
 #[test]
 fn earcon_kind_has_exactly_seven_variants() {
     // Runtime count assertion: exactly 7 distinct values.
-    assert_eq!(EXPECTED_KINDS.len(), 7, "EarconKind must have exactly 7 variants");
+    assert_eq!(
+        EXPECTED_KINDS.len(),
+        7,
+        "EarconKind must have exactly 7 variants"
+    );
 }
 
 #[test]

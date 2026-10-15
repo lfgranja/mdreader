@@ -6,6 +6,23 @@
 //! offline engine, enqueues the PCM on the CPAL backend, and
 //! advances the single playback session. No transport, rate, or
 //! position logic lives in Kotlin or the frontend.
+//!
+//! Durability cadence (T035, FR-007 as single source): the
+//! position a reader perceives frame-to-frame is the in-RAM
+//! [`player::position::PositionClock`] — it advances only on
+//! audible progress, never on its own — sampled at the ~1 s
+//! in-RAM cadence the backend's audible-progress feed already
+//! produces, and this module adds no timer of its own to watch
+//! it. That clock is also the only source of the per-sentence
+//! snap and the 5–10 s rewind cue, which are never durable
+//! writes. The DURABLE row is written on exactly two cadences:
+//! the 20 s heartbeat ([`HEARTBEAT_PERIOD_SECS`], T011) while
+//! `Playing`, and the event-durable call sites — every pause
+//! (deliberate, focus-loss, `BecomingNoisy`/
+//! `DeviceDisappeared`), each section-change (a skip), the
+//! pre-suspend app-background write, and the two DELETING ends
+//! (a `Stop` press and `DocumentEnd`, FR-032 / FR-032b). A hard
+//! kill therefore replays at most ~30 s (FR-004).
 
 use std::sync::Mutex;
 
@@ -18,6 +35,7 @@ use tauri::Manager;
 use std::time::Duration;
 use session::store::{BookmarkStore, StoredPosition};
 use session::fingerprint;
+use session::offer::ExpiryOutcome;
 use tokio::time;
 
 /// The permission-state gate (T030b): the pure,
@@ -286,6 +304,28 @@ fn end_kind_of_pause(transport: TransportState) -> Option<SessionEnd> {
     }
 }
 
+/// The end kind an event-durable write records for a landed
+/// transport (T035): the one mapping every event-durable call
+/// site that is NOT already a pause landing shares, so the
+/// section-change (skip) and pre-suspend (app-background)
+/// writes answer identically.
+///
+/// A session still `Playing` records `interrupted` — the
+/// heartbeat's crash-point kind, because a skip or a background
+/// write happens while audio runs and the process can die at
+/// any instant after it: recovery from that row must take the
+/// FR-032d explicit resume, never an auto-start. A pause-class
+/// transport records its own kind through
+/// [`end_kind_of_pause`], and a terminal transport records
+/// nothing (the row is deleted at those ends instead).
+fn event_end_kind(transport: TransportState) -> Option<SessionEnd> {
+    match transport {
+        TransportState::Playing => Some(SessionEnd::Interrupted),
+        TransportState::Paused | TransportState::Interrupted => end_kind_of_pause(transport),
+        TransportState::Stopped | TransportState::Completed => None,
+    }
+}
+
 /// Persist one bookmark row (T011 skeleton; the T035
 /// event-durable call sites): `position_secs` under
 /// the current document's content fingerprint, with
@@ -339,6 +379,44 @@ fn persist_bookmark(state: &AppState, position_secs: f64, end_kind: SessionEnd) 
     }
 }
 
+/// Delete the stored bookmark row under the current document's
+/// content fingerprint (T035, FR-032 / FR-032b / FR-032f): the
+/// discard the two terminal ends perform, so the next open has
+/// no stored row to offer and starts at `0.0`
+/// (storage-schema.md: "Delete on: Stop press, document end.
+/// Nothing else deletes."). The pause-class ends never reach
+/// here — a focus loss, `BecomingNoisy`, a residency teardown
+/// (`resident_stop` / `swipe_away`) and the pre-suspend
+/// background write all PRESERVE the entry (FR-009a / FR-028e).
+///
+/// Best-effort by construction, exactly like
+/// [`persist_bookmark`]: no loaded document, an unopened store,
+/// or a poisoned lock logs and skips — a delete is never a
+/// failure of the control that triggered it. Lock discipline is
+/// the same too: the fingerprint guard is released before the
+/// store is locked last, so no two state locks are ever held
+/// together.
+fn delete_bookmark(state: &AppState) {
+    let Some(fingerprint) = current_fingerprint(state) else {
+        return; // no document loaded — no row to delete
+    };
+    let mut store_guard = match state.bookmark_store.lock() {
+        Ok(guard) => guard,
+        Err(_) => {
+            tracing::warn!("bookmark not deleted: the store lock is poisoned");
+            return;
+        }
+    };
+    let Some(store) = store_guard.as_mut() else {
+        return; // the store never opened — there is no row to delete
+    };
+    if let Err(error) = store.delete(&fingerprint) {
+        tracing::warn!(%error, "bookmark not deleted: the store delete failed");
+    } else {
+        tracing::debug!("bookmark deleted");
+    }
+}
+
 /// The post-execution bookkeeping every verb path
 /// runs once the session has landed (T011 clock,
 /// T035 event-durable puts): note the landed
@@ -353,6 +431,153 @@ fn after_execute(state: &AppState, snapshot: &SessionSnapshot) {
     note_transport(state, snapshot.transport);
     if let Some(end_kind) = end_kind_of_pause(snapshot.transport) {
         persist_bookmark(state, snapshot.position_secs, end_kind);
+    }
+}
+
+/// The post-execution bookkeeping a section change (a skip)
+/// runs (T035): note the landed transport for the FR-015 clock,
+/// then refresh the durable row, because a skip moves the
+/// position without a pause and the next heartbeat tick may be
+/// up to 20 s away (FR-004 / FR-007).
+///
+/// The end kind comes from [`event_end_kind`]: a skip that holds
+/// `Playing` records the `interrupted` crash-point kind (the
+/// write a kill would otherwise have to reconstruct), a
+/// forward skip that reaches the duration and lands `Paused`
+/// (FR-018) records the deliberate-pause kind that opens the
+/// continue offer, and a skip from a silent or terminal session
+/// records its own kind or nothing. The per-sentence snap-back
+/// is NOT written here: it is the in-RAM
+/// [`player::position::PositionClock`] alone (FR-007).
+///
+/// Lock discipline matches [`after_execute`]: the snapshot is
+/// read under the session lock, that guard is released, and the
+/// store is locked last inside [`persist_bookmark`] — never two
+/// state locks at once.
+fn after_skip(state: &AppState, snapshot: &SessionSnapshot) {
+    note_transport(state, snapshot.transport);
+    if let Some(end_kind) = event_end_kind(snapshot.transport) {
+        persist_bookmark(state, snapshot.position_secs, end_kind);
+    }
+}
+
+/// The pre-suspend durable write the app-background intent runs
+/// (T035): a backgrounded process can be suspended or killed at
+/// any instant, so the position is persisted BEFORE the suspend
+/// rather than waiting for the 20 s heartbeat that may never
+/// tick again (FR-004 / FR-007).
+///
+/// The end kind is the one the current transport maps to
+/// through [`event_end_kind`]: a `Playing` session records
+/// `interrupted` — the same crash-point semantics and the same
+/// rationale as the heartbeat's `Playing` write, since a
+/// backgrounding is unexpected and recovery from that row must
+/// take the FR-032d explicit resume — a `Paused` or already
+/// `Interrupted` session re-records its own kind, and a terminal
+/// session records nothing.
+///
+/// The FR-032c foreground/background latch is deliberately NOT
+/// consulted here: it is read at offer expiry only, and this
+/// helper writes durability and nothing else.
+///
+/// Lock discipline: the snapshot guard is released before
+/// [`persist_bookmark`] takes the store last.
+fn after_background(state: &AppState) {
+    let snapshot = match state.session.lock() {
+        Ok(guard) => guard.snapshot(),
+        Err(_) => {
+            tracing::warn!("app-background bookmark skipped: the session lock is poisoned");
+            return;
+        }
+    };
+    if let Some(end_kind) = event_end_kind(snapshot.transport) {
+        persist_bookmark(state, snapshot.position_secs, end_kind);
+    }
+}
+
+/// The surface a resolved resume offer routes to (T037): the
+/// in-app visual dialog a deliberate end renders, the
+/// lock-screen resume control an unexpected end renders, and
+/// the nothing-to-render answer a terminal end (or no stored
+/// row) gives. This type is the whole of `lib.rs`'s
+/// contribution — which surface opens is the offer machine's
+/// answer, never a second decision made here (FR-044).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum OfferRoute {
+    /// The deliberate end (FR-032c): the in-app 3-second
+    /// visual dialog — continue from the stored position (the
+    /// default) against the start-over alternative. The FR-009
+    /// silence rule lives in that dialog: with no choice inside
+    /// the window, reading continues from the stored position.
+    InAppDialog,
+    /// The unexpected end (FR-032d / FR-031): the session waits
+    /// paused and the explicit lock-screen resume control is the
+    /// only way audio resumes — never an auto-start.
+    LockScreenResume,
+    /// Nothing is open: no surface to route to.
+    NoRoute,
+}
+
+/// The in-app offer window, in milliseconds (FR-032c): the
+/// visible 3-second continue dialog a deliberate end opens.
+const OFFER_WINDOW_MS: u64 = 3000;
+
+/// Route a stored session end to the surface that renders its
+/// resume offer (T037) — thin route-to-surface, with no offer
+/// logic of its own.
+///
+/// The form is READ from the held
+/// [`session::offer::OfferMachine`], never re-derived: the
+/// machine's own decision fn (`on_session_end`) is driven over
+/// a probe row carrying the stored end kind. The machine
+/// resolves the form SOLELY from that kind (storage-schema.md),
+/// so the probe's placeholder offset changes no answer — this
+/// function only maps the machine's answer to a surface.
+///
+/// * The machine opening the continue offer routes to
+///   [`OfferRoute::InAppDialog`].
+/// * The machine answering "no open offer" is then asked what
+///   the end resolves to, through its own `expire`: a standing
+///   explicit-resume requirement (FR-032d) routes to
+///   [`OfferRoute::LockScreenResume`], and nothing open routes
+///   to [`OfferRoute::NoRoute`]. The `expire` question is asked
+///   on that branch only, so it can never consume an open
+///   offer.
+///
+/// Driving the held machine is exactly the open/reopen
+/// lifecycle point — the offer is resolved there and read at
+/// expiry afterwards — so the route is computed when a document
+/// with a stored row opens, never mid-window. A poisoned offer
+/// lock records and routes nothing: a route is a rendering
+/// hint, never a playback decision.
+#[must_use]
+pub(crate) fn route_offer(state: &AppState, end_kind: SessionEnd) -> OfferRoute {
+    // The key the row would sit under; the machine itself
+    // ignores it (the form never depends on document identity).
+    let fingerprint = current_fingerprint(state).unwrap_or([0u8; 32]);
+    let probe = StoredPosition {
+        offset_secs: 0.0,
+        first_yield_ms: current_first_yield_ms(state),
+        end_kind,
+    };
+    let mut machine = match state.offer.lock() {
+        Ok(guard) => guard,
+        Err(_) => {
+            tracing::warn!("offer route unresolved: the offer lock is poisoned");
+            return OfferRoute::NoRoute;
+        }
+    };
+    if machine.on_session_end(fingerprint, Some(probe)).is_some() {
+        // The machine opened the continue offer: the
+        // deliberate-pause form.
+        return OfferRoute::InAppDialog;
+    }
+    match machine.expire() {
+        ExpiryOutcome::ExplicitResume => OfferRoute::LockScreenResume,
+        // A foregrounded auto-start resolves on the open-offer
+        // branch above; arriving here means nothing opened at
+        // all (a terminal end, or no stored row).
+        ExpiryOutcome::AutoStart { .. } | ExpiryOutcome::NoOffer => OfferRoute::NoRoute,
     }
 }
 
@@ -509,6 +734,7 @@ pub fn run() {
             commands::update_permissions,
             commands::get_status_view,
             commands::session_delete,
+            commands::offer_route,
             commands::open_document,
             publish::register_publish_listener
         ])
@@ -530,7 +756,10 @@ pub mod commands {
     use session::fingerprint;
     use session::offer::OfferMachine;
     use session::store::BookmarkStore;
-    use crate::{after_execute, set_document_fingerprint};
+    use crate::{
+        OFFER_WINDOW_MS, OfferRoute, after_background, after_execute, after_skip,
+        current_fingerprint, delete_bookmark, route_offer, set_document_fingerprint,
+    };
     use tauri::{AppHandle, Manager, State, command};
     use base64::{Engine as _, engine::general_purpose};
     use std::io::Write;
@@ -1084,11 +1313,21 @@ pub mod commands {
                         .map_err(|e| e.to_string())?
                 };
                 publish_current_state(state, None);
-                // Terminal end: no bookmark is written (T035
-                // deletes the entry here) and the FR-015
+                // Terminal end: no bookmark is written — T035
+                // deletes the entry below — and the FR-015
                 // clock closes, so it cannot leak into the
                 // next session.
                 after_execute(state, &snap);
+                // Stop-then-delete (T035, FR-032 / FR-032b /
+                // FR-032f): the press lands `Stopped`, which is
+                // terminal, so the stored row is discarded and
+                // the next open starts at `0.0` with no resume
+                // offer. Only a genuine stop deletes — the
+                // residency teardowns (`resident_stop` /
+                // `swipe_away`) pause first and PRESERVE the
+                // bookmark (FR-009a / FR-028e), and the
+                // pause-class intents never reach here.
+                delete_bookmark(state);
                 Ok(serde_json::json!({
                     "status": "stopped",
                     "position_secs": snap.position_secs,
@@ -1115,14 +1354,16 @@ pub mod commands {
                     session.execute(verb).map_err(|e| e.to_string())?
                 };
                 publish_current_state(state, None);
-                // A forward skip that reaches or passes the
-                // end lands `Paused` at the duration
-                // (FR-018): that landing is a transport
-                // change to Paused, so the event-durable
-                // put runs through the same bookkeeping.
-                // Every other live control holds its
-                // transport, and the put is a no-op.
-                after_execute(state, &snap);
+                // Section change (T035): a skip moves the
+                // position without a pause, so the durable row
+                // is refreshed through the section-change
+                // bookkeeping — `interrupted` for the
+                // transport-holding skip, `paused` for a
+                // forward skip that reaches the duration and
+                // lands `Paused` (FR-018). Every other live
+                // control holds its transport, and the write
+                // is a no-op.
+                after_skip(state, &snap);
                 Ok(serde_json::json!({
                     "status": snap.transport.to_string(),
                     "position_secs": snap.position_secs,
@@ -1268,7 +1509,17 @@ pub mod commands {
             }
             IntentWire::AppBackgrounded => {
                 // FR-032c latch only, read at expiry only.
-                ack_latch(state, "app_backgrounded", FocusIntent::AppBackgrounded)
+                let ack = ack_latch(state, "app_backgrounded", FocusIntent::AppBackgrounded)?;
+                // Durable BEFORE the suspend (T035, FR-004 /
+                // FR-007): a backgrounded process can be
+                // suspended or killed at any instant, so the
+                // position is persisted now — with the end kind
+                // the current transport maps to, `interrupted`
+                // for a playing session — instead of waiting for
+                // the 20 s heartbeat that may never tick again.
+                // The latch just written is never read here.
+                after_background(state);
+                Ok(ack)
             }
             IntentWire::ResidentStop => {
                 // FR-009a: ends residency PRESERVING the
@@ -1586,8 +1837,11 @@ pub mod commands {
     /// real completion. The held offer machine tears down
     /// with it (T125, FR-032b / FR-032e / FR-032f):
     /// completion and the resume offer are mutually
-    /// exclusive, so a later expiry yields no outcome.
-    /// Publishes the mirror state after completion (T133).
+    /// exclusive, so a later expiry yields no outcome. A
+    /// real completion also DELETES the stored bookmark
+    /// (T035) — a completed document has no resumable
+    /// position. Publishes the mirror state after
+    /// completion (T133).
     fn dispatch_document_end(state: &State<'_, AppState>) -> Result<serde_json::Value, String> {
         let (snapshot, changed) = execute_or_current(state, ShellVerb::Complete)?;
         if changed {
@@ -1595,6 +1849,13 @@ pub mod commands {
             if let Ok(mut offer) = state.offer.lock() {
                 offer.on_completion();
             }
+            // Completion deletes (T035, FR-032b / FR-032f): a
+            // completed document has no resumable position, so
+            // the stored row is discarded — the second of the
+            // two deleting ends, with the Stop press. The held
+            // offer machine tore down above, so no offer
+            // survives it either.
+            delete_bookmark(state);
         }
         publish_current_state(state, None);
         Ok(serde_json::json!({
@@ -1866,6 +2127,55 @@ pub mod commands {
             store.delete(&fingerprint).map_err(|e| e.to_string())?;
         }
         Ok(())
+    }
+
+    /// Route the stored resume offer to the surface that renders
+    /// it (T037, FR-032c / FR-032d / FR-031).
+    ///
+    /// The thin route-to-surface command: it reads the stored row
+    /// for the currently loaded document's content fingerprint and
+    /// asks [`crate::route_offer`] which surface the row's end
+    /// kind resolves to — `in_app_dialog` (with the FR-032c 3 s
+    /// window) for the deliberate end, `lockscreen_resume` for the
+    /// unexpected end, `none` when nothing is open. No offer logic
+    /// lives here: the form comes from the offer machine in
+    /// `crates/session/src/offer.rs` (FR-044), so the in-app dialog,
+    /// the lock-screen control, and the CLI's `session ingest`
+    /// path (T018) all render the same resolved offer.
+    ///
+    /// A `none` route is a normal reply, never an error: no loaded
+    /// document, no stored row, and a terminal end all leave
+    /// nothing to render.
+    ///
+    /// # Errors
+    ///
+    /// Returns the store's error string when the stored row cannot
+    /// be read.
+    #[command]
+    pub fn offer_route(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+        let Some(fingerprint) = current_fingerprint(&state) else {
+            return Ok(serde_json::json!({ "offer_route": "none" }));
+        };
+        let stored = {
+            let mut guard = state.bookmark_store.lock().map_err(|e| e.to_string())?;
+            match guard.as_mut() {
+                Some(store) => store.get(&fingerprint).map_err(|e| e.to_string())?,
+                None => None,
+            }
+        };
+        let Some(stored) = stored else {
+            return Ok(serde_json::json!({ "offer_route": "none" }));
+        };
+        Ok(match route_offer(&state, stored.end_kind) {
+            OfferRoute::InAppDialog => serde_json::json!({
+                "offer_route": "in_app_dialog",
+                "window_ms": OFFER_WINDOW_MS,
+            }),
+            OfferRoute::LockScreenResume => serde_json::json!({
+                "offer_route": "lockscreen_resume",
+            }),
+            OfferRoute::NoRoute => serde_json::json!({ "offer_route": "none" }),
+        })
     }
 }
 
@@ -2616,6 +2926,313 @@ mod heartbeat_bookmark_tests {
         after_execute(&state, &paused);
         heartbeat_once(&state);
         assert_eq!(paused.transport, TransportState::Paused);
+        Ok(())
+    }
+}
+
+/// T035 event-durable call sites + T037 route-to-surface, over
+/// the same real redb file and real transition table the
+/// heartbeat tests use: the two DELETING ends (a `Stop` press
+/// and a document completion), the pre-suspend app-background
+/// write, the section-change (skip) write, and the offer route
+/// each end kind resolves to. Every row is read back through
+/// the store's own `get` — never a mock (FR-004 / FR-032 /
+/// FR-032b / FR-032f / FR-044).
+#[cfg(test)]
+mod event_durable_tests {
+    use super::*;
+    use engine_core::closed::SessionEnd;
+    use player::cli::ShellVerb;
+    use player::position::SKIP_STEP_SECS;
+    use session::offer::ExpiryOutcome;
+    use session::store::StoredPosition;
+
+    /// A document the tests fingerprint: the content, not the
+    /// path, is the key (FR-036).
+    const DOC: &[u8] = b"# Doc\nbody";
+
+    /// A fresh state whose bookmark store lives in a temp dir.
+    fn state_with_store() -> Result<(tempfile::TempDir, AppState), String> {
+        let dir = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let store =
+            BookmarkStore::open(&dir.path().join("bookmarks.redb")).map_err(|e| e.to_string())?;
+        Ok((dir, AppState::test_state_with_bookmark_store(store)))
+    }
+
+    /// The row the store holds under `fingerprint` — the same
+    /// read the resume path performs.
+    fn stored_row(
+        state: &AppState,
+        fingerprint: [u8; 32],
+    ) -> Result<Option<StoredPosition>, String> {
+        let mut guard = state.bookmark_store.lock().map_err(|e| e.to_string())?;
+        let store = guard.as_mut().ok_or("no bookmark store")?;
+        store.get(&fingerprint).map_err(|e| e.to_string())
+    }
+
+    /// Drive the held session to `Playing` through the real
+    /// transition table and run the bookkeeping the bridge
+    /// runs at the same point.
+    fn start_playing(state: &AppState) -> Result<SessionSnapshot, String> {
+        let snapshot = {
+            let mut session = state.session.lock().map_err(|e| e.to_string())?;
+            session
+                .execute(ShellVerb::Play)
+                .map_err(|e| e.to_string())?
+        };
+        after_execute(state, &snapshot);
+        Ok(snapshot)
+    }
+
+    /// A deliberate pause on the held session, persisted
+    /// through the same bookkeeping the pause verbs run.
+    fn pause_deliberately(state: &AppState) -> Result<SessionSnapshot, String> {
+        let paused = {
+            let mut session = state.session.lock().map_err(|e| e.to_string())?;
+            session
+                .execute(ShellVerb::Pause)
+                .map_err(|e| e.to_string())?
+        };
+        after_execute(state, &paused);
+        Ok(paused)
+    }
+
+    /// A `Stop` press deletes the stored bookmark (FR-032 /
+    /// FR-032f): the terminal end discards the row, so the next
+    /// open starts at `0.0` with no resume offer — while the
+    /// pause that preceded it had persisted one.
+    #[test]
+    fn stop_press_deletes_the_stored_bookmark() -> Result<(), String> {
+        let (_dir, state) = state_with_store()?;
+        set_document_fingerprint(&state, DOC);
+        let _playing = start_playing(&state)?;
+        let _paused = pause_deliberately(&state)?;
+        let fingerprint = fingerprint::fingerprint(DOC);
+        assert!(
+            stored_row(&state, fingerprint)?.is_some(),
+            "the deliberate pause persisted no row for the Stop press to delete"
+        );
+
+        // The Stop arm: land `Stopped`, close the FR-015 clock,
+        // then delete the entry.
+        let stopped = {
+            let mut session = state.session.lock().map_err(|e| e.to_string())?;
+            session
+                .execute(ShellVerb::Stop)
+                .map_err(|e| e.to_string())?
+        };
+        after_execute(&state, &stopped);
+        delete_bookmark(&state);
+
+        assert!(
+            stored_row(&state, fingerprint)?.is_none(),
+            "a Stop press left the stored bookmark behind (FR-032 / FR-032f)"
+        );
+        assert_eq!(
+            current_first_yield_ms(&state),
+            0,
+            "the terminal end did not close the FR-015 clock"
+        );
+        Ok(())
+    }
+
+    /// A document completion deletes the stored bookmark
+    /// (FR-032b / FR-032f) and tears the held offer machine
+    /// down with it: completion and the resume offer are
+    /// mutually exclusive states.
+    #[test]
+    fn document_completion_deletes_the_stored_bookmark() -> Result<(), String> {
+        let (_dir, state) = state_with_store()?;
+        set_document_fingerprint(&state, DOC);
+        let _playing = start_playing(&state)?;
+        // `Complete` is legal from `Playing` only, so the row
+        // this test deletes is the crash-point heartbeat write.
+        heartbeat_once(&state);
+        let fingerprint = fingerprint::fingerprint(DOC);
+        assert!(
+            stored_row(&state, fingerprint)?.is_some(),
+            "the playing heartbeat persisted no row for the completion to delete"
+        );
+
+        // The document_end arm: `Complete` teardown, the offer
+        // machine's completion teardown, then the delete.
+        let completed = {
+            let mut session = state.session.lock().map_err(|e| e.to_string())?;
+            session
+                .execute(ShellVerb::Complete)
+                .map_err(|e| e.to_string())?
+        };
+        after_execute(&state, &completed);
+        if let Ok(mut offer) = state.offer.lock() {
+            offer.on_completion();
+        }
+        delete_bookmark(&state);
+
+        assert!(
+            stored_row(&state, fingerprint)?.is_none(),
+            "a completed document left the stored bookmark behind (FR-032b / FR-032f)"
+        );
+        if let Ok(mut offer) = state.offer.lock() {
+            assert_eq!(
+                offer.expire(),
+                ExpiryOutcome::NoOffer,
+                "a resume offer survived the document completion"
+            );
+        }
+        Ok(())
+    }
+
+    /// The pre-suspend app-background write: a `Playing`
+    /// session persists its position BEFORE the suspend with
+    /// the heartbeat's `interrupted` crash-point kind — the
+    /// process can die at any instant after backgrounding, and
+    /// recovery from that row must take the FR-032d explicit
+    /// resume (FR-004 / FR-007).
+    #[test]
+    fn app_background_persists_the_playing_position() -> Result<(), String> {
+        let (_dir, state) = state_with_store()?;
+        set_document_fingerprint(&state, DOC);
+        let _playing = start_playing(&state)?;
+
+        after_background(&state);
+
+        let fingerprint = fingerprint::fingerprint(DOC);
+        let row =
+            stored_row(&state, fingerprint)?.ok_or("the pre-suspend write recorded nothing")?;
+        assert_eq!(
+            row.end_kind,
+            SessionEnd::Interrupted,
+            "a backgrounded playing session did not record the crash-point kind"
+        );
+        assert_eq!(row.offset_secs, 0.0);
+        assert!(
+            row.first_yield_ms > 0,
+            "the pre-suspend write did not stamp the FR-015 clock"
+        );
+        Ok(())
+    }
+
+    /// The pre-suspend write keeps a paused session's own end
+    /// kind: a backgrounded pause stays the deliberate
+    /// `paused` kind that opens the continue offer, never the
+    /// unexpected-end kind.
+    #[test]
+    fn app_background_keeps_the_paused_kind() -> Result<(), String> {
+        let (_dir, state) = state_with_store()?;
+        set_document_fingerprint(&state, DOC);
+        let _playing = start_playing(&state)?;
+        let _paused = pause_deliberately(&state)?;
+
+        after_background(&state);
+
+        let fingerprint = fingerprint::fingerprint(DOC);
+        let row = stored_row(&state, fingerprint)?
+            .ok_or("the pre-suspend write deleted the paused row")?;
+        assert_eq!(
+            row.end_kind,
+            SessionEnd::Paused,
+            "the pre-suspend write rewrote a deliberate pause as an unexpected end"
+        );
+        Ok(())
+    }
+
+    /// A section change (a skip) persists the moved position
+    /// while the session keeps playing: the next heartbeat tick
+    /// may be up to 20 s away, so the durable row is refreshed
+    /// event-durably with the crash-point kind (FR-004 /
+    /// FR-007). The per-sentence snap-back is NOT a durable
+    /// write — it is the in-RAM `PositionClock` alone.
+    #[test]
+    fn section_change_persists_the_playing_position() -> Result<(), String> {
+        let (_dir, state) = state_with_store()?;
+        set_document_fingerprint(&state, DOC);
+        let _playing = start_playing(&state)?;
+
+        let skipped = {
+            let mut session = state.session.lock().map_err(|e| e.to_string())?;
+            session
+                .execute(ShellVerb::SkipForward)
+                .map_err(|e| e.to_string())?
+        };
+        assert_eq!(
+            skipped.transport,
+            TransportState::Playing,
+            "an ordinary forward skip must hold the playing transport"
+        );
+        after_skip(&state, &skipped);
+
+        let fingerprint = fingerprint::fingerprint(DOC);
+        let row = stored_row(&state, fingerprint)?.ok_or("the section change recorded no row")?;
+        assert_eq!(
+            row.end_kind,
+            SessionEnd::Interrupted,
+            "a section change while playing did not record the crash-point kind"
+        );
+        assert_eq!(
+            row.offset_secs, SKIP_STEP_SECS,
+            "the section change did not persist the skipped position"
+        );
+        Ok(())
+    }
+
+    /// The deliberate end routes to the in-app 3-second visual
+    /// dialog (FR-032c), and the route leaves the continue
+    /// offer open on the machine so the dialog has something
+    /// to render — with the FR-009 silence rule: a window that
+    /// elapses with no choice continues from the stored
+    /// position (a foregrounded expiry auto-starts).
+    #[test]
+    fn deliberate_end_routes_to_the_in_app_dialog() -> Result<(), String> {
+        let (_dir, state) = state_with_store()?;
+        assert_eq!(
+            route_offer(&state, SessionEnd::Paused),
+            OfferRoute::InAppDialog,
+            "a deliberate pause did not route to the in-app dialog"
+        );
+        {
+            let mut offer = state.offer.lock().map_err(|e| e.to_string())?;
+            assert!(
+                offer.continue_offer().is_some(),
+                "the in-app dialog route left no offer open to render"
+            );
+            offer.on_foregrounded();
+            assert_eq!(
+                offer.expire(),
+                ExpiryOutcome::AutoStart { offset_secs: 0.0 },
+                "the silence rule did not continue from the stored position (FR-009)"
+            );
+        }
+        Ok(())
+    }
+
+    /// The unexpected end routes to the wait-paused +
+    /// explicit lock-screen resume control (FR-032d / FR-031):
+    /// no auto-start, and the route leaves the
+    /// explicit-resume requirement standing on the machine.
+    #[test]
+    fn unexpected_end_routes_to_the_lockscreen_resume() -> Result<(), String> {
+        let (_dir, state) = state_with_store()?;
+        assert_eq!(
+            route_offer(&state, SessionEnd::Interrupted),
+            OfferRoute::LockScreenResume,
+            "an unexpected end did not route to the lock-screen resume control"
+        );
+        Ok(())
+    }
+
+    /// The terminal ends route nowhere (FR-032 / FR-032e):
+    /// `Stopped` and `Completed` open no offer, and their rows
+    /// are deleted rather than offered.
+    #[test]
+    fn terminal_ends_route_to_nothing() -> Result<(), String> {
+        let (_dir, state) = state_with_store()?;
+        for end_kind in [SessionEnd::Stopped, SessionEnd::Completed] {
+            assert_eq!(
+                route_offer(&state, end_kind),
+                OfferRoute::NoRoute,
+                "a terminal end opened a resume route"
+            );
+        }
         Ok(())
     }
 }

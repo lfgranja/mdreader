@@ -171,24 +171,23 @@ fn main() -> io::Result<()> {
                     (Some(_), Some(_), Some(0), Some(0)) => {
                         player::surface::Progress::Indeterminate
                     }
-                    (
-                        Some(consumed_units),
-                        Some(total_units),
-                        Some(k),
-                        Some(n),
-                    ) => player::surface::Progress::Determinate {
-                        consumed_units,
-                        total_units,
-                        k,
-                        n,
-                    },
+                    (Some(consumed_units), Some(total_units), Some(k), Some(n)) => {
+                        player::surface::Progress::Determinate {
+                            consumed_units,
+                            total_units,
+                            k,
+                            n,
+                        }
+                    }
                     _ => {
                         // Unreachable through clap (the flags are
                         // required unless --indeterminate), but the
                         // failure half of the protocol — diagnostic
                         // to stderr, nothing on stdout — is the
                         // closed-set-safe answer if it ever were.
-                        eprintln!("usage: player progress (--consumed <u> --total <u> --k <k> --n <n> | --indeterminate)");
+                        eprintln!(
+                            "usage: player progress (--consumed <u> --total <u> --k <k> --n <n> | --indeterminate)"
+                        );
                         std::process::exit(2);
                     }
                 }

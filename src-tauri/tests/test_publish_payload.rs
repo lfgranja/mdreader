@@ -107,7 +107,10 @@ fn publish_payload_carries_exactly_the_five_contract_keys_for_each_transport() {
             Some(&Value::Number(120_u64.into())),
             "total_units must be the session-start content-offset total (T005 shape)"
         );
-        assert!(det.get("k").is_some(), "k (current section) must be present");
+        assert!(
+            det.get("k").is_some(),
+            "k (current section) must be present"
+        );
         assert!(det.get("n").is_some(), "n (total sections) must be present");
         assert!(
             det.get("position_secs").is_none() && det.get("duration_secs").is_none(),

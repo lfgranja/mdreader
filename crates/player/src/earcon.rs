@@ -142,18 +142,13 @@ impl EarconDescriptor {
         const SAMPLE_RATE: u32 = 22_050;
         const NOTE_DURATION_MS: u32 = 120;
         const TOTAL_DURATION_MS: u32 = 240; // 2 notes × 120 ms
-        
+
         let c5_hz = 523.25; // C5
         let e5_hz = 659.25; // E5
-        
-        let samples = generate_two_note_sequence(
-            SAMPLE_RATE,
-            NOTE_DURATION_MS,
-            c5_hz,
-            e5_hz,
-            Waveform::Sine,
-        );
-        
+
+        let samples =
+            generate_two_note_sequence(SAMPLE_RATE, NOTE_DURATION_MS, c5_hz, e5_hz, Waveform::Sine);
+
         Self {
             kind: EarconKind::Play,
             duration_ms: TOTAL_DURATION_MS,
@@ -175,18 +170,13 @@ impl EarconDescriptor {
         const SAMPLE_RATE: u32 = 22_050;
         const NOTE_DURATION_MS: u32 = 120;
         const TOTAL_DURATION_MS: u32 = 240;
-        
+
         let e5_hz = 659.25; // E5
         let c5_hz = 523.25; // C5
-        
-        let samples = generate_two_note_sequence(
-            SAMPLE_RATE,
-            NOTE_DURATION_MS,
-            e5_hz,
-            c5_hz,
-            Waveform::Sine,
-        );
-        
+
+        let samples =
+            generate_two_note_sequence(SAMPLE_RATE, NOTE_DURATION_MS, e5_hz, c5_hz, Waveform::Sine);
+
         Self {
             kind: EarconKind::Pause,
             duration_ms: TOTAL_DURATION_MS,
@@ -208,10 +198,10 @@ impl EarconDescriptor {
         const SAMPLE_RATE: u32 = 22_050;
         const TICK_DURATION_MS: u32 = 40;
         const TOTAL_DURATION_MS: u32 = 40;
-        
+
         let start_hz = 880.0;
         let end_hz = 1108.0; // ~880 * 2^(1/4) ≈ quarter tone up
-        
+
         let samples = generate_frequency_sweep(
             SAMPLE_RATE,
             TICK_DURATION_MS,
@@ -219,7 +209,7 @@ impl EarconDescriptor {
             end_hz,
             Waveform::Sine,
         );
-        
+
         Self {
             kind: EarconKind::SkipFwd,
             duration_ms: TOTAL_DURATION_MS,
@@ -241,10 +231,10 @@ impl EarconDescriptor {
         const SAMPLE_RATE: u32 = 22_050;
         const TICK_DURATION_MS: u32 = 40;
         const TOTAL_DURATION_MS: u32 = 40;
-        
+
         let start_hz = 880.0;
         let end_hz = 660.0; // ~880 * 2^(-1/4) ≈ quarter tone down
-        
+
         let samples = generate_frequency_sweep(
             SAMPLE_RATE,
             TICK_DURATION_MS,
@@ -252,7 +242,7 @@ impl EarconDescriptor {
             end_hz,
             Waveform::Sine,
         );
-        
+
         Self {
             kind: EarconKind::SkipBack,
             duration_ms: TOTAL_DURATION_MS,
@@ -276,25 +266,25 @@ impl EarconDescriptor {
         const TICK2_DURATION_MS: u32 = 80;
         const GAP_MS: u32 = 20;
         const TOTAL_DURATION_MS: u32 = TICK1_DURATION_MS + GAP_MS + TICK2_DURATION_MS; // 160 ms
-        
+
         // A5 = 880 Hz, dissonant pair: 880 Hz + 932 Hz (minor second ≈ 100 cents)
         let freq1 = 880.0;
         let freq2 = 932.33; // 880 * 2^(1/12) ≈ minor second up
-        
+
         let mut samples = Vec::new();
-        
+
         // First tick: dissonant pair
         let tick1 = generate_dissonant_pair(SAMPLE_RATE, TICK1_DURATION_MS, freq1, freq2);
         samples.extend(tick1);
-        
+
         // Gap (silence)
         let gap_samples = (SAMPLE_RATE as f32 * GAP_MS as f32 / 1000.0) as usize;
         samples.extend(vec![0.0; gap_samples]);
-        
+
         // Second tick: same dissonant pair
         let tick2 = generate_dissonant_pair(SAMPLE_RATE, TICK2_DURATION_MS, freq1, freq2);
         samples.extend(tick2);
-        
+
         Self {
             kind: EarconKind::Warning,
             duration_ms: TOTAL_DURATION_MS,
@@ -317,25 +307,25 @@ impl EarconDescriptor {
         const NOTE_DURATION_MS: u32 = 200;
         const GAP_MS: u32 = 50;
         const TOTAL_DURATION_MS: u32 = NOTE_DURATION_MS + GAP_MS + NOTE_DURATION_MS; // 450 ms
-        
+
         // E4 = 329.63 Hz, minor second = ~349.23 Hz
         let freq1 = 329.63;
         let freq2 = 349.23; // E4 + minor second
-        
+
         let mut samples = Vec::new();
-        
+
         // First note: square wave with minor second cluster
         let note1 = generate_square_with_minor_second(SAMPLE_RATE, NOTE_DURATION_MS, freq1, freq2);
         samples.extend(note1);
-        
+
         // Gap (silence)
         let gap_samples = (SAMPLE_RATE as f32 * GAP_MS as f32 / 1000.0) as usize;
         samples.extend(vec![0.0; gap_samples]);
-        
+
         // Repeat
         let note2 = generate_square_with_minor_second(SAMPLE_RATE, NOTE_DURATION_MS, freq1, freq2);
         samples.extend(note2);
-        
+
         Self {
             kind: EarconKind::Failure,
             duration_ms: TOTAL_DURATION_MS,
@@ -358,9 +348,9 @@ impl EarconDescriptor {
         const DURATION_MS: u32 = 60;
         const TOTAL_DURATION_MS: u32 = 60;
         const FREQ_HZ: f32 = 880.0;
-        
+
         let samples = generate_tone(SAMPLE_RATE, DURATION_MS, FREQ_HZ, Waveform::Sine);
-        
+
         Self {
             kind: EarconKind::RateStep,
             duration_ms: TOTAL_DURATION_MS,
@@ -389,7 +379,7 @@ enum Waveform {
 fn generate_tone(sample_rate: u32, duration_ms: u32, freq_hz: f32, waveform: Waveform) -> Vec<f32> {
     let num_samples = (sample_rate as f32 * duration_ms as f32 / 1000.0) as usize;
     let mut samples = Vec::with_capacity(num_samples);
-    
+
     for i in 0..num_samples {
         let t = i as f32 / sample_rate as f32;
         let phase = 2.0 * std::f32::consts::PI * freq_hz * t;
@@ -401,7 +391,7 @@ fn generate_tone(sample_rate: u32, duration_ms: u32, freq_hz: f32, waveform: Wav
         let envelope = envelope(t, duration_ms as f32 / 1000.0);
         samples.push(sample * envelope * 0.3); // 0.3 gain to avoid clipping
     }
-    
+
     samples
 }
 
@@ -416,7 +406,7 @@ fn generate_frequency_sweep(
     let num_samples = (sample_rate as f32 * duration_ms as f32 / 1000.0) as usize;
     let mut samples = Vec::with_capacity(num_samples);
     let duration_s = duration_ms as f32 / 1000.0;
-    
+
     for i in 0..num_samples {
         let t = i as f32 / sample_rate as f32;
         // Linear frequency sweep
@@ -429,7 +419,7 @@ fn generate_frequency_sweep(
         let envelope = envelope(t, duration_s);
         samples.push(sample * envelope * 0.3);
     }
-    
+
     samples
 }
 
@@ -442,15 +432,15 @@ fn generate_two_note_sequence(
     waveform: Waveform,
 ) -> Vec<f32> {
     let mut samples = Vec::new();
-    
+
     // First note
     let note1 = generate_tone(sample_rate, note_duration_ms, freq1_hz, waveform);
     samples.extend(note1);
-    
+
     // Second note
     let note2 = generate_tone(sample_rate, note_duration_ms, freq2_hz, waveform);
     samples.extend(note2);
-    
+
     samples
 }
 
@@ -464,7 +454,7 @@ fn generate_dissonant_pair(
     let num_samples = (sample_rate as f32 * duration_ms as f32 / 1000.0) as usize;
     let mut samples = Vec::with_capacity(num_samples);
     let duration_s = duration_ms as f32 / 1000.0;
-    
+
     for i in 0..num_samples {
         let t = i as f32 / sample_rate as f32;
         let phase1 = 2.0 * std::f32::consts::PI * freq1_hz * t;
@@ -473,7 +463,7 @@ fn generate_dissonant_pair(
         let envelope = envelope(t, duration_s);
         samples.push(sample * envelope * 0.3);
     }
-    
+
     samples
 }
 
@@ -487,7 +477,7 @@ fn generate_square_with_minor_second(
     let num_samples = (sample_rate as f32 * duration_ms as f32 / 1000.0) as usize;
     let mut samples = Vec::with_capacity(num_samples);
     let duration_s = duration_ms as f32 / 1000.0;
-    
+
     for i in 0..num_samples {
         let t = i as f32 / sample_rate as f32;
         let phase1 = 2.0 * std::f32::consts::PI * freq1_hz * t;
@@ -497,7 +487,7 @@ fn generate_square_with_minor_second(
         let envelope = envelope(t, duration_s);
         samples.push(sample * envelope * 0.25); // Lower gain for square wave
     }
-    
+
     samples
 }
 
@@ -513,7 +503,7 @@ fn square_wave(phase: f32) -> f32 {
 fn envelope(t: f32, duration_s: f32) -> f32 {
     const ATTACK_S: f32 = 0.005; // 5 ms attack
     const RELEASE_S: f32 = 0.010; // 10 ms release
-    
+
     if t < ATTACK_S {
         t / ATTACK_S
     } else if t > duration_s - RELEASE_S {
@@ -601,8 +591,11 @@ mod tests {
         ] {
             let desc = EarconDescriptor::for_kind(kind);
             let fp = desc.perceptual_fingerprint;
-            assert!(fingerprints.insert((fp.timbre, fp.rhythm, fp.contour)), 
-                "Duplicate fingerprint for {:?}", kind);
+            assert!(
+                fingerprints.insert((fp.timbre, fp.rhythm, fp.contour)),
+                "Duplicate fingerprint for {:?}",
+                kind
+            );
         }
         assert_eq!(fingerprints.len(), 7);
     }
@@ -619,8 +612,18 @@ mod tests {
             EarconKind::RateStep,
         ] {
             let desc = EarconDescriptor::for_kind(kind);
-            assert!(desc.band_hz.0 >= 300, "{:?} min freq {} < 300", kind, desc.band_hz.0);
-            assert!(desc.band_hz.1 <= 2500, "{:?} max freq {} > 2500", kind, desc.band_hz.1);
+            assert!(
+                desc.band_hz.0 >= 300,
+                "{:?} min freq {} < 300",
+                kind,
+                desc.band_hz.0
+            );
+            assert!(
+                desc.band_hz.1 <= 2500,
+                "{:?} max freq {} > 2500",
+                kind,
+                desc.band_hz.1
+            );
         }
     }
 }

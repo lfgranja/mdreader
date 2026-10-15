@@ -61,6 +61,7 @@ player::test_setup_earcon_shape
 player::test_setup_interruption_shape
 player::test_setup_progress_shape
 player::test_shell_ipc_us4
+session
 session::integration_ingest
 session::prop_bookmark_lifecycle
 session::prop_end_kind_codes

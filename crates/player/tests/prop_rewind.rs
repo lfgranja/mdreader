@@ -43,7 +43,7 @@ use proptest::prelude::*;
 
 use engine_core::trait_::AlignmentGranularity;
 use player::position::{REWIND_CAP_SECS, REWIND_FRACTION};
-use player::rewind::{ResumeInput, cursor, resolve_resume, supersede};
+use player::rewind::{CUE_SECS, ResumeInput, cursor, resolve_resume, supersede};
 
 /// Gap-membership tolerance for the test oracles, in seconds.
 ///
@@ -244,17 +244,43 @@ proptest! {
             supersedes_ts_ms: None,
         };
         let result = resolve_resume(&input);
-        let expected = match containing_start(raw, &boundaries) {
-            Some(boundary) if boundary >= cap => boundary,
+        // FR-007 cue (004 data-model.md): the resume steps the fixed
+        // cue distance back from the containing-sentence start, never
+        // before the cap — the listener re-hears the tail of the
+        // previous sentence for context. The 001-era expectation
+        // ("the resume IS the containing-sentence start") is
+        // SUPERSEDED by the 004 cue contract (see rewind.rs CUE_SECS
+        // and prop_resume_snap.rs T025, which pins the cue).
+        let expected_floor = match containing_start(raw, &boundaries) {
+            Some(boundary) if boundary >= cap => (boundary - CUE_SECS).max(cap),
             Some(_) => cap,
             None => raw,
         };
-        prop_assert_eq!(
-            result.resume_secs,
-            expected,
-            "resume {} was not the containing-sentence start (raw cursor {}, cap {})",
-            result.resume_secs, raw, cap
-        );
+        if containing_start(raw, &boundaries).is_none() {
+            // The degrade path holds the raw cursor exactly and cuts
+            // no cue.
+            prop_assert_eq!(
+                result.resume_secs,
+                expected_floor,
+                "resume {} was not the raw cursor {} on the degrade path",
+                result.resume_secs, expected_floor
+            );
+        } else {
+            prop_assert!(
+                result.resume_secs >= expected_floor && result.resume_secs <= raw,
+                "resume {} left the [cue floor {}, raw cursor {}] window (raw cursor {}, cap {})",
+                result.resume_secs, expected_floor, raw, raw, cap
+            );
+            // Never mid-word: a declared gap (the boundaries and the
+            // cap point are gaps here) or exactly the cue floor.
+            let in_gap = is_test_gap(result.resume_secs, &gaps);
+            let at_floor = (result.resume_secs - expected_floor).abs() <= TEST_GAP_EPS_SECS;
+            prop_assert!(
+                in_gap || at_floor,
+                "resume {} landed on an energy peak — neither a declared gap nor the cue floor {}",
+                result.resume_secs, expected_floor
+            );
+        }
     }
 
     #[test]

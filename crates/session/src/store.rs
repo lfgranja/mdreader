@@ -627,8 +627,8 @@ mod tests {
     }
 
     #[test]
-    fn lookup_on_open_miss_starts_at_zero_with_no_offer()
-    -> Result<(), Box<dyn std::error::Error>> {
+    fn lookup_on_open_miss_starts_at_zero_with_no_offer() -> Result<(), Box<dyn std::error::Error>>
+    {
         // First use: no row survives, so the session
         // starts at `0.0` with no offer (FR-036a) —
         // the lookup reports the miss rather than a

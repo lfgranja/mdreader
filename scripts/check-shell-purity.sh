@@ -212,6 +212,12 @@ ALLOWLIST=(
   "$SRC_TAURI/src/permissions.rs"
   "$SRC_TAURI/src/lib.rs"
   "$SRC_TAURI/tests/test_publish_payload.rs"
+  # 004 purity tests: they assert the ABSENCE of the shell vocabulary
+  # on every surface (the mention IS the assertion — the same shape as
+  # test_publish_payload.rs above, which the allowlist already carries).
+  "$SRC_TAURI/tests/test_purity.rs"
+  "$SRC_TAURI/tests/test_surface_us1.rs"
+  "$SRC_TAURI/tests/test_noscope.rs"
 )
 
 is_allowlisted() {

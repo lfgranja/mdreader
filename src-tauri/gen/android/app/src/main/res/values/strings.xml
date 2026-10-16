@@ -1,0 +1,11 @@
+<!-- Launcher-label surfaces: the artifact's most-visible strings.
+     `tauri android init` seeds these from `bundle.productName`;
+     the file is then kept in-tree because the public/technical
+     naming boundary is a compliance surface asserted by
+     src-tauri/tests/test_noscope.rs. Re-verify on every Tauri
+     upgrade, and never let the technical workspace name reach a
+     label a reader can see. -->
+<resources>
+    <string name="app_name">Ressoa</string>
+    <string name="main_activity_title">Ressoa</string>
+</resources>

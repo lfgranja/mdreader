@@ -290,16 +290,53 @@ fn no_distribution_artifacts_in_tree() {
 #[test]
 fn no_mdreader_in_user_visible_strings() {
     // The naming boundary: the internal technical name never
-    // reaches a user-visible surface (Ressoa-external naming).
+    // reaches a user-visible surface (Ressoa-external naming) —
+    // `.specify/assessments/ressoa-mobile-app/concept.md`: "the
+    // public/technical naming boundary (Ressoa externally,
+    // mdreader technically) holds for the artifact's visible
+    // strings". Structural identifiers are out of scope by
+    // construction: the Kotlin package path `app.mdreader`, the
+    // `applicationId`, intent actions, notification-channel ids,
+    // and log tags are never painted for a reader.
     let root = repo_root();
-    let frontend = root.join("src-tauri/src/status_view.html");
-    let text = std::fs::read_to_string(&frontend).expect("status_view.html is readable");
-    assert!(
-        !text.contains("mdreader"),
-        "no internal name in user-visible strings (naming boundary): status_view.html mentions it"
-    );
-    // The Kotlin package name is structural (app.mdreader), not
-    // user-visible — allowed; the manifest's app label is not.
+
+    // Every painted string: the status view, the webview frontends
+    // (the served bundle and its Android asset copy), and the
+    // generated launcher label.
+    for relative in [
+        "src-tauri/src/status_view.html",
+        "dist/index.html",
+        "src-tauri/src/assets/index.html",
+        "src-tauri/gen/android/app/src/main/assets/index.html",
+        "src-tauri/gen/android/app/src/main/res/values/strings.xml",
+    ] {
+        let path = root.join(relative);
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        assert!(
+            !text.contains("mdreader"),
+            "no internal name in user-visible strings (naming boundary): {relative} mentions it"
+        );
+    }
+
+    // The bundle identity is a user-visible surface even though it
+    // lives in a build config: `productName` seeds the generated
+    // Android `app_name`/`main_activity_title` and the desktop
+    // window title.
+    let config = root.join("src-tauri/tauri.conf.json");
+    let config_text = std::fs::read_to_string(&config).expect("tauri.conf.json is readable");
+    for line in config_text.lines() {
+        if line.contains("\"productName\"") || line.contains("\"title\"") {
+            assert!(
+                !line.contains("mdreader"),
+                "no internal name in the bundle identity or window title: {line}"
+            );
+        }
+    }
+
+    // Some Tauri releases put the label straight on the manifest
+    // activity instead of the generated strings.
     let manifest = root.join("src-tauri/gen/android/app/src/main/AndroidManifest.xml");
     if let Ok(manifest_text) = std::fs::read_to_string(&manifest) {
         let label_lines: Vec<&str> = manifest_text

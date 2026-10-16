@@ -1,122 +1,63 @@
-# Session state — 001-android-media-shell (Phase 12 COMPLETE — T120–T121 attested)
+# Session state — 004-ressoa-dogfood-build (implementation + HOST GREEN)
 
-Updated: 2026-10-12 (verification wave landed; ONLY T084–T087
-attest success).
+Updated: 2026-10-16 (T048 host gates, T049 manifest/purity, T050 gate 9 all green; T051/T052 device-blocked).
 
 ## Position
-- Phase 8 hardening wave LANDED: T080 (c824bfc),
-  T081 (46a2fed), T082 (e41c3dd), T083 (79277ae);
-  minSdk-29 restoration (c8991b1); governance
-  v1.5.0 (6d655bb); check-offs (466000b).
-- **T084 VERIFICATION GREEN** (b06efc8): `./scripts/verify.sh`
-  exit 0 — gates 1–7 PASS + gate-8-shell PASS +
-  gate-8-full DEFERRED (owner=synthesis); gate 9
-  `cargo tauri android build --target aarch64` exit 0
-  → app-universal-debug.apk (270 MB, arm64-v8a/
-  libsrc_tauri.so) + .aab.
-- **T085 quickstart validation** (8839aa5): every
-  host-checkable step PASS (§1 host gates, §2 manifest
-  + shell-purity + gate 9, §4 host legs); per-step
-  record in tasks.md.
-- **T086 human-review residue adjudication** (68bc18d):
-  all 149 allowlisted occurrences are type/getter/
-  delegation/doc-comment/test positions — zero
-  computations; on-device trials DEFERRED (hardware).
-- **T087 VERIFICATION.md** (this commit): per-criterion
-  verdict table for all 59 SCs — 6 host-PASS, 3
-  record-scan PASS (SC-005/012/019 with T068b canary
-  evidence), 2 PARTIAL (SC-010, SC-037 host legs PASS,
-  device legs deferred), 47 trial-SC deferred + FR-026,
-  SC-044 + gate-8-full DEFERRED (owner=synthesis).
-- **Gate-9 regression found + fixed** (ff6da8b): the
-  post-realignment debug APK's dex carried no app
-  classes (hollow artifact — no MainActivity). Cause:
-  the alpha-generated app module applied no Kotlin
-  plugin while android.builtInKotlin=false, and T028b's
-  android-shell source-set wiring had never been
-  applied. Fixed per the tauri-cli 2.12.1 template
-  (KGP application + JvmTarget + compileOptions, host-
-  local gen edits) + android-shell sourceSet wiring;
-  MediaMirror.kt CATEGORY_MEDIA (nonexistent) →
-  CATEGORY_TRANSPORT. Re-verified: both APK variants
-  contain MainActivity + PlaybackService + all five
-  mirrors; verify.sh re-run exit 0 (525/525, 1 skip).
-- **Ledger reconciled** (2c2724b): T001–T018, T028a-
-  stub, T028b checked off post-hoc (deliverables
-  re-verified present); T055b adjudicated NOT REQUIRED
-  (SC-015 passed; contingency never triggered).
-- Workspace: `cargo nextest run --workspace` — **525
-  passed (7 slow), 1 skipped**; `cargo nextest run
-  -p diag` 26/26; `prop_surface` 11/11; `prop_pitch`
-  9/9.
+- **T048 VERIFICATION GREEN** (`target/verify-004-final.log`, `VERIFY_EXIT=0`):
+  gates 1 (format) → 2 (nextest, vs `expected-tests.txt`) → 3 (doc) → 4
+  (lint-drift) → 5 (supply-chain: `cargo deny` + `cargo audit`, rustls→0.23.46)
+  → 6 (deny-list) → 7 (closed-set, no `_ =>`) → 8-shell (pipeline, shell bounds) all PASS.
+  `gate-8-full: DEFERRED (owner=synthesis)` per constitution Exceptions Log 8
+  (SC-044 closure not claimed). Full discharge still gated on the 002 synthesis owner.
+- **T049 PASS** (scripts report 0 unresolved): `check-manifest.sh` PASS
+  (service `mediaPlayback`, `FOREGROUND_SERVICE*`, `VIBRATE`, `POST_NOTIFICATIONS`, minSdk 29);
+  `check-shell-purity.sh` PASS (135 tokens resolved, 1 exempted).
+  Naming-boundary guard tightened (`src-tauri/tests/test_noscope.rs`); 6/6.
+- **T050 GREEN — device artifact**: `cargo tauri android build --target aarch64`
+  exit 0 → `app-universal-release.apk` (113 MB) + `.aab`.
+  SHA-256 `cc5f08d55ccfb2ba8bfbeb2ddfcd9d08e4126f08af9dd771e1b946aef430f328`.
+  `libsrc_tauri.so` exports 4 native entry points and the Kotlin `external fun`s
+  resolve (incl. `_00024`-mangled `DocIngest_00024Blake3Hasher_nativeBlake3`).
+- **ADB BLOCKED**: the reference phone is not attached (`adb devices` empty).
+  Install (`adb install -r`) + hash re-verification on device (T050 tail)
+  + trial pulls (T052) are pending re-plugging the phone with USB debugging on.
+- Tasks `[X]`: T048, T049, T050. Open: T051 (on-device trials, human-run, 7 × 30 min
+  locked commute, 10/10 per SC class), T052 (`diag scan` on the pulled JSONL).
 
 ## Next
-1. Phase-12 follow-ups (no owning task; next converge): duck-gain
-   application (no backend gain API), latch persistence (no session
-   dep/state field), Rust→shell publish transport, adapter-synthesis
-   FR-033/±3c stragglers — recorded in VERIFICATION.md §11.
-2. On-device trials (T-01–T-48, each 10/10) + FR-026
-   offline start + SC-051 failover drill + the SC-010
-   locked visual check + SC-037 manual-absence walk +
-   the §3 record pulls — on a CI host with an API-29+
-   device (procedures + recording sheets ready in
-   tests/device/trials.md; verdicts tabulated in
-   VERIFICATION.md §5).
-2. SC-044 real-engine re-verification — owner: the
-   synthesis feature (002-fr-024-synthesis-adapter),
-   which also owns gate-8-full and the §9 observation
-   (the bridge's read-only `diagnose` voice-asset
-   inventory command sits outside the shell-IPC closed
-   verb set — document or fold in).
-3. FR-024a spec defect (dangling cross-reference,
-   spec.md:283 — no 001 definition, owned by 002):
-   define the requirement in 001 or remove the mention.
+1. Re-plug reference phone (`2201117TY`, USB debugging ON) → `adb install -r <apk>` → `adb shell run-as app.mdreader cat files/diag.jsonl` only after trials.
+2. User runs T051 with `tests/device/trials-004.md` sheet (app label = "Ressoa" on the launcher).
+3. T052: `adb pull` + `diag scan` (conforming baseline + negative control planted in a copy).
+4. **Scope fact (reported, not fixed)**: the Rust→Kotlin mirror *publish*
+   transport that feeds the lock-screen notification (title + section +
+   progress) is still stubbed and has no caller — `publish_mirror_to_kotlin`
+   is a no-op, `ShellHost.publishMirror` is only declared.
+   Now unblocked because the jni 0.22 blocker was just resolved (jni 0.21
+   alignment), and `src-tauri/src/lib.rs` records both the deferral reason
+   (FR-024/002 synthesis feature) and `startForegroundHolder()` placeholder
+   standing in for it. Required inputs (surface resolver + transient
+   dismissal + haptic id) would need to be threaded into
+   `publish_mirror_to_channel`. Treat as a 002/phase-12 follow-up unless the
+   user opts to promote it into 004; `quickstart.md` §3 notification criteria
+   cannot pass without it. 001 VERIFICATION.md §11 lists this as an unowned
+   follow-up (no task own it).
 
-## Phase 8 landed
-- T080 (c824bfc): verify.sh gates 1–8 runner +
-  src-tauri [lints] workspace = true fix chain.
-- T081 (46a2fed): check-manifest.sh (minSdk 29 across
-  three declaration forms) + check-shell-purity.sh
-  (5 sections; 149-occurrence residue inventory;
-  SC-057 registry check with the rust-player exemption;
-  three-tier traceability: 135 resolved, 1 exempted
-  (FR-024a), 0 unresolved). Negative tests 14/14.
-- T082 (e41c3dd): docs/architecture.md, ipc.md,
-  fallback-order.md, diagnostic-record.md (873 lines).
-- T083 (79277ae): tests/device/README.md + trials.md
-  (48 trial procedures + routing S-1–S-6).
-- Governance (6d655bb): constitution v1.5.0 supply-chain
-  sync.
+## Commits this session (004)
+`b3f6d48` (T019 JNI bytes-forward + FR-013 units) · `b617df6` (prop warnings) ·
+`62ee013` (T040b/T046) · `f6e25ed` (T049 manifest/purity) · `af39a29` (rustls
+lock bump) · `06a87ce` (T048 gate 7, 2 catch-alls) · `fec3816` (T050 naming
+boundary: Ressoa on painted surfaces) · `43e12fc` (T050 gate 9: jni 0.21
+alignment + JNI signatures).
 
-## Watch-items
-- Gate-9 toolchain: the alpha-CLI-generated gen/android
-  carried AGP 9.0.0 + KGP 2.1.0 (incompatible — KGP
-  2.1.0 cannot coexist with AGP 9's built-in Kotlin
-  extension); realigned to the tauri-cli 2.12.1
-  template's tested combination (AGP 9.3.1 + KGP 2.2.10
-  + Gradle 9.6.1 + android.builtInKotlin=false +
-  android.newDsl=false) — host-local, git-ignored gen/
-  only; pinned tauri = 2.12.1 untouched. The app
-  module now ALSO applies org.jetbrains.kotlin.android
-  (template parity — without it, builtInKotlin=false
-  leaves the :app module with no Kotlin compiler and
-  the APK ships no app classes) and compiles
-  android-shell/src/main/kotlin as a main sourceSet
-  (T028b wiring, ff6da8b).
-- `cargo clippy` workspace-wide fails on pre-existing
-  root-Cargo.toml lint-group priority errors (clippy
-  1.98 `nursery`/`cargo`, Cargo.toml:26/27) +
-  engine-core cli.rs:220/327/389, trait_.rs:212 —
-  pre-existing, outside the verify.sh gate set; nextest
-  gates unaffected.
-- nextest 0.9.133: `--workspace-type all` unsupported
-  — use `--workspace`; filter by `--test <target>`
-  (positional name filters do not match integration-test
-  binary names).
-- proptest 1.11: `prop_assert_eq!` moves operands —
-  reused operands need `.clone()`/`.as_str()` at the
-  assert site.
-- Commit discipline: stage ONLY task-owned files
-  explicitly; never `git add -A` while parallel agents
-  are mid-edit. Agents never commit and never edit
-  tests.
+## Verification summary
+- cargo nextest `--workspace` = 769 passed (gates 1–2). Carried warnings: none
+  new. fmt + clippy repo-wide pre-existing lint issue untouched (verify.sh
+  does not run clippy).
+- Gate 9 APK installed-not-yet-possible: device detached.
+- Constitution gate 8 (full, byte budget) still DEFERRED — owner=synthesis
+  (SC-044); host surface stays `gate-8-shell: PASS`.
+- Tests as proof of honesty: every RED/GREEN pair in this session
+  (prop_ladder streams_input, naming-boundary guard ×2, diag scan ×3,
+  gate-7 catch-all removal ×2) ran before the corresponding fix.
+- Host clippy repo-wide remains pre-broken (root Cargo.toml priority error +
+  engine-core/cli glue); out of scope per AGENTS.md; not a verify.sh gate.

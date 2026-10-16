@@ -45,7 +45,6 @@
 
 use proptest::prelude::*;
 
-use engine_core::closed::TransportState;
 use player::position::{PositionClock, REWIND_CAP_SECS};
 
 /// The declared durable heartbeat interval (FR-007): fixed
@@ -136,19 +135,18 @@ const CLOSED_PERSIST_EVENTS: [PersistEvent; 9] = [
     PersistEvent::EngineFailure,
 ];
 
-/// The persistence cadence property: every event triggers a
-/// durable write; the interval between successive durable
-/// writes while Playing stays within the 15–30 s envelope
-/// centered on 20 s.
-///
-/// This property is asserted against the `BookmarkStore` and
-/// `PositionClock` interface contracts. Because the full
-/// event-durable wiring (T011) is not yet implemented, the
-/// property asserts against the contract shape: the interval
-/// envelope is verified by computing from generated intervals,
-/// the cursor equality is verified from `PositionClock.stored_basis`,
-/// and the replay caps are verified as hard bounds against
-/// the contract constants (`REWIND_CAP_SECS`, 60 s kill cap).
+// The persistence cadence property: every event triggers a
+// durable write; the interval between successive durable
+// writes while Playing stays within the 15–30 s envelope
+// centered on 20 s.
+//
+// This property is asserted against the `BookmarkStore` and
+// `PositionClock` interface contracts (the contract shape):
+// the interval envelope is verified by computing from
+// generated intervals, the cursor equality is verified from
+// `PositionClock.stored_basis`, and the replay caps are
+// verified as hard bounds against the contract constants
+// (`REWIND_CAP_SECS`, 60 s kill cap).
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 

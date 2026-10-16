@@ -19,13 +19,30 @@
 //!   the boundary-cross / resume / skip / re-anchor
 //!   triggers re-run the same pure function and can
 //!   never flicker.
-//! - **Determinacy** (FR-028a): fixed at session start
-//!   and never switching mid-session — a session that
-//!   knew its total resolves [`Progress::Determinate`]
-//!   at every position (the total is the marked
-//!   document extent, never an estimate), and a session
-//!   that did not resolves [`Progress::Indeterminate`]
-//!   for the whole session.
+//! - **Determinacy** (FR-028a / FR-013): fixed at
+//!   session start and never switching mid-session — a
+//!   session that knew its totals resolves
+//!   [`Progress::Determinate`] at every position, and a
+//!   session that did not resolves
+//!   [`Progress::Indeterminate`] for the whole session.
+//! - **The parsed-content unit** (FR-013 /
+//!   `data-model.md`): one unit is ONE segment the
+//!   adapter emits — the sentence-level chunk of
+//!   `adapter_synthesis::chunk::split_document` (the
+//!   closed `BoundaryKind` set has no `Sentence` member,
+//!   so the segment is the finest granularity the split
+//!   exposes). `total_units` is therefore the SEGMENT
+//!   COUNT of the split — a content fact, fixed at
+//!   session start — and `consumed_units` is the index of
+//!   the unit currently being spoken, projected from the
+//!   session's authoritative position
+//!   ([`SurfaceResolver::consumed_units_at`]). The
+//!   projection is a position → content mapping: the
+//!   document's PCM is the per-segment buffers
+//!   concatenated in segment order, so seconds-per-unit
+//!   is a PROJECTION BASIS, never a total. Audio-duration
+//!   estimates never feed the fraction
+//!   `consumed_units / total_units` (FR-013).
 //! - **Title** (FR-029): the document metadata title
 //!   when present, else the filename as the stable
 //!   placeholder — never the first spoken sentence,
@@ -86,16 +103,33 @@ pub struct Heading {
     pub title: String,
 }
 
-/// The progress indication (FR-028a) — and nothing
-/// else: never elapsed or remaining time.
+/// The progress indication (FR-013 / FR-028a) — and
+/// nothing else: never elapsed or remaining time.
 ///
 /// The variant is fixed at session start and never
-/// switches mid-session: a session whose total spoken
-/// length was known at start is
+/// switches mid-session: a session whose totals (the
+/// section count AND the parsed-content unit total)
+/// were known at start is
 /// [`Progress::Determinate`] at every position, and a
-/// session whose total was unknown is
+/// session whose totals were unknown is
 /// [`Progress::Indeterminate`] for the whole session —
 /// the total is never estimated.
+///
+/// ## The unit (FR-013 / `data-model.md`)
+///
+/// One unit is ONE sentence-level segment
+/// `adapter_synthesis::chunk::split_document` emits
+/// (the closed `BoundaryKind` set has no `Sentence`
+/// member, so the segment is the finest granularity the
+/// split exposes). `total_units` is therefore the
+/// segment count of the split — a content fact fixed
+/// at session start — and `consumed_units` is the
+/// index of the unit currently being spoken. The
+/// caller projects the session's authoritative
+/// position onto that offset through
+/// [`SurfaceResolver::consumed_units_at`]; no
+/// audio-duration estimate ever feeds the fraction
+/// `consumed_units / total_units` (FR-013).
 ///
 /// The wire form is the externally-tagged variant
 /// name (contracts/shell-ipc.md case-mapping table):
@@ -106,21 +140,22 @@ pub struct Heading {
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Progress {
-    /// The total content offset is known at session
-    /// start: the progress carries the consumed and
-    /// total content units (parsed-content offsets,
-    /// never audio-duration estimates), the current
-    /// section `k` (1-based), and the total sections `n`.
-    /// Fixed at session start — never estimated, never
-    /// flipped mid-session. Freeze-then-drop on
-    /// re-parse.
+    /// The session-start totals are known: the progress
+    /// carries the consumed and total parsed-content
+    /// units, the current section `k` (1-based), and
+    /// the total sections `n`. Fixed at session start —
+    /// never estimated, never flipped mid-session.
+    /// Freeze-then-drop on re-parse.
     Determinate {
-        /// Parsed-content units consumed (content-offset,
-        /// never audio-duration or time-based).
+        /// Parsed-content units consumed — the index of
+        /// the sentence-level unit currently being
+        /// spoken (content-offset, never audio-duration
+        /// or time-based).
         consumed_units: u64,
-        /// Total parsed-content units marked at session
-        /// start (content-offset, never an estimate,
-        /// never time-based).
+        /// Total parsed-content units fixed at session
+        /// start: the segment count of the chunk split
+        /// (content-offset, never an estimate, never
+        /// time-based).
         total_units: u64,
         /// Current section index `k` (1-based) from the
         /// heading list at the resolve position.
@@ -129,10 +164,10 @@ pub enum Progress {
         /// (0 when no headings / zero sections).
         n: u32,
     },
-    /// The total content offset was unknown at session
-    /// start: the progress carries no units — the
-    /// whole session stays indeterminate, never an
-    /// estimate (FR-028a). Zero sections resolve to
+    /// The session-start totals were unknown: the
+    /// progress carries no units — the whole session
+    /// stays indeterminate, never an estimate
+    /// (FR-028a / FR-013). Zero sections resolve to
     /// indeterminate with a null section title.
     Indeterminate,
 }
@@ -272,10 +307,13 @@ pub struct MirrorState {
 ///
 /// The resolver holds only what is fixed at session
 /// start: the title (metadata, else the filename
-/// placeholder — FR-029) and the duration knowledge
-/// (FR-028a). Everything else is a runtime input:
-/// [`SurfaceResolver::resolve`] takes the position and
-/// the ordered heading list per call, so the
+/// placeholder -- FR-029), the parsed-content unit total
+/// with its projection basis (FR-013), and the totals
+/// knowledge (FR-028a). Everything else is a runtime
+/// input: [`SurfaceResolver::resolve`] takes the
+/// position, the parsed-content offset the caller
+/// projects through [`SurfaceResolver::consumed_units_at`],
+/// and the ordered heading list per call, so the
 /// re-resolution on boundary-cross, resume, skip, and
 /// re-anchor (FR-028d) re-runs the same pure
 /// function and can never flicker.
@@ -285,16 +323,33 @@ pub struct SurfaceResolver {
     /// (FR-029): the metadata title when present, else
     /// the filename as the stable placeholder.
     title: String,
-    /// Whether the document's total spoken length was
-    /// known at session start (FR-028a) — fixed for
-    /// the whole session, never switching, never
-    /// estimated.
+    /// The total parsed-content units of the document
+    /// (FR-013): the segment count the adapter's chunk
+    /// split emitted, fixed at construction -- a content
+    /// fact, never an estimate, never re-derived
+    /// mid-session (freeze-then-drop).
+    total_units: u64,
+    /// The projection basis: the spoken seconds per
+    /// parsed-content unit at session start. This is
+    /// NEVER a progress total -- it maps the session's
+    /// authoritative position onto the parsed-content
+    /// offset (the PCM is the per-segment buffers
+    /// concatenated in segment order, so unit `index`
+    /// starts at `index * unit_secs`). A document whose
+    /// totals were not known at start carries `0.0`,
+    /// which projects every position to `0`.
+    unit_secs: f64,
+    /// Whether the document's session-start totals (the
+    /// section count AND the parsed-content unit total)
+    /// were known at session start (FR-028a / FR-013) --
+    /// fixed for the whole session, never switching,
+    /// never estimated.
     duration_known_at_start: bool,
 }
 
 impl SurfaceResolver {
     /// Create a resolver for one session (FR-028 /
-    /// FR-029).
+    /// FR-029 / FR-013).
     ///
     /// `metadata_title` is the document's metadata
     /// title — the surface title when present (FR-029);
@@ -303,37 +358,117 @@ impl SurfaceResolver {
     /// independent of whether the document has
     /// headings — never the first spoken sentence,
     /// never a heading title);
+    /// `total_units` is the parsed-content unit total
+    /// fixed at session start — the segment count the
+    /// adapter's chunk split emitted (FR-013: one unit
+    /// is one sentence-level segment), the denominator
+    /// of the `consumed_units / total_units` fraction,
+    /// never an estimate;
+    /// `total_secs` is the spoken length the projection
+    /// basis derives from (`total_secs / total_units`
+    /// seconds per unit); and
     /// `duration_known_at_start` fixes the progress
-    /// determinacy for the whole session (FR-028a:
+    /// determinacy for the whole session (FR-028a /
+    /// FR-013: determinate only when BOTH the section
+    /// count and the unit total were known at start,
     /// never switches mid-session, never estimated).
     #[must_use]
     pub fn new(
         metadata_title: Option<String>,
         filename: String,
+        total_units: u64,
+        total_secs: f64,
         duration_known_at_start: bool,
     ) -> Self {
+        let unit_secs = if total_units == 0 || !(total_secs > 0.0) {
+            0.0
+        } else {
+            total_secs / total_units as f64
+        };
         Self {
             title: metadata_title.unwrap_or(filename),
+            total_units,
+            unit_secs,
             duration_known_at_start,
         }
+    }
+
+    /// The parsed-content offset the session position
+    /// projects to (FR-013): the index of the unit
+    /// currently being spoken - the count of units the
+    /// position has already entered.
+    ///
+    /// The document's PCM is the per-segment buffers
+    /// concatenated in segment order, so the unit
+    /// sounding at `position_secs` starts at
+    /// `index * unit_secs` and the offset is
+    /// `position_secs / unit_secs` truncated toward
+    /// zero, clamped to the session-start total. This
+    /// is the position-to-content projection, NOT an
+    /// audio-duration estimate of the progress: the
+    /// fraction's denominator is the content total, and
+    /// `unit_secs` only maps seconds onto it.
+    ///
+    /// The mapping is monotone non-decreasing in the
+    /// position, so no re-parse, resume, or later
+    /// publish can move the progress backward
+    /// (FR-013). A position at or before the start, or
+    /// a session whose totals were not known at start
+    /// (`unit_secs == 0.0`), projects to `0`.
+    #[must_use]
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_precision_loss,
+        reason = "the projection divides the authoritative position by the fixed seconds-per-unit basis and clamps the result against the session-start total. The f64-to-u64 cast is Rust's saturating cast (NaN/negative to 0, out-of-range to u64::MAX) and the u64-to-f64 comparison is a bound check against a value that cannot exceed the session's segment count - a fixture-scale document cannot approach 2^53 units, so neither conversion can lose the compared value."
+    )]
+    pub fn consumed_units_at(&self, position_secs: f64) -> u64 {
+        if !(self.unit_secs > 0.0) || !(position_secs > 0.0) {
+            // No projection basis (the totals were unknown
+            // at start) or a position at/before the start:
+            // nothing has been consumed.
+            return 0;
+        }
+        let units = (position_secs / self.unit_secs).floor();
+        if units >= self.total_units as f64 {
+            // The position is at or past the document's
+            // end: every unit is consumed, never beyond
+            // the frozen total (no over-run, no backward
+            // jump).
+            return self.total_units;
+        }
+        units as u64
     }
 
     /// Resolve the surface at a position (FR-028
     /// series).
     ///
     /// Pure in its inputs: identical
-    /// `(headings, position_secs)` resolve to an
-    /// identical snapshot (FR-028d), so the
-    /// re-resolution on boundary-cross, resume, skip,
-    /// and re-anchor can never flicker. The title is
-    /// the session-start title (FR-029); the section
-    /// is the most-recent-passed heading (FR-028c);
-    /// the progress is determinate or indeterminate as
-    /// fixed at session start (FR-028a), the
-    /// determinate total being the marked document
-    /// extent — never an estimate.
+    /// `(headings, position_secs, consumed_units)`
+    /// resolve to an identical snapshot (FR-028d), so
+    /// the re-resolution on boundary-cross, resume,
+    /// skip, and re-anchor can never flicker. The title
+    /// is the session-start title (FR-029); the section
+    /// is the most-recent-passed heading (FR-028c); the
+    /// progress is determinate or indeterminate as fixed
+    /// at session start (FR-028a), the determinate total
+    /// being the session-start parsed-content unit count
+    /// (FR-013).
+    ///
+    /// `consumed_units` is the CURRENT parsed-content
+    /// offset, projected by the caller through
+    /// [`SurfaceResolver::consumed_units_at`]: the
+    /// resolver never derives it from `position_secs`
+    /// (that derivation is the time-based defect FR-013
+    /// forbids) and never estimates the total. The
+    /// section half is unchanged: `position_secs` stays
+    /// the section provider's input (FR-028b).
     #[must_use]
-    pub fn resolve(&self, position_secs: f64, headings: &[Heading]) -> SurfaceSnapshot {
+    pub fn resolve(
+        &self,
+        position_secs: f64,
+        consumed_units: u64,
+        headings: &[Heading],
+    ) -> SurfaceSnapshot {
         let k = headings
             .iter()
             .rposition(|h| h.position_secs <= position_secs)
@@ -345,8 +480,8 @@ impl SurfaceResolver {
             section_title: most_recent_passed_section(headings, position_secs),
             progress: if self.duration_known_at_start {
                 Progress::Determinate {
-                    consumed_units: position_secs as u64,
-                    total_units: marked_document_total(headings) as u64,
+                    consumed_units,
+                    total_units: self.total_units,
                     k,
                     n,
                 }
@@ -424,21 +559,6 @@ fn most_recent_passed_section(headings: &[Heading], position_secs: f64) -> Optio
         .rev()
         .find(|heading| heading.position_secs <= position_secs)
         .map(|heading| heading.title.clone())
-}
-
-/// The marked document extent (FR-028a): the greatest
-/// heading position the caller-supplied heading list
-/// marks — the resolver's only duration input — or
-/// `0.0` for an empty list. Never an estimate.
-///
-/// The list is ordered ascending by `position_secs`
-/// (the T061b headings provider contract), so the
-/// last heading marks the greatest position.
-fn marked_document_total(headings: &[Heading]) -> f64 {
-    match headings.last() {
-        Some(heading) => heading.position_secs,
-        None => 0.0,
-    }
 }
 
 #[cfg(test)]

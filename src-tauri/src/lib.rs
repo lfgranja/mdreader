@@ -2234,18 +2234,27 @@ pub mod commands {
             }
         }
 
-        // Create surface resolver with known duration (total PCM duration is known).
+        // Create surface resolver with the parsed-content totals fixed
+        // at session start (FR-013 / FR-028a): the unit total is the
+        // chunk split's segment count — a content fact — and the
+        // projection basis is the spoken length per unit derived from
+        // the synthesized PCM. The totals knowledge composes BOTH
+        // session-start facts (the parsed-content unit total AND the
+        // section count), so a heading-less session stays
+        // indeterminate for the whole session (FR-013).
         let resolver = player::surface::SurfaceResolver::new(
             Some(title.clone()),
             "document.md".to_string(),
-            true, // duration_known_at_start = true (total PCM duration known)
+            segments.len() as u64,
+            duration_secs,
+            !segments.is_empty() && !headings.is_empty(),
         );
 
         // Store resolver and headings in AppState for publish path:
         // the one feeding of the session-start totals — the
-        // heading list the resolver derives `total_n` and
-        // `total_units` from is written here, once, and never
-        // re-estimated mid-session (FR-028a).
+        // resolver holds the parsed-content unit total and its
+        // projection basis, written here, once, and never
+        // re-estimated mid-session (FR-028a / FR-013).
         {
             let mut resolver_guard =
                 state
@@ -2402,7 +2411,11 @@ pub mod commands {
             .as_ref()
             .ok_or_else(|| "no document loaded".to_string())?;
 
-        let surface = resolver.resolve(snap.position_secs, &headings_guard);
+        let surface = resolver.resolve(
+            snap.position_secs,
+            resolver.consumed_units_at(snap.position_secs),
+            &headings_guard,
+        );
         let fingerprint_guard = state
             .current_fingerprint
             .lock()
@@ -3020,7 +3033,15 @@ pub mod publish {
             Err(_) => return,
         };
         let snapshot = session_guard.snapshot();
-        let surface = resolver.resolve(snapshot.position_secs, headings);
+        // The publish path already holds the session position; the
+        // projection onto the parsed-content offset is the
+        // caller's half (FR-013) — the resolver never derives it
+        // from `position_secs` itself.
+        let surface = resolver.resolve(
+            snapshot.position_secs,
+            resolver.consumed_units_at(snapshot.position_secs),
+            headings,
+        );
         drop(session_guard); // release lock before publish
         publish_mirror_to_channel(state, &snapshot, &surface, transient_reason);
     }
@@ -3736,8 +3757,8 @@ mod open_document_tests {
             2,
             "the document carries two headings — the session-start section count"
         );
-        let at_start = resolver.resolve(0.0, &headings_guard);
-        let later = resolver.resolve(600.0, &headings_guard);
+        let at_start = resolver.resolve(0.0, resolver.consumed_units_at(0.0), &headings_guard);
+        let later = resolver.resolve(600.0, resolver.consumed_units_at(600.0), &headings_guard);
         let (start_total, start_sections) = totals_of(&at_start)?;
         let (later_total, later_sections) = totals_of(&later)?;
         assert_eq!(

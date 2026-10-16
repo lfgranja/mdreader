@@ -20,6 +20,21 @@
 //! Delivery guarantees: a send failure (application not running) or
 //! an unknown code drops the event with a [`tracing`] diagnostic —
 //! never silent, never a crash, never a playing state.
+//!
+//! ## The document-ingest entry (T017 / T019)
+//!
+//! The Kotlin picker's `DocIngest.onDocumentIngested` is the one
+//! entry that carries DATA rather than a code: a snapshot FILE
+//! PATH and its BLAKE3-256 hex. This module reads that file —
+//! the platform boundary's single I/O (the Kotlin side already
+//! wrote it) — and forwards its BYTES to
+//! [`open_document_bytes`](crate::commands::open_document_bytes)
+//! on [`AppState`]. The bytes are then the sole synthesis input
+//! (FR-018 / T019): no URI, no path, and no second document
+//! object ever crosses into synthesis. A revoked, moved, or
+//! deleted snapshot is the named [`IngestError::SnapshotUnreadable`]
+//! failure to stderr — never a crash, never a playing state
+//! (FR-018: re-prompt, never crash).
 //
 // Allow unsafe code for JNI operations (FFI boundary).
 #![allow(unsafe_code)]
@@ -94,6 +109,13 @@ pub fn publish_mirror_to_kotlin(
 pub fn install(app: AppHandle) {
     if VERB_TX.get().is_some() {
         tracing::warn!("shell channel: already installed; second install dropped");
+        return;
+    }
+    // Retain the handle for the document-ingest path (T017):
+    // a JNI entry holds no `State` handle, and the AppState
+    // must be reached through the same application.
+    if APP_HANDLE.set(app.clone()).is_err() {
+        tracing::warn!("shell channel: app handle already held; second install dropped");
         return;
     }
     let (tx, rx) = std::sync::mpsc::channel::<u32>();
@@ -274,6 +296,8 @@ fn drain_loop(app: AppHandle, rx: Receiver<u32>) {
 #[cfg(test)]
 mod tests {
     use super::code_to_action;
+    use super::{IngestError, IngestSnapshot, open_ingested_document};
+    use crate::AppState;
     use crate::commands::parse_action;
 
     /// Every defined code resolves to a wire the bridge accepts.
@@ -312,6 +336,147 @@ mod tests {
                 "code {code} must resolve to nothing"
             );
         }
+    }
+
+    /// A document the tests snapshot: the content, never the
+    /// path, is the key (FR-036).
+    const DOC: &[u8] =
+        b"# Rota da Manha\n\nO onibus sai as seis.\n\n## Volta\n\nEle passa na praca.";
+
+    /// A fresh state whose bookmark store lives in a temp
+    /// dir — one redb file per test, dropped with it.
+    fn state_with_store() -> Result<(tempfile::TempDir, AppState), String> {
+        let dir = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let store = session::store::BookmarkStore::open(&dir.path().join("bookmarks.redb"))
+            .map_err(|e| e.to_string())?;
+        Ok((dir, AppState::test_state_with_bookmark_store(store)))
+    }
+
+    /// The document's content fingerprint (FR-036) — the
+    /// key the open lookup resolves the stored row under.
+    fn fingerprint() -> [u8; 32] {
+        session::fingerprint::fingerprint(DOC)
+    }
+
+    /// One snapshot as the Kotlin picker reports it, over a
+    /// written file at `path`.
+    fn snapshot_at(path: &str) -> IngestSnapshot {
+        IngestSnapshot::new(
+            path.to_string(),
+            hex::encode(fingerprint()),
+            "content://picked/document.md".to_string(),
+            "text/markdown".to_string(),
+        )
+    }
+
+    /// Whether the backend open succeeded on this host — the
+    /// device-gated twin of the lib.rs open tests' idiom.
+    fn backend_available() -> bool {
+        player::backend::CpalBackend::new().is_ok()
+    }
+
+    /// The T017 wire completion: a snapshot the Kotlin picker
+    /// wrote to disk, arrived as its path plus the hex
+    /// fingerprint, forwards EXACTLY its bytes to
+    /// `open_document_bytes` — the real file round-trip, no
+    /// mock. The bytes are the sole synthesis input
+    /// (FR-018 / T019), proven by the fingerprint the open
+    /// path derived from them.
+    #[test]
+    fn a_written_snapshot_forwards_its_bytes_to_the_open() -> Result<(), String> {
+        let (_dir, state) = state_with_store()?;
+        let dir = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let path = dir.path().join("snapshot.md");
+        std::fs::write(&path, DOC).map_err(|e| e.to_string())?;
+        let snapshot = snapshot_at(path.to_str().ok_or("the temp path is not UTF-8")?);
+
+        let ingested = open_ingested_document(&state, &snapshot);
+
+        if backend_available() {
+            // Device branch: the open started reading, and the
+            // fingerprint was derived from the snapshot
+            // BYTES, never the URI.
+            ingested.map_err(|e| e.to_string())?;
+            let transport = state
+                .session
+                .lock()
+                .map_err(|e| e.to_string())?
+                .snapshot()
+                .transport;
+            assert_eq!(
+                transport,
+                player::transport::TransportState::Playing,
+                "a valid open must start reading (device branch)"
+            );
+        } else {
+            // Device-less host: the named backend refusal is
+            // the only reachable rejection, and the
+            // fingerprint was still derived from the bytes.
+            assert!(
+                matches!(
+                    &ingested,
+                    Err(IngestError::Open { reason })
+                        if reason.contains("audio backend unavailable")
+                ),
+                "a device-less host must answer the named open refusal, got {ingested:?}"
+            );
+        }
+        // Either branch proves the round-trip: the state's
+        // fingerprint is the file's bytes, exactly.
+        assert_eq!(
+            crate::current_fingerprint(&state),
+            Some(fingerprint()),
+            "the open must record the snapshot BYTES' content fingerprint, exactly"
+        );
+        Ok(())
+    }
+
+    /// A missing snapshot file (revoked, moved, or deleted)
+    /// is the named [`IngestError::SnapshotUnreadable`]
+    /// failure to stderr — never a crash, never a playing
+    /// state, nothing loaded (FR-018: re-prompt).
+    #[test]
+    fn a_missing_snapshot_is_the_named_unreadable_failure() -> Result<(), String> {
+        let (_dir, state) = state_with_store()?;
+        let dir = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let missing = dir.path().join("revoked.md");
+        let snapshot = snapshot_at(missing.to_str().ok_or("the temp path is not UTF-8")?);
+
+        let ingested = open_ingested_document(&state, &snapshot);
+
+        match &ingested {
+            Err(IngestError::SnapshotUnreadable { path, reason }) => {
+                assert_eq!(
+                    path,
+                    missing.to_str().ok_or("the temp path is not UTF-8")?,
+                    "the named failure must carry the snapshot path it could not read"
+                );
+                assert!(
+                    !reason.is_empty(),
+                    "the named failure must carry the stated reason"
+                );
+            }
+            other => {
+                panic!("a missing snapshot must be the named unreadable failure, got {other:?}")
+            }
+        }
+        // Nothing started and nothing loaded: the failure
+        // half of the text-I/O protocol leaves no document
+        // behind (FR-005 / FR-018).
+        assert_eq!(
+            crate::current_fingerprint(&state),
+            None,
+            "a failed ingest must load no document"
+        );
+        assert!(
+            state
+                .surface_resolver
+                .lock()
+                .map_err(|e| e.to_string())?
+                .is_none(),
+            "a failed ingest must feed no surface resolver"
+        );
+        Ok(())
     }
 }
 
@@ -440,16 +605,216 @@ pub extern "C" fn Java_app_mdreader_DocIngest_onDocumentIngested(
         }
     };
 
-    tracing::info!(
-        snapshot_path = %snapshot_path,
-        fingerprint = %fingerprint_hex,
-        original_uri = %original_uri,
-        mime_type = %mime_type,
-        "Document ingested via Kotlin picker"
-    );
+    let snapshot = IngestSnapshot::new(snapshot_path, fingerprint_hex, original_uri, mime_type);
+    // The bytes cross here, never the URI or the path: the
+    // snapshot file the Kotlin picker wrote is the platform
+    // boundary's one read, and its bytes are the sole
+    // synthesis input from here on (FR-018 / T019).
+    if let Err(error) = ingest_snapshot(&snapshot) {
+        tracing::error!(
+            snapshot_path = %snapshot.path,
+            fingerprint = %snapshot.fingerprint_hex,
+            error = %error,
+            "document ingest failed: the picker is re-prompted, nothing started (FR-018)"
+        );
+    }
+}
 
-    // TODO(T018): Forward to session crate for resume-offer lookup
-    // and playback start. The snapshot path is the synthesis input
-    // (never the URI). The fingerprint keys the bookmark store.
-    // For now, just log the result.
+/// The named failures of the document-ingest path (T017 /
+/// T019) — a closed set with no catch-all variant: every
+/// rejection names its cause, which is the failure half of
+/// the text-I/O protocol (the diagnostic on stderr, nothing
+/// on stdout, never a playing state — FR-005 / FR-018).
+#[derive(Debug)]
+pub enum IngestError {
+    /// The snapshot file could not be read: a revoked, moved,
+    /// or deleted snapshot leaves no synthesis input. The
+    /// picker is re-prompted; nothing starts and no playing
+    /// state is reported (FR-018: re-prompt, never crash).
+    SnapshotUnreadable {
+        /// The snapshot path the Kotlin picker reported.
+        path: String,
+        /// Why the read failed, for the diagnostic only.
+        reason: String,
+    },
+    /// The snapshot's bytes were refused by the open path —
+    /// empty bytes, non-text bytes, no bounded segment, a
+    /// synthesis failure, an unreadable store, an unavailable
+    /// backend, or a press the closed transition table
+    /// rejected.
+    Open {
+        /// The named open refusal.
+        reason: String,
+    },
+}
+
+impl std::fmt::Display for IngestError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::SnapshotUnreadable { path, reason } => {
+                write!(f, "snapshot {path} unreadable: {reason}")
+            }
+            Self::Open { reason } => write!(f, "document open refused: {reason}"),
+        }
+    }
+}
+
+impl std::error::Error for IngestError {}
+
+/// One document-ingest snapshot as the Kotlin picker reports
+/// it (T017): the app-private snapshot's path plus the
+/// fingerprint hex and the pick metadata the bridge logs.
+///
+/// The BYTES deliberately do not live here: the JNI wire
+/// carries the path, and the snapshot file is read on demand
+/// ([`read_snapshot_bytes`]) — the platform boundary's one
+/// I/O — so nothing but bytes ever enters synthesis
+/// (FR-018 / T019).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IngestSnapshot {
+    /// The absolute path of the app-private snapshot the
+    /// picker wrote (`filesDir/snapshots/<hex>.{md,txt}`).
+    pub path: String,
+    /// The lowercase BLAKE3-256 hex of the snapshot bytes,
+    /// computed Kotlin-side through the same Rust hasher
+    /// (FR-036).
+    pub fingerprint_hex: String,
+    /// The picked document's URI, logged for diagnostics
+    /// only — it never enters synthesis (FR-018).
+    pub original_uri: String,
+    /// The picked document's MIME type, logged for
+    /// diagnostics only.
+    pub mime_type: String,
+}
+
+impl IngestSnapshot {
+    /// One snapshot as the Kotlin picker reports it (T017).
+    #[must_use]
+    pub fn new(
+        path: String,
+        fingerprint_hex: String,
+        original_uri: String,
+        mime_type: String,
+    ) -> Self {
+        Self {
+            path,
+            fingerprint_hex,
+            original_uri,
+            mime_type,
+        }
+    }
+}
+
+/// Forwards one ingested snapshot to the cold-start open
+/// path (T017 / T019) — the JNI half of the ingest bridge.
+///
+/// Resolves [`AppState`] through the application handle
+/// [`install`](crate::shell_jni::install) retained during setup
+/// (a JNI entry holds no `State<'_, AppState>` handle, which
+/// cannot be constructed outside a running Tauri app), then
+/// delegates to [`open_ingested_document`]. A post before
+/// setup, or a setup that never ran, drops the event with a
+/// diagnostic — never a crash, never a playing state.
+///
+/// A read failure is a named failure to stderr, never a
+/// crash and never a playing state (FR-018: re-prompt); an
+/// open refusal carries the open path's own named reason.
+/// The caller re-prompts the same picker on either.
+pub fn ingest_snapshot(snapshot: &IngestSnapshot) -> Result<(), IngestError> {
+    let Some(app) = installed_app() else {
+        tracing::warn!(
+            snapshot_path = %snapshot.path,
+            fingerprint = %snapshot.fingerprint_hex,
+            original_uri = %snapshot.original_uri,
+            mime_type = %snapshot.mime_type,
+            "shell channel: document ingest before the app handle is held; dropped with a diagnostic"
+        );
+        return Ok(());
+    };
+    open_ingested_document(&app.state::<AppState>(), snapshot)
+}
+
+/// Reads one ingested snapshot's BYTES from its file and
+/// forwards them to the cold-start open path (T017 / T019).
+///
+/// The snapshot file the Kotlin picker wrote is the platform
+/// boundary's one I/O; from there the BYTES are the sole
+/// synthesis input, handed to
+/// [`open_document_bytes`](crate::commands::open_document_bytes)
+/// — the same core the `open_document` IPC command wraps, so
+/// the Kotlin path synthesizes through exactly the code every
+/// other driver uses (Principle II). No URI, no path, and no
+/// second document object ever crosses into synthesis.
+///
+/// # Errors
+///
+/// * [`IngestError::SnapshotUnreadable`] when the snapshot
+///   file is absent, revoked, moved, or unreadable — a named
+///   failure to stderr, never a crash and never a playing
+///   state (FR-018: re-prompt, never crash).
+/// * [`IngestError::Open`] when the open path refuses the
+///   bytes, carrying its own named reason.
+pub(crate) fn open_ingested_document(
+    state: &AppState,
+    snapshot: &IngestSnapshot,
+) -> Result<(), IngestError> {
+    let bytes = read_snapshot_bytes(&snapshot.path)?;
+    let opened =
+        crate::commands::open_document_bytes(state, bytes).map_err(|error| IngestError::Open {
+            reason: error.to_string(),
+        })?;
+    tracing::info!(
+        snapshot_path = %snapshot.path,
+        fingerprint = %snapshot.fingerprint_hex,
+        mime_type = %snapshot.mime_type,
+        status = opened.get("status").and_then(serde_json::Value::as_str),
+        "document ingest forwarded to the cold-start open path"
+    );
+    Ok(())
+}
+
+/// The installed application handle, set once by [`install`]:
+/// the same handle the drain thread holds, retained so the
+/// document-ingest entry can reach [`AppState`]'s own session.
+static APP_HANDLE: OnceLock<AppHandle> = OnceLock::new();
+
+/// The installed application handle, held once by
+/// [`install`] during setup so the ingest path can reach
+/// [`AppState`]'s own session: a `State<'_, AppState>` handle
+/// cannot be constructed outside a running Tauri app, so the
+/// entry resolves the state through the retained handle
+/// instead.
+fn installed_app() -> Option<&'static AppHandle> {
+    APP_HANDLE.get()
+}
+
+/// Reads the snapshot file's bytes (T017 / T019) — the
+/// platform boundary's one I/O on the document-ingest path.
+///
+/// The synthesized document is these bytes and nothing else:
+/// no URI is opened here, the persisted grant is never
+/// re-read, and the snapshot file is not re-hashed (the
+/// Kotlin side already computed the fingerprint through the
+/// same Rust hasher, and the open path re-derives it from
+/// the bytes under FR-036).
+///
+/// # Errors
+///
+/// Returns [`IngestError::SnapshotUnreadable`] when the file
+/// is absent, revoked, or unreadable — a named failure to
+/// stderr, never a crash and never a playing state
+/// (FR-018).
+fn read_snapshot_bytes(path: &str) -> Result<Vec<u8>, IngestError> {
+    let unreadable = |reason: String| IngestError::SnapshotUnreadable {
+        path: path.to_string(),
+        reason,
+    };
+    match std::fs::read(path) {
+        Ok(bytes) => Ok(bytes),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Err(unreadable(
+            "the snapshot file is gone (revoked, moved, or deleted); the picker is re-prompted"
+                .to_string(),
+        )),
+        Err(error) => Err(unreadable(error.to_string())),
+    }
 }

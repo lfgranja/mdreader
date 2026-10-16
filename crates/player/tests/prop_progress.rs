@@ -10,7 +10,13 @@
 //! The progress form uses the content-offset shape (T005):
 //! `Determinate { consumed_units, total_units, k, n }` with
 //! u64/u64/u32/u32 fields. `Indeterminate` carries no fields.
-//! The test asserts behavior invariants against these fields.
+//! The test asserts behavior invariants against these fields:
+//! `total_units` is the parsed-content unit count fixed at
+//! session start (one unit = one sentence-level segment the
+//! adapter's chunk split emits, FR-013) and `consumed_units`
+//! is the session position projected onto that unit grid —
+//! never the position rendered as units and never an
+//! audio-duration estimate.
 //!
 //! Spec anchors: FR-028a (progress fixed at session start,
 //! never estimated, never switches), FR-028c (section is the
@@ -88,43 +94,66 @@ proptest! {
         duration_known in duration_known_strategy(),
         headings in headings_strategy(),
         position in position_strategy(),
+        seed in any::<u8>(),
     ) {
         // Build the resolver once (session start) — this
-        // fixes determinacy for the whole session (FR-028a).
+        // fixes the parsed-content totals (the unit total
+        // and its projection basis) and the determinacy for
+        // the whole session (FR-028a / FR-013). The unit
+        // total is the chunk split's segment count: the
+        // fixture derives it from the seed so a document's
+        // total is a content fact, never an estimate.
+        let total_units = 4 + u64::from(seed % 61);
+        let unit_secs = 0.25; // the quarter-second grid the fixture uses
         let resolver = SurfaceResolver::new(
             Some("Test Document".to_string()),
             "test-file.wav".to_string(),
+            total_units,
+            total_units as f64 * unit_secs,
             duration_known,
         );
 
-        // Resolve at the initial position.
-        let initial = resolver.resolve(position, &headings);
+        // Resolve at the initial position: the caller projects
+        // the position onto the parsed-content offset — the
+        // resolver never derives it from `position_secs`
+        // itself (FR-013).
+        let initial = resolver.resolve(position, resolver.consumed_units_at(position), &headings);
 
         // --- Invariant 1: 0 <= consumed <= total for any
         //     `Determinate` value (behavior, not field name).
-        //     When total_units > 0 and position <= last heading,
-        //     fraction must be <= 1.
-        //     When position > last heading position, consumed may
-        //     exceed total (navigation past marked extent).
+        //     The consumed offset is the position's
+        //     projection onto the unit grid, clamped to the
+        //     session-start total, so the fraction never
+        //     exceeds 1 whatever the position.
         match &initial.progress {
-            Progress::Determinate { consumed_units, total_units, .. } => {
-                if *total_units > 0 && position <= *total_units as f64 {
-                    prop_assert!(
-                        *consumed_units <= *total_units,
-                        "determinate consumed_units {} must not exceed total_units {} (fraction <= 1)",
-                        consumed_units,
-                        total_units
-                    );
-                }
-                // When total_units = 0 (zero sections) or position
-                // > last heading, the fraction is undefined or
-                // position is beyond marked extent; consumed may
-                // exceed total. This is the expected behavior per
-                // SurfaceResolver contract.
+            Progress::Determinate {
+                consumed_units,
+                total_units: matched_total,
+                ..
+            } => {
+                prop_assert!(
+                    *consumed_units <= *matched_total,
+                    "determinate consumed_units {} must not exceed total_units {} (fraction <= 1)",
+                    consumed_units,
+                    matched_total
+                );
+                // The total is the session-start parsed-content
+                // unit count, fixed at construction — never the
+                // greatest heading position and never estimated.
+                prop_assert_eq!(
+                    *matched_total,
+                    total_units,
+                    "the determinate total must be the session-start parsed-content unit count (FR-013)"
+                );
+                prop_assert_eq!(
+                    *consumed_units,
+                    resolver.consumed_units_at(position),
+                    "the consumed offset must be the position's parsed-content projection (FR-013)"
+                );
             }
             Progress::Indeterminate => {
                 // Nothing to assert on units — the variant
-                // carries no duration field by contract.
+                // carries no unit field by contract.
             }
         }
 
@@ -144,19 +173,24 @@ proptest! {
         // Re-resolve at a later (or same) position —
         // simulating the freeze-then-drop re-parse.
         let reparse_position = position + 5.0; // any later position
-        let reparsed = resolver.resolve(reparse_position, &headings);
+        let reparsed =
+            resolver.resolve(reparse_position, resolver.consumed_units_at(reparse_position), &headings);
         match (duration_known, &reparsed.progress) {
-            (true, Progress::Determinate { consumed_units: _, total_units: _, .. }) => {
-                // Freeze: still determinate, total unchanged.
-                // consumed_units may exceed total_units when the
-                // reparse position is beyond the last heading
-                // (navigation past the marked extent).
-                // consumed_units is u64, always >= 0; the real
-                // invariant is that it doesn't move backward from
-                // the previous resolved position.
-                // Note: consumed_units may exceed total_units when
-                // position > last heading position. This is valid
-                // per SurfaceResolver contract.
+            (true, Progress::Determinate { consumed_units, total_units: reparsed_total, .. }) => {
+                // Freeze: still determinate, the frozen total
+                // unchanged across the re-parse.
+                prop_assert_eq!(
+                    *reparsed_total,
+                    total_units,
+                    "the re-parse moved the frozen total (FR-013: freeze-then-drop)"
+                );
+                // No backward jump: the re-parse position is
+                // later, so the projected consumed offset never
+                // decreases.
+                prop_assert!(
+                    *consumed_units >= resolver.consumed_units_at(position),
+                    "a later position projected backward (FR-013: no backward jump)"
+                );
             }
             (true, Progress::Indeterminate) => {
                 prop_assert!(
@@ -177,16 +211,17 @@ proptest! {
         }
 
         // --- Invariant 3: zero headings => no section title
-        //     and, when duration is unknown, indeterminate.
-        //     When duration is known but headings empty, the
-        //     progress stays determinate with total_units = 0
-        //     (freeze — never drops to indeterminate).
-        //     Note: when total_units = 0 (zero sections), the
-        //     fraction consumed/total is undefined; consumed
-        //     may exceed total in this edge case (content
-        //     position beyond the marked extent).
+        //     and, when the totals were unknown at start,
+        //     indeterminate. When the totals were known but
+        //     the heading list is empty, the progress stays
+        //     determinate with the frozen unit total
+        //     (freeze — never drops to indeterminate): the
+        //     unit total is the chunk split's segment count,
+        //     a content fact independent of the section
+        //     list.
         let empty_headings: Vec<Heading> = vec![];
-        let empty_snapshot = resolver.resolve(0.0, &empty_headings);
+        let empty_snapshot =
+            resolver.resolve(0.0, resolver.consumed_units_at(0.0), &empty_headings);
         prop_assert!(
             empty_snapshot.section_title.is_none(),
             "zero sections implies no section title (FR-028c)"
@@ -202,17 +237,18 @@ proptest! {
                 "zero sections with known duration must stay determinate (freeze-then-drop): expected determinate, got {:?}",
                 empty_snapshot.progress
             );
-            if let Progress::Determinate { total_units, consumed_units: _, .. } = empty_snapshot.progress {
-                prop_assert!(
-                    total_units == 0,
-                    "empty headings => total_units must be 0, got {}",
-                    total_units
+            if let Progress::Determinate { total_units: empty_total, .. } = empty_snapshot.progress {
+                // Zero HEADINGS do not zero the total: the total is
+                // the chunk split's segment count, a content fact
+                // independent of the section list. The section
+                // count `n` is 0, so no section title resolves
+                // (FR-028c).
+                prop_assert_eq!(
+                    empty_total,
+                    total_units,
+                    "empty headings must not move the session-start unit total (FR-013)"
                 );
-                // When total_units = 0 (zero sections), the
-                // fraction is undefined; consumed_units may be
-                // non-zero (position in document beyond marked
-                // extent). This is the expected behavior per
-                // SurfaceResolver contract.
+                prop_assert_eq!(empty_snapshot.section_title, None);
             }
         }
 
@@ -221,7 +257,8 @@ proptest! {
         //     the first (pure function, FR-028d); a resolve at
         //     a later position must keep the same determinacy
         //     and not reduce the consumed value.
-        let same_again = resolver.resolve(position, &headings);
+        let same_again =
+            resolver.resolve(position, resolver.consumed_units_at(position), &headings);
         prop_assert_eq!(
             same_again.progress, initial.progress,
             "re-parse at identical inputs must not change progress (pure function / freeze-then-drop)"

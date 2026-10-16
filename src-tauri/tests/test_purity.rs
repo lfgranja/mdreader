@@ -179,6 +179,22 @@ fn headings() -> Vec<Heading> {
     ]
 }
 
+/// The total parsed-content units the fixture document's chunk
+/// split emits (FR-013: one unit is one sentence-level segment),
+/// fixed at session start — the denominator the surface
+/// fraction uses, never re-derived mid-session.
+const TOTAL_UNITS: u64 = 12;
+
+/// The spoken seconds per parsed-content unit — the projection
+/// basis the position maps onto the content offset with
+/// (`index * 15.0`). The fixture's three heading boundaries
+/// (45.0, 90.0, 150.0) therefore fall exactly on unit
+/// boundaries 3, 6, and 10.
+const UNIT_SECS: f64 = 15.0;
+
+/// The fixture's total spoken length: `TOTAL_UNITS × UNIT_SECS`.
+const TOTAL_SECS: f64 = TOTAL_UNITS as f64 * UNIT_SECS;
+
 /// One modeled session state of the five the requirement names.
 struct StateCase {
     /// The state's name, for failure messages.
@@ -322,7 +338,11 @@ fn surface_snapshot_object(
     resolver: &SurfaceResolver,
     state: &StateCase,
 ) -> Result<Value, Box<dyn std::error::Error>> {
-    let snapshot: SurfaceSnapshot = resolver.resolve(state.position_secs, &headings());
+    let snapshot: SurfaceSnapshot = resolver.resolve(
+        state.position_secs,
+        resolver.consumed_units_at(state.position_secs),
+        &headings(),
+    );
     Ok(serde_json::to_value(&snapshot)?)
 }
 
@@ -357,6 +377,8 @@ fn the_five_states_keep_the_display_projection_and_payload_pure()
     let resolver = SurfaceResolver::new(
         Some(DOCUMENT_TITLE.to_string()),
         FILENAME_PLACEHOLDER.to_string(),
+        TOTAL_UNITS,
+        TOTAL_SECS,
         true,
     );
     for state in state_cases() {
@@ -505,20 +527,22 @@ fn the_section_title_is_the_most_recent_passed_heading_never_forward_looking()
     let resolver = SurfaceResolver::new(
         Some(DOCUMENT_TITLE.to_string()),
         FILENAME_PLACEHOLDER.to_string(),
+        TOTAL_UNITS,
+        TOTAL_SECS,
         true,
     );
     // Before the first heading: no section title — never a
     // forward-looking heading (FR-028c).
-    let before = resolver.resolve(10.0, &headings());
+    let before = resolver.resolve(10.0, resolver.consumed_units_at(10.0), &headings());
     assert_eq!(before.section_title, None);
     // At the boundary (at-or-before): the new section, and k steps.
-    let at_boundary = resolver.resolve(90.0, &headings());
+    let at_boundary = resolver.resolve(90.0, resolver.consumed_units_at(90.0), &headings());
     assert_eq!(at_boundary.section_title.as_deref(), Some("Parte II"));
     // Just before the boundary: still the previous section.
-    let approaching = resolver.resolve(89.75, &headings());
+    let approaching = resolver.resolve(89.75, resolver.consumed_units_at(89.75), &headings());
     assert_eq!(approaching.section_title.as_deref(), Some("Parte I"));
     // Past the last heading: the last section title stands.
-    let past_end = resolver.resolve(180.0, &headings());
+    let past_end = resolver.resolve(180.0, resolver.consumed_units_at(180.0), &headings());
     assert_eq!(past_end.section_title.as_deref(), Some("Parte III"));
     // The section-change display projection: exactly the three keys,
     // with the most-recent-passed title.
@@ -544,16 +568,28 @@ fn determinacy_is_fixed_at_session_start_and_never_flips() -> Result<(), Box<dyn
     let known = SurfaceResolver::new(
         Some(DOCUMENT_TITLE.to_string()),
         FILENAME_PLACEHOLDER.to_string(),
+        TOTAL_UNITS,
+        TOTAL_SECS,
         true,
     );
     let unknown = SurfaceResolver::new(
         Some(DOCUMENT_TITLE.to_string()),
         FILENAME_PLACEHOLDER.to_string(),
+        TOTAL_UNITS,
+        TOTAL_SECS,
         false,
     );
     for state in state_cases() {
-        let known_snapshot = known.resolve(state.position_secs, &headings());
-        let unknown_snapshot = unknown.resolve(state.position_secs, &headings());
+        let known_snapshot = known.resolve(
+            state.position_secs,
+            known.consumed_units_at(state.position_secs),
+            &headings(),
+        );
+        let unknown_snapshot = unknown.resolve(
+            state.position_secs,
+            unknown.consumed_units_at(state.position_secs),
+            &headings(),
+        );
         assert!(
             matches!(known_snapshot.progress, Progress::Determinate { .. }),
             "{}: a duration-known session must resolve determinate at every position",
@@ -564,9 +600,12 @@ fn determinacy_is_fixed_at_session_start_and_never_flips() -> Result<(), Box<dyn
             "{}: a duration-unknown session must stay indeterminate for the whole session",
             state.name
         );
-        // The determinate total is the marked document extent (the
-        // greatest heading position: 150), never an estimate; the
-        // consumed offset is the resolve position's whole units.
+        // The determinate total is the session-start parsed-content
+        // unit total — the chunk split's segment count (FR-013) —
+        // fixed at construction and never re-derived from the
+        // heading list; the consumed offset is the position's
+        // projection onto that unit grid (the resolver's
+        // `consumed_units_at`, never a time-derived value).
         let Progress::Determinate {
             consumed_units,
             total_units,
@@ -577,8 +616,8 @@ fn determinacy_is_fixed_at_session_start_and_never_flips() -> Result<(), Box<dyn
             return Err("a duration-known session produced no determinate progress".into());
         };
         assert_eq!(
-            total_units, 150,
-            "the marked extent is the greatest heading position"
+            total_units, TOTAL_UNITS,
+            "the determinate total is the parsed-content unit count fixed at session start (FR-013)"
         );
         assert_eq!(n, 3, "the heading list marks three sections");
         assert_eq!(k, expected_section_index(state.position_secs));
@@ -598,10 +637,12 @@ fn expected_section_index(position_secs: f64) -> u32 {
 }
 
 /// The expected consumed content units at `position_secs`: the
-/// resolve position's whole seconds (the fixture positions are
-/// whole-second values; the resolver truncates, FR-028a).
+/// position projected onto the session-start unit grid — the
+/// whole units the position has entered (FR-013: the
+/// position-to-content projection, never the position itself
+/// rendered as units).
 fn expected_consumed_units(position_secs: f64) -> u64 {
-    position_secs.floor() as u64
+    (position_secs / UNIT_SECS).floor() as u64
 }
 
 #[test]
@@ -609,6 +650,8 @@ fn dismissal_is_refused_while_playing_and_the_closed_truth_table_holds() {
     let resolver = SurfaceResolver::new(
         Some(DOCUMENT_TITLE.to_string()),
         FILENAME_PLACEHOLDER.to_string(),
+        TOTAL_UNITS,
+        TOTAL_SECS,
         true,
     );
     // Dismissal refused while playing, for EVERY surface kind: the
@@ -662,9 +705,11 @@ fn zero_sections_resolve_no_section_title_and_indeterminate_progress()
     let resolver = SurfaceResolver::new(
         Some(DOCUMENT_TITLE.to_string()),
         FILENAME_PLACEHOLDER.to_string(),
+        TOTAL_UNITS,
+        TOTAL_SECS,
         false,
     );
-    let snapshot = resolver.resolve(30.0, &[]);
+    let snapshot = resolver.resolve(30.0, resolver.consumed_units_at(30.0), &[]);
     assert_eq!(
         snapshot.section_title, None,
         "a zero-sections resolve must name no section title"
@@ -726,9 +771,11 @@ fn the_rate_step_is_value_blind_on_both_surfaces() -> Result<(), Box<dyn std::er
         let resolver = SurfaceResolver::new(
             Some(DOCUMENT_TITLE.to_string()),
             FILENAME_PLACEHOLDER.to_string(),
+            TOTAL_UNITS,
+            TOTAL_SECS,
             true,
         );
-        let snapshot = resolver.resolve(12.5, &headings());
+        let snapshot = resolver.resolve(12.5, resolver.consumed_units_at(12.5), &headings());
         assert_no_leaked_values("rate-step", &serde_json::to_string(&snapshot)?);
         let value = serde_json::to_value(&snapshot)?;
         let object = value.as_object().ok_or("the snapshot is not an object")?;

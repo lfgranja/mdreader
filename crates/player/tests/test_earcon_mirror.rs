@@ -329,7 +329,13 @@ fn reason_ttl_ms_is_3000_for_pause_demanding_none_for_undeliverables() {
     // auto-dismisses at the shared 3 s window, while an undeliverable's
     // resident surface is merely dismissable — and neither field reads
     // the other's value.
-    let resolver = SurfaceResolver::new(None, FILENAME.to_string(), false);
+    let resolver = SurfaceResolver::new(
+        None,
+        FILENAME.to_string(),
+        0,   // total_units: unknown at session start
+        0.0, // total_secs: unknown at session start
+        false,
+    );
     assert_eq!(
         resolver.dismissal(TransportState::Interrupted, true),
         Dismissal::AutoDismiss {
@@ -556,8 +562,13 @@ fn earcon_short_mix_bypasses_the_sample_queue_gain() {
 
 #[test]
 fn pause_demanding_trigger_publishes_the_mirror_state() -> Result<(), Box<dyn Error>> {
-    let resolver =
-        SurfaceResolver::new(Some(METADATA_TITLE.to_string()), FILENAME.to_string(), true);
+    let resolver = SurfaceResolver::new(
+        Some(METADATA_TITLE.to_string()),
+        FILENAME.to_string(),
+        5,     // total_units: the chunk split's segment count
+        150.0, // total_secs: 30 s of spoken audio per unit
+        true,
+    );
     let headings = [
         Heading {
             position_secs: 0.0,
@@ -571,7 +582,11 @@ fn pause_demanding_trigger_publishes_the_mirror_state() -> Result<(), Box<dyn Er
 
     // The display projection (purity keys ⊆ {title, section_title,
     // progress} — FR-028 series).
-    let surface = resolver.resolve(MIRROR_POSITION_SECS, &headings);
+    let surface = resolver.resolve(
+        MIRROR_POSITION_SECS,
+        resolver.consumed_units_at(MIRROR_POSITION_SECS),
+        &headings,
+    );
     assert_eq!(
         surface.title, METADATA_TITLE,
         "the surface title is the metadata title when present (FR-029)"
@@ -589,12 +604,12 @@ fn pause_demanding_trigger_publishes_the_mirror_state() -> Result<(), Box<dyn Er
             n,
         } => {
             assert_eq!(
-                consumed_units, 42,
-                "consumed units mirror the session position"
+                consumed_units, 1,
+                "consumed units are the position's parsed-content projection: 42 s of a                  150 s document of 5 units (30 s per unit) is unit 1 — never the position                  rendered as units (FR-013)"
             );
             assert_eq!(
-                total_units, 30,
-                "the determinate total is the marked document extent — never an estimate"
+                total_units, 5,
+                "the determinate total is the session-start parsed-content unit count — the                  chunk split's segment count, never an estimate (FR-013)"
             );
             assert_eq!(k, 2, "the section index is 1-based over the heading list");
             assert_eq!(n, 2, "the section count is the heading-list length");

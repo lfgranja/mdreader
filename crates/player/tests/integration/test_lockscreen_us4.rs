@@ -991,11 +991,23 @@ fn status_view_rate_equals_the_lock_screen_rate_source() -> Result<(), Box<dyn E
 
     // The surface resolver — fed only the session's
     // position — resolves the status view: a determinate
-    // progress carrying the session's position and the
-    // marked document extent, with the most-recent-passed
-    // heading as the section title (T051).
-    let resolver =
-        SurfaceResolver::new(Some(METADATA_TITLE.to_string()), FILENAME.to_string(), true);
+    // progress carrying the session's projected
+    // parsed-content offset and the session-start unit
+    // total, with the most-recent-passed heading as the
+    // section title (T051 / FR-013).
+    //
+    // The fixture: a 120 s document whose chunk split
+    // emits 12 sentence-level units — 10 s of spoken
+    // audio per unit — so the three headings fall at
+    // unit boundaries and the totals are content facts,
+    // never estimates.
+    let resolver = SurfaceResolver::new(
+        Some(METADATA_TITLE.to_string()),
+        FILENAME.to_string(),
+        12,
+        120.0,
+        true,
+    );
     let headings = [
         Heading {
             position_secs: 0.0,
@@ -1010,15 +1022,11 @@ fn status_view_rate_equals_the_lock_screen_rate_source() -> Result<(), Box<dyn E
             title: "Later Section".to_string(),
         },
     ];
-    // The marked document extent (FR-028a): the
-    // greatest heading position the list marks —
-    // the determinate total's only possible source,
-    // since the resolver is fed the position and
-    // the heading list and nothing else.
-    let marked_extent = headings
-        .iter()
-        .fold(0.0_f64, |extent, heading| extent.max(heading.position_secs));
-    let surface = resolver.resolve(snap.position_secs, &headings);
+    let surface = resolver.resolve(
+        snap.position_secs,
+        resolver.consumed_units_at(snap.position_secs),
+        &headings,
+    );
     assert_eq!(
         surface.title, METADATA_TITLE,
         "the surface title comes from metadata when present (T051)"
@@ -1036,12 +1044,13 @@ fn status_view_rate_equals_the_lock_screen_rate_source() -> Result<(), Box<dyn E
     } = surface.progress
     {
         assert_eq!(
-            consumed_units, snap.position_secs as u64,
-            "the status view carries the session's position as the consumed content offset — the Rust module only (FR-003)"
+            consumed_units,
+            resolver.consumed_units_at(snap.position_secs),
+            "the status view carries the session position's parsed-content projection as the consumed offset — the Rust module only (FR-003 / FR-013)"
         );
         assert_eq!(
-            total_units, marked_extent as u64,
-            "the determinate total is the marked document extent as content units — the greatest heading position the list marks, the resolver's only duration input, never an estimate (FR-028a)"
+            total_units, 12,
+            "the determinate total is the session-start parsed-content unit count — the chunk split's segment count, never an estimate (FR-013)"
         );
         determinate = true;
     }

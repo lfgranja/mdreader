@@ -44,8 +44,8 @@
 //!   production module cannot depend on a test
 //!   fixture, so headings are a runtime input).
 //! - `player::surface::Progress::{Determinate {
-//!   position_secs, duration_secs }, Indeterminate}`
-//!   — the progress indication.
+//!   consumed_units, total_units, k, n },
+//!   Indeterminate}` — the progress indication.
 //! - `player::surface::Dismissal::{NonDismissable,
 //!   AutoDismiss { after_ms }, Dismissable}` — the
 //!   dismissal policy.
@@ -56,11 +56,13 @@
 //!   and `progress`.
 //! - `player::surface::SurfaceResolver::new(
 //!   metadata_title: Option<String>, filename: String,
+//!   total_units: u64, total_secs: f64,
 //!   duration_known_at_start: bool)`,
-//!   `resolve(&self, position_secs: f64, headings:
-//!   &[Heading]) -> SurfaceSnapshot`, and
-//!   `dismissal(&self, transport: TransportState,
-//!   transient: bool) -> Dismissal`.
+//!   `consumed_units_at(&self, position_secs: f64) -> u64`,
+//!   `resolve(&self, position_secs: f64,
+//!   consumed_units: u64, headings: &[Heading]) ->
+//!   SurfaceSnapshot`, and `dismissal(&self, transport:
+//!   TransportState, transient: bool) -> Dismissal`.
 //! - `player::surface::TRANSIENT_DISMISS_MS: u64 =
 //!   3000`.
 //!
@@ -207,15 +209,50 @@ fn most_recent_passed_section(headings: &[Heading], position_secs: f64) -> Optio
         .map(|heading| heading.title.clone())
 }
 
-/// The marked document total (FR-028a): the greatest
-/// heading position the caller-supplied heading list
-/// marks — the resolver's only duration input — or
-/// `0.0` for an empty list. Never an estimate.
-fn marked_document_total(headings: &[Heading]) -> f64 {
-    headings
-        .last()
-        .map(|heading| heading.position_secs)
-        .unwrap_or(0.0)
+/// The session-start parsed-content unit total oracle
+/// (FR-013): the unit count the resolver was constructed
+/// with, fixed for the whole session — never the greatest
+/// heading position the caller-supplied list marks, and
+/// never an estimate.
+const fn total_units_oracle() -> u64 {
+    24
+}
+
+/// The projection basis oracle: the spoken seconds per
+/// parsed-content unit. The unit total times this basis
+/// is the document's spoken length.
+const fn unit_secs_oracle() -> f64 {
+    5.0
+}
+
+/// The consumed parsed-content offset the oracle projects
+/// the position onto (FR-013): the whole units the
+/// position has entered, clamped to the session-start
+/// total.
+fn consumed_units_oracle(position_secs: f64) -> u64 {
+    let units = (position_secs / unit_secs_oracle()).floor();
+    let total = total_units_oracle() as f64;
+    if units >= total {
+        return total_units_oracle();
+    }
+    units as u64
+}
+
+/// Build a resolver over the oracle totals — the one
+/// construction every property drives, so the totals are
+/// fixed at session start exactly once.
+fn resolver_for(
+    metadata_title: Option<String>,
+    filename: String,
+    duration_known_at_start: bool,
+) -> SurfaceResolver {
+    SurfaceResolver::new(
+        metadata_title,
+        filename,
+        total_units_oracle(),
+        total_units_oracle() as f64 * unit_secs_oracle(),
+        duration_known_at_start,
+    )
 }
 
 /// The serialized key set of a snapshot: the JSON
@@ -251,9 +288,8 @@ proptest! {
         // the serialized snapshot carries exactly the
         // declared keys — never
         // body/elapsed/remaining/rate/voice.
-        let resolver =
-            SurfaceResolver::new(metadata_title, filename, duration_known_at_start);
-        let snapshot = resolver.resolve(position, &headings);
+        let resolver = resolver_for(metadata_title, filename, duration_known_at_start);
+        let snapshot = resolver.resolve(position, resolver.consumed_units_at(position), &headings);
         let value = match serde_json::to_value(&snapshot) {
             Ok(value) => value,
             Err(_) => serde_json::Value::Null,
@@ -302,8 +338,8 @@ proptest! {
         // (never the next heading), never document
         // body.
         let resolver =
-            SurfaceResolver::new(None, "recording-0001.wav".to_string(), true);
-        let snapshot = resolver.resolve(position, &headings);
+            resolver_for(None, "recording-0001.wav".to_string(), true);
+        let snapshot = resolver.resolve(position, resolver.consumed_units_at(position), &headings);
         let expected = most_recent_passed_section(&headings, position);
         prop_assert_eq!(
             snapshot.section_title.as_deref(),
@@ -340,12 +376,12 @@ proptest! {
         // that knew its total is determinate at every
         // position; a session that did not is
         // indeterminate at every position.
-        let resolver =
-            SurfaceResolver::new(metadata_title, filename, duration_known_at_start);
+        let resolver = resolver_for(metadata_title, filename, duration_known_at_start);
         let mut determinate_count = 0usize;
         let mut indeterminate_count = 0usize;
         for position in &positions {
-            let snapshot = resolver.resolve(*position, &headings);
+            let snapshot =
+                resolver.resolve(*position, resolver.consumed_units_at(*position), &headings);
             match snapshot.progress {
                 Progress::Determinate {
                     consumed_units,
@@ -354,14 +390,14 @@ proptest! {
                 } => {
                     prop_assert_eq!(
                         consumed_units,
-                        *position as u64,
-                        "the determinate progress at {} did not carry the resolve position as the consumed content offset (FR-028a)",
+                        consumed_units_oracle(*position),
+                        "the determinate progress at {} did not carry the projected parsed-content offset as the consumed content units (FR-013)",
                         position
                     );
                     prop_assert_eq!(
                         total_units,
-                        marked_document_total(&headings) as u64,
-                        "the determinate progress at {} did not carry the marked document total as content units (FR-028a)",
+                        total_units_oracle(),
+                        "the determinate progress at {} did not carry the session-start unit total as content units (FR-013: the segment count, never the heading extent)",
                         position
                     );
                     determinate_count += 1;
@@ -409,9 +445,8 @@ proptest! {
         // present; else a stable filename-derived
         // placeholder — never the first sentence, never
         // any heading title.
-        let resolver =
-            SurfaceResolver::new(metadata_title.clone(), filename.clone(), true);
-        let snapshot = resolver.resolve(position, &headings);
+        let resolver = resolver_for(metadata_title.clone(), filename.clone(), true);
+        let snapshot = resolver.resolve(position, resolver.consumed_units_at(position), &headings);
         match &metadata_title {
             Some(declared) => {
                 prop_assert_eq!(
@@ -421,7 +456,8 @@ proptest! {
                 );
             }
             None => {
-                let again = resolver.resolve(position, &headings);
+                let again =
+                    resolver.resolve(position, resolver.consumed_units_at(position), &headings);
                 prop_assert_eq!(
                     snapshot.title.as_str(),
                     again.title.as_str(),
@@ -462,8 +498,7 @@ proptest! {
         // The strategy covers the policy's named
         // domain — `Playing` and `Paused`, the two
         // states the dismissal contract names.
-        let resolver =
-            SurfaceResolver::new(None, "recording-0001.wav".to_string(), true);
+        let resolver = resolver_for(None, "recording-0001.wav".to_string(), true);
         let dismissal = resolver.dismissal(transport, transient);
         let expected = if transport == TransportState::Playing {
             Dismissal::NonDismissable
@@ -498,10 +533,9 @@ proptest! {
         // resolve to an identical snapshot, so the
         // re-resolution on boundary-cross, resume,
         // skip, and re-anchor can never flicker.
-        let resolver =
-            SurfaceResolver::new(metadata_title, filename, duration_known_at_start);
-        let first = resolver.resolve(position, &headings);
-        let second = resolver.resolve(position, &headings);
+        let resolver = resolver_for(metadata_title, filename, duration_known_at_start);
+        let first = resolver.resolve(position, resolver.consumed_units_at(position), &headings);
+        let second = resolver.resolve(position, resolver.consumed_units_at(position), &headings);
         prop_assert_eq!(
             &first,
             &second,
@@ -527,7 +561,7 @@ fn the_transient_dismiss_window_is_exactly_three_seconds() {
 /// dismissable.
 #[test]
 fn the_dismissal_truth_table_is_pinned() {
-    let resolver = SurfaceResolver::new(None, "recording-0001.wav".to_string(), true);
+    let resolver = resolver_for(None, "recording-0001.wav".to_string(), true);
     assert_eq!(
         resolver.dismissal(TransportState::Playing, false),
         Dismissal::NonDismissable,
@@ -558,7 +592,7 @@ fn the_dismissal_truth_table_is_pinned() {
 /// heading, never forward-looking).
 #[test]
 fn the_section_is_absent_before_the_first_heading() {
-    let resolver = SurfaceResolver::new(None, "recording-0001.wav".to_string(), true);
+    let resolver = resolver_for(None, "recording-0001.wav".to_string(), true);
     let headings = vec![
         Heading {
             position_secs: 10.0,
@@ -569,23 +603,23 @@ fn the_section_is_absent_before_the_first_heading() {
             title: "bravo".to_string(),
         },
     ];
-    let before = resolver.resolve(5.0, &headings);
+    let before = resolver.resolve(5.0, resolver.consumed_units_at(5.0), &headings);
     assert_eq!(
         before.section_title, None,
         "the section must be absent before the first heading (FR-028c)"
     );
-    let headingless = resolver.resolve(5.0, &[]);
+    let headingless = resolver.resolve(5.0, resolver.consumed_units_at(5.0), &[]);
     assert_eq!(
         headingless.section_title, None,
         "the section must be absent for a heading-less document (FR-028c)"
     );
-    let at_the_boundary = resolver.resolve(10.0, &headings);
+    let at_the_boundary = resolver.resolve(10.0, resolver.consumed_units_at(10.0), &headings);
     assert_eq!(
         at_the_boundary.section_title,
         Some("alpha".to_string()),
         "the section at a heading boundary is that heading — a passed heading counts (FR-028c)"
     );
-    let between = resolver.resolve(15.0, &headings);
+    let between = resolver.resolve(15.0, resolver.consumed_units_at(15.0), &headings);
     assert_eq!(
         between.section_title,
         Some("alpha".to_string()),
@@ -598,21 +632,25 @@ fn the_section_is_absent_before_the_first_heading() {
 /// identical filename (FR-029).
 #[test]
 fn the_metadata_title_wins_and_the_placeholder_is_stable() {
-    let declared = SurfaceResolver::new(
+    let declared = resolver_for(
         Some("Declared Title".to_string()),
         "recording-0001.wav".to_string(),
         true,
     );
-    let snapshot = declared.resolve(15.0, &[]);
+    let snapshot = declared.resolve(15.0, declared.consumed_units_at(15.0), &[]);
     assert_eq!(
         snapshot.title, "Declared Title",
         "the metadata title must win (FR-029)"
     );
-    let first = SurfaceResolver::new(None, "document-0002.mp3".to_string(), true);
-    let second = SurfaceResolver::new(None, "document-0002.mp3".to_string(), true);
+    let first = resolver_for(None, "document-0002.mp3".to_string(), true);
+    let second = resolver_for(None, "document-0002.mp3".to_string(), true);
     assert_eq!(
-        first.resolve(15.0, &[]).title,
-        second.resolve(15.0, &[]).title,
+        first
+            .resolve(15.0, first.consumed_units_at(15.0), &[])
+            .title,
+        second
+            .resolve(15.0, second.consumed_units_at(15.0), &[])
+            .title,
         "the filename-derived placeholder must be stable for an identical filename (FR-029)"
     );
 }
@@ -623,7 +661,7 @@ fn the_metadata_title_wins_and_the_placeholder_is_stable() {
 /// body/elapsed/remaining/rate/voice.
 #[test]
 fn the_serialized_surface_shape_carries_exactly_the_declared_keys() {
-    let resolver = SurfaceResolver::new(
+    let resolver = resolver_for(
         Some("Declared Title".to_string()),
         "recording-0001.wav".to_string(),
         true,
@@ -632,7 +670,7 @@ fn the_serialized_surface_shape_carries_exactly_the_declared_keys() {
         position_secs: 10.0,
         title: "alpha".to_string(),
     }];
-    let with_section = resolver.resolve(15.0, &headings);
+    let with_section = resolver.resolve(15.0, resolver.consumed_units_at(15.0), &headings);
     let value = match serde_json::to_value(&with_section) {
         Ok(value) => value,
         Err(_) => serde_json::Value::Null,
@@ -642,7 +680,7 @@ fn the_serialized_surface_shape_carries_exactly_the_declared_keys() {
         vec!["progress", "section_title", "title"],
         "a snapshot with a section must serialize to exactly title + section_title + progress (FR-028 series)"
     );
-    let without_section = resolver.resolve(5.0, &headings);
+    let without_section = resolver.resolve(5.0, resolver.consumed_units_at(5.0), &headings);
     let value = match serde_json::to_value(&without_section) {
         Ok(value) => value,
         Err(_) => serde_json::Value::Null,

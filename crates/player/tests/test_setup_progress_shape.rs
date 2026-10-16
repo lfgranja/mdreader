@@ -17,8 +17,14 @@ use player::surface::{Progress, SurfaceResolver};
 /// unit-based fields, not the old time-based ones.
 #[test]
 fn progress_determinate_has_new_shape_not_old_time_fields() {
-    let resolver = SurfaceResolver::new(Some("Title".to_string()), "doc.wav".to_string(), true);
-    let snapshot = resolver.resolve(10.0, &[]);
+    let resolver = SurfaceResolver::new(
+        Some("Title".to_string()),
+        "doc.wav".to_string(),
+        120,   // total_units: the chunk split's segment count
+        120.0, // total_secs: one second per parsed-content unit
+        true,
+    );
+    let snapshot = resolver.resolve(10.0, resolver.consumed_units_at(10.0), &[]);
     match snapshot.progress {
         Progress::Determinate { .. } => {
             let value = serde_json::to_value(&snapshot.progress).expect("serialize progress");
@@ -61,8 +67,14 @@ fn progress_determinate_has_new_shape_not_old_time_fields() {
 /// progress must stay `Indeterminate` for every call.
 #[test]
 fn fixed_at_session_start_is_false_for_zero_sections() {
-    let resolver = SurfaceResolver::new(None, "doc.wav".to_string(), false);
-    let snapshot = resolver.resolve(0.0, &[]);
+    let resolver = SurfaceResolver::new(
+        None,
+        "doc.wav".to_string(),
+        0,   // total_units: unknown at session start
+        0.0, // total_secs: unknown at session start
+        false,
+    );
+    let snapshot = resolver.resolve(0.0, resolver.consumed_units_at(0.0), &[]);
     assert!(
         matches!(snapshot.progress, Progress::Indeterminate),
         "zero sections + fixed_at_session_start=false must yield Indeterminate (T002f)"
@@ -88,11 +100,13 @@ fn fixed_at_session_start_true_keeps_determinate_shape() {
     let resolver = SurfaceResolver::new(
         Some("Title".to_string()),
         "doc.wav".to_string(),
-        true, // fixed_at_session_start = true
+        120,   // total_units: the chunk split's segment count
+        120.0, // total_secs: one second per parsed-content unit
+        true,  // fixed_at_session_start = true
     );
     // Even with zero headings, the session knows its total,
     // so progress must remain determinate with the new shape.
-    let snapshot = resolver.resolve(0.0, &[]);
+    let snapshot = resolver.resolve(0.0, resolver.consumed_units_at(0.0), &[]);
     assert!(
         matches!(snapshot.progress, Progress::Determinate { .. }),
         "fixed_at_session_start=true must keep Determinate even with zero sections (T002f)"
@@ -103,4 +117,79 @@ fn fixed_at_session_start_true_keeps_determinate_shape() {
     assert!(obj.get("total_units").is_some());
     assert!(obj.get("k").is_some());
     assert!(obj.get("n").is_some());
+}
+
+/// The unit total is the parsed-content unit count fixed at
+/// session start (FR-013): the chunk split's segment count —
+/// never the greatest heading position the list marks, and
+/// never re-estimated mid-session (freeze-then-drop).
+#[test]
+fn the_total_is_the_session_start_parsed_content_units_not_the_heading_extent() {
+    let resolver = SurfaceResolver::new(
+        Some("Title".to_string()),
+        "doc.wav".to_string(),
+        72,   // total_units: the chunk split's segment count
+        72.0, // total_secs: one second per parsed-content unit
+        true,
+    );
+    // A heading list whose greatest position (30.0) differs
+    // from the unit total: the total is the unit count.
+    let headings = vec![
+        player::surface::Heading {
+            position_secs: 0.0,
+            title: "alpha".to_string(),
+        },
+        player::surface::Heading {
+            position_secs: 30.0,
+            title: "bravo".to_string(),
+        },
+    ];
+    let at_start = resolver.resolve(0.0, resolver.consumed_units_at(0.0), &headings);
+    let later = resolver.resolve(45.0, resolver.consumed_units_at(45.0), &headings);
+    for (label, snapshot) in [("start", &at_start), ("later", &later)] {
+        match snapshot.progress {
+            Progress::Determinate {
+                total_units,
+                consumed_units,
+                ..
+            } => {
+                assert_eq!(
+                    total_units, 72,
+                    "{label}: the total must be the session-start unit count, not the heading extent (FR-013)"
+                );
+                assert_eq!(
+                    consumed_units,
+                    resolver.consumed_units_at(if label == "start" { 0.0 } else { 45.0 }),
+                    "{label}: the consumed offset is the projected parsed-content offset"
+                );
+            }
+            Progress::Indeterminate => panic!("{label}: the totals are known at start"),
+        }
+    }
+}
+
+/// The consumed units are the position's projection onto the
+/// unit grid — never the position rendered as units and never
+/// an audio-duration estimate (FR-013).
+#[test]
+fn consumed_units_are_the_position_projection_not_the_position() {
+    let resolver = SurfaceResolver::new(
+        Some("Title".to_string()),
+        "doc.wav".to_string(),
+        72,    // total_units
+        360.0, // total_secs: five seconds per parsed-content unit
+        true,
+    );
+    // 45 s into a 360 s document of 72 units: unit 9 of 72.
+    assert_eq!(resolver.consumed_units_at(45.0), 9);
+    assert_ne!(
+        resolver.consumed_units_at(45.0),
+        45,
+        "the consumed units must not be the position rendered as units (FR-013)"
+    );
+    // Past the document's end: the frozen total, never beyond it.
+    assert_eq!(resolver.consumed_units_at(10_000.0), 72);
+    // At or before the start: nothing consumed.
+    assert_eq!(resolver.consumed_units_at(0.0), 0);
+    assert_eq!(resolver.consumed_units_at(-5.0), 0);
 }

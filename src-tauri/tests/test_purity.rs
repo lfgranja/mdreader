@@ -205,6 +205,13 @@ struct StateCase {
     transport: TransportState,
     /// The session's authoritative position (FR-002 / FR-003).
     position_secs: f64,
+    /// The parsed-content unit the position projects to (FR-013:
+    /// the whole unit-grid steps behind the position on the
+    /// fixture's 15 s grid) — the `consumed_units` a pure payload
+    /// must carry, held per state so the expected value is
+    /// independent of the production projection rather than a
+    /// re-derivation of it.
+    expected_units: u64,
     /// The current stated reason with its expiry classification, if any.
     reason: Option<(FullReason, ReasonExpiry)>,
 }
@@ -220,6 +227,7 @@ fn state_cases() -> Vec<StateCase> {
             last_rate: Some(PlaybackRate::R1_0),
             transport: TransportState::Playing,
             position_secs: 50.0,
+            expected_units: 3,
             reason: None,
         },
         StateCase {
@@ -227,6 +235,7 @@ fn state_cases() -> Vec<StateCase> {
             last_rate: Some(PlaybackRate::R1_0),
             transport: TransportState::Paused,
             position_secs: 100.0,
+            expected_units: 6,
             reason: None,
         },
         StateCase {
@@ -236,6 +245,7 @@ fn state_cases() -> Vec<StateCase> {
             last_rate: Some(PlaybackRate::R1_25),
             transport: TransportState::Playing,
             position_secs: 90.0,
+            expected_units: 6,
             reason: None,
         },
         StateCase {
@@ -245,6 +255,7 @@ fn state_cases() -> Vec<StateCase> {
             last_rate: Some(PlaybackRate::R4_0),
             transport: TransportState::Playing,
             position_secs: 50.0,
+            expected_units: 3,
             reason: None,
         },
         StateCase {
@@ -254,6 +265,7 @@ fn state_cases() -> Vec<StateCase> {
             last_rate: Some(PlaybackRate::R1_75),
             transport: TransportState::Interrupted,
             position_secs: 95.0,
+            expected_units: 6,
             reason: Some((FullReason::FocusPermanentLoss, ReasonExpiry::Focus3s)),
         },
     ]
@@ -621,7 +633,11 @@ fn determinacy_is_fixed_at_session_start_and_never_flips() -> Result<(), Box<dyn
         );
         assert_eq!(n, 3, "the heading list marks three sections");
         assert_eq!(k, expected_section_index(state.position_secs));
-        assert_eq!(consumed_units, expected_consumed_units(state.position_secs));
+        assert_eq!(
+            consumed_units, state.expected_units,
+            "{}: the payload must carry the position's parsed-content projection (FR-013), not the position",
+            state.name
+        );
     }
     Ok(())
 }
@@ -634,15 +650,6 @@ fn expected_section_index(position_secs: f64) -> u32 {
         .iter()
         .rposition(|heading| heading.position_secs <= position_secs)
         .map_or(0, |index| (index + 1) as u32)
-}
-
-/// The expected consumed content units at `position_secs`: the
-/// position projected onto the session-start unit grid — the
-/// whole units the position has entered (FR-013: the
-/// position-to-content projection, never the position itself
-/// rendered as units).
-fn expected_consumed_units(position_secs: f64) -> u64 {
-    (position_secs / UNIT_SECS).floor() as u64
 }
 
 #[test]

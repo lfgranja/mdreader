@@ -212,6 +212,16 @@ ALLOWLIST=(
   "$SRC_TAURI/src/permissions.rs"
   "$SRC_TAURI/src/lib.rs"
   "$SRC_TAURI/tests/test_publish_payload.rs"
+  # 004 JNI bridge: shell_jni.rs is the JNI half of the
+  # ingest bridge (T017/T019) — its non-test code forwards
+  # codes and snapshot BYTES, carrying no playback logic.
+  # Its #[cfg(test)] module asserts the RESULT of an open
+  # (that the backend started reading — `snapshot().transport
+  # == Playing`), the same delegation-position shape for
+  # which lib.rs is allowlisted; the vocabulary appears only
+  # in that test module, and Section 3 + the T086 residue
+  # inventory below still adjudicate every occurrence.
+  "$SRC_TAURI/src/shell_jni.rs"
   # 004 purity tests: they assert the ABSENCE of the shell vocabulary
   # on every surface (the mention IS the assertion — the same shape as
   # test_publish_payload.rs above, which the allowlist already carries).

@@ -16,6 +16,10 @@
 #     routes denial to the in-app statement — a
 #     declaration the gate can only observe if the
 #     manifest declares it)
+#   - `android.permission.VIBRATE` (FR-016 / T031: the
+#     haptic confirmation path for blind mode with sounds
+#     off needs the permission declared, or the haptic
+#     metaphor silently no-ops on a real device)
 #
 # Asserts the SC-032 floor (T081): the application declares
 # minSdk 29. The built Android project declares it as a Gradle
@@ -83,6 +87,11 @@ require_pattern 'the FOREGROUND_SERVICE_MEDIA_PLAYBACK permission' \
   'android\.permission\.FOREGROUND_SERVICE_MEDIA_PLAYBACK"'
 require_pattern 'the POST_NOTIFICATIONS permission (FR-021 / T030b)' \
   'android\.permission\.POST_NOTIFICATIONS"'
+# FR-016 / T031: the haptic confirmation path (blind mode
+# sounds-off) needs the VIBRATE permission declared, or the
+# haptic metaphor silently no-ops on a real device.
+require_pattern 'the VIBRATE permission (FR-016 / T031)' \
+  'android\.permission\.VIBRATE"'
 
 # SC-032 (T081): the application declares the Android 10 (API 29)
 # floor. Mechanical form: a `minSdk`/`minSdkVersion` declaration

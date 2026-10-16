@@ -164,31 +164,30 @@ fn main() -> io::Result<()> {
                 player::surface::Progress::Indeterminate
             } else {
                 // clap's required_unless_present guarantees the four
-                // values are present on this branch; the zero-sections
-                // case (k = 0, n = 0) resolves indeterminate — the
-                // whole session stays indeterminate, never a flip.
-                match (consumed, total, k, n) {
-                    (Some(_), Some(_), Some(0), Some(0)) => {
-                        player::surface::Progress::Indeterminate
-                    }
-                    (Some(consumed_units), Some(total_units), Some(k), Some(n)) => {
-                        player::surface::Progress::Determinate {
-                            consumed_units,
-                            total_units,
-                            k,
-                            n,
-                        }
-                    }
-                    _ => {
-                        // Unreachable through clap (the flags are
-                        // required unless --indeterminate), but the
-                        // failure half of the protocol — diagnostic
-                        // to stderr, nothing on stdout — is the
-                        // closed-set-safe answer if it ever were.
-                        eprintln!(
-                            "usage: player progress (--consumed <u> --total <u> --k <k> --n <n> | --indeterminate)"
-                        );
-                        std::process::exit(2);
+                // values are present on this branch; the tuple
+                // destructure states that as the closed requirement it
+                // is (no catch-all arm), and the failure half of the
+                // protocol — diagnostic to stderr, nothing on stdout —
+                // answers a flag combination clap cannot produce.
+                let (Some(consumed_units), Some(total_units), Some(k), Some(n)) =
+                    (consumed, total, k, n)
+                else {
+                    eprintln!(
+                        "usage: player progress (--consumed <u> --total <u> --k <k> --n <n> | --indeterminate)"
+                    );
+                    std::process::exit(2);
+                };
+                // The zero-sections case (k = 0, n = 0) resolves
+                // indeterminate — the whole session stays
+                // indeterminate, never a flip.
+                if k == 0 && n == 0 {
+                    player::surface::Progress::Indeterminate
+                } else {
+                    player::surface::Progress::Determinate {
+                        consumed_units,
+                        total_units,
+                        k,
+                        n,
                     }
                 }
             };

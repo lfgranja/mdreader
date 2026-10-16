@@ -318,7 +318,7 @@ CLOSED_SET_HITS="$(
 )"
 if [ -n "$CLOSED_SET_HITS" ]; then
   printf 'catch-all match arms in crates/*/src (Principle VII):\n%s\n' "$CLOSED_SET_HITS" >&2
-  fail "gate-7 closed-set: a catch-all `_ =>` match arm exists in crates/*/src"
+  fail "gate-7 closed-set: a catch-all \`_ =>\` match arm exists in crates/*/src"
 fi
 pass 7 closed-set
 

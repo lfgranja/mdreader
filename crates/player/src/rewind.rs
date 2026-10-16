@@ -220,8 +220,12 @@ pub fn resolve_resume(input: &ResumeInput<'_>) -> ResumeResult {
             }
         }
         match next_gap {
+            // The nearest gap inside the window is the landing.
             Some(gap) if gap <= raw_cursor => gap,
-            _ => cue_point,
+            // The nearest gap lies past the cursor-side bound, or
+            // no gap lies inside the window at all: hold the cue
+            // point exactly.
+            Some(_) | None => cue_point,
         }
     } else {
         cue_point

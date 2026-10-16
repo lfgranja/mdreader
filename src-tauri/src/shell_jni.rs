@@ -43,11 +43,6 @@ use std::ffi::c_void;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Mutex, OnceLock};
 
-#[cfg(target_os = "android")]
-use std::ffi::CString;
-
-#[cfg(target_os = "android")]
-use jni::objects::{JClass, JString, JValue};
 use tauri::{AppHandle, Manager};
 
 use crate::AppState;
@@ -486,6 +481,15 @@ mod tests {
 /// to compute the document fingerprint. Matches Rust
 /// `session::fingerprint::fingerprint` exactly.
 ///
+/// The Kotlin declaration lives on the *nested* object
+/// `Blake3Hasher`, whose JVM class name is
+/// `app.mdreader.DocIngest$Blake3Hasher`: the JNI name-mangling
+/// rule encodes `$` as `_00024`, so the exported symbol carries
+/// `DocIngest_00024Blake3Hasher` — a plain underscore resolves
+/// nothing and the JVM throws `UnsatisfiedLinkError`, which the
+/// Kotlin caller would swallow into a SHA-256 fallback (a
+/// *different* fingerprint, not an error).
+///
 /// # Safety
 /// JNI entry point — the JVM parameters are opaque and
 /// only the byte array argument is read. The returned
@@ -496,14 +500,14 @@ mod tests {
     reason = "JNI entry point: the JNI export requires the exact symbol name. Body only reads the input byte array and returns a new byte array; no other unsafe operations."
 )]
 #[unsafe(no_mangle)]
-pub extern "C" fn Java_app_mdreader_DocIngest_Blake3Hasher_nativeBlake3(
-    env: *mut c_void,
-    _class: *mut c_void,
-    data: *mut c_void,
-) -> *mut c_void {
+pub extern "C" fn Java_app_mdreader_DocIngest_00024Blake3Hasher_nativeBlake3(
+    env: *mut jni::sys::JNIEnv,
+    _this: jni::sys::jobject,
+    data: jni::sys::jbyteArray,
+) -> jni::sys::jbyteArray {
     use blake3::Hasher;
     use jni::JNIEnv;
-    use jni::objects::{JByteArray, JClass};
+    use jni::objects::JByteArray;
 
     let env = unsafe { JNIEnv::from_raw(env).expect("valid JNIEnv") };
     let data_array = unsafe { JByteArray::from_raw(data) };
@@ -523,8 +527,21 @@ pub extern "C" fn Java_app_mdreader_DocIngest_Blake3Hasher_nativeBlake3(
     let hash = hasher.finalize();
     let hash_bytes = hash.as_bytes();
 
+    // A BLAKE3-256 digest is 32 bytes: a length `jsize`
+    // always holds, so the length is converted, never
+    // truncated (the failure arm is unreachable for this
+    // hash and answers with the JVM's null array rather
+    // than a truncated one if it ever were).
+    let hash_len = match i32::try_from(hash_bytes.len()) {
+        Ok(len) => len,
+        Err(_) => {
+            tracing::error!("JNI BLAKE3: digest length exceeds jsize");
+            return std::ptr::null_mut();
+        }
+    };
+
     // Create output byte array
-    let output_array = match env.new_byte_array(hash_bytes.len() as i32) {
+    let output_array = match env.new_byte_array(hash_len) {
         Ok(arr) => arr,
         Err(e) => {
             tracing::error!("JNI BLAKE3: failed to allocate output array: {e}");
@@ -532,7 +549,11 @@ pub extern "C" fn Java_app_mdreader_DocIngest_Blake3Hasher_nativeBlake3(
         }
     };
 
-    if let Err(e) = env.set_byte_array_region(&output_array, 0, hash_bytes) {
+    // The region writer takes `jbyte` (i8): the same eight
+    // bits per byte, so the digest crosses byte-for-byte,
+    // never reinterpreted through a value-changing cast.
+    let hash_region: Vec<i8> = hash_bytes.iter().map(|byte| byte.cast_signed()).collect();
+    if let Err(e) = env.set_byte_array_region(&output_array, 0, &hash_region) {
         tracing::error!("JNI BLAKE3: failed to set output array: {e}");
         return std::ptr::null_mut();
     }
@@ -558,17 +579,17 @@ pub extern "C" fn Java_app_mdreader_DocIngest_Blake3Hasher_nativeBlake3(
 )]
 #[unsafe(no_mangle)]
 pub extern "C" fn Java_app_mdreader_DocIngest_onDocumentIngested(
-    env: *mut c_void,
-    _class: *mut c_void,
-    snapshot_path: *mut c_void,
-    fingerprint_hex: *mut c_void,
-    original_uri: *mut c_void,
-    mime_type: *mut c_void,
+    env: *mut jni::sys::JNIEnv,
+    _this: jni::sys::jobject,
+    snapshot_path: jni::sys::jstring,
+    fingerprint_hex: jni::sys::jstring,
+    original_uri: jni::sys::jstring,
+    mime_type: jni::sys::jstring,
 ) {
     use jni::JNIEnv;
-    use jni::objects::{JClass, JString};
+    use jni::objects::JString;
 
-    let env = unsafe { JNIEnv::from_raw(env).expect("valid JNIEnv") };
+    let mut env = unsafe { JNIEnv::from_raw(env).expect("valid JNIEnv") };
 
     // Convert JVM strings to Rust strings
     let snapshot_path = unsafe { JString::from_raw(snapshot_path) };

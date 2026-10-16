@@ -3963,7 +3963,7 @@ dependencies = [
  "blake3",
  "engine-core",
  "hex",
- "jni 0.22.4",
+ "jni 0.21.1",
  "player",
  "serde",
  "serde_json",

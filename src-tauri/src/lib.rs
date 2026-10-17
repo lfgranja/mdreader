@@ -220,6 +220,15 @@ impl AppState {
 /// the worst-case loss inside that bound.
 const HEARTBEAT_PERIOD_SECS: u64 = 20;
 
+/// The playback-watch period, in milliseconds (F1/F3):
+/// the 500 ms audit cadence that feeds the session clock
+/// from the backend's audible clock, republishes the
+/// mirror when the consumed-unit count crosses, and
+/// commands the document-end teardown when the stream
+/// drains — fine enough that the end of a document is
+/// detected within a bound no run can notice, coarse
+/// enough to stay far off the audio path.
+const PLAYBACK_WATCH_PERIOD_MS: u64 = 500;
 /// The current unix time in milliseconds — the epoch
 /// the FR-015 supersede clock stamps (T011). A clock
 /// set before the unix epoch (an impossible
@@ -893,6 +902,184 @@ fn heartbeat_once(state: &AppState) {
     persist_bookmark(state, snapshot.position_secs, SessionEnd::Interrupted);
 }
 
+/// The playback-watch task's carried baselines (F1/F3): the last
+/// backend position fed into the session clock and the last
+/// consumed-unit count carried by a progress publish.
+#[derive(Debug, Default)]
+struct PlaybackWatch {
+    /// The backend-clock position (seconds) last credited through
+    /// [`PlaybackSession::on_audible_progress`]. Deltas are taken
+    /// against this, so a missed tick never loses progress and a
+    /// repeated reading never double-credits.
+    fed_secs: f64,
+    /// The consumed-unit count last carried by a progress
+    /// publish; `None` until the first republish of a run (the
+    /// first observation republishes, the play-path publish being
+    /// asynchronous to this task).
+    units: Option<u64>,
+}
+
+/// One playback-watch tick (F1/F3): the FR-002 bridge from the
+/// backend's audible clock into the session clock, the F3
+/// progress republish, and the F1 drain-to-teardown signal.
+///
+/// The backend is the only clock that advances on consumed
+/// speech samples (FR-015); the session clock is the position
+/// authority every ack, bookmark, and publish reads. This tick
+/// is the single place the two meet: the delta since the last
+/// tick is credited while `Playing`, so a paused session never
+/// advances and a missed tick is caught up whole.
+///
+/// A drained backend (every enqueued sample consumed) commands
+/// the shell's document-end teardown — [`signal_document_end`]
+/// — and publishes nothing further: the completion republish
+/// rides the teardown itself. Otherwise the consumed-unit count
+/// is compared against the last one republished, and the mirror
+/// is republished only when it crosses to a new value — the bar
+/// flip at a section boundary (T051-06), never a 2 Hz stream of
+/// identical notifications.
+///
+/// The task is lock-disciplined like the heartbeat: every state
+/// lock is taken alone and released before the next, so the
+/// watch sits off both sides of every IPC path's lock order.
+fn playback_watch_tick(state: &AppState, watch: &mut PlaybackWatch) {
+    let transport = match state.session.lock() {
+        Ok(guard) => guard.snapshot().transport,
+        Err(_) => {
+            tracing::warn!("playback watch skipped: the session lock is poisoned");
+            return;
+        }
+    };
+    match transport {
+        TransportState::Playing => {}
+        TransportState::Stopped | TransportState::Completed => {
+            // A terminal transport discards the baselines: the
+            // next run (a later process — both ends are terminal
+            // in-app) starts from nothing.
+            *watch = PlaybackWatch::default();
+            return;
+        }
+        // Paused and Interrupted retain their position: the
+        // baselines stay valid for the resume that may follow.
+        TransportState::Paused | TransportState::Interrupted => return,
+    }
+
+    let (drained, position_secs) = match state.backend.lock() {
+        Ok(guard) => match guard.as_ref() {
+            Some(backend) => (backend.is_drained(), backend.position_secs()),
+            None => {
+                tracing::warn!("playback watch skipped: a playing session has no backend");
+                return;
+            }
+        },
+        Err(_) => {
+            tracing::warn!("playback watch skipped: the backend lock is poisoned");
+            return;
+        }
+    };
+
+    feed_audible_progress(state, position_secs, watch);
+
+    if drained {
+        signal_document_end(state);
+        return;
+    }
+
+    let _ = maybe_republish_progress(state, watch);
+}
+
+/// Credit the backend's audible progress into the session clock
+/// (FR-002): the delta since the last credited reading, applied
+/// only while the session is `Playing` — the held and terminal
+/// transports keep the position frozen (FR-005).
+///
+/// The carry advances only when a read is actually credited, so
+/// the delta a race loses (a pause landing between this task's
+/// transport read and its session lock) is re-offered on the
+/// next playing tick instead of being dropped.
+fn feed_audible_progress(state: &AppState, position_secs: f64, watch: &mut PlaybackWatch) {
+    let delta_secs = position_secs - watch.fed_secs;
+    if delta_secs <= 0.0 {
+        return;
+    }
+    match state.session.lock() {
+        Ok(mut session) => {
+            if session.snapshot().transport == TransportState::Playing {
+                session.on_audible_progress(delta_secs);
+                watch.fed_secs = position_secs;
+            }
+        }
+        Err(_) => {
+            tracing::warn!("audible progress dropped: the session lock is poisoned");
+        }
+    }
+}
+
+/// Republish the mirror when the consumed-unit count crosses to a
+/// new value (F3): the payload the notification's determinate bar
+/// reads. The count is computed from the session snapshot — the
+/// same position the publish path itself resolves against, so the
+/// carried baseline can never disagree with the published payload.
+///
+/// The first observation of a run always republishes: the
+/// play-path publish races this task, and a duplicate mirror is
+/// cheap while a swallowed section flip would not self-correct
+/// until the next boundary.
+fn maybe_republish_progress(state: &AppState, watch: &mut PlaybackWatch) -> bool {
+    let units = {
+        let position_secs = match state.session.lock() {
+            Ok(guard) => guard.snapshot().position_secs,
+            Err(_) => {
+                tracing::warn!("progress republish skipped: the session lock is poisoned");
+                return false;
+            }
+        };
+        let resolver_guard = match state.surface_resolver.lock() {
+            Ok(guard) => guard,
+            Err(_) => {
+                tracing::warn!("progress republish skipped: the resolver lock is poisoned");
+                return false;
+            }
+        };
+        let Some(resolver) = resolver_guard.as_ref() else {
+            return false; // no document loaded
+        };
+        resolver.consumed_units_at(position_secs)
+    };
+    if watch.units == Some(units) {
+        return false;
+    }
+    watch.units = Some(units);
+    commands::publish_current_state(state, None);
+    true
+}
+
+/// Command the FR-032f document-end teardown through the shell
+/// (F1): the JNI hop into `ShellHost.commandDocumentEnd`, whose
+/// forwarded `document_end` intent lands in
+/// [`commands::dispatch_document_end`] — the one teardown the
+/// bridge already serves, so the classified path stays the only
+/// path.
+///
+/// With no shell to command (host builds, tests, an unarmed JVM)
+/// the teardown runs in-process instead: every consumer must
+/// complete a drained session identically, and a completion whose
+/// Kotlin half is missing still stops the backend, tears the
+/// offer machine down, deletes the bookmark, and publishes — the
+/// resident surface alone is left to the user's dismissal.
+fn signal_document_end(state: &AppState) {
+    match shell_jni::command_document_end_to_kotlin() {
+        Ok(()) => {}
+        Err(reason) => {
+            tracing::debug!(
+                reason = %reason,
+                "document-end command unavailable; completing in-process"
+            );
+            let _ = commands::dispatch_document_end(state);
+        }
+    }
+}
+
 /// Run the Tauri application.
 ///
 /// Builds the application — managing the shared
@@ -976,6 +1163,26 @@ pub fn run() {
                     let _tick = ticker.tick().await;
                     let app_state = app_handle.state::<AppState>();
                     heartbeat_once(&app_state);
+                }
+            });
+
+            // The 500 ms playback-watch task (F1/F3): feeds the
+            // session clock from the backend's audible clock,
+            // republishes the mirror at consumed-unit crossings,
+            // and commands the document-end teardown when the
+            // stream drains. The task carries its own baselines and
+            // holds the owned app handle (never a borrowed
+            // `State`), so it outlives the setup closure; each tick
+            // takes every state lock alone — no two are ever held
+            // together, exactly like the heartbeat above.
+            let watch_handle = _app.app_handle().clone();
+            let _ = tauri::async_runtime::spawn(async move {
+                let mut ticker = time::interval(Duration::from_millis(PLAYBACK_WATCH_PERIOD_MS));
+                let mut watch = PlaybackWatch::default();
+                loop {
+                    let _tick = ticker.tick().await;
+                    let app_state = watch_handle.state::<AppState>();
+                    playback_watch_tick(&app_state, &mut watch);
                 }
             });
 
@@ -1816,7 +2023,7 @@ pub mod commands {
     /// after [`ShellVerb::Complete`] moves the session,
     /// never ahead of it, so a retained pause keeps its
     /// queued audio. Restores full gain (FULL_GAIN).
-    fn stop_backend(state: &State<'_, AppState>) {
+    fn stop_backend(state: &AppState) {
         if let Ok(backend) = state.backend.lock() {
             if let Some(backend) = backend.as_ref() {
                 let _ = backend.set_gain(player::focus::FULL_GAIN);
@@ -1879,7 +2086,7 @@ pub mod commands {
     /// landing records no bookmark and closes the
     /// clock instead.
     fn execute_or_current(
-        state: &State<'_, AppState>,
+        state: &AppState,
         verb: ShellVerb,
     ) -> Result<(SessionSnapshot, bool), String> {
         let (snapshot, moved) = {
@@ -2014,7 +2221,7 @@ pub mod commands {
     /// changes the session state. Reads the surface resolver
     /// and headings from AppState and emits a `MirrorState`
     /// snapshot via the `tauri::ipc::Channel`.
-    fn publish_current_state(state: &AppState, transient_reason: Option<String>) {
+    pub(crate) fn publish_current_state(state: &AppState, transient_reason: Option<String>) {
         let resolver_guard = match state.surface_resolver.lock() {
             Ok(g) => g,
             Err(_) => return,
@@ -2094,7 +2301,7 @@ pub mod commands {
     /// (T035) — a completed document has no resumable
     /// position. Publishes the mirror state after
     /// completion (T133).
-    fn dispatch_document_end(state: &State<'_, AppState>) -> Result<serde_json::Value, String> {
+    pub(crate) fn dispatch_document_end(state: &AppState) -> Result<serde_json::Value, String> {
         let (snapshot, changed) = execute_or_current(state, ShellVerb::Complete)?;
         if changed {
             stop_backend(state);
@@ -4294,6 +4501,146 @@ mod rate_persistence_tests {
             engine_core::closed::SessionEnd::Paused,
             "a rate change rewrote a stored end kind"
         );
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod playback_watch_tests {
+    use super::*;
+    use player::cli::ShellVerb;
+
+    fn start_playing(state: &AppState) -> Result<(), String> {
+        let mut session = state.session.lock().map_err(|e| e.to_string())?;
+        let _ = session
+            .execute(ShellVerb::Play)
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    fn two_unit_resolver() -> player::surface::SurfaceResolver {
+        player::surface::SurfaceResolver::new(
+            Some(String::from("Doc")),
+            String::from("document.md"),
+            2,
+            10.0,
+            true,
+        )
+    }
+
+    #[test]
+    fn audible_progress_feeds_the_session_clock_by_delta() -> Result<(), String> {
+        let state = AppState::test_state();
+        start_playing(&state)?;
+        let mut watch = PlaybackWatch::default();
+
+        feed_audible_progress(&state, 3.0, &mut watch);
+        let position = state
+            .session
+            .lock()
+            .map_err(|e| e.to_string())?
+            .snapshot()
+            .position_secs;
+        assert_eq!(position, 3.0, "the first delta is credited whole");
+        assert_eq!(watch.fed_secs, 3.0);
+
+        feed_audible_progress(&state, 3.0, &mut watch);
+        let position = state
+            .session
+            .lock()
+            .map_err(|e| e.to_string())?
+            .snapshot()
+            .position_secs;
+        assert_eq!(position, 3.0, "a repeated reading credits nothing");
+
+        feed_audible_progress(&state, 3.5, &mut watch);
+        let position = state
+            .session
+            .lock()
+            .map_err(|e| e.to_string())?
+            .snapshot()
+            .position_secs;
+        assert_eq!(position, 3.5, "only the step since the last credit lands");
+        Ok(())
+    }
+
+    #[test]
+    fn terminal_transport_clears_the_watch_baselines() -> Result<(), String> {
+        let state = AppState::test_state();
+        start_playing(&state)?;
+        {
+            let mut session = state.session.lock().map_err(|e| e.to_string())?;
+            let _ = session
+                .execute(ShellVerb::Complete)
+                .map_err(|e| e.to_string())?;
+        }
+        let mut watch = PlaybackWatch {
+            fed_secs: 4.0,
+            units: Some(1),
+        };
+        playback_watch_tick(&state, &mut watch);
+        assert_eq!(watch.fed_secs, 0.0);
+        assert_eq!(watch.units, None);
+        Ok(())
+    }
+
+    #[test]
+    fn progress_republishes_once_per_new_consumed_unit() -> Result<(), String> {
+        let state = AppState::test_state();
+        start_playing(&state)?;
+        {
+            let mut resolver = state.surface_resolver.lock().map_err(|e| e.to_string())?;
+            *resolver = Some(two_unit_resolver());
+        }
+        let mut watch = PlaybackWatch::default();
+
+        assert!(
+            maybe_republish_progress(&state, &mut watch),
+            "the first observation of a run republishes"
+        );
+        assert_eq!(watch.units, Some(0));
+
+        assert!(
+            !maybe_republish_progress(&state, &mut watch),
+            "a repeated count republishes nothing"
+        );
+
+        {
+            let mut session = state.session.lock().map_err(|e| e.to_string())?;
+            session.on_audible_progress(5.0);
+        }
+        assert!(
+            maybe_republish_progress(&state, &mut watch),
+            "crossing into the second unit republishes"
+        );
+        assert_eq!(watch.units, Some(1));
+        assert!(!maybe_republish_progress(&state, &mut watch));
+        Ok(())
+    }
+
+    #[test]
+    fn document_end_signal_completes_in_process_without_a_shell() -> Result<(), String> {
+        let state = AppState::test_state();
+        start_playing(&state)?;
+        signal_document_end(&state);
+        let transport = state
+            .session
+            .lock()
+            .map_err(|e| e.to_string())?
+            .snapshot()
+            .transport;
+        assert_eq!(transport, TransportState::Completed);
+        Ok(())
+    }
+
+    #[test]
+    fn document_end_dispatch_is_idempotent() -> Result<(), String> {
+        let state = AppState::test_state();
+        start_playing(&state)?;
+        let first = commands::dispatch_document_end(&state)?;
+        assert_eq!(first["changed"], serde_json::Value::from(true));
+        let second = commands::dispatch_document_end(&state)?;
+        assert_eq!(second["changed"], serde_json::Value::from(false));
         Ok(())
     }
 }

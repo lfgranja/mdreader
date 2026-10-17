@@ -173,6 +173,48 @@ pub fn publish_mirror_to_kotlin(
     Ok(())
 }
 
+/// Commands the Kotlin `ShellHost.commandDocumentEnd` static over the
+/// captured JVM handle (F1): the drain signal of the document's last
+/// speech sample.
+///
+/// The shell's `Residency.documentEnd()` forwards the classified
+/// `document_end` intent back through the drain to
+/// [`commands::dispatch_document_end`](crate::commands), so the
+/// session teardown stays the one the bridge already serves — this
+/// call only commands it and decides nothing about the session.
+/// The caller completes in-process on the error: a host or an
+/// unarmed shell must never stall a drained session.
+///
+/// # Errors
+/// Returns an error string when the JVM handle was never captured,
+/// when the thread cannot be attached, or when the class lookup or
+/// the invocation fails. On non-Android targets there is no shell to
+/// command, so the error is returned by construction and the
+/// in-process completion is the whole answer.
+#[cfg(target_os = "android")]
+pub fn command_document_end_to_kotlin() -> Result<(), String> {
+    let vm = JVM
+        .get()
+        .ok_or_else(|| String::from("shell JNI: no entry has captured the JVM handle yet"))?;
+    let mut env = vm
+        .attach_current_thread()
+        .map_err(|error| format!("shell JNI: attach_current_thread failed: {error}"))?;
+    let class = env
+        .find_class("app/mdreader/ShellHost")
+        .map_err(|error| format!("shell JNI: ShellHost lookup failed: {error}"))?;
+    let _ = env
+        .call_static_method(class, "commandDocumentEnd", "()V", &[])
+        .map_err(|error| format!("shell JNI: ShellHost.commandDocumentEnd failed: {error}"))?;
+    Ok(())
+}
+
+/// No shell to command on non-Android targets: the error routes the
+/// caller to its in-process document-end completion.
+#[cfg(not(target_os = "android"))]
+pub fn command_document_end_to_kotlin() -> Result<(), String> {
+    Err(String::from("shell JNI: no Android shell on this host"))
+}
+
 /// Installs the shell channel and spawns its drain thread (T111).
 ///
 /// Creates the code channel, publishes its sender to [`VERB_TX`], and

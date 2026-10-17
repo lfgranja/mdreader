@@ -13,8 +13,8 @@
 
 use proptest::prelude::*;
 
-use doc_structure::Heading;
 use player::cli::{PlaybackSession, ShellVerb};
+use player::surface::Heading;
 
 fn position_strategy() -> impl Strategy<Value = f64> {
     (0u16..=3600).prop_map(f64::from)
@@ -116,7 +116,7 @@ proptest! {
     ) {
         let position = position.min(duration);
         let mut session = PlaybackSession::with_duration(duration);
-        session.set_headings(headings.clone());
+        session.set_document_structure(duration, headings.clone());
         let _ = session.execute(ShellVerb::Play);
         session.on_audible_progress(position);
         let snapshot = session.execute(ShellVerb::SkipForward).unwrap();
@@ -153,7 +153,7 @@ proptest! {
     ) {
         let position = position.min(duration);
         let mut session = PlaybackSession::with_duration(duration);
-        session.set_headings(headings.clone());
+        session.set_document_structure(duration, headings.clone());
         let _ = session.execute(ShellVerb::Play);
         session.on_audible_progress(position);
         let snapshot = session.execute(ShellVerb::SkipBackward).unwrap();

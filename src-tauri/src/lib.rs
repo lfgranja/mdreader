@@ -2542,11 +2542,14 @@ pub mod commands {
             use std::time::Duration;
             loop {
                 sleep(Duration::from_millis(
-                    crates::session::store::DURABLE_CADENCE_MS,
+                    session::store::DURABLE_CADENCE_MS,
                 ));
                 let _ = std::panic::catch_unwind(|| {
-                    if let Ok(mut s) = BookmarkStore::open(&heartbeat_path) {
-                        let _ = s.durable_heartbeat(&[0u8; 32], &StoredPosition::default());
+                    if let Ok(mut s) = session::store::BookmarkStore::open(&heartbeat_path) {
+                        let _ = s.durable_heartbeat(
+                            &[0u8; 32],
+                            &session::store::StoredPosition::default(),
+                        );
                     }
                 });
             }

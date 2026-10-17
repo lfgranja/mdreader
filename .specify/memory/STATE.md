@@ -14,7 +14,18 @@ Updated: 2026-10-16 (Waves A+B committed; gate 5 waived provisionally, constitut
   Host contract 6/6 (`src-tauri/tests/test_kotlin_mirror_payload.rs`, pinned in
   `expected-tests.txt` + purity allowlist). APK (universal-release, ~118 MB)
   installed on the device (`53cf9aa7`), app launched with no JNI errors —
-  **device verification pending** (waiting for the phone to be free).
+  **device verification FIRST RUN found an R8 regression** (see below).
+- **R8 strips the JNI publish entry point (FOUND on device 2026-10-16; FIXED,
+  rebuild pending)**: the first real Rust→Kotlin call (`publishMirror`) threw
+  `java.lang.NoSuchMethodError: no static method "Lapp/mdreader/ShellHost;.publishMirror(...)V"`
+  — release `isMinifyEnabled = true` removes the method (invisible to R8), the
+  dex confirms class present / method absent; the pending JVM exception then
+  poisoned the next JNI boundary (`Error invoking postMessage: Java exception
+  was raised during method invocation` in the UI). Audio played fine
+  (AAudio `state:started`). Fix: explicit `-keep` in
+  `gen/android/app/proguard-rules.pro` (force-added; `b856bfc`) + ShellHost
+  docstring cleanup (`728557b`); APK rebuild **wave-b3** in progress. Install
+  force-stops the app, so it waits for the phone to be free.
 - **Gate 5 RESOLVED PROVISIONALLY**: constitution 1.5.0→1.6.0→1.6.1 (Exceptions
   Log entry 11 + correction PATCH); `deny.toml` ignores RUSTSEC-2026-0367/0368/0369;
   `cargo deny check advisories` → "advisories ok". Upstream track complete:

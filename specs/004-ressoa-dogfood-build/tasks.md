@@ -366,3 +366,83 @@ Subagent E: "T032 rewind.rs + resume.rs sentence-snap (independent)"
 - [ ] T067 [P] Run `cargo fmt --all` to clear the 4 gate-1 diffs (`crates/session/src/store.rs`, `crates/session/tests/prop_second_document_preserves_first_bookmark.rs`, `src-tauri/src/lib.rs`); `cargo fmt --all` completed (no output), awaiting fresh `--check`; commit with `style(004): T067 fmt gate-1 clean` (`partial`)
 - [ ] T068 [P] Sync `scripts/expected-tests.txt` with `cargo nextest list --workspace` (add `player::prop_first_audio_3s`, `session::prop_bookmark_durable_20s`, `session::prop_second_document_preserves_first_bookmark`; fail-closed on missing OR unexpected); gate: verify.sh gate-2 target-diff clean; commit with `test(004): T068 expected-tests sync` (`missing`)
 - [ ] T069 VERIFICATION (only this attests): run `./scripts/verify.sh` — gates 1–7 + gate-8-shell must PASS (gate-8-full discharge attempt per T048 rules; record `DEFERRED` only if synthesis SC-044 remains open); record exit status + log paths; commit with `verify(004): T069 gates green`
+
+---
+
+## Phase 11: Convergence
+
+> Source: `spec.md` (FR-011, FR-018), `contracts/surface.md` (Display-vs-payload), constitution v1.8.0 (Rust rigour: `clippy::all,pedantic` deny), `scripts/verify.sh` gates 1–2, `scripts/expected-tests.txt`. Findings ordered CRITICAL/HIGH first; test tasks (T074/T075) are written and shown FAIL-red BEFORE their implementation tasks per Rule 1/2.
+
+### Convergence Findings (in-session, before append)
+
+| ID | Gap Type | Severity | Source | Evidence | Remediation (tasks below) |
+|----|----------|----------|--------|----------|---------------------------|
+| F1 | contradicts | CRITICAL | Constitution (clippy::all,pedantic deny) | `cargo clippy --workspace --all-targets -- -D warnings` fails: lint group priority (`Cargo.toml:28-29`), missing package metadata (6 crates), `needless_pass_by_value` (`engine-core/cli.rs:220`), `option_if_let_else` (`engine-core/cli.rs:305`), `no_effect_underscore_binding` (`engine-core/cli.rs:389`), `suboptimal_flops` (`engine-core/standin_a.rs:192`, `standin_b.rs:193`), `missing_const_for_fn` (`engine-core/trait_.rs:213`), `unfulfilled_lint_expectations` (`engine-core/cli.rs:327`) | T070 |
+| F2 | contradicts | HIGH | FR-011 / `contracts/surface.md` | `test_purity` FAILS: `progress_label` is not permitted in lock-screen payload. `MirrorState` carries `progress_label` which serializes into Kotlin notification via `build_kotlin_mirror_json` | T071 |
+| F3 | partial | HIGH | `contracts/surface.md` / `test_publish_payload` | `test_publish_payload` FAILS: expects 4 keys but got 5. `publish_mirror` helper adds `progress_label` to Kotlin payload | T072 |
+| F4 | missing | HIGH | gate 2 / T068 | `cargo nextest list --workspace` produces empty output; expected-tests.txt cannot be synced | T073 |
+| F5 | contradicts | HIGH | FR-018 / `test_lockscreen_us4` | `test_lockscreen_us4` FAILS at `lock_screen_controls_remain_functional_on_the_resident_service`: "a lock-screen skip press must move the resident session's stored position (FR-018)" | T074 (red) → T075 (wire) |
+
+**Gate evidence (this run):** gate-1 format PASS · gate-2 nextest FAIL (test_purity + test_publish_payload + test_lockscreen_us4) · clippy FAIL (42+ errors) · `cargo check -p player -p src-tauri` PASS · `player --lib` 75/75 PASS · `test_progress_label` 2/2 PASS.
+
+### Phase 11 Tasks (append-only, zero renumber of T001–T069)
+
+- [ ] T070 [P] (CRITICAL) Fix all `cargo clippy --workspace --all-targets -- -D warnings` errors: lint group priority (`nursery`/`cargo` need `priority = -1` in `Cargo.toml:28-29`), add missing package metadata (`description`, `repository`, `readme`, `keywords`, `categories`) to 6 crates, fix `needless_pass_by_value` (`engine-core/cli.rs:220`), `option_if_let_else` (`engine-core/cli.rs:305`), `no_effect_underscore_binding` (`engine-core/cli.rs:389`), `suboptimal_flops` (`engine-core/standin_a.rs:192`, `standin_b.rs:193`), `missing_const_for_fn` (`engine-core/trait_.rs:213`), `unfulfilled_lint_expectations` (`engine-core/cli.rs:327`); NEVER weaken `Cargo.toml`/`clippy.toml` lints; gate: clippy command exits 0 (`contradicts`)
+- [ ] T071 [P] Remove `progress_label` from the Kotlin lock-screen notification payload path: `MirrorState` in `crates/player/src/surface.rs` must not carry `progress_label` into `build_kotlin_mirror_json` (`src-tauri/src/lib.rs`); keep the label only on the Rust frontend channel (separate struct or field); `test_purity` must PASS with `progress_label` absent from lock-screen payload (`contradicts`)
+- [ ] T072 [P] Fix `publish_mirror` helper in `src-tauri/src/lib.rs` to not add `progress_label` to the Kotlin notification payload; `test_publish_payload` must PASS with exactly 4 keys (transport, position_secs, section_title, progress) (`partial`)
+- [ ] T073 [P] Diagnose why `cargo nextest list --workspace` produces empty output; sync `scripts/expected-tests.txt` with actual live targets; gate: verify.sh gate-2 target-diff clean (`missing`)
+- [ ] T074 [P] RED-FIRST property test `prop_skip_resident` in `crates/player/tests/prop_skip_resident.rs` (proptest; FAIL before T075): drive `session.execute(ShellVerb::SkipForward/Backward)` in a resident-service context and assert the skip moves the stored position per FR-018; must PASS before T075 (test-first / Block) (`contradicts`)
+- [ ] T075 [US1] Fix skip behavior in the resident service context so lock-screen skip presses move the stored position per FR-018; covered by T074 red→green; commit with `feat(004): T075 resident skip position` (`contradicts`)
+
+---
+
+## Phase 11: Convergence
+
+> Source: `spec.md` (FR-011), `contracts/surface.md` (Display-vs-payload), constitution v1.8.0 (Rust rigour: `clippy::all,pedantic` deny), `scripts/verify.sh` gates 1–2, `scripts/expected-tests.txt`. Findings ordered CRITICAL/HIGH first.
+
+### Convergence Findings (in-session, before append)
+
+| ID | Gap Type | Severity | Source | Evidence | Remediation (tasks below) |
+|----|----------|----------|--------|----------|---------------------------|
+| F1 | contradicts | CRITICAL | Constitution (clippy::all,pedantic deny) | `cargo clippy --workspace --all-targets -- -D warnings` fails: lint group priority (`Cargo.toml:28-29`), missing package metadata (6 crates), `needless_pass_by_value` (`engine-core/cli.rs:220`), `option_if_let_else` (`engine-core/cli.rs:305`), `no_effect_underscore_binding` (`engine-core/cli.rs:389`), `suboptimal_flops` (`engine-core/standin_a.rs:192`, `standin_b.rs:193`), `missing_const_for_fn` (`engine-core/trait_.rs:213`), `unfulfilled_lint_expectations` (`engine-core/cli.rs:327`) | T070 |
+| F2 | contradicts | HIGH | FR-011 / `contracts/surface.md` | `test_purity` FAILS: `progress_label` is not permitted in lock-screen payload. `MirrorState` carries `progress_label` which serializes into Kotlin notification via `build_kotlin_mirror_json` | T071 |
+| F3 | partial | HIGH | `contracts/surface.md` / `test_publish_payload` | `test_publish_payload` FAILS: expects 4 keys but got 5. `publish_mirror` helper adds `progress_label` to Kotlin payload | T072 |
+| F4 | missing | HIGH | gate 2 / T068 | `cargo nextest list --workspace` produces empty output; expected-tests.txt cannot be synced | T073 |
+
+**Gate evidence (this run):** gate-1 format PASS · gate-2 nextest FAIL (test_purity + test_publish_payload) · clippy FAIL (42+ errors) · `cargo check -p player -p src-tauri` PASS · `player --lib` 75/75 PASS · `test_progress_label` 2/2 PASS.
+
+### Phase 11 Tasks (append-only, zero renumber of T001–T069)
+
+- [ ] T070 [P] (CRITICAL) Fix all `cargo clippy --workspace --all-targets -- -D warnings` errors: lint group priority (`nursery`/`cargo` need `priority = -1` in `Cargo.toml:28-29`), add missing package metadata (`description`, `repository`, `readme`, `keywords`, `categories`) to 6 crates, fix `needless_pass_by_value` (`engine-core/cli.rs:220`), `option_if_let_else` (`engine-core/cli.rs:305`), `no_effect_underscore_binding` (`engine-core/cli.rs:389`), `suboptimal_flops` (`engine-core/standin_a.rs:192`, `standin_b.rs:193`), `missing_const_for_fn` (`engine-core/trait_.rs:213`), `unfulfilled_lint_expectations` (`engine-core/cli.rs:327`); NEVER weaken `Cargo.toml`/`clippy.toml` lints; gate: clippy command exits 0 (`contradicts`)
+- [ ] T071 [P] Remove `progress_label` from the Kotlin lock-screen notification payload path: `MirrorState` in `crates/player/src/surface.rs` must not carry `progress_label` into `build_kotlin_mirror_json` (`src-tauri/src/lib.rs`); keep the label only on the Rust frontend channel (separate struct or field); `test_purity` must PASS with `progress_label` absent from lock-screen payload (`contradicts`)
+- [ ] T072 [P] Fix `publish_mirror` helper in `src-tauri/src/lib.rs` to not add `progress_label` to the Kotlin notification payload; `test_publish_payload` must PASS with exactly 4 keys (transport, position_secs, section_title, progress) (`partial`)
+- [ ] T73 [P] Diagnose why `cargo nextest list --workspace` produces empty output; sync `scripts/expected-tests.txt` with actual live targets; gate: verify.sh gate-2 target-diff clean (`missing`)
+
+---
+
+## Phase 12: Convergence
+
+> Source: constitution v1.8.0 (Rust rigor MUST), spec FR-002/FR-011/FR-013, plan testing and surface decisions, `scripts/verify.sh` gates 1–2, and existing Phase 10/11 task evidence. Existing tasks and prior Convergence sections remain unchanged. New regression tests are blocking and red-first where code changes are required.
+
+### Convergence Findings (in-session, before append)
+
+| ID | Gap Type | Severity | Source | Evidence | Remediation (tasks below) |
+|----|----------|----------|--------|----------|---------------------------|
+| F1 | contradicts | CRITICAL | Constitution Rust-rigor MUST | `cargo clippy --workspace --all-targets -- -D warnings` still fails on lint priorities, missing package metadata, and engine-core code lints; diagnostics identify 42 errors. T070 is pending but does not establish a passing gate. | T076 |
+| F2 | partial | HIGH | FR-013 / Principle III | T064 passes, but tests the label helper and manually constructs its payload; the production frontend mirror construction is not driven by the assertion and no valid red result for missing production wiring is recorded. | T077 (red) → T078 |
+| F3 | partial | HIGH | FR-011 / `contracts/surface.md` | The Kotlin lock-screen builder is separate and does not carry the frontend field, but the test-only `publish_mirror` helper adds `progress_label`; `test_publish_payload` fails because the helper returns 5 keys where its contract requires 4. | T079 (red) → T080 |
+| F4 | missing | HIGH | Gate 2 / T068 | `cargo nextest list --workspace` cannot compile `crates/player/tests/prop_first_audio_3s.rs`: local `Seq` is a `HashMap` key without `Hash`; nextest therefore produces no live target list. | T081 |
+| F5 | partial | MEDIUM | FR-002 / `test_lockscreen_us4` | `lock_screen_controls_remain_functional_on_the_resident_service` expects 25 s from a 20 s cursor; sectionless FR-002 skip is 10 s, so the expected landing is 30 s. The live skip property suite passes 5/5. | T082 |
+| F6 | partial | HIGH | SC-001…SC-008 / T051–T052 | Reference-phone trial sheets and the pulled diagnostic audit remain unchecked; repository evidence contains no completed device trial records. | Existing T051–T052 (carry forward; no duplicate tasks) |
+
+**Gate evidence (this run):** `cargo check -p player -p src-tauri` PASS; `cargo nextest run -p player --test prop_skip_wire` PASS (5/5); `test_progress_label` PASS (2/2); grouped purity/payload run FAILS at `test_purity` (`progress_label` is rejected by the lock-screen payload assertion) and `test_publish_payload` (observed 5 vs expected 4 keys); resident lock-screen suite FAILS at the stale 25 s expectation; workspace target discovery fails because `prop_first_audio_3s` does not compile; clippy fails with 42 errors. Device-only T051/T052 are not host-verifiable.
+
+### Phase 12 Tasks (append-only, zero renumber of T001–T075)
+
+- [ ] T076 [P] (CRITICAL) Clear the complete `cargo clippy --workspace --all-targets -- -D warnings` diagnostics recorded in Phase 11/T070, including lint-group priority, required crate metadata, and engine-core findings; preserve all lint levels and workspace governance; gate: the full workspace command exits 0 (Constitution Rust-rigor MUST) (`contradicts`)
+- [ ] T077 [P] RED-FIRST test the production frontend mirror builder in `src-tauri/tests/test_progress_label.rs`: determinate `SurfaceSnapshot` produces the pt-BR label in the actual `MirrorState` sent to the frontend, indeterminate omits the label, and the separate Kotlin lock-screen JSON remains label-free; demonstrate a failing assertion before implementation/refactor (FR-011/FR-013, Principle III) (`partial`)
+- [ ] T078 [US4] Route the tested shared frontend-mirror builder into `publish_mirror_to_channel` and keep its optional `progress_label` out of `build_kotlin_mirror_json`; covered by T077 red→green and `test_purity` (FR-011/FR-013) (`partial`)
+- [ ] T079 [P] RED-FIRST correct the Kotlin `publish_mirror` contract fixture in `src-tauri/tests/test_publish_payload.rs`: assert the lock-screen contract key set has no `progress_label`, while in-app label coverage remains in T077; show the current helper's 5-vs-4 failure before T080 (FR-011, Principle III) (`partial`)
+- [ ] T080 [US4] Make `src-tauri/src/lib.rs::publish_mirror` model only the Kotlin/lock-screen wire contract and omit `progress_label`; preserve the distinct frontend label path; gate: `test_publish_payload`, `test_purity`, and Kotlin mirror payload suites pass (FR-011, contracts/surface.md) (`partial`)
+- [ ] T081 [P] Fix `Seq` in `crates/player/tests/prop_first_audio_3s.rs` to support its `HashMap` use (derive the required lawful traits or use a suitable ordered map), then run `cargo nextest list --workspace` and perform the two-way sync of `scripts/expected-tests.txt` required by T068; gate: non-empty live inventory and verify.sh gate-2 target diff clean (Principle V) (`missing`)
+- [ ] T082 [P] Update `lock_screen_controls_remain_functional_on_the_resident_service` in `crates/player/tests/integration/test_lockscreen_us4.rs` to assert the FR-002 sectionless +10 s landing (20 s → 30 s), not the superseded +5 s result; do not weaken the behavioral requirement; gate: `cargo nextest run -p player --test test_lockscreen_us4` passes (`partial`)

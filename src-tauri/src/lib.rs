@@ -2912,7 +2912,10 @@ mod latch_persistence_tests {
 pub mod publish {
     use super::AppState;
     use player::cli::SessionSnapshot;
-    use player::surface::{Heading, MirrorState, Progress, SurfaceResolver, SurfaceSnapshot};
+    use player::surface::{
+        Dismissal, Heading, MirrorState, Progress, SurfaceResolver, SurfaceSnapshot,
+    };
+    use player::transport::TransportState;
     use serde_json::{Map, Value};
     use tauri::{AppHandle, State};
 
@@ -2947,7 +2950,8 @@ pub mod publish {
         Ok(())
     }
 
-    /// Emit a mirror snapshot to the frontend via the publish channel.
+    /// Emit a mirror snapshot to the frontend channel and the Kotlin
+    /// surface (T133).
     ///
     /// Called from the dispatch paths after every transport/
     /// position/focus event. The snapshot is derived from the
@@ -2955,17 +2959,39 @@ pub mod publish {
     /// title from the surface resolver (FR-028) and the
     /// transient reason when applicable (FR-041, FR-037).
     ///
-    /// If the channel is not yet registered (frontend hasn't
-    /// called `register_publish_listener`), the snapshot is
-    /// dropped silently — the frontend will receive the current
-    /// state on its next registration or via the diagnostic
-    /// `diagnose` query.
+    /// The Kotlin surface publish happens unconditionally (the
+    /// lock-screen mirror is not a webview feature); only the
+    /// frontend channel send is conditional: if the channel is not
+    /// yet registered (frontend hasn't called
+    /// `register_publish_listener`), that half is dropped silently —
+    /// the frontend will receive the current state on its next
+    /// registration or via the diagnostic `diagnose` query.
     pub fn publish_mirror_to_channel(
         state: &AppState,
         snapshot: &SessionSnapshot,
         surface: &SurfaceSnapshot,
         transient_reason: Option<String>,
+        dismissal: &Dismissal,
     ) {
+        // The Kotlin surface publishes first, independent of the
+        // frontend channel: the lock-screen mirror is not a webview
+        // feature, and the device surface must track the session even
+        // when no frontend listener has registered (FR-003, T133).
+        let kotlin_payload = build_kotlin_mirror_json(
+            snapshot.transport,
+            snapshot.position_secs,
+            surface,
+            transient_reason.as_deref(),
+            None,
+            dismissal,
+        );
+        if let Err(error) = crate::shell_jni::publish_mirror_to_kotlin(&kotlin_payload, None) {
+            tracing::warn!(
+                error = error.as_str(),
+                "kotlin mirror publish failed; the surface keeps its previous state"
+            );
+        }
+
         let channel_guard = match state.publish_channel.lock() {
             Ok(g) => g,
             Err(_) => return, // poisoned lock, drop silently
@@ -3002,18 +3028,98 @@ pub mod publish {
         // next registration.
         let _ = channel.send(mirror);
 
-        // Note: Rust→Kotlin MediaMirror publish (via JNI) deferred to
-        // synthesis feature (FR-024) due to jni 0.22.4 API changes blocking
-        // the bridge. The Kotlin PlaybackService handles notification
-        // and MediaSession through its own lifecycle (ShellHost.init),
-        // not through Rust JNI publish. For T-01 trial, the notification
-        // surface is handled by Kotlin's PlaybackService.startForegroundHolder().
-        // The full mirror synchronization requires resolving jni APIs.
-
         // Also log the transient reason if present (diagnostic).
         if let Some(reason) = transient_reason {
             tracing::debug!(%reason, "publish mirror with transient reason");
         }
+    }
+
+    /// Builds the Kotlin-facing mirror payload (T133): the wire form
+    /// `MediaMirror.publishJson` parses — the Kotlin surface's own
+    /// vocabulary, distinct from the in-app `MirrorState` above.
+    ///
+    /// The Kotlin surface reads camelCase keys, the progress in its own
+    /// enum shape (`determinate.consumedUnits` / `totalUnits` — the
+    /// FR-013 content-offset fraction, never a time estimate), the
+    /// single-key dismissal object, and the optional haptic pattern id
+    /// (FR-016). The builder is a pure function of the published state,
+    /// so the host contract test (`tests/test_kotlin_mirror_payload.rs`)
+    /// pins it on every target; the device half of the contract is the
+    /// T051 trial set.
+    ///
+    /// `title` / `sectionTitle` are the surface projection — never body
+    /// text; `transientReason` rides only when the pause carries a
+    /// stated reason (FR-041). The haptic id is `None` until a
+    /// selection arm feeds this publish; the mirror reads null as "no
+    /// confirmation".
+    #[must_use]
+    pub fn build_kotlin_mirror_json(
+        transport: TransportState,
+        position_secs: f64,
+        surface: &SurfaceSnapshot,
+        transient_reason: Option<&str>,
+        haptic: Option<u32>,
+        dismissal: &Dismissal,
+    ) -> String {
+        let mut payload = Map::new();
+        let _ = payload.insert(
+            String::from("transport"),
+            Value::from(transport.to_string()),
+        );
+        let _ = payload.insert(String::from("positionSecs"), Value::from(position_secs));
+        let _ = payload.insert(String::from("title"), Value::from(surface.title.clone()));
+        let _ = payload.insert(
+            String::from("sectionTitle"),
+            surface
+                .section_title
+                .clone()
+                .map_or(Value::Null, Value::from),
+        );
+        let _ = payload.insert(
+            String::from("transientReason"),
+            transient_reason.map_or(Value::Null, Value::from),
+        );
+        let _ = payload.insert(
+            String::from("haptic"),
+            haptic.map_or(Value::Null, Value::from),
+        );
+        let _ = payload.insert(String::from("progress"), kotlin_progress(&surface.progress));
+        let _ = payload.insert(String::from("dismissal"), kotlin_dismissal(dismissal));
+        Value::Object(payload).to_string()
+    }
+
+    /// The Kotlin progress shape (FR-028a): the determinate form
+    /// carries the two content-offset unit fields; an indeterminate
+    /// session ships an empty object — the key's presence IS the
+    /// policy, so no zero stand-in ever flips it.
+    fn kotlin_progress(progress: &Progress) -> Value {
+        match progress {
+            Progress::Determinate {
+                consumed_units,
+                total_units,
+                ..
+            } => {
+                let determinate = Map::from_iter([
+                    (String::from("consumedUnits"), Value::from(*consumed_units)),
+                    (String::from("totalUnits"), Value::from(*total_units)),
+                ]);
+                let mut shape = Map::new();
+                let _ = shape.insert(String::from("determinate"), Value::Object(determinate));
+                Value::Object(shape)
+            }
+            Progress::Indeterminate => Value::Object(Map::new()),
+        }
+    }
+
+    /// The Kotlin dismissal shape (FR-028e): a single-key object, so
+    /// the Kotlin parser's `when` sees exactly one policy.
+    fn kotlin_dismissal(dismissal: &Dismissal) -> Value {
+        let (key, value) = match dismissal {
+            Dismissal::NonDismissable => ("nonDismissable", Value::Null),
+            Dismissal::AutoDismiss { after_ms } => ("autoDismiss", Value::from(*after_ms)),
+            Dismissal::Dismissable => ("dismissable", Value::Null),
+        };
+        Value::Object(Map::from_iter([(String::from(key), value)]))
     }
 
     /// Build a `SessionSnapshot` and `SurfaceSnapshot` from the
@@ -3042,8 +3148,13 @@ pub mod publish {
             resolver.consumed_units_at(snapshot.position_secs),
             headings,
         );
+        // The dismissal policy is the resolver's classification,
+        // computed from the published transport and the pause's
+        // transiency: the Kotlin surface applies the handed policy and
+        // decides nothing (FR-028e, SC-035).
+        let dismissal = resolver.dismissal(snapshot.transport, transient_reason.is_some());
         drop(session_guard); // release lock before publish
-        publish_mirror_to_channel(state, &snapshot, &surface, transient_reason);
+        publish_mirror_to_channel(state, &snapshot, &surface, transient_reason, &dismissal);
     }
 
     /// Test-compatible publish_mirror function (T132 contract).

@@ -64,20 +64,103 @@ pub fn channel_ready() -> bool {
     VERB_TX.get().is_some()
 }
 
-/// Calls the Kotlin `ShellHost.publishMirror` static method via JNI
-/// to publish the mirror state to the MediaMirror (MediaSession + notification).
+/// The JVM handle captured at one JNI entry (T133) — the handle the
+/// Rust-to-Kotlin publish calls back through.
+///
+/// A `JavaVM` exists only inside the JVM the entries are called from,
+/// so the first entry carrying an environment captures it here
+/// (idempotent). The Application bootstrap forwards `AppForegrounded`
+/// before any session command arrives, and an ingest starts only after
+/// an entry fired, so the handle is present before the first publish.
+/// The handle is `Send + Sync`; a publish from a background thread
+/// attaches that thread for the call and detaches on drop.
+#[cfg(target_os = "android")]
+static JVM: OnceLock<jni::JavaVM> = OnceLock::new();
+
+/// Captures the JVM handle from one JNI entry's environment.
+///
+/// The first entry wins; every later call observes the set handle and
+/// returns without touching the environment. An unusable environment
+/// or an unavailable handle is recorded as a diagnostic — the entry's
+/// own work continues, and a publish reports the missing handle
+/// loudly at its call site (fail-closed, never a silent half-wire).
+#[cfg(target_os = "android")]
+fn capture_jvm(raw: *mut jni::sys::JNIEnv) {
+    if JVM.get().is_some() {
+        return;
+    }
+    // SAFETY: `raw` is the environment pointer the JVM handed this
+    // entry point; it is valid for the duration of the call, and
+    // `from_raw` / `get_java_vm` only read it.
+    match unsafe { jni::JNIEnv::from_raw(raw) } {
+        Ok(env) => match env.get_java_vm() {
+            Ok(vm) => {
+                let _ = JVM.set(vm);
+            }
+            Err(error) => {
+                tracing::warn!(
+                    error = error.to_string(),
+                    "shell JNI: JVM handle unavailable at entry"
+                );
+            }
+        },
+        Err(error) => {
+            tracing::warn!(
+                error = error.to_string(),
+                "shell JNI: environment unusable at entry"
+            );
+        }
+    }
+}
+
+/// Calls the Kotlin `ShellHost.publishMirror` static method over the
+/// captured JVM handle (T133): the Rust-to-Kotlin half of the publish
+/// contract.
+///
+/// The payload is the Kotlin surface's own wire form — built by
+/// [`crate::publish::build_kotlin_mirror_json`] and parsed by
+/// `MediaMirror.publishJson` on the Kotlin side; this call only
+/// attaches the calling thread, invokes the static, and detaches on
+/// drop. The reserved swipe-away token stays `null` while the resident
+/// surface owns the intent (the Kotlin host reads its own token).
 ///
 /// # Errors
-/// Returns an error string if JNI is not available or the call fails.
+/// Returns an error string when the JVM handle was never captured,
+/// when the thread cannot be attached, or when the class lookup or the
+/// invocation fails. The caller records the error as a diagnostic:
+/// nothing is retried, nothing is buffered.
 #[cfg(target_os = "android")]
 pub fn publish_mirror_to_kotlin(
-    _mirror_json: &str,
-    _delete_intent_json: Option<&str>,
+    mirror_json: &str,
+    delete_intent_json: Option<&str>,
 ) -> Result<(), String> {
-    // Note: Full MirrorState publish deferred to synthesis feature (FR-024, 002-fr-024-synthesis-adapter)
-    // due to jni 0.22.4 API changes blocking the Rust↔Kotlin JNI bridge.
-    // The Kotlin PlaybackService handles the media notification independently via ShellHost.init.
-    tracing::debug!("JNI publish to Kotlin MediaMirror deferred to synthesis feature");
+    use jni::objects::{JString, JValue};
+
+    let vm = JVM
+        .get()
+        .ok_or_else(|| String::from("shell JNI: no entry has captured the JVM handle yet"))?;
+    let mut env = vm
+        .attach_current_thread()
+        .map_err(|error| format!("shell JNI: attach_current_thread failed: {error}"))?;
+    let class = env
+        .find_class("app/mdreader/ShellHost")
+        .map_err(|error| format!("shell JNI: ShellHost lookup failed: {error}"))?;
+    let mirror = env
+        .new_string(mirror_json)
+        .map_err(|error| format!("shell JNI: mirror string allocation failed: {error}"))?;
+    let delete_intent = match delete_intent_json {
+        Some(json) => env
+            .new_string(json)
+            .map_err(|error| format!("shell JNI: delete-intent allocation failed: {error}"))?,
+        None => JString::default(),
+    };
+    env.call_static_method(
+        class,
+        "publishMirror",
+        "(Ljava/lang/String;Ljava/lang/String;)V",
+        &[JValue::Object(&mirror), JValue::Object(&delete_intent)],
+    )
+    .map_err(|error| format!("shell JNI: ShellHost.publishMirror failed: {error}"))?;
     Ok(())
 }
 /// No-op on non-Android targets.
@@ -206,17 +289,18 @@ fn post_code(code: u32) {
 /// integer code.
 ///
 /// The first two parameters are the JVM environment and the calling
-/// object, received opaquely and never touched — the body reads only
-/// the by-value `code`, maps out-of-range and negative values to a
-/// dropped-with-diagnostic no-op, and performs no unsafe operation of
-/// any kind. The symbol-name export the JNI lookup requires is the
-/// only unsafe surface, and it is a link-time rename, never a
-/// body-level operation. The symbol resolves against the
-/// already-loaded application library, which the Kotlin host relies on
-/// instead of loading anything itself.
+/// object. The body reads only the by-value `code`, maps out-of-range
+/// and negative values to a dropped-with-diagnostic no-op, and hands
+/// the environment to [`capture_jvm`] (T133) so the Rust-to-Kotlin
+/// publish has a `JavaVM` handle — the capture's own `unsafe` block
+/// carries the environment read. The symbol-name export the JNI
+/// lookup requires is the remaining unsafe surface, and it is a
+/// link-time rename, never a body-level operation. The symbol resolves
+/// against the already-loaded application library, which the Kotlin
+/// host relies on instead of loading anything itself.
 #[expect(
     unsafe_code,
-    reason = "T111 JNI entry: the JNI lookup requires the exact exported symbol name, and every spelling of a symbol export (no_mangle/export_name) is an unsafe attribute in edition 2024 — unsatisfiable in code. The body takes only a by-value integer, touches neither JVM parameter, and performs zero unsafe operations; the suppression covers the link-time rename only."
+    reason = "T111 JNI entry: the JNI lookup requires the exact exported symbol name, and every spelling of a symbol export (no_mangle/export_name) is an unsafe attribute in edition 2024 — unsatisfiable in code. The body takes a by-value integer and hands the JVM parameter to capture_jvm, whose own unsafe block carries the environment read; the body itself performs no unsafe operation, and the suppression covers the link-time rename only."
 )]
 #[unsafe(no_mangle)]
 pub extern "C" fn Java_app_mdreader_ShellHost_postShellVerb(
@@ -224,6 +308,8 @@ pub extern "C" fn Java_app_mdreader_ShellHost_postShellVerb(
     _obj: *mut c_void,
     code: i32,
 ) {
+    #[cfg(target_os = "android")]
+    capture_jvm(_env.cast::<jni::sys::JNIEnv>());
     post_code(u32::try_from(code).unwrap_or_default());
 }
 
@@ -231,14 +317,14 @@ pub extern "C" fn Java_app_mdreader_ShellHost_postShellVerb(
 /// as its integer code.
 ///
 /// Same calling convention as
-/// [`Java_app_mdreader_ShellHost_postShellVerb`]: the JVM parameters
-/// stay opaque, only the by-value `code` is read, unknown values drop
-/// with a diagnostic, and the body performs no unsafe operation — the
-/// suppression below covers the link-time symbol rename only, for the
-/// same reason as the verb entry.
+/// [`Java_app_mdreader_ShellHost_postShellVerb`]: the by-value `code`
+/// is the only value read, the JVM environment is handed to
+/// [`capture_jvm`] (T133), unknown values drop with a diagnostic, and
+/// the suppression below covers the link-time symbol rename only, for
+/// the same reason as the verb entry.
 #[expect(
     unsafe_code,
-    reason = "T111 JNI entry: same unsatisfiable-in-code symbol-export requirement as the verb entry; body reads only a by-value integer and performs zero unsafe operations."
+    reason = "T111 JNI entry: same unsatisfiable-in-code symbol-export requirement as the verb entry; body reads a by-value integer and hands the JVM parameter to capture_jvm, whose own unsafe block carries the environment read."
 )]
 #[unsafe(no_mangle)]
 pub extern "C" fn Java_app_mdreader_ShellHost_postShellIntent(
@@ -246,6 +332,8 @@ pub extern "C" fn Java_app_mdreader_ShellHost_postShellIntent(
     _obj: *mut c_void,
     code: i32,
 ) {
+    #[cfg(target_os = "android")]
+    capture_jvm(_env.cast::<jni::sys::JNIEnv>());
     post_code(u32::try_from(code).unwrap_or_default());
 }
 
@@ -491,13 +579,14 @@ mod tests {
 /// *different* fingerprint, not an error).
 ///
 /// # Safety
-/// JNI entry point — the JVM parameters are opaque and
-/// only the byte array argument is read. The returned
-/// byte array is a new JVM primitive array.
+/// JNI entry point — only the byte array argument is read;
+/// the environment is additionally handed to [`capture_jvm`]
+/// (T133). The returned byte array is a new JVM primitive
+/// array.
 #[cfg(target_os = "android")]
 #[expect(
     unsafe_code,
-    reason = "JNI entry point: the JNI export requires the exact symbol name. Body only reads the input byte array and returns a new byte array; no other unsafe operations."
+    reason = "JNI entry point: the JNI export requires the exact symbol name. Body reads the input byte array, returns a new byte array, and hands the JVM environment to capture_jvm (whose own unsafe block carries the environment read)."
 )]
 #[unsafe(no_mangle)]
 pub extern "C" fn Java_app_mdreader_DocIngest_00024Blake3Hasher_nativeBlake3(
@@ -509,6 +598,7 @@ pub extern "C" fn Java_app_mdreader_DocIngest_00024Blake3Hasher_nativeBlake3(
     use jni::JNIEnv;
     use jni::objects::JByteArray;
 
+    capture_jvm(env);
     let env = unsafe { JNIEnv::from_raw(env).expect("valid JNIEnv") };
     let data_array = unsafe { JByteArray::from_raw(data) };
 
@@ -571,11 +661,12 @@ pub extern "C" fn Java_app_mdreader_DocIngest_00024Blake3Hasher_nativeBlake3(
 /// resume-offer lookup and playback start.
 ///
 /// # Safety
-/// JNI entry point — reads only the string arguments.
+/// JNI entry point — reads only the string arguments, plus the
+/// environment handed to [`capture_jvm`] (T133).
 #[cfg(target_os = "android")]
 #[expect(
     unsafe_code,
-    reason = "JNI entry point: the JNI export requires the exact symbol name. Body only reads string arguments and forwards to Rust; no other unsafe operations."
+    reason = "JNI entry point: the JNI export requires the exact symbol name. Body reads string arguments, forwards to Rust, and hands the JVM environment to capture_jvm (whose own unsafe block carries the environment read)."
 )]
 #[unsafe(no_mangle)]
 pub extern "C" fn Java_app_mdreader_DocIngest_onDocumentIngested(
@@ -589,6 +680,7 @@ pub extern "C" fn Java_app_mdreader_DocIngest_onDocumentIngested(
     use jni::JNIEnv;
     use jni::objects::JString;
 
+    capture_jvm(env);
     let mut env = unsafe { JNIEnv::from_raw(env).expect("valid JNIEnv") };
 
     // Convert JVM strings to Rust strings

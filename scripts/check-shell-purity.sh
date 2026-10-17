@@ -228,6 +228,11 @@ ALLOWLIST=(
   "$SRC_TAURI/tests/test_purity.rs"
   "$SRC_TAURI/tests/test_surface_us1.rs"
   "$SRC_TAURI/tests/test_noscope.rs"
+  # 004 Kotlin-publish contract (T133): the test names the Kotlin
+  # wire form's own vocabulary (`transport`, `positionSecs`,
+  # `consumedUnits`) to pin it — the mention IS the assertion, the
+  # same delegation-position shape the purity tests above carry.
+  "$SRC_TAURI/tests/test_kotlin_mirror_payload.rs"
 )
 
 is_allowlisted() {

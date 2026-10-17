@@ -14,7 +14,7 @@ import android.util.Log
  *
  * The manifest declares this class as the application entry point, so
  * it runs once per process start, before any Activity or Service. It
- * does exactly three things, and decides nothing:
+ * does exactly four things, and decides nothing:
  *
  *  1. Builds the four platform mirrors through [ShellHost.init] — the
  *     same call the service host makes, kept idempotent there — so
@@ -26,7 +26,13 @@ import android.util.Log
  *     as a diagnostic log and nothing else happens — the stated
  *     reason surfaces through the shell gates, never as a phantom
  *     session (FR-010).
- *  3. Files the notification consent request (FR-021): on API 33+
+ *  3. Relays the activity lifecycle as the two shell wires
+ *     (`AppForegrounded` / `AppBackgrounded`, contracts/shell-ipc.md)
+ *     so Rust observes the same app visibility the user does. The
+ *     first relay is also what captures the JVM handle the
+ *     Rust-to-Kotlin mirror publish calls back through, so the handle
+ *     exists before any session command.
+ *  4. Files the notification consent request (FR-021): on API 33+
  *     the platform notification permission is a runtime consent; the
  *     first resumed Activity is asked once, and the answer is left to
  *     the platform — no local decision follows it.
@@ -37,7 +43,7 @@ class ShellApplication : Application() {
         super.onCreate()
         ShellHost.init(this)
         startResidentShell()
-        registerActivityLifecycleCallbacks(notificationConsent)
+        registerActivityLifecycleCallbacks(shellLifecycle)
     }
 
     /**
@@ -60,21 +66,46 @@ class ShellApplication : Application() {
     }
 
     /**
-     * Files the notification consent request once, from the first
-     * resumed Activity (the platform requires an Activity to ask).
-     * The answer is observed by the platform's own state; the shell
-     * voices no opinion about it here (FR-021: a declared, revocable
-     * consent).
+     * The activity-lifecycle observer: the two shell wires and the
+     * one consent ask. The started count stands in for the process
+     * lifecycle (no extra dependency): the transition to one is the
+     * app coming forward, the transition to zero is it going away.
+     * Every callback relays or asks; none decides.
      */
-    private val notificationConsent = object : ActivityLifecycleCallbacks {
+    private val shellLifecycle = object : ActivityLifecycleCallbacks {
 
-        private var filed = false
+        private var startedActivities = 0
 
+        private var consentFiled = false
+
+        override fun onActivityStarted(activity: Activity) {
+            startedActivities += 1
+            if (startedActivities == 1) {
+                ShellHost.forwardIntent(FocusMirror.INTENT_APP_FOREGROUNDED)
+            }
+        }
+
+        override fun onActivityStopped(activity: Activity) {
+            if (startedActivities > 0) {
+                startedActivities -= 1
+            }
+            if (startedActivities == 0) {
+                ShellHost.forwardIntent(FocusMirror.INTENT_APP_BACKGROUNDED)
+            }
+        }
+
+        /**
+         * Files the notification consent request once, from the first
+         * resumed Activity (the platform requires an Activity to
+         * ask). The answer is observed by the platform's own state;
+         * the shell voices no opinion about it here (FR-021: a
+         * declared, revocable consent).
+         */
         override fun onActivityResumed(activity: Activity) {
-            if (filed || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            if (consentFiled || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
                 return
             }
-            filed = true
+            consentFiled = true
             val granted = activity.checkSelfPermission(POST_NOTIFICATIONS) ==
                 PackageManager.PERMISSION_GRANTED
             if (!granted) {
@@ -87,11 +118,7 @@ class ShellApplication : Application() {
 
         override fun onActivityCreated(activity: Activity, state: Bundle?) {}
 
-        override fun onActivityStarted(activity: Activity) {}
-
         override fun onActivityPaused(activity: Activity) {}
-
-        override fun onActivityStopped(activity: Activity) {}
 
         override fun onActivitySaveInstanceState(activity: Activity, state: Bundle) {}
 

@@ -143,22 +143,22 @@ class MediaMirror(
     /**
      * The progress indication (FR-028a) as published on the
      * wire — the externally-tagged T061 variant in the
-     * contract's snake_case wire form: a determinate session
-     * carries the published position and the marked document
-     * extent (never an estimate), and an indeterminate
+     * contract's own wire form: a determinate session carries
+     * the published content-offset units (FR-013 — consumed
+     * over total, never a time estimate), and an indeterminate
      * session carries no total for its whole session.
      */
     sealed class Progress {
-        /** The total spoken length was known at session
-         * start (FR-028a). */
+        /** The total parsed-content units were known at
+         * session start (FR-028a). */
         data class Determinate(
-            /** The session's authoritative position, in
-             * seconds — the published position_secs,
-             * mirrored, never computed. */
-            val positionSecs: Double,
-            /** The marked document extent, in seconds —
-             * never an estimate. */
-            val durationSecs: Double
+            /** The consumed parsed-content units — the
+             * published consumed_units, mirrored, never
+             * computed, never a sound length. */
+            val consumedUnits: Double,
+            /** The session-start parsed-content unit total —
+             * never an estimate, never flipped. */
+            val totalUnits: Double
         ) : Progress()
 
         /** The total spoken length was unknown at session
@@ -855,8 +855,8 @@ class MediaMirror(
             val progress: Progress = if (progressObj.has("determinate")) {
                 val det = progressObj.getJSONObject("determinate")
                 Progress.Determinate(
-                    positionSecs = det.getDouble("positionSecs"),
-                    durationSecs = det.getDouble("durationSecs")
+                    consumedUnits = det.getDouble("consumedUnits"),
+                    totalUnits = det.getDouble("totalUnits")
                 )
             } else {
                 Progress.Indeterminate
@@ -1302,9 +1302,15 @@ class MediaMirror(
             }
             when (form) {
                 is Progress.Determinate ->
+                    // FR-013: the platform bar renders the
+                    // published content-offset fraction
+                    // (consumed over total units). The scaling
+                    // is the platform API's integer resolution,
+                    // never a clock and never a computation of
+                    // the fraction itself.
                     configured.setProgress(
-                        (form.durationSecs * MILLIS_PER_SECOND).toInt(),
-                        (form.positionSecs * MILLIS_PER_SECOND).toInt(),
+                        (form.totalUnits * MILLIS_PER_SECOND).toInt(),
+                        (form.consumedUnits * MILLIS_PER_SECOND).toInt(),
                         false
                     )
                 is Progress.Indeterminate ->

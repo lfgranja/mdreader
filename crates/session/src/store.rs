@@ -255,6 +255,15 @@ impl From<redb::CommitError> for Error {
 /// (FR-004) over one database file.
 pub const DURABLE_CADENCE_MS: u64 = 20000; // 20 s fixed (FR-007 / data-model.md:43; envelope 15–30 s)
 
+/// The redb-backed bookmark + settings store
+/// (storage-schema.md): owns the one database file
+/// and every atomic, crash-safe read/write over it
+/// (FR-004). Positions are keyed by the document's
+/// content `fingerprint` (FR-036), so an edited
+/// document never resumes a stale entry.
+/// The redb-backed bookmark + settings store: atomic, crash-safe
+/// writes (FR-004) over one database file. Stores reading positions
+/// keyed by BLAKE3 content fingerprint and the app-wide speed setting.
 pub struct BookmarkStore {
     /// The redb database file.
     db: Database,
@@ -309,10 +318,37 @@ impl BookmarkStore {
     /// by event-durable writes (pause, focus-loss,
     /// device-removal, section-change, Stop/DocumentEnd,
     /// app-background).
-    pub fn durable_heartbeat(&mut self, fingerprint: &[u8; 32], position: &StoredPosition) -> Result<(), Error> {
+    pub fn durable_heartbeat(
+        &mut self,
+        fingerprint: &[u8; 32],
+        position: &StoredPosition,
+    ) -> Result<(), Error> {
         self.put(fingerprint, position.clone())
     }
 
+    /// Persist `position` under the document's
+    /// content `fingerprint` (FR-036) in a single
+    /// atomic write transaction, replacing any
+    /// previous entry for the same fingerprint
+    /// (storage-schema.md).
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Storage`] when the write
+    /// transaction cannot begin, the table cannot
+    /// be opened, the insert fails, or the commit
+    /// fails.
+    /// Store `position` under the document's content `fingerprint`
+    /// (FR-036) as an atomic single-row transaction. The write is
+    /// the durable persistence point for pause / app-close /
+    /// focus-loss / engine-failure events (FR-007), and the
+    /// content-keyed identity means a moved or renamed document
+    /// still resolves to the same stored position.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Storage`] when the write transaction cannot begin
+    /// or commit.
     pub fn put(&mut self, fingerprint: &[u8; 32], position: StoredPosition) -> Result<(), Error> {
         let write_tx = self.db.begin_write()?;
         {

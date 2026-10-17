@@ -1,62 +1,71 @@
 # Session state — 004-ressoa-dogfood-build (shell bring-up wave)
 
-Updated: 2026-10-16 (Waves A+B committed; gate 5 waived provisionally, constitution v1.6.1; upstream PR #4059 open; Wave B device verification pending).
+Updated: 2026-10-16 (wave-b3 installed + Wave B device verification GREEN with
+findings; zip vendor landed, patch pending; gate 5 provisionally waived,
+constitution v1.6.1; upstream PR #4059 open).
 
 ## Position
-- **Wave A (bootstrap) GREEN ON DEVICE**: `PlaybackService` runs in foreground
-  (`isForeground=true foregroundId=1`, channel `mdreader_media`, "Ressoa" holder
-  visible in the shade, `POST_NOTIFICATIONS granted=true`). Committed `7ca4c1d`.
-- **Wave B (Rust→Kotlin mirror publish) implemented + committed** (`1849761`,
-  fix `72f369e`): real JNI bridge (`capture_jvm` at the four JNI entries +
-  `publish_mirror_to_kotlin` → `ShellHost.publishMirror`); Kotlin `MediaMirror.kt`
-  consumes `consumedUnits/totalUnits` (FR-013 rename, Determinate bar) + dismissal;
-  lifecycle relay `AppForegrounded/AppBackgrounded` triggers the JVM capture.
-  Host contract 6/6 (`src-tauri/tests/test_kotlin_mirror_payload.rs`, pinned in
-  `expected-tests.txt` + purity allowlist). APK (universal-release, ~118 MB)
-  installed on the device (`53cf9aa7`), app launched with no JNI errors —
-  **device verification FIRST RUN found an R8 regression** (see below).
-- **R8 strips the JNI publish entry point (FOUND on device 2026-10-16; FIXED,
-  rebuild pending)**: the first real Rust→Kotlin call (`publishMirror`) threw
-  `java.lang.NoSuchMethodError: no static method "Lapp/mdreader/ShellHost;.publishMirror(...)V"`
-  — release `isMinifyEnabled = true` removes the method (invisible to R8), the
-  dex confirms class present / method absent; the pending JVM exception then
-  poisoned the next JNI boundary (`Error invoking postMessage: Java exception
-  was raised during method invocation` in the UI). Audio played fine
-  (AAudio `state:started`). Fix: explicit `-keep` in
-  `gen/android/app/proguard-rules.pro` (force-added; `b856bfc`) + ShellHost
-  docstring cleanup (`728557b`); APK rebuild **wave-b3** in progress. Install
-  force-stops the app, so it waits for the phone to be free.
-- **Gate 5 RESOLVED PROVISIONALLY**: constitution 1.5.0→1.6.0→1.6.1 (Exceptions
-  Log entry 11 + correction PATCH); `deny.toml` ignores RUSTSEC-2026-0367/0368/0369;
-  `cargo deny check advisories` → "advisories ok". Upstream track complete:
-  issue k2-fsa/sherpa-onnx#4058 (filed per the repo bug template), fork
-  `lfgranja/sherpa-onnx` branch `fix/rust-zip9-advisories` (commit `5821f23`),
-  PR k2-fsa/sherpa-onnx#4059. Local proof the upgrade is a one-line manifest
-  bump: `DOCS_RS=1 cargo check` with `zip = "9"` (resolved 9.0.4) compiles the
-  unmodified `build.rs`, exit 0. Undo = delete the 3 ignore blocks + entry 11
-  together when a `zip >= 9` sherpa-onnx release lands.
+- **Wave A (bootstrap) GREEN ON DEVICE**: `PlaybackService` foreground
+  (`isForeground=true foregroundId=1`, channel `mdreader_media`, "Ressoa" holder,
+  `POST_NOTIFICATIONS granted=true`). Committed `7ca4c1d`.
+- **Wave B (Rust→Kotlin mirror publish) VERIFIED ON DEVICE (wave-b3)**:
+  - R8 regression FIXED: explicit `-keep` (`b856bfc`, force-added
+    `gen/android/app/proguard-rules.pro`) + ShellHost docstring (`728557b`);
+    wave-b3 dex contains `publishMirror` (grep count 1), `BUILD_EXIT=0`.
+  - APK sha256 `04ff6c7e1b8a9d77e92012cfe25dd6d217c8ed34949bfa8554970724d67ce56a`
+    installed (`adb install -r`); verified with pid 18124 run (~22:04).
+  - Start publish: notification title "Teste de bancada" + section
+    "Teste de bancada" + determinate progress 0/2000 (2 units), category
+    transport, flags 0x62 (non-dismissable while playing) — **no JNI errors**.
+  - Pause publish: MediaSession `state=2`, flags 0x62→0x60 (ONGOING cleared →
+    dismissable via pause, per design). Stop publish: `state=1`.
+  - MediaSession: `actions=54` (play/pause/prev/next, no Stop), active.
+- **FINDINGS (bench/dogfood flow; the mirror transport itself is sound)**:
+  - F1 no end-of-audio detection: `play()` (lib.rs:2165) enqueues the PCM,
+    publishes once, returns; the backend exposes no drain signal
+    (`backend.rs:300` is only `enqueue_pcm`); `dispatch_document_end` is
+    reachable only via the Kotlin bridge intent, which cannot know (SC-035).
+    Session stays Playing forever after the audio ends (2× confirmed:
+    21:54 and 22:04 runs; notification frozen + non-dismissable).
+  - F2 bench cannot restart after Stop: `▶ Play` → "illegal transition from
+    stopped via play" (UI FALHA); only relaunch replays. The failed attempt
+    also requestStart()s the paused stream (zombie track starved to 4265
+    underruns at removal — seen in audio_flinger).
+  - F3 single publish at start only: no mid-play/section-change updates
+    (nothing calls `publish_current_state` during playback; the 20 s heartbeat
+    only persists bookmarks) — matters for the T051-06 section-change state.
+  - F4 Stop re-posts nothing to the notification (content identical;
+    MediaSession updates) — benign, noted.
+  - Audio content flow unverified by machine (MIUI `f` counters freeze
+    ~0.47 s while the mixer stays fed, 0 underruns) — awaiting user's ears.
+- **Gate 5**: constitution 1.6.1 (entry 11 PROVISIONAL); `deny.toml` ignores
+  367/368/369; upstream issue #4058, fork `lfgranja` commit `5821f23`, PR
+  #4059. Vendor landed `2177c67` (`vendor/sherpa-onnx-sys/` + PROVENANCE,
+  crate sha256 `14bbeabb…`, one line zip 2→9). **Patch NOT yet applied**:
+  `[patch.crates-io]` + `cargo update` → zip 9.0.4, then drop the 3 ignores +
+  entry 11, add entry 12, bump 1.7.0 MINOR (build MSRV note: 1.88).
 - Gates 1–4 + 8-shell PASS on the Wave B tree; manifest + shell-purity PASS.
-- T051 (device trials) + T052 (diag scan) pending; the picker (Wave C) is not
-  yet wired, so trials currently need the pre-loaded document route.
+- T051 (human trials; needs picker = Wave C) + T052 pending.
 - `gate-8-full: DEFERRED (owner=synthesis)` — unchanged (Exceptions Log 8).
 
 ## Next
-1. **Wave B device verification** (when the phone is free): bring the app to the
-   front, press Play, verify logcat clean (`kotlin mirror publish failed` /
-   `no entry has captured the JVM handle yet` absent), `dumpsys notification
-   --noredact` shows title + section + progress, shade + lock-screen capture.
-2. **Wave C — picker trigger**: in-app Open control → Tauri command → Kotlin
-   picker (`DocIngest.pickDocument` / `handlePickResult`; gen edits host-local).
-3. Full `scripts/verify.sh` re-run (gates 1–7 + 8-shell) to confirm all green.
-4. T051 sheets (`tests/device/trials-004.md`) to the user; T052 diag scan after.
+1. **Zip-9 patch application**: `[patch.crates-io]` + `cargo update` (lock zip
+   9.0.4) + `cargo deny check advisories` without ignores; constitution 1.7.0
+   (entry 11 deleted, entry 12 added); gates re-run.
+2. **F1/F2 bench fixes** (end-of-drain detection → `Complete`; restart
+   affordance) before T051 is attempted on the bench.
+3. Wave C — picker trigger (`DocIngest.pickDocument` / `handlePickResult`).
+4. Full `scripts/verify.sh`; then T051 sheets to the user, T052 diag scan.
+   Note: `run-as` fails (release APK not debuggable) — the T052 pull needs a
+   debuggable variant or another route.
 
 ## Commits this session (004)
-`92129da` (T048–T050 done) · `7ca4c1d` (Wave A bootstrap) · `1849761` (Wave B
-JNI publish) · `72f369e` (JNI result fix) · `18dd86a` (entry 11 PROVISIONAL) ·
-`7a25821` (v1.6.1 correction + upstream links).
+`92129da` · `7ca4c1d` · `1849761` · `72f369e` · `18dd86a` · `7a25821` ·
+`c6c3da4` (STATE) · `b856bfc` (R8 keep) · `728557b` (docstring) ·
+`cc9164e` (STATE R8) · `2177c67` (vendor sherpa-onnx-sys).
 
 ## Verification summary
-- Host: gates 1–4 + 8-shell green on the Wave B tree; 6 new tests pinned.
-- Device: Wave A verified on-device; Wave B runtime verification pending.
-- Upstream: PR #4059 open (no upstream CI on PRs — `test-rust` runs on master);
-  `zip 9` source-compatible, so the port needs no `build.rs` change.
+- Host: gates 1–4 + 8-shell green on the Wave B tree; 6 mirror tests pinned.
+- Device: Wave A + Wave B mirror path VERIFIED (start/pause/stop publishes;
+  notification content + flags); F1–F4 bench findings recorded.
+- Upstream: PR #4059 open (no upstream CI on PRs); zip 9 source-compatible.

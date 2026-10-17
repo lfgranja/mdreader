@@ -2,55 +2,59 @@
   SYNC IMPACT REPORT
   ===================
   Amended: 2026-10-16
-  Version change: 1.5.0 -> 1.6.0
+  Version change: 1.6.0 -> 1.6.1
 
-  Bump rationale: MINOR. One governance record is added, which
-  neither adds, removes, nor redefines a principle and does not
-  weaken a MUST: Exceptions Log entry 11 (PROVISIONAL) waives
-  three advisory-database entries against the `zip` crate —
-  RUSTSEC-2026-0367 (SUID/SGID bits preserved during extraction),
-  RUSTSEC-2026-0368 (symlink targets escaping the destination) and
-  RUSTSEC-2026-0369 (permissions applied through symlinks) — all
-  three confined to ZipArchive::extract()/stream extraction. `zip`
-  reaches this workspace only as a build-script dependency of
-  `sherpa-onnx-sys` (none of its code is linked into any shipped
-  artifact), the vulnerable extraction branch runs only for iOS
-  `.xcframework.zip` archives (the supported targets — the Linux
-  host and aarch64-linux-android — take the tar.bz2 branch), and
-  no upgrade exists: `sherpa-onnx` is pinned `=1.13.8` requiring
-  `zip = "2"`, while the fixes require `zip >= 9`, whose API is
-  incompatible with that build script. PROVISIONAL: the waiver is
-  remediated by (1) an issue filed upstream against sherpa-rs,
-  (2) a maintained fork under lfgranja carrying the upgrade, and
-  (3) this entry's re-evaluation — and the deletion of the three
-  ignore blocks — as soon as either lands. Reversible by deleting
-  the three ignore blocks and this entry. Not MAJOR (no principle
-  change, no MUST weakened), not PATCH (new governance content).
+  Bump rationale: PATCH. Corrects the remediation record of
+  Exceptions Log entry 11 (PROVISIONAL zip waiver, added in
+  1.6.0); no principle is added, removed or redefined, no MUST
+  is weakened, and the waiver's scope is unchanged.
+
+  What is corrected:
+    - Entry 11 named the upstream project "sherpa-rs"; the
+      repository is `k2-fsa/sherpa-onnx`. The remediation now
+      cites the concrete artifacts: upstream issue
+      k2-fsa/sherpa-onnx#4058 (filed per the repo's bug
+      template), fork `lfgranja/sherpa-onnx` branch
+      `fix/rust-zip9-advisories` (commit 5821f23) and pull
+      request k2-fsa/sherpa-onnx#4059.
+    - Entry 11 stated the `zip >= 9` fix was "API-incompatible
+      with that build script". Verification disproved it:
+      with the manifest bumped to `zip = "9"` (resolved 9.0.4)
+      the unmodified build.rs compiles cleanly (`DOCS_RS=1
+      cargo check`, exit 0) — ZipArchive::new/extract are
+      unchanged in 9.x and the default feature set still
+      includes the decompressors. The blocker is only the
+      published `sherpa-onnx-sys` manifest pinning `zip ^2` —
+      a one-line bump, now proposed upstream. The waiver
+      itself stands: the pinned `=1.13.8` release we consume
+      still ships zip 2.x.
 
   Modified constraints:
-    - Exceptions Log: entry 11 appended (provisional advisory
-      waiver for the zip advisories).
-    - deny.toml: advisories gain the RUSTSEC-2026-0367/0368/0369
-      ignore blocks mirroring entry 11.
+    - Exceptions Log entry 11: remediation text corrected
+      (repo name, verified upgrade path, upstream links).
+    - deny.toml: the three ignore-block reasons carry the same
+      correction.
 
   Principles modified: none.
-  Sections added: none (one log entry).
+  Sections added: none.
   Sections removed: none.
   Renamed sections: none.
 
   Deferred / non-constitution:
-    - Re-evaluation trigger for entry 11: the upstream issue or
-      the lfgranja fork lands a `zip >= 9` upgrade; the ignore
-      blocks and this entry are deleted in the same commit.
-    - Cargo.lock holds `zip 2.6.1` (the latest 2.x), carried by
-      the same commit.
+    - Re-evaluation trigger unchanged: a sherpa-onnx release
+      carrying `zip >= 9` (from upstream PR #4059 or the fork)
+      lands; the three deny.toml ignore blocks and entry 11
+      are deleted in the same commit.
+    - Cargo.lock still holds `zip 2.6.1` (latest 2.x) pending
+      that release.
 
-  Source evidence: `cargo deny check advisories` output on this
-  workspace (2026-10-16): three advisory-database entries against
-  zip 2.4.2/2.6.1, each with "Solution: Upgrade to >=9.0.0";
-  sherpa-onnx-sys 1.13.8 build.rs extracts via the tar.bz2 branch
-  for every supported target and reaches ZipArchive::extract()
-  only for ".xcframework.zip" archives (iOS).
+  Source evidence: `DOCS_RS=1 cargo check` on sherpa-onnx-sys
+  1.13.8 with only the manifest bumped to `zip = "9"` (resolved
+  zip 9.0.4), 2026-10-16 — exit 0, no build.rs change needed;
+  upstream PR k2-fsa/sherpa-onnx#4059 opened from lfgranja fork
+  commit 5821f23. Prior `cargo deny check advisories` evidence
+  (three advisory entries, "Solution: Upgrade to >=9.0.0")
+  retained in entry 11's rationale.
 -->
 <!--
   SYNC IMPACT REPORT
@@ -855,15 +859,20 @@ drift. Each was authorized by the sole maintainer on 2026-10-01.
     build-script dependency of `sherpa-onnx-sys` 1.13.8 (none of its code is linked
     into any shipped artifact), the vulnerable extraction branch executes only for
     iOS `.xcframework.zip` archives — the supported targets (Linux host,
-    aarch64-linux-android) take the tar.bz2 branch — and no upgrade path exists:
-    `sherpa-onnx` is pinned `=1.13.8` requiring `zip = "2"`, while the advisories'
-    fix requires `zip >= 9`, whose API is incompatible with that build script. Risk
-    accepted as build-time-only, unreachable-path supply-chain surface. PROVISIONAL —
-    remediated by (1) an issue filed upstream against sherpa-rs, (2) a maintained
-    fork under `lfgranja` carrying the `zip >= 9` upgrade, and (3) this entry's
-    re-evaluation, and the deletion of the three ignore blocks, as soon as either
-    lands. Mechanical form: three `[[advisories.ignore]]` blocks in `deny.toml`
-    with the ids and this reason.
+    aarch64-linux-android) take the tar.bz2 branch — and the pinned `sherpa-onnx`
+    `=1.13.8` release ships the vulnerable `zip 2.x`. The upgrade path is verified
+    real: bumping the published manifest to `zip = "9"` (resolved 9.0.4) compiles
+    the unmodified build script cleanly (`DOCS_RS=1 cargo check`, exit 0), so the
+    blocker is only the published manifest pin, not the API. Risk accepted as
+    build-time-only, unreachable-path supply-chain surface. PROVISIONAL —
+    remediated by the upstream fix now proposed: issue
+    [k2-fsa/sherpa-onnx#4058](https://github.com/k2-fsa/sherpa-onnx/issues/4058)
+    and pull request
+    [k2-fsa/sherpa-onnx#4059](https://github.com/k2-fsa/sherpa-onnx/pull/4059)
+    (fork `lfgranja`, branch `fix/rust-zip9-advisories`, commit `5821f23`), plus
+    this entry's re-evaluation — and the deletion of the three ignore blocks — as
+    soon as a release carrying `zip >= 9` lands. Mechanical form: three
+    `[[advisories.ignore]]` blocks in `deny.toml` with the ids and this reason.
 
 Any new deviation is added here in the same commit that introduces it, and is treated as a
 minor amendment.
@@ -905,4 +914,4 @@ Where this constitution and a convenience conflict, this constitution wins and t
 either changed or proposed as an amendment. Where this constitution and the reference stack
 conflict, the maintainer decides, and the decision is logged.
 
-**Version**: 1.6.0 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-16
+**Version**: 1.6.1 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-16

@@ -2,38 +2,47 @@
   SYNC IMPACT REPORT
   ===================
   Amended: 2026-10-16
-  Version change: 1.6.0 -> 1.6.1
+  Version change: 1.6.1 -> 1.7.0
 
-  Bump rationale: PATCH. Corrects the remediation record of
-  Exceptions Log entry 11 (PROVISIONAL zip waiver, added in
-  1.6.0); no principle is added, removed or redefined, no MUST
-  is weakened, and the waiver's scope is unchanged.
+  Bump rationale: MINOR. One governance record retires
+  (Exceptions Log entry 11, its PROVISIONAL zip waiver now
+  discharged by a mechanical fix) and one is added (entry 12,
+  the vendored sherpa-onnx-sys override); the Technology Stack
+  MSRV line is refined. No principle is added, removed or
+  redefined, and no existing MUST is weakened. Not PATCH (new
+  governance content plus the retirement of an exception
+  record), not MAJOR (no principle change, no architecture
+  reversal).
 
-  What is corrected:
-    - Entry 11 named the upstream project "sherpa-rs"; the
-      repository is `k2-fsa/sherpa-onnx`. The remediation now
-      cites the concrete artifacts: upstream issue
-      k2-fsa/sherpa-onnx#4058 (filed per the repo's bug
-      template), fork `lfgranja/sherpa-onnx` branch
-      `fix/rust-zip9-advisories` (commit 5821f23) and pull
-      request k2-fsa/sherpa-onnx#4059.
-    - Entry 11 stated the `zip >= 9` fix was "API-incompatible
-      with that build script". Verification disproved it:
-      with the manifest bumped to `zip = "9"` (resolved 9.0.4)
-      the unmodified build.rs compiles cleanly (`DOCS_RS=1
-      cargo check`, exit 0) — ZipArchive::new/extract are
-      unchanged in 9.x and the default feature set still
-      includes the decompressors. The blocker is only the
-      published `sherpa-onnx-sys` manifest pinning `zip ^2` —
-      a one-line bump, now proposed upstream. The waiver
-      itself stands: the pinned `=1.13.8` release we consume
-      still ships zip 2.x.
+  What changed:
+    - Exceptions Log entry 11 DELETED: RUSTSEC-2026-0367 /
+      0368 / 0369 leave the dependency graph. The remediation
+      in place instead of the waiver: `[patch.crates-io]`
+      redirects `sherpa-onnx-sys` to a vendored copy of the
+      published 1.13.8 crate carrying the single-line
+      `zip = "9"` build-dependency fix; the lock resolves
+      zip 9.0.4; the three deny.toml ignore blocks are
+      deleted in the same commit. Upstream PR
+      k2-fsa/sherpa-onnx#4059 stays open for the eventual
+      crates.io release.
+    - Exceptions Log entry 12 APPENDED (PROVISIONAL): the
+      vendored override deviates from the crates.io-only
+      source rule of the supply-chain gate and is recorded as
+      accepted risk (build-time-only; provenance recorded).
+    - Technology Stack: the Rust MSRV line now scopes 1.85 to
+      workspace code and states the build-time requirement of
+      rustc >= 1.88 while `zip` 9 sits in the build graph.
 
   Modified constraints:
-    - Exceptions Log entry 11: remediation text corrected
-      (repo name, verified upgrade path, upstream links).
-    - deny.toml: the three ignore-block reasons carry the same
-      correction.
+    - Exceptions Log: entry 11 deleted; entry 12 appended.
+    - deny.toml: the three `[[advisories.ignore]]` blocks for
+      the zip advisories deleted (advisories no longer present
+      in the graph).
+    - Cargo.toml (root): new `[patch.crates-io]` stanza — the
+      mechanical form of entry 12.
+    - Technology Stack MSRV line refined (build-time 1.88).
+    - Vendored tree added: `vendor/sherpa-onnx-sys/` with
+      `PROVENANCE.md` (sha256, one-line diff, exit condition).
 
   Principles modified: none.
   Sections added: none.
@@ -41,20 +50,19 @@
   Renamed sections: none.
 
   Deferred / non-constitution:
-    - Re-evaluation trigger unchanged: a sherpa-onnx release
-      carrying `zip >= 9` (from upstream PR #4059 or the fork)
-      lands; the three deny.toml ignore blocks and entry 11
-      are deleted in the same commit.
-    - Cargo.lock still holds `zip 2.6.1` (latest 2.x) pending
-      that release.
+    - Upstream PR k2-fsa/sherpa-onnx#4059 remains open; when a
+      release carrying the fix lands, entry 12's own exit
+      condition applies (bump `crates/adapter-synthesis`,
+      delete the vendored tree + patch stanza + entry 12).
 
-  Source evidence: `DOCS_RS=1 cargo check` on sherpa-onnx-sys
-  1.13.8 with only the manifest bumped to `zip = "9"` (resolved
-  zip 9.0.4), 2026-10-16 — exit 0, no build.rs change needed;
-  upstream PR k2-fsa/sherpa-onnx#4059 opened from lfgranja fork
-  commit 5821f23. Prior `cargo deny check advisories` evidence
-  (three advisory entries, "Solution: Upgrade to >=9.0.0")
-  retained in entry 11's rationale.
+  Source evidence: Cargo.lock zip 9.0.4 resolved through the
+  `sherpa-onnx-sys` path patch (source-crate sha256
+  14bbeabb73f73f1c1f4a278af0ee9ae90a19f9727482027047fb9422fa14f8fe,
+  recorded in vendor/sherpa-onnx-sys/PROVENANCE.md);
+  `cargo deny check advisories` -> "advisories ok" with the
+  three ignore blocks deleted (2026-10-16); commits 2177c67
+  (vendor), 02164b6 (patch + lock), and the governance commit
+  recording this report.
 -->
 <!--
   SYNC IMPACT REPORT
@@ -568,7 +576,9 @@ provider — while admitting that one endpoint has no contract behind it.
 ## Additional Constraints
 
 ### Technology Stack
-- **Language**: Rust, Edition 2024, MSRV 1.85 (inherited from the reference stack)
+- **Language**: Rust, Edition 2024, MSRV 1.85 for workspace code (inherited from the reference
+  stack); the full build additionally requires rustc >= 1.88 — the `zip` 9 build-script dependency
+  of `sherpa-onnx-sys` (Exceptions Log entry 12)
 - **Build**: Cargo workspace; every member crate declares `[lints] workspace = true`
 - **App shell**: Tauri **2.12.1** (latest stable on the 2.x line as of 2026-10-01).
   `3.0.0-alpha.3` is available and is **not** to be taken: Principle IV permits pre-release only
@@ -851,28 +861,26 @@ drift. Each was authorized by the sole maintainer on 2026-10-01.
     tauri drops the dependency. Mechanical form: `[[advisories.ignore]]` in
     `deny.toml` with the id and this reason.
 
-11. **`zip` advisories waived PROVISIONALLY (RUSTSEC-2026-0367 / RUSTSEC-2026-0368 /
-    RUSTSEC-2026-0369, 2026-10-16)** — deviates from the advisory-free supply-chain
-    gate (Principle IV). Author: maintainer (2026-10-16), accepted in the commit that
-    records it. Reason: the three advisories all target `ZipArchive::extract()` /
-    stream extraction in the `zip` crate; `zip` reaches this workspace only as a
-    build-script dependency of `sherpa-onnx-sys` 1.13.8 (none of its code is linked
-    into any shipped artifact), the vulnerable extraction branch executes only for
-    iOS `.xcframework.zip` archives — the supported targets (Linux host,
-    aarch64-linux-android) take the tar.bz2 branch — and the pinned `sherpa-onnx`
-    `=1.13.8` release ships the vulnerable `zip 2.x`. The upgrade path is verified
-    real: bumping the published manifest to `zip = "9"` (resolved 9.0.4) compiles
-    the unmodified build script cleanly (`DOCS_RS=1 cargo check`, exit 0), so the
-    blocker is only the published manifest pin, not the API. Risk accepted as
-    build-time-only, unreachable-path supply-chain surface. PROVISIONAL —
-    remediated by the upstream fix now proposed: issue
-    [k2-fsa/sherpa-onnx#4058](https://github.com/k2-fsa/sherpa-onnx/issues/4058)
-    and pull request
-    [k2-fsa/sherpa-onnx#4059](https://github.com/k2-fsa/sherpa-onnx/pull/4059)
-    (fork `lfgranja`, branch `fix/rust-zip9-advisories`, commit `5821f23`), plus
-    this entry's re-evaluation — and the deletion of the three ignore blocks — as
-    soon as a release carrying `zip >= 9` lands. Mechanical form: three
-    `[[advisories.ignore]]` blocks in `deny.toml` with the ids and this reason.
+12. **`sherpa-onnx-sys` vendored override (zip 9, 2026-10-16)** — deviates from the
+    crates.io-only source rule of the supply-chain gate (Principle IV). Author:
+    maintainer (2026-10-16), accepted in the commit that records it — a human
+    decision on the flagged crate, and not a substitution: the vendored tree is the
+    same crate name and version (1.13.8) from the crates.io artifact, not a
+    lookalike. Reason: the published `sherpa-onnx-sys` 1.13.8 pins the vulnerable
+    `zip 2.x` (the now-retired entry 11); the fix is verified source-compatible
+    (`DOCS_RS=1 cargo check`, exit 0), proposed upstream, and not yet released —
+    waiting would leave RUSTSEC-2026-0367 / 0368 / 0369 in the graph. Mechanical
+    form: a vendored copy of the published crate at `vendor/sherpa-onnx-sys/` with
+    exactly one line changed in its manifest (`zip` 2 -> 9, a build-dependency),
+    wired via `[patch.crates-io]` in the root `Cargo.toml`; the source `.crate`
+    sha256, the diff and the exit condition are in
+    `vendor/sherpa-onnx-sys/PROVENANCE.md`. Risk accepted as build-time-only: `zip`
+    is a build-script dependency of the sys crate and nothing from it links into
+    shipped artifacts. Build-time note: `zip` 9 needs rustc >= 1.88 (Technology
+    Stack MSRV line). PROVISIONAL — exit condition: a released `sherpa-onnx`
+    shipping `zip >= 9`; then bump the dependency in
+    `crates/adapter-synthesis/Cargo.toml`, delete `vendor/sherpa-onnx-sys/` and the
+    `[patch.crates-io]` stanza, and delete this entry.
 
 Any new deviation is added here in the same commit that introduces it, and is treated as a
 minor amendment.
@@ -914,4 +922,4 @@ Where this constitution and a convenience conflict, this constitution wins and t
 either changed or proposed as an amendment. Where this constitution and the reference stack
 conflict, the maintainer decides, and the decision is logged.
 
-**Version**: 1.6.1 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-16
+**Version**: 1.7.0 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-16

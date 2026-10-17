@@ -370,12 +370,13 @@ object ShellHost {
      * where a platform or OEM build permits dismissal regardless of
      * the ongoing flag, the gesture reaches Rust and pauses first.
      * The `deleteIntentJson` parameter is reserved for a
-     * Rust-supplied token — deferred with the JNI publish bridge —
-     * and is recorded, never parsed, today.
+     * Rust-supplied token; the bridge is live, but until Rust
+     * supplies one the host ignores it and attaches its own
+     * swipe-away intent.
      *
      * @param mirrorJson JSON string of the MirrorState (wire form per contracts/shell-ipc.md).
      * @param deleteIntentJson reserved for a Rust-supplied swipe-away
-     * token; unused while the publish bridge is deferred.
+     * token; currently ignored — the host attaches its own.
      */
     @JvmStatic
     fun publishMirror(mirrorJson: String, deleteIntentJson: String?) {

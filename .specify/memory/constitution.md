@@ -1,6 +1,60 @@
 <!--
   SYNC IMPACT REPORT
   ===================
+  Amended: 2026-10-16
+  Version change: 1.5.0 -> 1.6.0
+
+  Bump rationale: MINOR. One governance record is added, which
+  neither adds, removes, nor redefines a principle and does not
+  weaken a MUST: Exceptions Log entry 11 (PROVISIONAL) waives
+  three advisory-database entries against the `zip` crate —
+  RUSTSEC-2026-0367 (SUID/SGID bits preserved during extraction),
+  RUSTSEC-2026-0368 (symlink targets escaping the destination) and
+  RUSTSEC-2026-0369 (permissions applied through symlinks) — all
+  three confined to ZipArchive::extract()/stream extraction. `zip`
+  reaches this workspace only as a build-script dependency of
+  `sherpa-onnx-sys` (none of its code is linked into any shipped
+  artifact), the vulnerable extraction branch runs only for iOS
+  `.xcframework.zip` archives (the supported targets — the Linux
+  host and aarch64-linux-android — take the tar.bz2 branch), and
+  no upgrade exists: `sherpa-onnx` is pinned `=1.13.8` requiring
+  `zip = "2"`, while the fixes require `zip >= 9`, whose API is
+  incompatible with that build script. PROVISIONAL: the waiver is
+  remediated by (1) an issue filed upstream against sherpa-rs,
+  (2) a maintained fork under lfgranja carrying the upgrade, and
+  (3) this entry's re-evaluation — and the deletion of the three
+  ignore blocks — as soon as either lands. Reversible by deleting
+  the three ignore blocks and this entry. Not MAJOR (no principle
+  change, no MUST weakened), not PATCH (new governance content).
+
+  Modified constraints:
+    - Exceptions Log: entry 11 appended (provisional advisory
+      waiver for the zip advisories).
+    - deny.toml: advisories gain the RUSTSEC-2026-0367/0368/0369
+      ignore blocks mirroring entry 11.
+
+  Principles modified: none.
+  Sections added: none (one log entry).
+  Sections removed: none.
+  Renamed sections: none.
+
+  Deferred / non-constitution:
+    - Re-evaluation trigger for entry 11: the upstream issue or
+      the lfgranja fork lands a `zip >= 9` upgrade; the ignore
+      blocks and this entry are deleted in the same commit.
+    - Cargo.lock holds `zip 2.6.1` (the latest 2.x), carried by
+      the same commit.
+
+  Source evidence: `cargo deny check advisories` output on this
+  workspace (2026-10-16): three advisory-database entries against
+  zip 2.4.2/2.6.1, each with "Solution: Upgrade to >=9.0.0";
+  sherpa-onnx-sys 1.13.8 build.rs extracts via the tar.bz2 branch
+  for every supported target and reaches ZipArchive::extract()
+  only for ".xcframework.zip" archives (iOS).
+-->
+<!--
+  SYNC IMPACT REPORT
+  ===================
   Amended: 2026-10-12
   Version change: 1.4.0 -> 1.5.0
 
@@ -793,6 +847,24 @@ drift. Each was authorized by the sole maintainer on 2026-10-01.
     tauri drops the dependency. Mechanical form: `[[advisories.ignore]]` in
     `deny.toml` with the id and this reason.
 
+11. **`zip` advisories waived PROVISIONALLY (RUSTSEC-2026-0367 / RUSTSEC-2026-0368 /
+    RUSTSEC-2026-0369, 2026-10-16)** — deviates from the advisory-free supply-chain
+    gate (Principle IV). Author: maintainer (2026-10-16), accepted in the commit that
+    records it. Reason: the three advisories all target `ZipArchive::extract()` /
+    stream extraction in the `zip` crate; `zip` reaches this workspace only as a
+    build-script dependency of `sherpa-onnx-sys` 1.13.8 (none of its code is linked
+    into any shipped artifact), the vulnerable extraction branch executes only for
+    iOS `.xcframework.zip` archives — the supported targets (Linux host,
+    aarch64-linux-android) take the tar.bz2 branch — and no upgrade path exists:
+    `sherpa-onnx` is pinned `=1.13.8` requiring `zip = "2"`, while the advisories'
+    fix requires `zip >= 9`, whose API is incompatible with that build script. Risk
+    accepted as build-time-only, unreachable-path supply-chain surface. PROVISIONAL —
+    remediated by (1) an issue filed upstream against sherpa-rs, (2) a maintained
+    fork under `lfgranja` carrying the `zip >= 9` upgrade, and (3) this entry's
+    re-evaluation, and the deletion of the three ignore blocks, as soon as either
+    lands. Mechanical form: three `[[advisories.ignore]]` blocks in `deny.toml`
+    with the ids and this reason.
+
 Any new deviation is added here in the same commit that introduces it, and is treated as a
 minor amendment.
 
@@ -833,4 +905,4 @@ Where this constitution and a convenience conflict, this constitution wins and t
 either changed or proposed as an amendment. Where this constitution and the reference stack
 conflict, the maintainer decides, and the decision is logged.
 
-**Version**: 1.5.0 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-12
+**Version**: 1.6.0 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-16

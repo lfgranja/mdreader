@@ -13,6 +13,29 @@ yanked = "deny"
 id = "RUSTSEC-2024-0370"
 reason = "compile-time-only proc macro in tauri's gtk chain; unmaintained status, no known vulnerability, no CVE; not linked into any shipped artifact (Exceptions Log entry 10)"
 
+# Exceptions Log entry 11 (constitution v1.6.0, PROVISIONAL): the zip
+# crate reaches this workspace only as a build-script dependency of
+# sherpa-onnx-sys — none of its code is linked into any shipped
+# artifact — and the vulnerable extraction path (ZipArchive::extract /
+# stream extraction) runs only for iOS .xcframework.zip archives; the
+# supported targets (Linux host, aarch64-linux-android) take the
+# tar.bz2 branch. No upgrade exists: sherpa-onnx =1.13.8 requires
+# zip ^2, while the fixes need zip >= 9 (API-incompatible with that
+# build script). Remediation tracked by an upstream issue + the
+# lfgranja fork carrying the upgrade; re-evaluate and delete these
+# blocks when either lands.
+[[advisories.ignore]]
+id = "RUSTSEC-2026-0367"
+reason = "build-script-only dependency of sherpa-onnx-sys; vulnerable extraction path unreachable on supported targets (iOS-only branch); no zip>=9 upgrade possible at sherpa-onnx =1.13.8 (Exceptions Log entry 11, PROVISIONAL)"
+
+[[advisories.ignore]]
+id = "RUSTSEC-2026-0368"
+reason = "build-script-only dependency of sherpa-onnx-sys; vulnerable extraction path unreachable on supported targets (iOS-only branch); no zip>=9 upgrade possible at sherpa-onnx =1.13.8 (Exceptions Log entry 11, PROVISIONAL)"
+
+[[advisories.ignore]]
+id = "RUSTSEC-2026-0369"
+reason = "build-script-only dependency of sherpa-onnx-sys; vulnerable extraction path unreachable on supported targets (iOS-only branch); no zip>=9 upgrade possible at sherpa-onnx =1.13.8 (Exceptions Log entry 11, PROVISIONAL)"
+
 [bans]
 deny = [
     { name = "tts-rs" },

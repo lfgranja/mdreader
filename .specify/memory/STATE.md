@@ -1,8 +1,13 @@
 # Session state — 004-ressoa-dogfood-build (shell bring-up wave)
 
-Updated: 2026-10-16 (Wave B device verification GREEN + user-heard audio
+Updated: 2026-10-17 (Wave B device verification GREEN + user-heard audio
 confirmed; zip-9 substitution complete — patch, lock, governance v1.8.0;
-verify.sh gates 1–4 PASS, gate-5 fixed; F1/F3 wiring plan set for wave-b4;
+verify.sh gates 1–4 PASS, gate-5 fixed; F1/F3 wiring IMPLEMENTED (wave-b4):
+player is_drained + 500 ms playback-watch task feeds session clock from
+backend clock, republishes at consumed-unit crossings, commands
+document-end teardown; host-fallback + idempotency tests green; Kotlin
+ShellHost.commandDocumentEnd landed; 5 new src-tauri tests + 3 player
+tests pass; awaiting device build/install + F1 end-transition check;
 upstream PR #4059 open).
 
 ## Position
@@ -43,6 +48,15 @@ upstream PR #4059 open).
     only persists bookmarks) — matters for the T051-06 section-change state.
     Fix rides the same watcher: publish when `consumed_units_at(position)`
     changes.
+  - **F1/F3 RESOLVED (wave-b4, 2026-10-17)**: `CpalBackend::is_drained`
+    (player) + 500 ms playback-watch task (src-tauri) feeds the session
+    clock from the backend clock, republishes at consumed-unit crossings,
+    and commands the document-end teardown via
+    `shell_jni::command_document_end_to_kotlin` → `ShellHost.commandDocumentEnd`
+    → `Residency.documentEnd` → `dispatch_document_end`. Host fallback
+    completes in-process; both paths idempotent. 5 src-tauri + 3 player
+    tests green. Remaining: Android build/install + on-device F1 end-transition
+    check + full verify.sh (gates 6–8 still pending).
   - F4 Stop re-posts nothing to the notification (content identical;
     MediaSession updates) — benign, noted.
   - Audio content flow CONFIRMED by the user's ears (pt-BR voice heard

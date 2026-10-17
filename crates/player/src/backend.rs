@@ -414,6 +414,23 @@ impl CpalBackend {
             .unwrap_or(0.0)
     }
 
+    /// Whether every enqueued speech sample has been consumed by
+    /// the stream — the end-of-document drain signal (F1).
+    ///
+    /// The play path enqueues the whole document's PCM in one
+    /// call before the stream starts, so an empty speech queue
+    /// with a non-zero audible position means the stream consumed
+    /// everything enqueued. A fresh backend (nothing played,
+    /// position at zero) and a stopped one (queue dropped,
+    /// position reset together) read `false`; a paused backend
+    /// keeps its unconsumed samples and reads `false` too. The
+    /// earcon short mix never counts: the drain is about the
+    /// speech queue the position clock advances on.
+    #[must_use]
+    pub fn is_drained(&self) -> bool {
+        drained(self.buffered_samples(), self.position_secs())
+    }
+
     /// The stream sample rate (always the declared rate).
     #[must_use]
     pub const fn sample_rate(&self) -> u32 {
@@ -427,6 +444,16 @@ impl Drop for CpalBackend {
             let _ignored = stream.pause();
         }
     }
+}
+
+/// The drain predicate [`CpalBackend::is_drained`] pins: an empty
+/// speech queue after audible progress. Both needles are
+/// load-bearing — the empty queue alone also matches a fresh or
+/// stopped backend, and the non-zero position alone matches a
+/// paused-at-progress one.
+#[must_use]
+fn drained(buffered_samples: usize, position_secs: f64) -> bool {
+    buffered_samples == 0 && position_secs > 0.0
 }
 
 #[cfg(test)]
@@ -465,6 +492,33 @@ mod tests {
         assert_eq!(consumed, 2);
         assert_eq!(out, [1.0, 2.0]);
         assert_eq!(queue.len(), 2);
+    }
+
+    #[test]
+    fn an_empty_queue_without_progress_is_not_drained() {
+        // The fresh backend and the stopped one both read
+        // `(empty, 0.0)`: nothing consumed yet, and a stop must
+        // never look like an end-of-document drain.
+        assert!(
+            !drained(0, 0.0),
+            "no audible progress yet — not an end-of-document drain"
+        );
+    }
+
+    #[test]
+    fn buffered_samples_hold_the_drain_back() {
+        assert!(
+            !drained(5, 3.0),
+            "unconsumed speech keeps the drain signal false"
+        );
+    }
+
+    #[test]
+    fn an_empty_queue_after_progress_is_drained() {
+        assert!(
+            drained(0, 10.36),
+            "an emptied speech queue after audible progress is the drain"
+        );
     }
 
     #[expect(

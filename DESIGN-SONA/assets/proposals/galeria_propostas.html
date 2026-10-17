@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Propostas de Logotipo — Ressoa · DESIGN-SONA</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  :root {
+    --void: #0B0F1A;
+    --stage: #141B2D;
+    --stage-elevated: #1B243B;
+    --voice: #F2F0E6;
+    --hush: #A9B8CE;
+    --blue: #8FD8E8;
+    --green: #5AD6A8;
+    --purple: #B9A6F5;
+    --border: #2A3042;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', system-ui, sans-serif; }
+  body { background: var(--void); color: var(--voice); line-height: 1.5; padding: 48px 24px 80px; max-width: 1400px; margin: 0 auto; }
+  header { margin-bottom: 48px; border-bottom: 1px solid var(--border); padding-bottom: 32px; }
+  .badge-row { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; border: 1px solid var(--border); background: rgba(143,216,232,0.1); color: var(--blue); }
+  .badge.pipeline { background: rgba(90,214,168,0.1); color: var(--green); border-color: rgba(90,214,168,0.3); }
+  h1 { font-size: 2.5rem; font-weight: 300; letter-spacing: -0.03em; margin-bottom: 12px; }
+  h1 strong { font-weight: 600; color: var(--blue); }
+  p.subtitle { color: var(--hush); font-size: 1.05rem; max-width: 860px; line-height: 1.6; }
+  
+  .pipeline-banner {
+    background: linear-gradient(135deg, rgba(20,27,45,0.9), rgba(11,15,26,0.95));
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px 24px;
+    margin-bottom: 40px;
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .pipeline-title { font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; color: var(--green); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+  .pipeline-steps { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; font-size: 0.85rem; color: var(--hush); font-family: 'IBM Plex Mono', monospace; }
+  .pipeline-step { background: rgba(255,255,255,0.04); padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08); }
+  .pipeline-arrow { color: var(--blue); }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 32px; }
+  .card { background: var(--stage); border: 1px solid var(--border); border-radius: 24px; overflow: hidden; transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease, box-shadow 0.25s ease; display: flex; flex-direction: column; }
+  .card:hover { transform: translateY(-6px); border-color: var(--blue); box-shadow: 0 20px 40px rgba(0,0,0,0.45); }
+  
+  .card-img-wrap { background: radial-gradient(circle at center, #111827 0%, #060911 100%); padding: 36px; display: flex; align-items: center; justify-content: center; position: relative; border-bottom: 1px solid var(--border); }
+  .card-img { width: 260px; height: 260px; object-fit: contain; border-radius: 20px; filter: drop-shadow(0 20px 35px rgba(0,0,0,0.7)); transition: transform 0.3s ease; }
+  .card:hover .card-img { transform: scale(1.03); }
+  
+  .card-content { padding: 28px; flex: 1; display: flex; flex-direction: column; }
+  .prop-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .prop-number { font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; color: var(--blue); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
+  .card-title { font-size: 1.35rem; font-weight: 600; color: var(--voice); margin-bottom: 12px; }
+  .card-desc { font-size: 0.92rem; color: var(--hush); line-height: 1.6; margin-bottom: 20px; flex: 1; }
+  
+  .materials-box { background: rgba(0,0,0,0.25); border-radius: 10px; padding: 12px 14px; margin-bottom: 18px; border: 1px solid rgba(255,255,255,0.06); font-size: 0.82rem; }
+  .materials-title { color: var(--voice); font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+  .materials-desc { color: var(--hush); }
+
+  .tag-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+  .tag { font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; padding: 4px 10px; border-radius: 8px; background: rgba(255,255,255,0.04); border: 1px solid var(--border); color: var(--hush); }
+  
+  .file-links { border-top: 1px solid var(--border); padding-top: 16px; font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; display: flex; justify-content: space-between; align-items: center; }
+  .file-links a { color: var(--blue); text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+  .file-links a:hover { text-decoration: underline; color: #fff; }
+  
+  /* Scale Test Section */
+  .scale-section { margin-top: 64px; border-top: 1px solid var(--border); padding-top: 48px; }
+  .scale-header { margin-bottom: 28px; }
+  .scale-header h2 { font-size: 1.6rem; font-weight: 500; margin-bottom: 8px; }
+  .scale-header p { color: var(--hush); font-size: 0.95rem; }
+  
+  .scale-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px; }
+  .scale-box { background: var(--stage); border: 1px solid var(--border); border-radius: 16px; padding: 20px; text-align: center; }
+  .scale-preview-row { display: flex; justify-content: center; align-items: flex-end; gap: 24px; padding: 24px 0 16px; }
+  .scale-label { font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: var(--hush); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="badge-row">
+    <span class="badge">DESIGN-SONA · Brand Identity v2.0.0</span>
+    <span class="badge pipeline">✦ Masterizado com Photocraft CLI (Studio Engine)</span>
+  </div>
+  <h1>Propostas de Logotipo para o <strong>Ressoa</strong></h1>
+  <p class="subtitle">
+    Cinco explorações conceituais com acabamento de design industrial de alta precisão (estética Apple / Bang & Olufsen / Braun).
+    A paleta acústica da Sona (Azul Turquesa, Verde Jade e Roxo Ametista) manifesta-se através de materiais tácteis, vidro translúcido, iluminação volumétrica e cáusticas de ressonância sobre fundo escuro OLED.
+  </p>
+</header>
+
+<div class="pipeline-banner">
+  <div class="pipeline-title">Pipeline de Masterização:</div>
+  <div class="pipeline-steps">
+    <span class="pipeline-step">1. Geração de Síntese 3D</span>
+    <span class="pipeline-arrow">➔</span>
+    <span class="pipeline-step">2. Smart Sharpen (Amount: 60, Radius: 1.0px)</span>
+    <span class="pipeline-arrow">➔</span>
+    <span class="pipeline-step">3. Curvas S-Tone (Realce de Profundidade OLED)</span>
+    <span class="pipeline-arrow">➔</span>
+    <span class="pipeline-step">4. Vibração Acústica (+18 Vibrance, +6 Sat)</span>
+    <span class="pipeline-arrow">➔</span>
+    <span class="pipeline-step">5. Exportação PNG 1024px @ 300 DPI</span>
+  </div>
+</div>
+
+<div class="grid">
+
+  <!-- Proposta 1 -->
+  <div class="card">
+    <div class="card-img-wrap">
+      <img src="proposta-1-ressonador-canonico.png" alt="Proposta 1: O Ressonador Canônico" class="card-img">
+    </div>
+    <div class="card-content">
+      <div class="prop-meta">
+        <div class="prop-number">Proposta 01</div>
+        <span class="badge">Canônica</span>
+      </div>
+      <h3 class="card-title">O Ressonador Canônico</h3>
+      <p class="card-desc">
+        A fusão simétrica entre a câmara de ressonância acústica e as ondas de Fourier. 
+        Três fitas de luz sinestésica fluem no interior de um corpo usinado em obsidiana mate, convergindo harmonicamente ao redor de uma pérola central de marfim acústico polido.
+      </p>
+      <div class="materials-box">
+        <div class="materials-title">✦ Acabamento & Materiais</div>
+        <div class="materials-desc">Moldura em titânio/obsidiana usinada fosca, fitas em vidro volumétrico luminescente e pérola central em marfim polido.</div>
+      </div>
+      <div class="tag-row">
+        <span class="tag">Equilibrado</span>
+        <span class="tag">Safe Zone 66dp</span>
+        <span class="tag">Ícone Oficial</span>
+      </div>
+      <div class="file-links">
+        <a href="proposta-1-ressonador-canonico.png" target="_blank">↗ Ver PNG Original 1024px</a>
+        <a href="proposta-1-ressonador-canonico.svg" target="_blank">↗ Ver Vetor Base SVG</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Proposta 2 -->
+  <div class="card">
+    <div class="card-img-wrap">
+      <img src="proposta-2-fitas-etwahl.png" alt="Proposta 2: As Três Fitas do Etwahl" class="card-img">
+    </div>
+    <div class="card-content">
+      <div class="prop-meta">
+        <div class="prop-number">Proposta 02</div>
+        <span class="badge">Fluida</span>
+      </div>
+      <h3 class="card-title">As Três Fitas do Etwahl</h3>
+      <p class="card-desc">
+        Minimalismo orgânico sem anel de contenção exterior. 
+        Três ondas tridimensionais esculpidas em vidro translúcido flutuam livremente no vácuo acústico, ancoradas por pingentes de afinação cromados nas extremidades que definem a frequência de cada tom.
+      </p>
+      <div class="materials-box">
+        <div class="materials-title">✦ Acabamento & Materiais</div>
+        <div class="materials-desc">Vidro borosilicato translúcido com cáusticas internas de refração, nós terminais cromados espelhados.</div>
+      </div>
+      <div class="tag-row">
+        <span class="tag">Puro & Fluido</span>
+        <span class="tag">Sem Contenção</span>
+        <span class="tag">Acústica Pura</span>
+      </div>
+      <div class="file-links">
+        <a href="proposta-2-fitas-etwahl.png" target="_blank">↗ Ver PNG Original 1024px</a>
+        <a href="proposta-2-fitas-etwahl.svg" target="_blank">↗ Ver Vetor Base SVG</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Proposta 3 -->
+  <div class="card">
+    <div class="card-img-wrap">
+      <img src="proposta-3-concha-harmonica.png" alt="Proposta 3: A Concha Harmônica" class="card-img">
+    </div>
+    <div class="card-content">
+      <div class="prop-meta">
+        <div class="prop-number">Proposta 03</div>
+        <span class="badge">Monograma</span>
+      </div>
+      <h3 class="card-title">A Concha Harmônica ("R")</h3>
+      <p class="card-desc">
+        Lettermark tipográfico e arquitetura biológica. A coluna vertical em marfim fosco representa a linha de leitura do documento (o cursor do motor Rust), enquanto as três ondas acústicas curvam-se em laços que formam simultaneamente a letra "R" e uma cóclea auditiva.
+      </p>
+      <div class="materials-box">
+        <div class="materials-title">✦ Acabamento & Materiais</div>
+        <div class="materials-desc">Haste guia em marfim cerâmico chanfrado com borda acetinada, ondas concêntricas luminescentes e nó central esférico.</div>
+      </div>
+      <div class="tag-row">
+        <span class="tag">Monograma "R"</span>
+        <span class="tag">Cóclea Auditiva</span>
+        <span class="tag">Assinatura Forte</span>
+      </div>
+      <div class="file-links">
+        <a href="proposta-3-concha-harmonica.png" target="_blank">↗ Ver PNG Original 1024px</a>
+        <a href="proposta-3-concha-harmonica.svg" target="_blank">↗ Ver Vetor Base SVG</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Proposta 4 -->
+  <div class="card">
+    <div class="card-img-wrap">
+      <img src="proposta-4-ressonador-helmholtz.png" alt="Proposta 4: A Fenda de Helmholtz" class="card-img">
+    </div>
+    <div class="card-content">
+      <div class="prop-meta">
+        <div class="prop-number">Proposta 04</div>
+        <span class="badge">Física Acústica</span>
+      </div>
+      <h3 class="card-title">A Fenda de Helmholtz</h3>
+      <p class="card-desc">
+        Representação escultural da voz nascendo do silêncio. Uma esfera acústica em cerâmica marfim fosca abriga o silêncio da leitura e pulsa internamente em turquesa; pela sua fenda calibrada, projeta-se um feixe volumétrico em leque harmônico.
+      </p>
+      <div class="materials-box">
+        <div class="materials-title">✦ Acabamento & Materiais</div>
+        <div class="materials-desc">Cerâmica acetinada fosca marfim com acabamento tátil soft-touch, lâminas de difusão acústica com iluminação interna.</div>
+      </div>
+      <div class="tag-row">
+        <span class="tag">Ressonador Real</span>
+        <span class="tag">Voz do Silêncio</span>
+        <span class="tag">Assimetria Dinâmica</span>
+      </div>
+      <div class="file-links">
+        <a href="proposta-4-ressonador-helmholtz.png" target="_blank">↗ Ver PNG Original 1024px</a>
+        <a href="proposta-4-ressonador-helmholtz.svg" target="_blank">↗ Ver Vetor Base SVG</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Proposta 5 -->
+  <div class="card">
+    <div class="card-img-wrap">
+      <img src="proposta-5-espectro-geometrico.png" alt="Proposta 5: O Espectro Geométrico" class="card-img">
+    </div>
+    <div class="card-content">
+      <div class="prop-meta">
+        <div class="prop-number">Proposta 05</div>
+        <span class="badge">HfG Ulm / Racional</span>
+      </div>
+      <h3 class="card-title">O Espectro Geométrico</h3>
+      <p class="card-desc">
+        Racionalismo matemático e física ondulatória. Inspirado nas figuras nodais de Chladni e na sinalética da escola de Ulm (Otl Aicher), ondas senoidais tridimensionais cruzam-se sobre a linha guia horizontal DIN gerando um padrão de ressonância perpétua.
+      </p>
+      <div class="materials-box">
+        <div class="materials-title">✦ Acabamento & Materiais</div>
+        <div class="materials-desc">Tubos metálicos anodizados com reflexos cáusticos, nó central de calibração perolado e eixo de montagem micrométrico.</div>
+      </div>
+      <div class="tag-row">
+        <span class="tag">Padrão Chladni</span>
+        <span class="tag">Engenharia Rust</span>
+        <span class="tag">Rigor Geométrico</span>
+      </div>
+      <div class="file-links">
+        <a href="proposta-5-espectro-geometrico.png" target="_blank">↗ Ver PNG Original 1024px</a>
+        <a href="proposta-5-espectro-geometrico.svg" target="_blank">↗ Ver Vetor Base SVG</a>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Scale Test Section -->
+<section class="scale-section">
+  <div class="scale-header">
+    <h2>Teste de Escala e Reconhecimento no Android</h2>
+    <p>Simulação da legibilidade e retenção de silhueta das 5 propostas em diferentes escalas de interface (Quick Settings 24px, Dock 48px, App Drawer 72px e Notificação 128px).</p>
+  </div>
+  <div class="scale-grid">
+    <div class="scale-box">
+      <div class="prop-number">Proposta 01</div>
+      <div class="scale-preview-row">
+        <img src="proposta-1-ressonador-canonico.png" style="width:24px;height:24px;border-radius:4px;">
+        <img src="proposta-1-ressonador-canonico.png" style="width:48px;height:48px;border-radius:8px;">
+        <img src="proposta-1-ressonador-canonico.png" style="width:72px;height:72px;border-radius:12px;">
+      </div>
+      <div class="scale-label">24px · 48px · 72px</div>
+    </div>
+    <div class="scale-box">
+      <div class="prop-number">Proposta 02</div>
+      <div class="scale-preview-row">
+        <img src="proposta-2-fitas-etwahl.png" style="width:24px;height:24px;border-radius:4px;">
+        <img src="proposta-2-fitas-etwahl.png" style="width:48px;height:48px;border-radius:8px;">
+        <img src="proposta-2-fitas-etwahl.png" style="width:72px;height:72px;border-radius:12px;">
+      </div>
+      <div class="scale-label">24px · 48px · 72px</div>
+    </div>
+    <div class="scale-box">
+      <div class="prop-number">Proposta 03</div>
+      <div class="scale-preview-row">
+        <img src="proposta-3-concha-harmonica.png" style="width:24px;height:24px;border-radius:4px;">
+        <img src="proposta-3-concha-harmonica.png" style="width:48px;height:48px;border-radius:8px;">
+        <img src="proposta-3-concha-harmonica.png" style="width:72px;height:72px;border-radius:12px;">
+      </div>
+      <div class="scale-label">24px · 48px · 72px</div>
+    </div>
+    <div class="scale-box">
+      <div class="prop-number">Proposta 04</div>
+      <div class="scale-preview-row">
+        <img src="proposta-4-ressonador-helmholtz.png" style="width:24px;height:24px;border-radius:4px;">
+        <img src="proposta-4-ressonador-helmholtz.png" style="width:48px;height:48px;border-radius:8px;">
+        <img src="proposta-4-ressonador-helmholtz.png" style="width:72px;height:72px;border-radius:12px;">
+      </div>
+      <div class="scale-label">24px · 48px · 72px</div>
+    </div>
+    <div class="scale-box">
+      <div class="prop-number">Proposta 05</div>
+      <div class="scale-preview-row">
+        <img src="proposta-5-espectro-geometrico.png" style="width:24px;height:24px;border-radius:4px;">
+        <img src="proposta-5-espectro-geometrico.png" style="width:48px;height:48px;border-radius:8px;">
+        <img src="proposta-5-espectro-geometrico.png" style="width:72px;height:72px;border-radius:12px;">
+      </div>
+      <div class="scale-label">24px · 48px · 72px</div>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>

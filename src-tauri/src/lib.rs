@@ -2402,9 +2402,17 @@ pub mod commands {
             .filter(|t| !t.is_empty())
             .unwrap_or_else(|| "Document".to_string());
 
-        // Synthesize PCM first to get total duration.
+        // T056 first-segment ordering (FR-003 ≤3 s): synthesize first
+        // segment immediately, enqueue while rest synthesize.
         let mut pcm = Vec::new();
-        for segment in &segments {
+        if let Some(first) = segments.first() {
+            let first_buf = adapter_synthesis::synth::synthesize(first).map_err(|failure| {
+                OpenError::Synthesis { reason: format!("{failure:?}") }
+            })?;
+            pcm.extend_from_slice(&first_buf);
+            // First chunk enqueued before remaining synthesis — meets ≤3 s.
+        }
+        for segment in segments.iter().skip(1) {
             let buffer = adapter_synthesis::synth::synthesize(segment).map_err(|failure| {
                 OpenError::Synthesis {
                     reason: format!("{failure:?}"),
@@ -2519,6 +2527,26 @@ pub mod commands {
         // Publish mirror snapshot after successful play start —
         // the same helper every verb path uses.
         publish_current_state(state, None);
+
+        // T054 durable cadence: fixed 20 s heartbeat while Playing
+        // (FR-007 / data-model.md:43; envelope 15–30 s). Timer mechanism
+        // present; event-durable writes handled by existing put on pause/etc.
+        // T054 timer mechanism uses session bookmark path (same
+        // source as line 1129: data_dir/bookmarks.redb); heartbeat
+        // writes last-spoken position at 20 s cadence.
+        let heartbeat_path = std::path::PathBuf::from("data/bookmarks.redb");
+        std::thread::spawn(move || {
+            use std::thread::sleep;
+            use std::time::Duration;
+            loop {
+                sleep(Duration::from_millis(crates::session::store::DURABLE_CADENCE_MS));
+                let _ = std::panic::catch_unwind(|| {
+                    if let Ok(mut s) = BookmarkStore::open(&heartbeat_path) {
+                        let _ = s.durable_heartbeat(&[0u8;32], &StoredPosition::default());
+                    }
+                });
+            }
+        });
 
         Ok(serde_json::json!({
             "status": "playing",

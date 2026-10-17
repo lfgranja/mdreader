@@ -1,0 +1,36 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:translateX="4"
+        android:translateY="2">
+        <!-- Onda 3: Roxo Ametista (Song of Celerity) -->
+        <path
+            android:pathData="M40,23 C68,23 82,36 82,52 C82,68 68,76 75,92"
+            android:strokeColor="#B9A6F5"
+            android:strokeWidth="5"
+            android:strokeLineCap="round"/>
+        <!-- Onda 2: Verde Jade (Aria of Perseverance) -->
+        <path
+            android:pathData="M38,31 C60,31 74,41 74,53 C74,65 58,68 44,68 C36,68 30,74 30,82"
+            android:strokeColor="#5AD6A8"
+            android:strokeWidth="5"
+            android:strokeLineCap="round"/>
+        <!-- Onda 1: Azul Turquesa (Hymn of Valor) -->
+        <path
+            android:pathData="M38,40 C52,40 64,47 64,55 C64,62 54,67 48,64 C44,62 42,56 46,51 C49,47 56,48 57,52"
+            android:strokeColor="#8FD8E8"
+            android:strokeWidth="4.5"
+            android:strokeLineCap="round"/>
+        <!-- Pérola Central de Marfim -->
+        <path
+            android:pathData="M50,54m-4.2,0a4.2,4.2 0,1 1,8.4 0a4.2,4.2 0,1 1,-8.4 0"
+            android:fillColor="#F2F0E6"/>
+        <!-- Coluna de Leitura Vertical em Marfim -->
+        <path
+            android:pathData="M29.5,21 L29.5,21 A5.5,5.5 0,0 1 35,26.5 L35,81.5 A5.5,5.5 0,0 1 29.5,87 L29.5,87 A5.5,5.5 0,0 1 24,81.5 L24,26.5 A5.5,5.5 0,0 1 29.5,21 Z"
+            android:fillColor="#F2F0E6"/>
+    </group>
+</vector>

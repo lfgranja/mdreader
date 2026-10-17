@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <defs>
+    <style>
+      .bg { fill: #0B0F1A; }
+      .axis { stroke: #55688F; stroke-width: 1.5; stroke-dasharray: 2 3; opacity: 0.6; }
+      .w-blue   { stroke: #8FD8E8; stroke-width: 4.5; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+      .w-green  { stroke: #5AD6A8; stroke-width: 4.5; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+      .w-purple { stroke: #B9A6F5; stroke-width: 4.5; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+      .core-w   { fill: #F2F0E6; }
+    </style>
+  </defs>
+
+  <!-- Fundo OLED Dark Sona -->
+  <rect width="100" height="100" class="bg" rx="22"/>
+
+  <!-- Eixo Sutil de Construção Geométrica DIN -->
+  <line x1="16" y1="50" x2="84" y2="50" class="axis"/>
+
+  <!-- Onda 1: Superior (Azul Turquesa - Amplitude Dupla) -->
+  <path d="M 18 50 Q 34 22, 50 50 Q 66 78, 82 50" class="w-blue"/>
+
+  <!-- Onda 2: Central Contínua Tangente (Verde Jade - Defasagem Invertida) -->
+  <path d="M 18 50 Q 34 78, 50 50 Q 66 22, 82 50" class="w-green"/>
+
+  <!-- Onda 3: Roxo Ametista (Onda Harmônica Envolvente de Baixa Frequência) -->
+  <path d="M 22 50 C 22 28, 78 28, 78 50 C 78 72, 22 72, 22 50" class="w-purple"/>
+
+  <!-- Nós de Cruzamento Harmônico (Nodal Points) -->
+  <circle cx="50" cy="50" r="4.5" class="core-w"/>
+  <circle cx="18" cy="50" r="3" fill="#8FD8E8"/>
+  <circle cx="82" cy="50" r="3" fill="#5AD6A8"/>
+</svg>

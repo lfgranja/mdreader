@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Propostas de Interface UI/UX — Ressoa · DESIGN-SONA</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+  :root {
+    --void: #0B0F1A;
+    --stage: #141B2D;
+    --stage-elevated: #1B243B;
+    --voice: #F2F0E6;
+    --hush: #A9B8CE;
+    --blue: #8FD8E8;
+    --green: #5AD6A8;
+    --purple: #B9A6F5;
+    --gold: #E8C46A;
+    --warn: #FFD400;
+    --fail: #FF4D63;
+    --border: #2A3042;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif; }
+  body { background: var(--void); color: var(--voice); line-height: 1.5; padding: 48px 24px 100px; max-width: 1440px; margin: 0 auto; }
+  header { margin-bottom: 48px; border-bottom: 1px solid var(--border); padding-bottom: 32px; }
+  .badge-row { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; border: 1px solid var(--border); background: rgba(143,216,232,0.1); color: var(--blue); }
+  .badge.craft { background: rgba(90,214,168,0.1); color: var(--green); border-color: rgba(90,214,168,0.3); }
+  h1 { font-size: 2.6rem; font-weight: 300; letter-spacing: -0.03em; margin-bottom: 12px; }
+  h1 strong { font-weight: 600; color: var(--blue); }
+  p.subtitle { color: var(--hush); font-size: 1.05rem; max-width: 860px; line-height: 1.6; }
+  
+  .pipeline-banner {
+    background: linear-gradient(135deg, rgba(20,27,45,0.9), rgba(11,15,26,0.95));
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px 24px;
+    margin-bottom: 44px;
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .pipeline-title { font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; color: var(--green); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+  .pipeline-steps { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; font-size: 0.85rem; color: var(--hush); font-family: 'IBM Plex Mono', monospace; }
+  .pipeline-step { background: rgba(255,255,255,0.04); padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08); }
+  .pipeline-arrow { color: var(--blue); }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 36px; }
+  .card { background: var(--stage); border: 1px solid var(--border); border-radius: 24px; overflow: hidden; transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease, box-shadow 0.25s ease; display: flex; flex-direction: column; }
+  .card:hover { transform: translateY(-6px); border-color: var(--blue); box-shadow: 0 24px 50px rgba(0,0,0,0.55); }
+  
+  .card-img-wrap { background: radial-gradient(circle at center, #111827 0%, #060911 100%); padding: 36px 24px; display: flex; align-items: center; justify-content: center; position: relative; border-bottom: 1px solid var(--border); }
+  .card-img { width: 100%; max-width: 340px; height: auto; border-radius: 18px; filter: drop-shadow(0 24px 45px rgba(0,0,0,0.85)); transition: transform 0.3s ease; }
+  .card:hover .card-img { transform: scale(1.02); }
+  
+  .card-content { padding: 30px; flex: 1; display: flex; flex-direction: column; }
+  .prop-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .prop-number { font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; color: var(--blue); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
+  .card-title { font-size: 1.4rem; font-weight: 600; color: var(--voice); margin-bottom: 12px; }
+  .card-desc { font-size: 0.94rem; color: var(--hush); line-height: 1.6; margin-bottom: 20px; flex: 1; }
+  
+  .feature-box { background: rgba(0,0,0,0.25); border-radius: 12px; padding: 14px 16px; margin-bottom: 20px; border: 1px solid rgba(255,255,255,0.06); font-size: 0.84rem; }
+  .feature-title { color: var(--voice); font-weight: 600; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+  .feature-desc { color: var(--hush); line-height: 1.5; }
+
+  .tag-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 22px; }
+  .tag { font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; padding: 4px 10px; border-radius: 8px; background: rgba(255,255,255,0.04); border: 1px solid var(--border); color: var(--hush); }
+  
+  .file-links { border-top: 1px solid var(--border); padding-top: 16px; font-family: 'IBM Plex Mono', monospace; font-size: 0.82rem; display: flex; justify-content: space-between; align-items: center; }
+  .file-links a { color: var(--blue); text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+  .file-links a:hover { text-decoration: underline; color: #fff; }
+
+  /* Invariants verification box */
+  .invariants-box {
+    margin-top: 60px;
+    background: var(--stage);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 32px;
+  }
+  .invariants-box h3 { font-size: 1.3rem; margin-bottom: 16px; color: var(--voice); }
+  .invariants-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+  .inv-item { background: rgba(0,0,0,0.3); padding: 16px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.05); }
+  .inv-item strong { display: block; color: var(--blue); font-size: 0.85rem; font-family: 'IBM Plex Mono', monospace; margin-bottom: 4px; }
+  .inv-item p { font-size: 0.82rem; color: var(--hush); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="badge-row">
+    <span class="badge">DESIGN-SONA · Interface Architecture v2.1.0</span>
+    <span class="badge craft">✦ Suíte Storytold (PhotoCraft + VectorCraft + FigCraft)</span>
+  </div>
+  <h1>Propostas de Interface UI/UX para o <strong>Ressoa</strong></h1>
+  <p class="subtitle">
+    Cinco explorações arquiteturais de interface móvel para o leitor de documentos técnicos em Rust.
+    Projetadas sobre os pilares invioláveis do <code>DESIGN-SONA</code>: foco eyes-free, ausência de teleprompter/body text, telemetria semafórica estrita, escada fechada de velocidades e a presença da Dupla Assinatura oficial.
+  </p>
+</header>
+
+<div class="pipeline-banner">
+  <div class="pipeline-title">Pipeline Storytold Utilizado:</div>
+  <div class="pipeline-steps">
+    <span class="pipeline-step">1. FigCraft (Wireframe & Grade M3)</span>
+    <span class="pipeline-arrow">➔</span>
+    <span class="pipeline-step">2. Render Studio 3D (Texturas Táteis)</span>
+    <span class="pipeline-arrow">➔</span>
+    <span class="pipeline-step">3. PhotoCraft CLI (Curvas S-Tone & Smart Sharpen)</span>
+    <span class="pipeline-arrow">➔</span>
+    <span class="pipeline-step">4. VectorCraft CLI (Extração Vetorial SVG)</span>
+  </div>
+</div>
+
+<div style="background:rgba(143,216,232,0.06);border:1px solid rgba(143,216,232,0.3);border-radius:16px;padding:20px 24px;margin-bottom:36px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;">
+  <div>
+    <span class="badge" style="background:#8FD8E8;color:#0B0F1A;font-weight:700;margin-bottom:8px;">★ DECISÃO OFICIAL HOMOLOGADA</span>
+    <h3 style="font-size:1.15rem;color:#F2F0E6;margin-bottom:4px;">Composição Multi-Modo: <strong>A Lente Sinestésica da Sona</strong> como Interface Padrão (Default)</h3>
+    <p style="color:#A9B8CE;font-size:0.88rem;max-width:880px;line-height:1.5;">
+      O player principal adota a elegância e fluidez da <strong>Lente Sinestésica (P2)</strong>; o <strong>Cockpit Eyes-Free (P4)</strong> assume o modo veicular com alvos ≥72dp e aviso 3.0s; o <strong>Terminal Suíço (P3)</strong> comanda o sumário lateral com fita-marfim; o <strong>Console Braun (P1)</strong> integra o Selo do Ressonador no mostrador de buffer; e a <strong>Matriz (P5)</strong> opera no diálogo de diagnóstico técnico.
+    </p>
+  </div>
+  <span class="badge craft" style="font-size:0.8rem;padding:6px 14px;">Svelte 5 Runes Architecture</span>
+</div>
+
+<div class="grid">
+
+  <!-- Proposta 2 (DEFAULT) -->
+  <div class="card" style="border: 2px solid var(--blue); box-shadow: 0 0 35px rgba(143,216,232,0.18);">
+    <div class="card-img-wrap" style="position:relative;">
+      <span style="position:absolute;top:14px;right:14px;background:var(--blue);color:var(--void);font-weight:700;font-size:0.72rem;padding:4px 10px;border-radius:6px;font-family:'IBM Plex Mono',monospace;z-index:2;box-shadow:0 2px 8px rgba(0,0,0,0.5);">★ DEFAULT (MODO PADRÃO)</span>
+      <img src="ui-proposta-2-lente-sinestesica.png" alt="Proposta 2: A Lente Sinestésica da Sona" class="card-img">
+    </div>
+    <div class="card-content">
+      <div class="prop-meta">
+        <div class="prop-number" style="color:var(--blue);">Proposta 02 · Player Padrão</div>
+        <span class="badge" style="background:rgba(143,216,232,0.15);color:var(--blue);border-color:var(--blue);">Ethereal Glass / Luxury</span>
+      </div>
+      <h3 class="card-title">A Lente Sinestésica da Sona</h3>
+      <p class="card-desc">
+        Fluidez acústica, iluminação volumétrica e luxo contemporâneo (estética Apple e Bang & Olufsen).
+        Uma fita sonora de 4px ondula na borda superior refletindo o envelope RMS da voz sintetizada. O monograma oficial <strong>"R" (Concha Harmônica)</strong> emite luminescência suave no topo.
+      </p>
+      <div class="feature-box">
+        <div class="feature-title">✦ Papel no Sistema: Tela Principal Diária</div>
+        <div class="feature-desc">
+          Cards com double-bezel em vidro fosco (<code>backdrop-blur</code> profundo); envelope harmônico tricolor com playhead perolado marfim; ilha flutuante de controle na base com excelente alcance do polegar.
+        </div>
+      </div>
+      <div class="tag-row">
+        <span class="tag">Interface Padrão</span>
+        <span class="tag">Fita RMS 4px</span>
+        <span class="tag">Frosted Glass</span>
+        <span class="tag">Ilha Flutuante</span>
+      </div>
+      <div class="file-links">
+        <a href="ui-proposta-2-lente-sinestesica.png" target="_blank">↗ Ver Imagem Original 1024px</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Proposta 1 -->
+  <div class="card">
+    <div class="card-img-wrap">
+      <img src="ui-proposta-1-console-braun.png" alt="Proposta 1: O Console Eletroacústico" class="card-img">
+    </div>
+    <div class="card-content">
+      <div class="prop-meta">
+        <div class="prop-number">Proposta 01 · Mostrador Tátil</div>
+        <span class="badge">Braun / Dieter Rams</span>
+      </div>
+      <h3 class="card-title">O Console Eletroacústico</h3>
+      <p class="card-desc">
+        Inspirada na tradição de aparelhos de áudio alemães de alta fidelidade (Braun, Nagra, Teenage Engineering).
+        O centro da tela abriga um mostrador tátil circular rebaixado com o <strong>Selo do Motor Acústico (O Ressonador)</strong> atuando como VU meter acústico e buffer ring em dourado quente.
+      </p>
+      <div class="feature-box">
+        <div class="feature-title">✦ Papel no Sistema: Mostrador Central & Buffer Ring</div>
+        <div class="feature-desc">
+          Mostrador de taxa em arco rotativo analógico com a escada fechada <code>[0.75x ... 4.0x]</code>; botões de transporte mecânico usinados com chanfros de relevo; tipografia técnica limpa DIN.
+        </div>
+      </div>
+      <div class="tag-row">
+        <span class="tag">Hardware Tactility</span>
+        <span class="tag">Selo do Ressonador</span>
+        <span class="tag">Buffer Ring Concêntrico</span>
+      </div>
+      <div class="file-links">
+        <a href="ui-proposta-1-console-braun.png" target="_blank">↗ Ver Imagem Original 1024px</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Proposta 3 -->
+  <div class="card">
+    <div class="card-img-wrap">
+      <img src="ui-proposta-3-terminal-editorial.png" alt="Proposta 3: O Terminal Tipográfico Editorial" class="card-img">
+    </div>
+    <div class="card-content">
+      <div class="prop-meta">
+        <div class="prop-number">Proposta 03</div>
+        <span class="badge">Müller-Brockmann / Suíço</span>
+      </div>
+      <h3 class="card-title">O Terminal Tipográfico Editorial</h3>
+      <p class="card-desc">
+        A sobriedade e disciplina do design editorial suíço. Estrutura assimétrica em grade 2-campo (~62% / ~38%): à esquerda, uma fita física de marfim (<code>ribbon-marker</code>) indica o avanço no documento, com tipografia imponente em marfim acústico.
+      </p>
+      <div class="feature-box">
+        <div class="feature-title">✦ Papel no Sistema: Painel Lateral de Navegação & Bookmarks</div>
+        <div class="feature-desc">
+          Ausência total de distrações visuais; coluna da direita com cards técnicos modulares exibindo taxa ativa (1.50x em dourado), estado <code>FLOWING</code> com microssensores e timestamp do bookmark.
+        </div>
+      </div>
+      <div class="tag-row">
+        <span class="tag">Sumário Lateral</span>
+        <span class="tag">Grade Suíça</span>
+        <span class="tag">Ribbon Bookmark</span>
+        <span class="tag">Zero Distração</span>
+      </div>
+      <div class="file-links">
+        <a href="ui-proposta-3-terminal-editorial.png" target="_blank">↗ Ver Imagem Original 1024px</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Proposta 4 -->
+  <div class="card" style="border: 1px solid rgba(255,212,0,0.4);">
+    <div class="card-img-wrap" style="position:relative;">
+      <span style="position:absolute;top:14px;right:14px;background:var(--warn);color:var(--void);font-weight:700;font-size:0.72rem;padding:4px 10px;border-radius:6px;font-family:'IBM Plex Mono',monospace;z-index:2;box-shadow:0 2px 8px rgba(0,0,0,0.5);">🚗 MODO COCKPIT EYES-FREE</span>
+      <img src="ui-proposta-4-cockpit-eyes-free.png" alt="Proposta 4: O Cockpit Eyes-Free" class="card-img">
+    </div>
+    <div class="card-content">
+      <div class="prop-meta">
+        <div class="prop-number" style="color:var(--warn);">Proposta 04 · HUD Veicular</div>
+        <span class="badge" style="background:rgba(255,212,0,0.15);color:var(--warn);border-color:rgba(255,212,0,0.4);">Eyes-Free / Condução</span>
+      </div>
+      <h3 class="card-title">O Cockpit Eyes-Free</h3>
+      <p class="card-desc">
+        Desenhado com prioridade absoluta para segurança em deslocamento e direção de veículos (condução e commuting).
+        Alvos de toque massivos (> 72dp) e feedback semafórico de alta visibilidade periférica.
+      </p>
+      <div class="feature-box">
+        <div class="feature-title">✦ Papel no Sistema: Modo Veicular & Alerta de Pausa 3.0s</div>
+        <div class="feature-desc">
+          Anel gigante em turquesa (<code>#8FD8E8</code>) indicando fluxo contínuo de áudio; indicador circular de pausa em âmbar (<code>#FFD400</code>) com contagem regressiva explícita de <strong>3.0s</strong> (TTL inviolável); botões de salto -15s / +30s de fácil alcance.
+        </div>
+      </div>
+      <div class="tag-row">
+        <span class="tag">Segurança Veicular</span>
+        <span class="tag">Aviso 3.0s TTL</span>
+        <span class="tag">Toque Massivo 72dp</span>
+      </div>
+      <div class="file-links">
+        <a href="ui-proposta-4-cockpit-eyes-free.png" target="_blank">↗ Ver Imagem Original 1024px</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Proposta 5 -->
+  <div class="card">
+    <div class="card-img-wrap" style="position:relative;">
+      <span style="position:absolute;top:14px;right:14px;background:rgba(90,214,168,0.2);color:var(--green);border:1px solid rgba(90,214,168,0.4);font-weight:600;font-size:0.7rem;padding:3px 8px;border-radius:6px;font-family:'IBM Plex Mono',monospace;z-index:2;">🔬 MODAL DIAGNÓSTICO</span>
+      <img src="ui-proposta-5-matriz-telemetria.png" alt="Proposta 5: A Matriz de Telemetria e Diagnóstico" class="card-img">
+    </div>
+    <div class="card-content">
+      <div class="prop-meta">
+        <div class="prop-number" style="color:var(--green);">Proposta 05 · Telemetria</div>
+        <span class="badge craft">Rust Core / Otl Aicher</span>
+      </div>
+      <h3 class="card-title">A Matriz de Telemetria (Rust)</h3>
+      <p class="card-desc">
+        A síntese entre o rigor técnico da engenharia Rust e a sinalética científica de Otl Aicher (Munique 1972).
+        Painel de instrumentação avançada que expõe com orgulho a telemetria determinística do motor acústico.
+      </p>
+      <div class="feature-box">
+        <div class="feature-title">✦ Papel no Sistema: Diálogo Técnico & Inspeção de Buffer</div>
+        <div class="feature-desc">
+          Exibição do pipeline <code>AAudio 22050 Hz mono f32</code>; medidor de latência de buffer (42ms) e pre-roll de 60s em malha circular de Chladni com o Selo do Ressonador; verificação do hash BLAKE3 do documento e integridade do bookmark.
+        </div>
+      </div>
+      <div class="tag-row">
+        <span class="tag">Modal de Telemetria</span>
+        <span class="tag">Hash BLAKE3</span>
+        <span class="tag">Otl Aicher DIN</span>
+      </div>
+      <div class="file-links">
+        <a href="ui-proposta-5-matriz-telemetria.png" target="_blank">↗ Ver Imagem Original 1024px</a>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Invariants Section -->
+<section class="invariants-box">
+  <h3>Conformidade Estrita com os Invariantes do Sistema (DESIGN-SONA)</h3>
+  <div class="invariants-grid">
+    <div class="inv-item">
+      <strong>Zero Body Text (FR-028 / SC-030)</strong>
+      <p>Nenhuma das propostas exibe corpo do texto do documento. O usuário escuta o conteúdo e vê apenas metadados e navegação de seções.</p>
+    </div>
+    <div class="inv-item">
+      <strong>Controle de Taxa Fechado (SC-027)</strong>
+      <p>Escada estrita <code>[0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 4.0]</code>. Sem inputs contínuos ou valores flutuantes arbitrários.</p>
+    </div>
+    <div class="inv-item">
+      <strong>Semáforo Operacional Estrito</strong>
+      <p>Turquesa = fluxo ativo; Dourado = taxa ativa; Amarelo = aviso de pausa 3s; Vermelho = falha permanente. O verde é proibido no player.</p>
+    </div>
+    <div class="inv-item">
+      <strong>Preservação OLED Dark</strong>
+      <p>Todas as propostas usam fundo <code>#0B0F1A</code> puro com zero emissão de luz nos pixels inativos, poupando bateria no Android.</p>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>

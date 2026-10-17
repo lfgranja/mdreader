@@ -253,6 +253,8 @@ impl From<redb::CommitError> for Error {
 /// The redb-backed bookmark + settings store
 /// (storage-schema.md): atomic, crash-safe writes
 /// (FR-004) over one database file.
+pub const DURABLE_CADENCE_MS: u64 = 20000; // 20 s fixed (FR-007 / data-model.md:43; envelope 15–30 s)
+
 pub struct BookmarkStore {
     /// The redb database file.
     db: Database,
@@ -301,6 +303,16 @@ impl BookmarkStore {
     ///
     /// [`Error::Storage`] when the write
     /// transaction cannot begin or commit.
+    /// Durable heartbeat — fixed 20 s cadence write
+    /// (FR-007 / data-model.md:43; envelope 15–30 s).
+    /// Called by session timer while Playing; also
+    /// by event-durable writes (pause, focus-loss,
+    /// device-removal, section-change, Stop/DocumentEnd,
+    /// app-background).
+    pub fn durable_heartbeat(&mut self, fingerprint: &[u8; 32], position: &StoredPosition) -> Result<(), Error> {
+        self.put(fingerprint, position.clone())
+    }
+
     pub fn put(&mut self, fingerprint: &[u8; 32], position: StoredPosition) -> Result<(), Error> {
         let write_tx = self.db.begin_write()?;
         {

@@ -71,19 +71,19 @@
 
 ## R6 — Conjunto fechado de cores (Princípio VII da constituição)
 
-**O que é:** adicionar amarelo a outra função, ou vermelho a outro estado, ou verde como "repouso" = violação do conjunto fechado; requer edição coordenada + bump semântico + docs.
+**O que é:** adicionar cores arbitrárias fora da paleta homologada viola o Princípio VII; o verde na interface do player é terminantemente proibido.
 
-**Mitigação:** documentar a regra no token spec (`DESIGN/tokens.md` §4); verificar em review que nenhuma cor é usada fora de sua função.
+**Mitigação:** a introdução do token de marca `--sona-aria` (`#5AD6A8`) é restrita e confinada à **camada de identidade (Onda 2)**; no player e na notificação, a ausência de verde é mantida como invariante. Qualquer nova cor requer edição coordenada + bump semântico + docs.
 
-**Verificação:** review de design antes de cada commit; `clippy` + `cargo deny` não pegam isso — é regra de design, não de código.
+**Verificação:** code review de design antes de cada commit; validação de tokens em `tokens.md`.
 
-**Referência:** `constitution.md` §VII; `DESIGN.md` §3; `DESIGN/tokens.md` §4.
+**Referência:** `constitution.md` §VII; `briefing-logo-ressoa-design-sona.md`; `DESIGN-SONA/tokens.md`.
 
 ---
 
 ## R7 — Light mode não especificado
 
-**O que é:** apenas dark (`#0A0A0A`) está definido. Se usuário ativar tema claro, a paleta pode falhar (amarelo/vermelho podem perder contraste com fundo claro).
+**O que é:** apenas dark (`#0B0F1A`) está definido. Se usuário ativar tema claro, a paleta pode falhar (amarelo/vermelho podem perder contraste com fundo claro).
 
 **Mitigação:** não implementar light mode até que seja especificado; se implementado, requer re-verificação completa de todos os contrastes.
 
@@ -101,4 +101,44 @@
 
 ---
 
-*Nota:* todos os riscos são **documentados, não eliminados**. O design B aceita esses riscos como restrições do produto e os mitiga por disciplina (conjunto fechado, MediaStyle padrão, nenhum custom RemoteViews, nenhum green, nenhum marquee inventado, acessibilidade eyes-free obrigatória). A decisão de aceitar cada risco é parte do design — não é uma falha que o usuário pode corrigir depois.
+## R9 — Risco de Confusão de Marca com LoL (Sona)
+
+**O que é:** O lore e a sinestesia musical de Sona são fontes conceituais. Se a logo evocasse fantasia medieval de videogame, a credibilidade técnica como leitor de documentos em Rust seria comprometida.
+
+**Mitigação:** A marca pública é **Ressoa** (`ressona.dev`), não Sona. O logotipo utiliza geometria pura de ondas senoidais de Fourier, arcos matemáticos e sinalética inspirada na HfG Ulm / Otl Aicher, sem adereços figurativos ou estéticas de entretenimento gamer.
+
+**Verificação:** Homologação visual contra o checklist de anti-padrões do briefing v2.0.0.
+
+---
+
+## R10 — Fusão das Três Ondas em Baixa Resolução (16px)
+
+**O que é:** Em favicons ou chips de status in-app (16×16 px), três curvas coloridas próximas poderiam fundir-se em uma massa borrada de pixels.
+
+**Mitigação:** Cada onda tem espessura de 4.5 unidades vetoriais com **espaçamento negativo (*gap*) de 3.5 unidades** entre elas. Isso garante que mesmo em 16px haja uma linha nítida de separação física entre as curvas.
+
+**Verificação:** Teste de rasterização 16×16 px e 32×32 px com inspeção visual pixel a pixel.
+
+---
+
+## R11 — Violação da Inviolabilidade da Notificação Android (Lock-Screen)
+
+**O que é:** Tentação de exibir o logotipo com as ondas coloridas na notificação `MediaStyle` do Android, violando o princípio FR-028/FR-029 de respeitar a atenção e não roubar espaço do título do documento.
+
+**Mitigação:** O componente `NotificationSurface` proíbe expressamente a presença do logotipo da marca. A logo vive apenas no cabeçalho in-app da `StatusView`, no ícone do lançador e na web.
+
+**Verificação:** Gate de verificação em dispositivo real (Wave B / Wave C).
+
+---
+
+## R12 — Degradação no Android Material You (Themed Icons Monocromático)
+
+**O que é:** Em launchers modernos (Android 13+), o usuário pode ativar ícones temáticos baseados no wallpaper, descartando as cores azul, verde e roxo. Se a distinção do logo dependesse exclusivamente da cor, o símbolo perderia o sentido.
+
+**Mitigação:** O asset `ic_launcher_monochrome.xml` utiliza recortes vetoriais transparentes com espaçamento de respiro. As três ondas são identificáveis pela sua morfologia e posição espacial, garantindo que o ícone funcione com 100% de inteligibilidade em silhueta plana 1-bit.
+
+**Verificação:** Inspeção do Vector Drawable compilado no emulador ou dispositivo com tema dinâmico ativado.
+
+---
+
+*Nota:* todos os riscos são **documentados, não eliminados**. O design SONA v2.0.0 aceita esses riscos como restrições do produto e os mitiga por disciplina (conjunto fechado, MediaStyle padrão, separação de camadas Marca vs. Player, gaps matemáticos de onda e acessibilidade eyes-free).

@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <defs>
+    <style>
+      .bg { fill: #0B0F1A; }
+      .spine { stroke: #F2F0E6; stroke-width: 5; stroke-linecap: round; fill: none; }
+      .w-blue   { stroke: #8FD8E8; stroke-width: 4.5; stroke-linecap: round; fill: none; }
+      .w-green  { stroke: #5AD6A8; stroke-width: 4.5; stroke-linecap: round; fill: none; }
+      .w-purple { stroke: #B9A6F5; stroke-width: 4.5; stroke-linecap: round; fill: none; }
+      .core { fill: #F2F0E6; }
+    </style>
+  </defs>
+
+  <!-- Fundo OLED Dark Sona -->
+  <rect width="100" height="100" class="bg" rx="22"/>
+
+  <!-- Coluna Acústica Vertical / Haste de Leitura (Marfim #F2F0E6) -->
+  <line x1="26" y1="20" x2="26" y2="80" class="spine"/>
+
+  <!-- Onda 1: Arco Superior Externo (Azul Turquesa - Foco) -->
+  <path d="M 26 24 C 52 24, 76 30, 76 46 C 76 60, 56 64, 40 64" class="w-blue"/>
+
+  <!-- Onda 2: Arco Médio Confluente (Verde Jade - Cura) -->
+  <path d="M 26 36 C 46 36, 64 40, 64 49 C 64 57, 50 58, 26 58" class="w-green"/>
+
+  <!-- Onda 3: Feixe Diagonal Acústico / Perna do "R" (Roxo Ametista - Ritmo) -->
+  <path d="M 40 60 C 52 64, 64 72, 78 80" class="w-purple"/>
+
+  <!-- Nós Nodal de Foco -->
+  <circle cx="26" cy="24" r="3.5" class="core"/>
+  <circle cx="26" cy="80" r="3.5" class="core"/>
+  <circle cx="78" cy="80" r="3" fill="#B9A6F5"/>
+</svg>

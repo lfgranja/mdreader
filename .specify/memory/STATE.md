@@ -103,7 +103,10 @@ governance) · `9208578` (v1.8.0 bzip2-1.0.6 admission).
 - Device: Wave A + Wave B mirror path VERIFIED (start/pause/stop publishes;
   notification content + flags); F1–F4 bench findings recorded.
 - Upstream: PR #4059 open (no upstream CI on PRs); zip 9 source-compatible.
-- Brand / Design: Briefing de logo v2.0.0 aprovado pelo usuário (tríade acústica
-  Sona: Azul #8FD8E8, Verde #5AD6A8, Roxo #B9A6F5); assets SVG gerados em
-  DESIGN-SONA/assets/logo/; brand.md e tokens.md sincronizados.
+- Brand / Design: Dupla Assinatura homologada (1º Concha Harmônica "R" primária,
+  2º Ressonador Canônico selo motor). Arquitetura UI/UX multi-modo homologada:
+  "A Lente Sinestésica" (P2) como Default Player; Cockpit Eyes-Free (P4) para
+  condução; Terminal Suíço (P3) para sumário; Matriz Rust (P5) para diagnóstico.
+  Assets PNG e SVG gerados via Storytold (PhotoCraft + VectorCraft + FigCraft).
+
 

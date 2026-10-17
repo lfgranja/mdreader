@@ -154,13 +154,14 @@ pub fn publish_mirror_to_kotlin(
             .map_err(|error| format!("shell JNI: delete-intent allocation failed: {error}"))?,
         None => JString::default(),
     };
-    env.call_static_method(
-        class,
-        "publishMirror",
-        "(Ljava/lang/String;Ljava/lang/String;)V",
-        &[JValue::Object(&mirror), JValue::Object(&delete_intent)],
-    )
-    .map_err(|error| format!("shell JNI: ShellHost.publishMirror failed: {error}"))?;
+    let _ = env
+        .call_static_method(
+            class,
+            "publishMirror",
+            "(Ljava/lang/String;Ljava/lang/String;)V",
+            &[JValue::Object(&mirror), JValue::Object(&delete_intent)],
+        )
+        .map_err(|error| format!("shell JNI: ShellHost.publishMirror failed: {error}"))?;
     Ok(())
 }
 /// No-op on non-Android targets.

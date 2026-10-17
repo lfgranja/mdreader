@@ -384,4 +384,28 @@ object ShellHost {
         val deleteIntent = resident?.swipeAwayIntent()
         mirror.publishJson(mirrorJson, deleteIntent)
     }
+
+    /**
+     * Commands the FR-032f document-end teardown from Rust (F1):
+     * the drain signal of the document's last speech sample.
+     *
+     * With a resident host present the teardown is
+     * [Residency.documentEnd] — the classified
+     * [Residency.INTENT_DOCUMENT_END] event travels to Rust (where
+     * the session machine records the completion and closes any
+     * open resume offer) and the resident surface is released.
+     * With no resident host (an unwired or already-released shell)
+     * the classified event still travels: the session must
+     * complete either way, and there is no surface left to
+     * release.
+     */
+    @JvmStatic
+    fun commandDocumentEnd() {
+        val current = resident
+        if (current == null) {
+            forwardIntent(Residency.INTENT_DOCUMENT_END)
+            return
+        }
+        current.documentEnd()
+    }
 }

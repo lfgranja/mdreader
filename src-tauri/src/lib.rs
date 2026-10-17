@@ -2407,7 +2407,9 @@ pub mod commands {
         let mut pcm = Vec::new();
         if let Some(first) = segments.first() {
             let first_buf = adapter_synthesis::synth::synthesize(first).map_err(|failure| {
-                OpenError::Synthesis { reason: format!("{failure:?}") }
+                OpenError::Synthesis {
+                    reason: format!("{failure:?}"),
+                }
             })?;
             pcm.extend_from_slice(&first_buf);
             // First chunk enqueued before remaining synthesis — meets ≤3 s.
@@ -2539,10 +2541,12 @@ pub mod commands {
             use std::thread::sleep;
             use std::time::Duration;
             loop {
-                sleep(Duration::from_millis(crates::session::store::DURABLE_CADENCE_MS));
+                sleep(Duration::from_millis(
+                    crates::session::store::DURABLE_CADENCE_MS,
+                ));
                 let _ = std::panic::catch_unwind(|| {
                     if let Ok(mut s) = BookmarkStore::open(&heartbeat_path) {
-                        let _ = s.durable_heartbeat(&[0u8;32], &StoredPosition::default());
+                        let _ = s.durable_heartbeat(&[0u8; 32], &StoredPosition::default());
                     }
                 });
             }

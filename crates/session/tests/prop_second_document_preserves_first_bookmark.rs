@@ -15,7 +15,7 @@
 use proptest::prelude::*;
 
 use engine_core::closed::SessionEnd;
-use session::store::{clear_bookmark, BookmarkStore, StoredPosition};
+use session::store::{BookmarkStore, StoredPosition, clear_bookmark};
 
 /// Arbitrary 32-byte content fingerprint (blake3-256).
 fn fingerprint_strategy() -> impl Strategy<Value = [u8; 32]> {

@@ -2548,7 +2548,11 @@ pub mod commands {
                     if let Ok(mut s) = session::store::BookmarkStore::open(&heartbeat_path) {
                         let _ = s.durable_heartbeat(
                             &[0u8; 32],
-                            &session::store::StoredPosition::default(),
+                            &session::store::StoredPosition {
+                                offset_secs: 0.0,
+                                first_yield_ms: 0,
+                                end_kind: engine_core::closed::SessionEnd::Paused,
+                            },
                         );
                     }
                 });

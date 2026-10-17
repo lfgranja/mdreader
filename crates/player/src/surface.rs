@@ -74,6 +74,7 @@
 //! contract's snake_case wire keys.
 
 use engine_core::closed::TransportState;
+pub use doc_structure::Heading;
 
 /// The transient auto-dismiss window (FR-028e):
 /// exactly 3 s.
@@ -87,21 +88,6 @@ use engine_core::closed::TransportState;
 /// the reader chooses to swipe it away, stops the
 /// resident component, or the document ends (FR-032f).
 pub const TRANSIENT_DISMISS_MS: u64 = 3000;
-
-/// One ordered document heading (FR-028b) — the
-/// runtime input the T061b headings provider supplies
-/// to [`SurfaceResolver::resolve`].
-#[derive(Debug, Clone, PartialEq)]
-pub struct Heading {
-    /// The heading's spoken position, in seconds. The
-    /// provider supplies the list ordered ascending by
-    /// this position, one heading per position.
-    pub position_secs: f64,
-    /// The heading's title — the section title the
-    /// surface shows while the position is at or after
-    /// this heading and before the next one.
-    pub title: String,
-}
 
 /// The progress indication (FR-013 / FR-028a) — and
 /// nothing else: never elapsed or remaining time.
@@ -283,7 +269,8 @@ pub struct SurfaceSnapshot {
 /// (SC-035 / FR-003): it carries the position the
 /// Rust module reports and nothing the module does
 /// not. The wire form is exactly the snake_case keys
-/// `transport`, `position_secs`, and `progress`, with
+/// `transport`, `position_secs`, `progress_label` (when
+/// determinate), and `progress`, with
 /// the progress externally tagged
 /// (`{"determinate": {…}}` / `"indeterminate"`).
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
@@ -298,6 +285,10 @@ pub struct MirrorState {
     /// The progress indication (FR-028a), determinate
     /// iff the duration was known at session start.
     pub progress: Progress,
+    /// The pt-BR content-offset label, absent when progress
+    /// is indeterminate.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub progress_label: Option<String>,
 }
 
 /// The notification-surface content resolver (T061) —

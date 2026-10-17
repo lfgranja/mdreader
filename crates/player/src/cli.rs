@@ -6,8 +6,9 @@
 
 use crate::position::PositionClock;
 use crate::rate::{step_down, step_up};
-use crate::skip::skip_clamped;
+use crate::skip::skip_section;
 use crate::transport::{PlaybackRate, SkipDirection, TransportState};
+use crate::surface::Heading;
 use thiserror::Error;
 use tracing::{debug, instrument};
 
@@ -47,9 +48,9 @@ pub enum ShellVerb {
     /// per press in the voice-selection order
     /// (FR-018b / FR-024).
     CycleVoicePrev,
-    /// Skip forward ±5.0 s.
+    /// Skip to the next section boundary, or +10 s when sectionless.
     SkipForward,
-    /// Skip backward ±5.0 s.
+    /// Skip to the previous section boundary, or −10 s when sectionless.
     SkipBackward,
     /// Resume at stored position.
     ResumeAtStored,
@@ -84,9 +85,9 @@ impl std::fmt::Display for ShellVerb {
     }
 }
 
-/// Helper for skip verbs — the skip actions are exactly
-/// ±5.0 s, measured against the position at the moment the
-/// control was pressed (FR-018).
+/// Helper for skip verbs — the live skip actions select the
+/// previous/next section boundary, falling back to ±10 s
+/// only for sectionless documents (FR-002).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ShellVariant {
     /// Skip forward variant.
@@ -512,11 +513,10 @@ fn transition(transport: TransportState, verb: ShellVerb) -> Result<Transition, 
 /// per data-model.md `PlaybackSession`.
 ///
 /// The session is created either over a document of known
-/// duration ([`with_duration`](Self::with_duration)) — the
-/// determinate-progress total (FR-028c) that bounds every skip
-/// (FR-018) — or with no duration knowledge
-/// ([`new`](Self::new)), whose skips clamp at the 0.0 floor only
-/// and never reach an end-state.
+/// duration ([`with_duration`](Self::with_duration)) or with
+/// no duration knowledge ([`new`](Self::new)). Live skips use
+/// section boundaries, the ±10 s sectionless fallback, and the
+/// known duration as their end clamp (FR-002).
 #[derive(Debug)]
 pub struct PlaybackSession {
     /// The authoritative position clock (FR-002).
@@ -527,10 +527,12 @@ pub struct PlaybackSession {
     rate: PlaybackRate,
     /// The known document duration in seconds (FR-028c):
     /// `Some` for a [`with_duration`](Self::with_duration)
-    /// session — the skip clamp ceiling (FR-018) and the
+    /// session — the skip clamp ceiling (FR-002) and the
     /// determinate-progress total — `None` for
     /// [`new`](Self::new), where the total is unknown.
     duration: Option<f64>,
+    /// Ordered section boundaries for the active document.
+    headings: Vec<Heading>,
 }
 
 impl PlaybackSession {
@@ -545,6 +547,7 @@ impl PlaybackSession {
             transport: TransportState::Paused,
             rate: PlaybackRate::R1_0,
             duration: None,
+            headings: Vec::new(),
         }
     }
 
@@ -553,7 +556,7 @@ impl PlaybackSession {
     /// document of known duration `duration_secs`
     /// (FR-028c): the duration fixes determinate progress
     /// for the whole session and bounds every skip at
-    /// `[0.0, duration]` (FR-018). A negative duration is
+    /// `[0.0, duration]` (FR-002). A negative duration is
     /// clamped to the 0.0 position floor — no document
     /// is shorter than its start.
     #[must_use]
@@ -563,32 +566,40 @@ impl PlaybackSession {
             transport: TransportState::Paused,
             rate: PlaybackRate::R1_0,
             duration: Some(duration_secs.max(0.0)),
+            headings: Vec::new(),
         }
+    }
+
+    /// Set the active document's bounded timeline and section boundaries.
+    /// Live skip commands use these session-start facts to select a
+    /// boundary and clamp the landing at the document ends (FR-002).
+    pub fn set_document_structure(&mut self, duration_secs: f64, headings: Vec<Heading>) {
+        self.duration = Some(duration_secs.max(0.0));
+        self.headings = headings;
     }
 
     /// The session's known document duration (FR-028c):
     /// `Some` for a [`with_duration`](Self::with_duration)
     /// session — the determinate-progress total and the
-    /// skip clamp ceiling (FR-018) — `None` for
-    /// [`new`](Self::new), whose skips clamp at the 0.0
-    /// floor only and never reach an end-state.
+    /// skip clamp ceiling (FR-002) — `None` for
+    /// [`new`](Self::new), whose sectionless skips clamp at
+    /// the 0.0 floor.
     #[must_use]
     pub const fn duration_secs(&self) -> Option<f64> {
         self.duration
     }
 
-    /// The ±5.0 s skip landing for a press from the current
-    /// position (FR-018): the canonical clamped core
-    /// ([`skip_clamped`](crate::skip::skip_clamped)) against
-    /// the session's known duration ceiling. A session with
-    /// no declared duration clamps at the 0.0 floor only —
-    /// there is no end to reach, so the ceiling is +∞ (the
-    /// identity for the `.min` clamp inside `skip_clamped`).
+    /// The section-boundary or sectionless ±10 s landing for
+    /// a press from the current position (FR-002), clamped to
+    /// the known document duration when present.
     fn skip_landing(&self, direction: SkipDirection) -> f64 {
-        match self.duration {
-            Some(duration) => skip_clamped(self.clock.position_secs(), direction, duration),
-            None => skip_clamped(self.clock.position_secs(), direction, f64::INFINITY),
-        }
+        let duration = self.duration.unwrap_or(f64::INFINITY);
+        skip_section(
+            self.clock.position_secs(),
+            &self.headings,
+            direction,
+            duration,
+        )
     }
 
     /// Snapshot of the current session state.
@@ -650,11 +661,9 @@ impl PlaybackSession {
                 debug!("cycle voice — same-state landing (single engine)");
             }
             Transition::SkipForward => {
-                // FR-018: exactly +5.0 s against the
-                // position at the moment the control
-                // was pressed, clamped to
-                // [0.0, duration] on a session with a
-                // known duration (FR-028c). A forward
+                // FR-002: land at the next section boundary,
+                // or exactly +10 s for a sectionless document,
+                // clamped to the known duration. A forward
                 // skip that reaches or passes the end
                 // lands at exactly the duration in the
                 // PAUSED end-state — completion is
@@ -672,27 +681,18 @@ impl PlaybackSession {
                         "skip forward reached the end — landed paused at the duration (FR-018)"
                     );
                 } else {
-                    let position = self.clock.skip_forward();
+                    self.clock = PositionClock::new(landing);
+                    let position = landing;
                     debug!(position, "skip forward");
                 }
             }
             Transition::SkipBackward => {
-                // FR-018: exactly −5.0 s against the
-                // press-time position, clamped at the
-                // 0.0 floor and, on a session with a
-                // known duration, at the duration
-                // ceiling; the transport never changes.
+                // FR-002: land at the previous section boundary,
+                // or exactly −10 s for a sectionless document,
+                // clamped at the document ends.
                 let landing = self.skip_landing(SkipDirection::Backward);
-                let position = self.clock.skip_back();
-                // A position already past the duration
-                // ceiling (a progress feed beyond the
-                // end) is pulled back to the clamped
-                // landing; the ordinary backward skip
-                // already lands at the unclamped core.
-                if position > landing {
-                    self.clock = PositionClock::new(landing);
-                }
-                debug!(position = self.clock.position_secs(), "skip backward");
+                self.clock = PositionClock::new(landing);
+                debug!(position = landing, "skip backward");
             }
             Transition::ChooseEngine => {
                 // Placeholder: engine selection is handled by the
@@ -733,7 +733,6 @@ impl Default for PlaybackSession {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::position::SKIP_STEP_SECS;
 
     #[test]
     fn new_session_defaults_to_paused_at_zero() {
@@ -782,11 +781,11 @@ mod tests {
     }
 
     #[test]
-    fn skip_forward_moves_five_seconds() {
+    fn sectionless_skip_forward_moves_ten_seconds() {
         let mut session = PlaybackSession::new();
         assert!(session.execute(ShellVerb::Play).is_ok());
         assert!(session.execute(ShellVerb::SkipForward).is_ok());
-        assert_eq!(session.snapshot().position_secs, SKIP_STEP_SECS);
+        assert_eq!(session.snapshot().position_secs, 10.0);
     }
 
     #[test]

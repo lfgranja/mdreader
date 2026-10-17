@@ -115,7 +115,8 @@ proptest! {
         position in position_strategy(),
     ) {
         let position = position.min(duration);
-        let mut session = PlaybackSession::with_headings(duration, headings.clone());
+        let mut session = PlaybackSession::with_duration(duration);
+        session.set_headings(headings.clone());
         let _ = session.execute(ShellVerb::Play);
         session.on_audible_progress(position);
         let snapshot = session.execute(ShellVerb::SkipForward).unwrap();
@@ -151,7 +152,8 @@ proptest! {
         position in position_strategy(),
     ) {
         let position = position.min(duration);
-        let mut session = PlaybackSession::with_headings(duration, headings.clone());
+        let mut session = PlaybackSession::with_duration(duration);
+        session.set_headings(headings.clone());
         let _ = session.execute(ShellVerb::Play);
         session.on_audible_progress(position);
         let snapshot = session.execute(ShellVerb::SkipBackward).unwrap();

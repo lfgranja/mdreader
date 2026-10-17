@@ -40,3 +40,13 @@ allow_attributes = "deny"
 allow_attributes_without_reason = "deny"
 wildcard_dependencies = "deny"
 multiple_crate_versions = "deny"
+
+# Exceptions Log entry 12 (PROVISIONAL): vendored `sherpa-onnx-sys` carrying the
+# single-line build-dependency fix zip 2 -> 9, which clears RUSTSEC-2026-0367 /
+# 0368 / 0369 (fixed only in zip >= 9). Upstream fix proposed as
+# k2-fsa/sherpa-onnx#4059; not yet released. Remove this stanza together with
+# `vendor/sherpa-onnx-sys/` when a release ships the fix — the vendored
+# directory's PROVENANCE.md carries the sha256, the diff and the exit
+# condition.
+[patch.crates-io]
+sherpa-onnx-sys = { path = "vendor/sherpa-onnx-sys" }

@@ -1,63 +1,51 @@
-# Session state — 004-ressoa-dogfood-build (implementation + HOST GREEN)
+# Session state — 004-ressoa-dogfood-build (shell bring-up wave)
 
-Updated: 2026-10-16 (T048 host gates, T049 manifest/purity, T050 gate 9 all green; T051/T052 device-blocked).
+Updated: 2026-10-16 (Waves A+B committed; gate 5 waived provisionally, constitution v1.6.1; upstream PR #4059 open; Wave B device verification pending).
 
 ## Position
-- **T048 VERIFICATION GREEN** (`target/verify-004-final.log`, `VERIFY_EXIT=0`):
-  gates 1 (format) → 2 (nextest, vs `expected-tests.txt`) → 3 (doc) → 4
-  (lint-drift) → 5 (supply-chain: `cargo deny` + `cargo audit`, rustls→0.23.46)
-  → 6 (deny-list) → 7 (closed-set, no `_ =>`) → 8-shell (pipeline, shell bounds) all PASS.
-  `gate-8-full: DEFERRED (owner=synthesis)` per constitution Exceptions Log 8
-  (SC-044 closure not claimed). Full discharge still gated on the 002 synthesis owner.
-- **T049 PASS** (scripts report 0 unresolved): `check-manifest.sh` PASS
-  (service `mediaPlayback`, `FOREGROUND_SERVICE*`, `VIBRATE`, `POST_NOTIFICATIONS`, minSdk 29);
-  `check-shell-purity.sh` PASS (135 tokens resolved, 1 exempted).
-  Naming-boundary guard tightened (`src-tauri/tests/test_noscope.rs`); 6/6.
-- **T050 GREEN — device artifact**: `cargo tauri android build --target aarch64`
-  exit 0 → `app-universal-release.apk` (113 MB) + `.aab`.
-  SHA-256 `cc5f08d55ccfb2ba8bfbeb2ddfcd9d08e4126f08af9dd771e1b946aef430f328`.
-  `libsrc_tauri.so` exports 4 native entry points and the Kotlin `external fun`s
-  resolve (incl. `_00024`-mangled `DocIngest_00024Blake3Hasher_nativeBlake3`).
-- **ADB BLOCKED**: the reference phone is not attached (`adb devices` empty).
-  Install (`adb install -r`) + hash re-verification on device (T050 tail)
-  + trial pulls (T052) are pending re-plugging the phone with USB debugging on.
-- Tasks `[X]`: T048, T049, T050. Open: T051 (on-device trials, human-run, 7 × 30 min
-  locked commute, 10/10 per SC class), T052 (`diag scan` on the pulled JSONL).
+- **Wave A (bootstrap) GREEN ON DEVICE**: `PlaybackService` runs in foreground
+  (`isForeground=true foregroundId=1`, channel `mdreader_media`, "Ressoa" holder
+  visible in the shade, `POST_NOTIFICATIONS granted=true`). Committed `7ca4c1d`.
+- **Wave B (Rust→Kotlin mirror publish) implemented + committed** (`1849761`,
+  fix `72f369e`): real JNI bridge (`capture_jvm` at the four JNI entries +
+  `publish_mirror_to_kotlin` → `ShellHost.publishMirror`); Kotlin `MediaMirror.kt`
+  consumes `consumedUnits/totalUnits` (FR-013 rename, Determinate bar) + dismissal;
+  lifecycle relay `AppForegrounded/AppBackgrounded` triggers the JVM capture.
+  Host contract 6/6 (`src-tauri/tests/test_kotlin_mirror_payload.rs`, pinned in
+  `expected-tests.txt` + purity allowlist). APK (universal-release, ~118 MB)
+  installed on the device (`53cf9aa7`), app launched with no JNI errors —
+  **device verification pending** (waiting for the phone to be free).
+- **Gate 5 RESOLVED PROVISIONALLY**: constitution 1.5.0→1.6.0→1.6.1 (Exceptions
+  Log entry 11 + correction PATCH); `deny.toml` ignores RUSTSEC-2026-0367/0368/0369;
+  `cargo deny check advisories` → "advisories ok". Upstream track complete:
+  issue k2-fsa/sherpa-onnx#4058 (filed per the repo bug template), fork
+  `lfgranja/sherpa-onnx` branch `fix/rust-zip9-advisories` (commit `5821f23`),
+  PR k2-fsa/sherpa-onnx#4059. Local proof the upgrade is a one-line manifest
+  bump: `DOCS_RS=1 cargo check` with `zip = "9"` (resolved 9.0.4) compiles the
+  unmodified `build.rs`, exit 0. Undo = delete the 3 ignore blocks + entry 11
+  together when a `zip >= 9` sherpa-onnx release lands.
+- Gates 1–4 + 8-shell PASS on the Wave B tree; manifest + shell-purity PASS.
+- T051 (device trials) + T052 (diag scan) pending; the picker (Wave C) is not
+  yet wired, so trials currently need the pre-loaded document route.
+- `gate-8-full: DEFERRED (owner=synthesis)` — unchanged (Exceptions Log 8).
 
 ## Next
-1. Re-plug reference phone (`2201117TY`, USB debugging ON) → `adb install -r <apk>` → `adb shell run-as app.mdreader cat files/diag.jsonl` only after trials.
-2. User runs T051 with `tests/device/trials-004.md` sheet (app label = "Ressoa" on the launcher).
-3. T052: `adb pull` + `diag scan` (conforming baseline + negative control planted in a copy).
-4. **Scope fact (reported, not fixed)**: the Rust→Kotlin mirror *publish*
-   transport that feeds the lock-screen notification (title + section +
-   progress) is still stubbed and has no caller — `publish_mirror_to_kotlin`
-   is a no-op, `ShellHost.publishMirror` is only declared.
-   Now unblocked because the jni 0.22 blocker was just resolved (jni 0.21
-   alignment), and `src-tauri/src/lib.rs` records both the deferral reason
-   (FR-024/002 synthesis feature) and `startForegroundHolder()` placeholder
-   standing in for it. Required inputs (surface resolver + transient
-   dismissal + haptic id) would need to be threaded into
-   `publish_mirror_to_channel`. Treat as a 002/phase-12 follow-up unless the
-   user opts to promote it into 004; `quickstart.md` §3 notification criteria
-   cannot pass without it. 001 VERIFICATION.md §11 lists this as an unowned
-   follow-up (no task own it).
+1. **Wave B device verification** (when the phone is free): bring the app to the
+   front, press Play, verify logcat clean (`kotlin mirror publish failed` /
+   `no entry has captured the JVM handle yet` absent), `dumpsys notification
+   --noredact` shows title + section + progress, shade + lock-screen capture.
+2. **Wave C — picker trigger**: in-app Open control → Tauri command → Kotlin
+   picker (`DocIngest.pickDocument` / `handlePickResult`; gen edits host-local).
+3. Full `scripts/verify.sh` re-run (gates 1–7 + 8-shell) to confirm all green.
+4. T051 sheets (`tests/device/trials-004.md`) to the user; T052 diag scan after.
 
 ## Commits this session (004)
-`b3f6d48` (T019 JNI bytes-forward + FR-013 units) · `b617df6` (prop warnings) ·
-`62ee013` (T040b/T046) · `f6e25ed` (T049 manifest/purity) · `af39a29` (rustls
-lock bump) · `06a87ce` (T048 gate 7, 2 catch-alls) · `fec3816` (T050 naming
-boundary: Ressoa on painted surfaces) · `43e12fc` (T050 gate 9: jni 0.21
-alignment + JNI signatures).
+`92129da` (T048–T050 done) · `7ca4c1d` (Wave A bootstrap) · `1849761` (Wave B
+JNI publish) · `72f369e` (JNI result fix) · `18dd86a` (entry 11 PROVISIONAL) ·
+`7a25821` (v1.6.1 correction + upstream links).
 
 ## Verification summary
-- cargo nextest `--workspace` = 769 passed (gates 1–2). Carried warnings: none
-  new. fmt + clippy repo-wide pre-existing lint issue untouched (verify.sh
-  does not run clippy).
-- Gate 9 APK installed-not-yet-possible: device detached.
-- Constitution gate 8 (full, byte budget) still DEFERRED — owner=synthesis
-  (SC-044); host surface stays `gate-8-shell: PASS`.
-- Tests as proof of honesty: every RED/GREEN pair in this session
-  (prop_ladder streams_input, naming-boundary guard ×2, diag scan ×3,
-  gate-7 catch-all removal ×2) ran before the corresponding fix.
-- Host clippy repo-wide remains pre-broken (root Cargo.toml priority error +
-  engine-core/cli glue); out of scope per AGENTS.md; not a verify.sh gate.
+- Host: gates 1–4 + 8-shell green on the Wave B tree; 6 new tests pinned.
+- Device: Wave A verified on-device; Wave B runtime verification pending.
+- Upstream: PR #4059 open (no upstream CI on PRs — `test-rust` runs on master);
+  `zip 9` source-compatible, so the port needs no `build.rs` change.

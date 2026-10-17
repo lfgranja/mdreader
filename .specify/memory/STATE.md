@@ -1,8 +1,9 @@
 # Session state — 004-ressoa-dogfood-build (shell bring-up wave)
 
-Updated: 2026-10-16 (wave-b3 installed + Wave B device verification GREEN with
-findings; zip vendor landed, patch pending; gate 5 provisionally waived,
-constitution v1.6.1; upstream PR #4059 open).
+Updated: 2026-10-16 (Wave B device verification GREEN + user-heard audio
+confirmed; zip-9 substitution complete — patch, lock, governance v1.8.0;
+verify.sh gates 1–4 PASS, gate-5 fixed; F1/F3 wiring plan set for wave-b4;
+upstream PR #4059 open).
 
 ## Position
 - **Wave A (bootstrap) GREEN ON DEVICE**: `PlaybackService` foreground
@@ -26,46 +27,69 @@ constitution v1.6.1; upstream PR #4059 open).
     (`backend.rs:300` is only `enqueue_pcm`); `dispatch_document_end` is
     reachable only via the Kotlin bridge intent, which cannot know (SC-035).
     Session stays Playing forever after the audio ends (2× confirmed:
-    21:54 and 22:04 runs; notification frozen + non-dismissable).
+    21:54 and 22:04 runs; notification frozen + non-dismissable). Intended
+    wiring located (2026-10-16): Kotlin `Residency.documentEnd()` and Rust
+    `dispatch_document_end` both exist; the missing link is Rust drain
+    detection + the JNI command that invokes the Kotlin teardown.
   - F2 bench cannot restart after Stop: `▶ Play` → "illegal transition from
     stopped via play" (UI FALHA); only relaunch replays. The failed attempt
     also requestStart()s the paused stream (zombie track starved to 4265
-    underruns at removal — seen in audio_flinger).
+    underruns at removal — seen in audio_flinger). Reclassified 2026-10-16:
+    from-Stopped every verb is rejected by design (terminal; FR-032f
+    "starting that document again requires opening the application") — the
+    bench lacks a cold-start affordance; surface UX gap, not a product bug.
   - F3 single publish at start only: no mid-play/section-change updates
     (nothing calls `publish_current_state` during playback; the 20 s heartbeat
     only persists bookmarks) — matters for the T051-06 section-change state.
+    Fix rides the same watcher: publish when `consumed_units_at(position)`
+    changes.
   - F4 Stop re-posts nothing to the notification (content identical;
     MediaSession updates) — benign, noted.
-  - Audio content flow unverified by machine (MIUI `f` counters freeze
-    ~0.47 s while the mixer stays fed, 0 underruns) — awaiting user's ears.
-- **Gate 5**: constitution 1.6.1 (entry 11 PROVISIONAL); `deny.toml` ignores
-  367/368/369; upstream issue #4058, fork `lfgranja` commit `5821f23`, PR
-  #4059. Vendor landed `2177c67` (`vendor/sherpa-onnx-sys/` + PROVENANCE,
-  crate sha256 `14bbeabb…`, one line zip 2→9). **Patch NOT yet applied**:
-  `[patch.crates-io]` + `cargo update` → zip 9.0.4, then drop the 3 ignores +
-  entry 11, add entry 12, bump 1.7.0 MINOR (build MSRV note: 1.88).
-- Gates 1–4 + 8-shell PASS on the Wave B tree; manifest + shell-purity PASS.
+  - Audio content flow CONFIRMED by the user's ears (pt-BR voice heard
+    end-to-end in the bench runs). The MIUI `f`-counter freeze (~0.47 s while
+    the mixer stayed fed, 0 underruns) was a log artifact, not a stall.
+- **Gate 5**: zip-9 substitution COMPLETE — vendor `2177c67` (sha256
+  `14bbeabb…`, one line zip 2→9), `[patch.crates-io]` + lock zip 9.0.4
+  `02164b6`, ignores dropped + entry 11 deleted + entry 12 added, constitution
+  v1.7.0 `8435260` (MSRV build-note: rustc ≥1.88), bzip2-1.0.6 admitted +
+  v1.8.0 `9208578` (upstream PR #4059 keeps default features → admission
+  survives the exit).
+- Full `scripts/verify.sh` on the zip-9 tree: gates 1–4 PASS (775 tests);
+  gate-5 FAILED pre-admission (libbz2-rs-sys bzip2-1.0.6) → admitted v1.8.0
+  → targeted re-check green (`cargo deny` all-ok; `cargo audit` 0). Gates
+  6–8 on this tree land with the next full run.
 - T051 (human trials; needs picker = Wave C) + T052 pending.
 - `gate-8-full: DEFERRED (owner=synthesis)` — unchanged (Exceptions Log 8).
 
 ## Next
-1. **Zip-9 patch application**: `[patch.crates-io]` + `cargo update` (lock zip
-   9.0.4) + `cargo deny check advisories` without ignores; constitution 1.7.0
-   (entry 11 deleted, entry 12 added); gates re-run.
-2. **F1/F2 bench fixes** (end-of-drain detection → `Complete`; restart
-   affordance) before T051 is attempted on the bench.
-3. Wave C — picker trigger (`DocIngest.pickDocument` / `handlePickResult`).
-4. Full `scripts/verify.sh`; then T051 sheets to the user, T052 diag scan.
-   Note: `run-as` fails (release APK not debuggable) — the T052 pull needs a
-   debuggable variant or another route.
+1. **F1/F3 fix (wave-b4, tests first)**: (a) `crates/player` backend exposes
+   `is_drained()` (queue empty with speech consumed) + unit test; (b) src-tauri
+   ~1 s watcher while Playing — drained → JNI `command_document_end` →
+   `ShellHost` → `Residency.documentEnd()` → `document_end` intent →
+   `dispatch_document_end`; and `consumed_units_at` change →
+   `publish_current_state`; (c) `shell_jni.rs` JNI entry + Kotlin `ShellHost`
+   method. Then Android build + install + on-device check (2-segment doc:
+   bar 0/2000 → 1000/2000 flip; `Completed` + notification reverted ~10 s).
+2. Full `scripts/verify.sh` re-run (+ `scripts/expected-tests.txt` if new
+   test targets) and wave-b4 commit.
+3. Wave C — picker trigger (`DocIngest.pickDocument` / `handlePickResult`);
+   then T051 sheets (human trials) + T052 diag scan (`run-as` fails on the
+   release APK — needs debuggable variant or another pull route).
 
 ## Commits this session (004)
 `92129da` · `7ca4c1d` · `1849761` · `72f369e` · `18dd86a` · `7a25821` ·
 `c6c3da4` (STATE) · `b856bfc` (R8 keep) · `728557b` (docstring) ·
-`cc9164e` (STATE R8) · `2177c67` (vendor sherpa-onnx-sys).
+`cc9164e` (STATE R8) · `2177c67` (vendor sherpa-onnx-sys) · `410a9b1`
+(STATE wave-b3) · `02164b6` (patch + lock zip 9.0.4) · `8435260` (v1.7.0
+governance) · `9208578` (v1.8.0 bzip2-1.0.6 admission).
 
 ## Verification summary
-- Host: gates 1–4 + 8-shell green on the Wave B tree; 6 mirror tests pinned.
+- Host: zip-9 tree gates 1–4 PASS (775 tests); gate-5 green after v1.8.0;
+  6 mirror tests pinned.
 - Device: Wave A + Wave B mirror path VERIFIED (start/pause/stop publishes;
   notification content + flags); F1–F4 bench findings recorded.
 - Upstream: PR #4059 open (no upstream CI on PRs); zip 9 source-compatible.
+- Brand / Design: Briefing de logo v2.0.0 aprovado pelo usuário (tríade acústica
+  Sona: Azul #8FD8E8, Verde #5AD6A8, Roxo #B9A6F5); assets SVG gerados em
+  DESIGN-SONA/assets/logo/; brand.md e tokens.md sincronizados.
+

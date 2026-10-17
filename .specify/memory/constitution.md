@@ -2,6 +2,53 @@
   SYNC IMPACT REPORT
   ===================
   Amended: 2026-10-16
+  Version change: 1.7.0 -> 1.8.0
+
+  Bump rationale: MINOR. One Licence Policy admission is
+  added (bzip2-1.0.6, a permissive no-copyleft licence).
+  No principle is added, removed or redefined and no
+  existing MUST is weakened. Not PATCH (new governance
+  content), not MAJOR (no principle change).
+
+  What changed:
+    - Licence Policy: bzip2-1.0.6 admitted to the closed
+      allow list. Reason: the vendored `sherpa-onnx-sys`
+      build-dependency `zip` 9 (entry 12) carries `bzip2` in
+      its default feature set, resolving through `bzip2` 0.6
+      to `libbz2-rs-sys` (`license = "bzip2-1.0.6"`). The
+      licence is permissive (no copyleft; notice-and-
+      attribution conditions only) and build-time-only
+      (nothing from `zip` links into shipped artifacts).
+      Admitted now because the upstream fix keeps the
+      default feature set, so the crate returns to the
+      graph after entry 12's exit.
+
+  Modified constraints:
+    - Licence Policy: bzip2-1.0.6 admitted.
+    - deny.toml: licenses allow gains "bzip2-1.0.6".
+    - vendor/sherpa-onnx-sys/PROVENANCE.md: the licence
+      implication of the zip 9 default feature set recorded.
+
+  Principles modified: none.
+  Sections added: none.
+  Sections removed: none.
+  Renamed sections: none.
+
+  Deferred / non-constitution:
+    - none. Entry 12's exit condition is unchanged.
+
+  Source evidence: `cargo deny check advisories licenses
+  bans sources` (2026-10-16) — the pre-admission run
+  rejected exactly one licence (libbz2-rs-sys 0.2.5,
+  `license = "bzip2-1.0.6"`, reached as a build-dependency
+  of zip 9.0.4 through the vendored sherpa-onnx-sys,
+  entry 12); the post-admission run is green on all four
+  checks.
+-->
+<!--
+  SYNC IMPACT REPORT
+  ===================
+  Amended: 2026-10-16
   Version change: 1.6.1 -> 1.7.0
 
   Bump rationale: MINOR. One governance record retires
@@ -627,15 +674,21 @@ the sanctioned protocol client for this project.
 
 ### Licence Policy
 Copyleft is **permitted**. `deny.toml` allows MIT, Apache-2.0 (with LLVM exception),
-CDLA-Permissive-2.0, BSD-2/3, ISC, Zlib, MPL-2.0, Unicode-3.0, GPL-3.0, LGPL-3.0,
-AGPL-3.0, CC0-1.0, and CC-BY-4.0. Copyleft is
+CDLA-Permissive-2.0, BSD-2/3, ISC, Zlib, bzip2-1.0.6, MPL-2.0, Unicode-3.0, GPL-3.0,
+LGPL-3.0, AGPL-3.0, CC0-1.0, and CC-BY-4.0. Copyleft is
 admitted because `espeak-ng` is GPL-3.0 and is linked by `sherpa-onnx`; excluding it would have
 excluded the working offline engine. CDLA-Permissive-2.0 is admitted because
 `webpki-roots` (transitive via the rustls/webpki chain the HTTPS client requires)
 ships Mozilla's CA root certificates as data under it — a permissive data-sharing
 license with no copyleft and no attribution obligation beyond the license notice,
 consistent with the permissive data licenses already admitted (CC0-1.0, CC-BY-4.0);
-the crate is data, not executable logic.
+the crate is data, not executable logic. bzip2-1.0.6 is admitted because
+`libbz2-rs-sys` — reached as `zip` 9's `bzip2` default feature, the vendored
+`sherpa-onnx-sys` build-dependency (Exceptions Log entry 12) — carries no copyleft
+and only notice-and-attribution conditions, and the crate is build-time only;
+nothing from `zip` links into shipped artifacts. The admission outlives entry 12:
+the upstream fix (PR #4059) bumps the dependency version only, default features
+kept.
 
 **Two axes, not one.** Crate licence and model-weight licence are audited separately, because
 they are different obligations. A permissive engine does not make its weights distributable:
@@ -922,4 +975,4 @@ Where this constitution and a convenience conflict, this constitution wins and t
 either changed or proposed as an amendment. Where this constitution and the reference stack
 conflict, the maintainer decides, and the decision is logged.
 
-**Version**: 1.7.0 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-16
+**Version**: 1.8.0 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-16

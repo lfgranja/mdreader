@@ -39,6 +39,15 @@ workspace requires rustc >= 1.88 while this vendored copy is in the
 graph (build-script dependency only; nothing from `zip` is linked into
 shipped artifacts).
 
+Licence note: `zip` 9's default feature set includes `bzip2`,
+resolving to `libbz2-rs-sys` under the `bzip2-1.0.6` licence. That
+licence is admitted to the workspace allow-list (`deny.toml`,
+constitution v1.8.0) — a permissive, no-copyleft licence with
+notice-and-attribution conditions only. The admission survives this
+patch's exit: upstream PR #4059 bumps the version only (default
+features kept), so the crate returns to the graph with the released
+`sherpa-onnx`.
+
 ## Exit condition
 
 When a released `sherpa-onnx` ships `zip >= 9` (PR #4059 merged and

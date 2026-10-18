@@ -60,8 +60,6 @@ use clap::{Parser, Subcommand, ValueEnum};
 use engine_core::closed::{PlaybackRate, SessionEnd};
 use serde::Serialize;
 
-use std::path::PathBuf;
-
 use crate::fingerprint::fingerprint;
 use crate::offer::{ExpiryOutcome, Offer, OfferMachine};
 use crate::store::{BookmarkStore, StoredPosition};
@@ -459,18 +457,23 @@ enum Visibility {
 /// completes the failure half of the protocol.
 fn execute(cli: Cli, stdout: &mut dyn Write) -> Result<(), CliError> {
     match cli.command {
-        Command::Ingest { file, path } => ingest_command(&cli, file, path, stdout),
-        Command::Get { file } => get_command(&cli, file, stdout),
+        Command::Ingest {
+            ref file,
+            ref path,
+        } => ingest_command(&cli, file, path, stdout),
+        Command::Get { ref file } => get_command(&cli, file, stdout),
         Command::Put {
-            file,
-            offset_secs,
-            first_yield_ms,
-            end_kind,
-        } => put_command(&cli, file, offset_secs, first_yield_ms, end_kind, stdout),
-        Command::Clear { file } => clear_command(&cli, file, stdout),
+            ref file,
+            ref offset_secs,
+            ref first_yield_ms,
+            ref end_kind,
+        } => put_command(&cli, file, *offset_secs, *first_yield_ms, *end_kind, stdout),
+        Command::Clear { ref file } => clear_command(&cli, file, stdout),
         Command::Rate { ref command } => rate_command(&cli, command, stdout),
         Command::Offer { ref command } => offer_command(&cli, command, stdout),
-        Command::Foreground { visibility } => foreground_command(&cli, visibility, stdout),
+        Command::Foreground {
+            ref visibility,
+        } => foreground_command(&cli, visibility, stdout),
     }
 }
 
@@ -576,7 +579,7 @@ fn clear_command(cli: &Cli, file: PathBuf, stdout: &mut dyn Write) -> Result<(),
 /// The `rate get` / `rate set` verbs.
 fn rate_command(
     cli: &Cli,
-    command: RateCommand,
+    command: &RateCommand,
     stdout: &mut dyn Write,
 ) -> Result<(), CliError> {
     match command {
@@ -594,11 +597,11 @@ fn rate_command(
             // The ladder is validated through the rung's own serde form — the
             // round trip the closed declaration itself defines — so no second
             // rung list exists here (FR-019 / FR-044).
-            let rung = rate_of(rate)?;
+            let rung = rate_of(*rate)?;
             let mut store = BookmarkStore::open(&cli.db)?;
             store.put_last_rate(rung)?;
             tracing::debug!(rate, "stored last rate");
-            write_payload(stdout, &rate_set_payload(rate, cli.format)?)
+            write_payload(stdout, &rate_set_payload(*rate, cli.format)?)
         }
     }
 }
@@ -606,7 +609,7 @@ fn rate_command(
 /// The `offer show` / `offer continue` / `offer expire` / `offer start-over` verbs.
 fn offer_command(
     cli: &Cli,
-    command: OfferCommand,
+    command: &OfferCommand,
     stdout: &mut dyn Write,
 ) -> Result<(), CliError> {
     match command {
@@ -656,13 +659,13 @@ fn offer_command(
             let stored = store.get(&key)?;
             let mut machine = OfferMachine::new();
             machine.on_session_end(key, stored);
-            if foreground {
+            if *foreground {
                 machine.on_foregrounded();
             }
             let outcome = machine.expire();
             write_payload(
                 stdout,
-                &expire_payload(&file, key, foreground, outcome, cli.format)?,
+                &expire_payload(&file, key, *foreground, outcome, cli.format)?,
             )
         }
     }

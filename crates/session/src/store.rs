@@ -183,7 +183,7 @@ pub enum Error {
     /// The underlying redb storage operation
     /// failed.
     #[error("redb storage failure: {0}")]
-    Storage(#[from] Box<redb::Error>),
+    Storage(Box<redb::Error>),
     /// A stored `end_kind` discriminant is not a
     /// member of the closed session-end set
     /// (FR-044) — the row was written by an
@@ -205,6 +205,12 @@ pub enum Error {
     MalformedRate,
 }
 
+impl From<redb::Error> for Error {
+    fn from(error: redb::Error) -> Self {
+        Self::Storage(Box::new(error))
+    }
+}
+
 // redb reports its failures through granular error
 // types (`DatabaseError`, `TransactionError`,
 // `TableError`, `StorageError`, `CommitError`)
@@ -216,7 +222,7 @@ impl From<redb::DatabaseError> for Error {
     /// The database open/create failure as the
     /// storage kind.
     fn from(error: redb::DatabaseError) -> Self {
-        Self::Storage(error.into())
+        Self::Storage(Box::new(redb::Error::from(error)))
     }
 }
 
@@ -224,14 +230,14 @@ impl From<redb::TransactionError> for Error {
     /// The transaction begin failure as the storage
     /// kind.
     fn from(error: redb::TransactionError) -> Self {
-        Self::Storage(error.into())
+        Self::Storage(Box::new(redb::Error::from(error)))
     }
 }
 
 impl From<redb::TableError> for Error {
     /// The table open failure as the storage kind.
     fn from(error: redb::TableError) -> Self {
-        Self::Storage(error.into())
+        Self::Storage(Box::new(redb::Error::from(error)))
     }
 }
 
@@ -239,14 +245,14 @@ impl From<redb::StorageError> for Error {
     /// The table operation failure as the storage
     /// kind.
     fn from(error: redb::StorageError) -> Self {
-        Self::Storage(error.into())
+        Self::Storage(Box::new(redb::Error::from(error)))
     }
 }
 
 impl From<redb::CommitError> for Error {
     /// The commit failure as the storage kind.
     fn from(error: redb::CommitError) -> Self {
-        Self::Storage(error.into())
+        Self::Storage(Box::new(redb::Error::from(error)))
     }
 }
 

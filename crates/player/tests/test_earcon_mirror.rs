@@ -128,9 +128,9 @@ const BACKEND_SRC: &str = include_str!("../src/backend.rs");
 /// reasons sound the Failure earcon; the `FocusDelayed` zero-audio
 /// hold sounds nothing (Deferred shows no line). The
 /// transport-confirmation kinds (Play/Pause/SkipFwd/SkipBack/
-/// RateStep) are never a reason's earcon — a reason only ever
+/// `RateStep`) are never a reason's earcon — a reason only ever
 /// selects Warning, Failure, or nothing.
-fn expected_earcon_for(reason: InterruptionReason) -> Option<EarconKind> {
+const fn expected_earcon_for(reason: InterruptionReason) -> Option<EarconKind> {
     match reason {
         InterruptionReason::TransientPaused
         | InterruptionReason::FocusDenied
@@ -145,7 +145,7 @@ fn expected_earcon_for(reason: InterruptionReason) -> Option<EarconKind> {
 
 /// The reason variant's name, for pairing diagnostics — exhaustive,
 /// no catch-all.
-fn reason_variant_name(reason: InterruptionReason) -> &'static str {
+const fn reason_variant_name(reason: InterruptionReason) -> &'static str {
     match reason {
         InterruptionReason::FocusDenied => "FocusDenied",
         InterruptionReason::FocusDelayed => "FocusDelayed",
@@ -160,7 +160,7 @@ fn reason_variant_name(reason: InterruptionReason) -> &'static str {
 
 /// The earcon kind's variant name, for pairing diagnostics —
 /// exhaustive, no catch-all.
-fn earcon_kind_name(kind: EarconKind) -> &'static str {
+const fn earcon_kind_name(kind: EarconKind) -> &'static str {
     match kind {
         EarconKind::Play => "Play",
         EarconKind::Pause => "Pause",
@@ -233,10 +233,7 @@ fn every_trigger_selects_the_contract_earcon_kind() {
     );
 
     for reason in ALL_REASONS {
-        let kind_name = match expected_earcon_for(reason) {
-            Some(kind) => earcon_kind_name(kind),
-            None => "None",
-        };
+        let kind_name = expected_earcon_for(reason).map_or("None", |kind| earcon_kind_name(kind));
         assert!(
             pairs_on_one_statement(&sources, reason_variant_name(reason), kind_name),
             "the trigger→earcon mapping does not pair {:?} with {kind_name} on one \
@@ -416,11 +413,8 @@ fn exactly_the_three_undeliverables_are_persistent() -> Result<(), Box<dyn Error
                     "{reason:?} expires at 3 s"
                 );
             }
-            Some(EarconKind::Play)
-            | Some(EarconKind::Pause)
-            | Some(EarconKind::SkipFwd)
-            | Some(EarconKind::SkipBack)
-            | Some(EarconKind::RateStep) => {
+            Some(EarconKind::Play | EarconKind::Pause | EarconKind::SkipFwd |
+                EarconKind::SkipBack | EarconKind::RateStep) => {
                 return Err(format!(
                     "{reason:?} must not select a transport-confirmation earcon — \
                      a reason only ever selects Warning, Failure, or nothing"
@@ -630,7 +624,8 @@ fn pause_demanding_trigger_publishes_the_mirror_state() -> Result<(), Box<dyn Er
     let mirror = MirrorState {
         transport: TransportState::Interrupted,
         position_secs: MIRROR_POSITION_SECS,
-        progress: surface.progress.clone(),
+        progress: surface.progress,
+        progress_label: None,
     };
     let wire = serde_json::to_value(&mirror)?;
     let object = wire

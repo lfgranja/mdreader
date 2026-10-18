@@ -143,7 +143,7 @@ pub fn run(
             return Ok(());
         }
     };
-    match execute(cli, stdout) {
+    match execute(&cli, stdout) {
         Ok(()) => Ok(()),
         Err(error) => {
             // The failure half of the protocol: nothing

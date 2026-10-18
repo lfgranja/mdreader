@@ -531,14 +531,20 @@ pub fn lookup_on_open(store: &mut BookmarkStore, bytes: &[u8]) -> Result<OpenLoo
 ///
 /// [`redb::Error`] when the write transaction cannot begin or commit.
 pub fn clear_bookmark(db: &Database, fp: &[u8; 32]) -> Result<(), Box<redb::Error>> {
-    let write_tx = db.begin_write()?;
+    let write_tx = db.begin_write().map_err(|e| Box::new(redb::Error::from(e)))?;
     {
-        let mut table = write_tx.open_table(BOOKMARKS)?;
+        let mut table = write_tx
+            .open_table(BOOKMARKS)
+            .map_err(|e| Box::new(redb::Error::from(e)))?;
         // `remove` returns the previous value (an `Option`
         // guard); no caller consumes it (unused_results deny).
-        let _ = table.remove(fp)?;
+        let _ = table
+            .remove(fp)
+            .map_err(|e| Box::new(redb::Error::from(e)))?;
     }
-    write_tx.commit()?;
+    write_tx
+        .commit()
+        .map_err(|e| Box::new(redb::Error::from(e)))?;
     Ok(())
 }
 

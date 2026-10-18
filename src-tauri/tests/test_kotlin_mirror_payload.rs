@@ -139,6 +139,109 @@ fn playing_publishes_units_and_an_ongoing_surface() {
     assert_eq!(dismissal.get("nonDismissable"), Some(&Value::Null));
 }
 
+/// T083 RED: the lock-screen contract requires the progress label to be
+/// pt-BR even though the CLI's frozen identifier remains English.
+#[test]
+fn determinate_lock_screen_publishes_localized_progress_label() {
+    let surface = determinate(12, 60);
+    let payload = parse(&build_kotlin_mirror_json(
+        TransportState::Playing,
+        123.5,
+        &surface,
+        None,
+        None,
+        &Dismissal::NonDismissable,
+    ));
+    assert_eq!(
+        payload.get("progressLabel"),
+        Some(&Value::from(
+            "Seção 2 de 5 — 20% (content-offset)"
+        )),
+        "T089 RED: determinante progress label is pt-BR identifier per surface.md FR-011/FR-013; includes (content-offset) not rendered prose"
+    );
+}
+
+#[test]
+fn indeterminate_lock_screen_omits_localized_progress_label() {
+    let surface = SurfaceSnapshot {
+        title: String::from("notas.md"),
+        section_title: None,
+        progress: Progress::Indeterminate,
+    };
+    let payload = parse(&build_kotlin_mirror_json(
+        TransportState::Paused,
+        0.0,
+        &surface,
+        None,
+        None,
+        &Dismissal::Dismissable,
+    ));
+    assert!(
+        payload.get("progressLabel").is_none(),
+        "indeterminate progress must not invent a localized label"
+    );
+}
+
+/// T089 property: for every determinate (k, n, p) triple the Kotlin
+/// payload must carry the frozen pt-BR identifier label with
+/// (content-offset), and never for indeterminate.
+#[test]
+fn prop_kotlin_mirror_progress_label_invariant() {
+    // Property-style: sweep k in [1..4], n in [k+1..7], p = floor(100*k/n)
+    for k in 1..=4 {
+        for n in (k + 1)..=7 {
+            let consumed = (100 * k / n) as u64 * 10; // arbitrary content-offset units
+            let total = 100u64;
+            let surface = SurfaceSnapshot {
+                title: String::from("Prop doc"),
+                section_title: Some(String::from("Section")),
+                progress: Progress::Determinate {
+                    consumed_units: consumed,
+                    total_units: total,
+                    k,
+                    n,
+                },
+            };
+            let payload = parse(&build_kotlin_mirror_json(
+                TransportState::Playing,
+                0.0,
+                &surface,
+                None,
+                None,
+                &Dismissal::NonDismissable,
+            ));
+            let label = payload
+                .get("progressLabel")
+                .expect("T089 RED: progressLabel present for determinate");
+            let s = label.as_str().expect("label is string");
+            assert!(
+                s.contains("Seção") && s.contains("de") && s.contains("—") && s.contains("%") && s.contains("(content-offset)"),
+                "T089 RED: determinate label format broken: {} (expected pt-BR identifier with (content-offset))", s
+            );
+        }
+    }
+    // Indeterminate exclusion property: for any surface, key absent
+    for _ in 0..10 {
+        let surface = SurfaceSnapshot {
+            title: String::from("notes.md"),
+            section_title: None,
+            progress: Progress::Indeterminate,
+        };
+        let payload = parse(&build_kotlin_mirror_json(
+            TransportState::Paused,
+            0.0,
+            &surface,
+            None,
+            None,
+            &Dismissal::Dismissable,
+        ));
+        assert!(
+            payload.get("progressLabel").is_none(),
+            "T089 RED: indeterminate must exclude progressLabel"
+        );
+    }
+}
+
 /// A session whose totals were unknown at start stays indeterminate
 /// for the whole session (FR-028a): the determinate key is absent —
 /// the presence of the key IS the policy, so no zeros stand in.

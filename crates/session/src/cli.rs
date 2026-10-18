@@ -62,8 +62,8 @@ use serde::Serialize;
 
 use std::path::PathBuf;
 
-use crate::fingerprint::{IngestPayload, fingerprint};
-use crate::offer::{ExpiryOutcome, Offer, OfferCommand, OfferMachine};
+use crate::fingerprint::fingerprint;
+use crate::offer::{ExpiryOutcome, Offer, OfferMachine};
 use crate::store::{BookmarkStore, StoredPosition};
 
 /// The program name: the name the generated parser
@@ -105,7 +105,7 @@ const PROGRAM_NAME: &str = "session";
 ///   entry instead of storing one (FR-032 / FR-032b).
 /// * [`CliError::Rendering`] when a machine-readable
 ///   payload cannot be rendered.
-pub const fn run(
+pub fn run(
     args: impl Iterator<Item = String>,
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
@@ -468,8 +468,8 @@ fn execute(cli: Cli, stdout: &mut dyn Write) -> Result<(), CliError> {
             end_kind,
         } => put_command(&cli, file, offset_secs, first_yield_ms, end_kind, stdout),
         Command::Clear { file } => clear_command(&cli, file, stdout),
-        Command::Rate { command } => rate_command(&cli, command, stdout),
-        Command::Offer { command } => offer_command(&cli, command, stdout),
+        Command::Rate { ref command } => rate_command(&cli, command, stdout),
+        Command::Offer { ref command } => offer_command(&cli, command, stdout),
         Command::Foreground { visibility } => foreground_command(&cli, visibility, stdout),
     }
 }

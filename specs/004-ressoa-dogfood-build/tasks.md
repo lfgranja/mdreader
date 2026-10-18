@@ -473,3 +473,39 @@ Subagent E: "T032 rewind.rs + resume.rs sentence-snap (independent)"
 - [ ] T086 Reconcile `publish_mirror` helper and test key inventory with the normative lock-screen contract, including the determinate-only `progress_label`; keep transient reason behavior and all prohibited fields unchanged; covered by T085 red→green (FR-011, `contracts/surface.md`) (`partial`)
 - [ ] T087 [P] Run and record `cargo nextest run -p player --test prop_skip_resident` and `cargo nextest run -p player --test test_lockscreen_us4`; clarify that the property supplements (does not replace) the resident callback integration test; update T074/T082 outcome only with exact output (FR-002, Principle III) (`partial`)
 - [ ] T088 VERIFICATION (only this attests): after T070–T087 and T051–T052 evidence are complete, run `./scripts/verify.sh`, gate 9 Android build, and the final device acceptance/audit requirements; record outputs/artifact hashes/trial sheets; do not mark T069 complete by implementer assertion alone (Principle V; SC-001…SC-010) (`missing`)
+
+---
+
+## Phase 14: Convergence
+
+> Source: `spec.md` FR-011/FR-013, `contracts/surface.md` (Display-vs-payload, Lock-screen surface §label), constitution v1.8.0 (Principles III/V/VIII — Rust rigor / Test-First / Driving-Safety), `plan.md` Phase 13 decisions (purchase-label in Kotlin payload), Phase 12 evidence (F1–F5), Phase 11 (T070 clippy), Phase 10 (T069 verification). Existing Phase 13 tasks T083–T088 remain unchecked; previous Phase 12 tasks T076–T082 and Phase 11 T070 partial; device-only T051/T052 and final gate T069/T088 incomplete. No task renumbered; only new traceable IDs appended.
+
+### Convergence Findings (in-session, before append)
+
+| ID | Gap Type | Severity | Source | Evidence | Remediation (tasks below) |
+|----|----------|----------|--------|----------|---------------------------|
+| F1 | partial | HIGH | FR-011/FR-013 / `contracts/surface.md:7-10` | `build_kotlin_mirror_json` (`src-tauri/src/lib.rs:3295`) emits `transport`, `positionSecs`, `title`, `sectionTitle`, `progress`, `transientReason`, `haptic`, `dismissal`; no `progress_label` field, yet contract requires pt-BR label in lock-screen payload; `frontend_mirror` (line 3242) carries label separately but Kotlin path excludes it (`partial`) | T089 (red) → T090 |
+| F2 | contradicts | CRITICAL | Constitution III / `clippy` / T070 | `cargo clippy --workspace --all-targets -- -D warnings` still fails (lint-group priority `Cargo.toml:28-29`, 6 crates missing metadata, 42 engine-core errors `missing_const_for_fn`/`suboptimal_flops`/`unfulfilled_lint_expectations`); T070 unchecked since Phase 11; NEVER weaken `Cargo.toml`/`clippy.toml` (`contradicts`) | T091 |
+| F3 | missing | HIGH | Gate 2 / `expected-tests.txt` / `prop_first_audio_3s.rs` | `cargo nextest list --workspace` empty (local `Seq` in `crates/player/tests/prop_first_audio_3s.rs` is `HashMap` key without `Hash`); `scripts/expected-tests.txt` missing `player::prop_first_audio_3s`, `session::prop_bookmark_durable_20s`, `session::prop_second_document_preserves_first_bookmark`; gate 2 fails closed (`missing`) | T092 (red) → T093 |
+| F4 | partial | HIGH | FR-013 / T064 / Phase 12 F2 | `test_progress_label` (2/2 PASS) tests the label helper, not the production `MirrorState` sent to frontend; production mirror construction not driven by assertion; no red result for missing production wiring recorded (`partial`) | T094 (red) → covered by T090 / T089 |
+| F5 | missing | HIGH | SC-001…SC-010 / T051 / T052 | Reference-phone 30-min locked commute sheets, 10/10 per interruption, 10/10 blind per confirmation, replay-cap measurements, diag `adb pull` audit with `Trim`/`Gap` verification remain unrecorded; only host-attested (no device evidence) (`missing`) | T051, T052 (carry; no duplicate) |
+| F6 | missing | HIGH | Principle V / T069 / T088 | `./scripts/verify.sh` not executed with attached exit status + log; gate 9 `cargo tauri android build --target aarch64` artifact hash unrecorded; no verification attestation exists (`missing`) | T095 (verification only) |
+
+**Gate evidence (this run):** `contracts/` at repo-root has `earcon.md` `ingest.md` `surface.md` (T060 done); `build_kotlin_mirror_json` confirmed label-free for Kotlin path; clippy command times out / fails (T070 open); `cargo nextest list --workspace` empty (T073/T081); device trial sheets absent; `verify.sh` unexecuted (`missing`); `test_progress_label` PASS but only helper-level (`partial`). Constitution v1.8.0 I–XI intact; no `unsafe`/`unwrap`/`println`; closed-set enums intact; no new crate added.
+
+**Metrics:** 6 findings (1 CRITICAL contradicts, 4 HIGH missing/partial, 1 carry-forward device). 0 unrequested additions. 2 blocking red-first test tasks (T089, T092, T094). Verification attestation only by T095 — never implementer claim.
+
+---
+
+### Phase 14 Tasks (append-only; zero renumber of T001–T088)
+
+- [ ] T089 [P] RED-FIRST `test_kotlin_mirror_payload` in `src-tauri/tests/test_kotlin_mirror_payload.rs`: determinate `SurfaceSnapshot` produces pt-BR progress label (`"Seção {k} de {N} — {p}% (content-offset)"`) inside `build_kotlin_mirror_json`; indeterminate excludes it; label never prose/time/rate/voice; demonstrate current Kotlin-payload failure (no label key) before T090 (FR-011/FR-013, Principle III) (`partial`)
+- [ ] T090 Implement contract-required pt-BR progress label in Kotlin `build_kotlin_mirror_json` path (`src-tauri/src/lib.rs`) — add `progress_label` to payload via `pt_br_progress_label(&surface.progress)` only when `Determinate`, preserving exact 4 other keys and purity exclusions; covered by T089 red→green and `test_purity` (`partial`)
+- [ ] T091 [P] (CRITICAL) Complete `cargo clippy --workspace --all-targets -- -D warnings`: fix lint-group `priority = -1` for `nursery`/`cargo`, add `description`/`repository`/`readme`/`keywords`/`categories` to 6 crates (`engine-core` + others), fix `needless_pass_by_value` (`engine-core/cli.rs:220`), `option_if_let_else` (`:305`), `no_effect_underscore_binding` (`:389`), `suboptimal_flops` (`standin_a.rs:192`, `standin_b.rs:193`), `missing_const_for_fn` (`trait_.rs:213`), `unfulfilled_lint_expectations` (`cli.rs:327`); NEVER weaken `Cargo.toml`/`clippy.toml`; gate: command exits 0 (`contradicts`)
+- [ ] T092 [P] RED-FIRST fix `Seq` in `crates/player/tests/prop_first_audio_3s.rs` to support `HashMap` use (derive `Eq`/`Hash` or use ordered map), then `cargo nextest list --workspace` must produce non-empty inventory; show compilation failure before T093 (Principle V) (`missing`)
+- [ ] T093 Sync `scripts/expected-tests.txt` with live `cargo nextest list --workspace` output (add `player::prop_first_audio_3s`, `session::prop_bookmark_durable_20s`, `session::prop_second_document_preserves_first_bookmark` if present; fail-closed on missing OR unexpected); gate `verify.sh` gate-2 diff clean (`missing`)
+- [ ] T094 [P] RED-FIRST production frontend-mirror builder assertion in `src-tauri/tests/test_progress_label.rs`: `MirrorState` sent to frontend carries `progress_label` for determinate, omits for indeterminate; `build_kotlin_mirror_json` remains label-free; demonstrate failure of production wiring before T090 (FR-011/FR-013, Principle III) (`partial`)
+- [ ] T095 VERIFICATION (only this attests): run `./scripts/verify.sh`, record exit status + `verify.sh` log path + `cargo fmt --all -- --check` + `cargo clippy --workspace ...` exit + `cargo nextest list --workspace` non-empty + `cargo tauri android build --target aarch64` APK hash; attach T051/T052 trial sheets if available; commit `verify(004): T095 final verification` (Principle V; do NOT declare success by implementer assertion) (`missing`)
+
+**Dependencies / order:** T091 (clippy) independent; T089→T090/94 (label wiring); T092→T093 (test inventory); T095 last (requires T091 + T093 + device/T051/T052 evidence if produced). All property/red-first tasks block their implementation tasks per Rule 1/2.
+

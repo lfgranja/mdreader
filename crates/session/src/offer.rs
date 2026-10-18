@@ -183,7 +183,7 @@ impl OfferMachine {
         // holds no per-document state.
         let _ = fingerprint;
         match self.resolve_open(stored) {
-            OpenOffer::Continue { .. } => self.offer.clone(),
+            OpenOffer::Continue { .. } => self.offer,
             OpenOffer::ExplicitResume | OpenOffer::NoOffer => None,
         }
     }
@@ -208,7 +208,7 @@ impl OfferMachine {
     /// form never depends on the document's
     /// identity, so no fingerprint is in hand here.
     #[must_use]
-    pub fn resolve_open(&mut self, stored: Option<StoredPosition>) -> OpenOffer {
+    pub const fn resolve_open(&mut self, stored: Option<StoredPosition>) -> OpenOffer {
         // A new session-end replaces any previously
         // open offer (the window never outlives its
         // session, FR-032f).
@@ -303,7 +303,7 @@ impl OfferMachine {
     /// choice is made or the window elapses
     /// (FR-032c).
     pub fn continue_offer(&mut self) -> Option<Offer> {
-        self.offer.clone()
+        self.offer
     }
 
     /// The reader chose start-over (FR-032c):

@@ -455,33 +455,28 @@ enum Visibility {
 /// returns `Ok`; a failure returns the diagnostic
 /// having written nothing to `stdout`, so the caller
 /// completes the failure half of the protocol.
-fn execute(cli: Cli, stdout: &mut dyn Write) -> Result<(), CliError> {
-    match cli.command {
-        Command::Ingest {
-            ref file,
-            ref path,
-        } => ingest_command(&cli, file, path, stdout),
-        Command::Get { ref file } => get_command(&cli, file, stdout),
+fn execute(cli: &Cli, stdout: &mut dyn Write) -> Result<(), CliError> {
+    match &cli.command {
+        Command::Ingest { file, path } => ingest_command(cli, file.as_ref(), path.as_ref(), stdout),
+        Command::Get { file } => get_command(cli, file, stdout),
         Command::Put {
-            ref file,
-            ref offset_secs,
-            ref first_yield_ms,
-            ref end_kind,
-        } => put_command(&cli, file, *offset_secs, *first_yield_ms, *end_kind, stdout),
-        Command::Clear { ref file } => clear_command(&cli, file, stdout),
-        Command::Rate { ref command } => rate_command(&cli, command, stdout),
-        Command::Offer { ref command } => offer_command(&cli, command, stdout),
-        Command::Foreground {
-            ref visibility,
-        } => foreground_command(&cli, visibility, stdout),
+            file,
+            offset_secs,
+            first_yield_ms,
+            end_kind,
+        } => put_command(cli, file, *offset_secs, *first_yield_ms, *end_kind, stdout),
+        Command::Clear { file } => clear_command(cli, file, stdout),
+        Command::Rate { command } => rate_command(cli, command, stdout),
+        Command::Offer { command } => offer_command(cli, command, stdout),
+        Command::Foreground { visibility } => foreground_command(cli, *visibility, stdout),
     }
 }
 
 /// The `ingest` verb: fingerprint the document and report the resume decision.
 fn ingest_command(
     cli: &Cli,
-    file: Option<PathBuf>,
-    path: Option<PathBuf>,
+    file: Option<&PathBuf>,
+    path: Option<&PathBuf>,
     stdout: &mut dyn Write,
 ) -> Result<(), CliError> {
     // The document bytes: the named file's — positionally or by `--path` —
@@ -518,20 +513,20 @@ fn ingest_command(
 }
 
 /// The `get` verb: read the stored position for a document.
-fn get_command(cli: &Cli, file: PathBuf, stdout: &mut dyn Write) -> Result<(), CliError> {
-    let key = document_key(&file)?;
+fn get_command(cli: &Cli, file: &PathBuf, stdout: &mut dyn Write) -> Result<(), CliError> {
+    let key = document_key(file)?;
     let mut store = BookmarkStore::open(&cli.db)?;
     let stored = store.get(&key)?;
     write_payload(
         stdout,
-        &position_payload("get", &file, key, stored, cli.format)?,
+        &position_payload("get", file, key, stored, cli.format)?,
     )
 }
 
 /// The `put` verb: persist a bookmark for a document.
 fn put_command(
     cli: &Cli,
-    file: PathBuf,
+    file: &PathBuf,
     offset_secs: f64,
     first_yield_ms: u64,
     end_kind: SessionEndInput,
@@ -568,12 +563,12 @@ fn put_command(
 }
 
 /// The `clear` verb: delete the stored position for a document.
-fn clear_command(cli: &Cli, file: PathBuf, stdout: &mut dyn Write) -> Result<(), CliError> {
-    let key = document_key(&file)?;
+fn clear_command(cli: &Cli, file: &PathBuf, stdout: &mut dyn Write) -> Result<(), CliError> {
+    let key = document_key(file)?;
     let mut store = BookmarkStore::open(&cli.db)?;
     store.delete(&key)?;
     tracing::debug!("deleted stored position");
-    write_payload(stdout, &clear_payload(&file, key, cli.format)?)
+    write_payload(stdout, &clear_payload(file, key, cli.format)?)
 }
 
 /// The `rate get` / `rate set` verbs.
@@ -614,33 +609,33 @@ fn offer_command(
 ) -> Result<(), CliError> {
     match command {
         OfferCommand::Show { file } => {
-            let key = document_key(&file)?;
+            let key = document_key(file)?;
             let mut store = BookmarkStore::open(&cli.db)?;
             let stored = store.get(&key)?;
             let mut machine = OfferMachine::new();
             let offer = machine.on_session_end(key, stored);
             write_payload(
                 stdout,
-                &offer_payload("offer_show", &file, key, offer, cli.format)?,
+                &offer_payload("offer_show", file, key, offer, cli.format)?,
             )
         }
         OfferCommand::Continue { file } => {
-            let key = document_key(&file)?;
+            let key = document_key(file)?;
             let mut store = BookmarkStore::open(&cli.db)?;
             let stored = store.get(&key)?;
             let mut machine = OfferMachine::new();
             // The returned offer is re-read through `continue_offer` below —
             // the same open offer the reader chooses from.
-            machine.on_session_end(key, stored);
+            let _ = machine.on_session_end(key, stored);
             machine.on_foregrounded();
             let offer = machine.continue_offer();
             write_payload(
                 stdout,
-                &offer_payload("offer_continue", &file, key, offer, cli.format)?,
+                &offer_payload("offer_continue", file, key, offer, cli.format)?,
             )
         }
         OfferCommand::StartOver { file } => {
-            let key = document_key(&file)?;
+            let key = document_key(file)?;
             let mut store = BookmarkStore::open(&cli.db)?;
             let mut machine = OfferMachine::new();
             let outcome = machine.start_over();
@@ -650,22 +645,22 @@ fn offer_command(
             tracing::debug!("start-over: stored position discarded");
             write_payload(
                 stdout,
-                &start_over_payload(&file, key, outcome, cli.format)?,
+                &start_over_payload(file, key, outcome, cli.format)?,
             )
         }
         OfferCommand::Expire { file, foreground } => {
-            let key = document_key(&file)?;
+            let key = document_key(file)?;
             let mut store = BookmarkStore::open(&cli.db)?;
             let stored = store.get(&key)?;
             let mut machine = OfferMachine::new();
-            machine.on_session_end(key, stored);
+            let _ = machine.on_session_end(key, stored);
             if *foreground {
                 machine.on_foregrounded();
             }
             let outcome = machine.expire();
             write_payload(
                 stdout,
-                &expire_payload(&file, key, *foreground, outcome, cli.format)?,
+                &expire_payload(file, key, *foreground, outcome, cli.format)?,
             )
         }
     }

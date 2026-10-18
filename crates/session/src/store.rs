@@ -40,11 +40,11 @@ use redb::{Database, TableDefinition};
 use crate::fingerprint::fingerprint;
 use crate::offer::{OfferMachine, OpenOffer};
 
-/// Bookmarks table: fingerprint → offset, paused-at,
-/// end kind (FR-044). The value keeps the legacy
-/// `(f64, u64, u8)` tuple shape, so the raw-table
-/// surface (the US1 suite) reads and writes the
-/// same rows directly.
+/// Bookmarks table: fingerprint → offset, paused-at, end kind (FR-044).
+///
+/// The value keeps the legacy `(f64, u64, u8)` tuple shape,
+/// so the raw-table surface (the US1 suite) reads and writes
+/// the same rows directly.
 pub const BOOKMARKS: TableDefinition<&[u8; 32], (f64, u64, u8)> = TableDefinition::new("bookmarks");
 
 /// Settings table (storage-schema.md): key `str` →
@@ -55,13 +55,13 @@ const SETTINGS: TableDefinition<&str, &[u8]> = TableDefinition::new("settings");
 /// stored under (FR-019b).
 const LAST_RATE_KEY: &str = "last_rate";
 
-/// The stored bookmark entry (storage-schema.md):
-/// the last spoken position under the document's
-/// content fingerprint, the start of the continuous
-/// non-advancing interval (the FR-015 supersede
-/// clock — never reset at supersede), and the
-/// session-end kind that decides the resume-offer
-/// flow (FR-044).
+/// The stored bookmark entry (storage-schema.md): the last
+/// spoken position under the document's content fingerprint (FR-044).
+///
+/// Also carries the start of the continuous non-advancing
+/// interval (the FR-015 supersede clock — never reset at
+/// supersede) and the session-end kind that decides the
+/// resume-offer flow.
 ///
 /// `Eq` is precluded by the `f64` field; every
 /// offset lives on the quarter-second grid, an
@@ -86,7 +86,7 @@ impl StoredPosition {
     /// `bookmarks` table carries, with the
     /// session-end kind as its discriminant
     /// (FR-044).
-    fn into_tuple(self) -> (f64, u64, u8) {
+    const fn into_tuple(self) -> (f64, u64, u8) {
         (
             self.offset_secs,
             self.first_yield_ms,
@@ -530,7 +530,7 @@ pub fn lookup_on_open(store: &mut BookmarkStore, bytes: &[u8]) -> Result<OpenLoo
 /// # Errors
 ///
 /// [`redb::Error`] when the write transaction cannot begin or commit.
-pub fn clear_bookmark(db: &Database, fp: &[u8; 32]) -> Result<(), redb::Error> {
+pub fn clear_bookmark(db: &Database, fp: &[u8; 32]) -> Result<(), Box<redb::Error>> {
     let write_tx = db.begin_write()?;
     {
         let mut table = write_tx.open_table(BOOKMARKS)?;

@@ -4,6 +4,11 @@
 //! errors → stderr, `--format json`. Each verb calls the
 //! identical backend function as the IPC verb.
 
+#![expect(
+    clippy::multiple_crate_versions,
+    reason = "every duplicate is third-party-forced at newest-release pins: ndk 0.9.0 (directly and via cpal 0.18.2) carries thiserror 1.0.69 and jni-sys 0.3.1 — whose published 0.3.1 release itself depends on jni-sys 0.4.1 — while cpal's jni 0.22.4 carries thiserror 2.0.21 and jni-sys 0.4.1; cargo cannot unify across semver majors or a crate with its own re-export, crates.io shows no newer versions, and supply-chain governance for these transitive duplicates belongs to cargo-deny, not this lint"
+)]
+
 use clap::{Parser, Subcommand};
 use player::cli::{PlaybackSession, ShellVerb};
 use player::earcon::{EarconDescriptor, EarconKind};
@@ -76,7 +81,7 @@ enum Commands {
     },
 }
 
-/// Earcon subcommands — one per EarconKind.
+/// Earcon subcommands — one per `EarconKind`.
 #[derive(Subcommand, Debug)]
 enum EarconCommands {
     /// Play confirmation.
@@ -97,6 +102,30 @@ enum EarconCommands {
     Rate,
 }
 
+/// The usage diagnostic of the progress branch — the failure half of
+/// the CLI protocol: the diagnostic to stderr, exit 2, nothing on
+/// stdout (FR-005). `-> !` lets the let-else's `else` arm diverge
+/// exactly as the inline exit did.
+///
+/// `clippy::print_stderr` is suppressed the sanctioned way —
+/// `#[expect(lint, reason = "...")]`, never an `allow` and never a
+/// weakened lint table — because the workspace denies printing in
+/// every target, binaries included.
+#[expect(
+    clippy::print_stderr,
+    reason = "the progress branch's usage error must reach the operator on stderr while stdout stays reserved for the progress line (FR-005); main has no other channel to state it on"
+)]
+fn refuse_progress_usage() -> ! {
+    eprintln!(
+        "usage: player progress (--consumed <u> --total <u> --k <k> --n <n> | --indeterminate)"
+    );
+    std::process::exit(2);
+}
+
+#[expect(
+    clippy::too_many_lines,
+    reason = "the CLI dispatch is the binary's single closed match over the clap command tree; each arm wires one subcommand to the session API and splitting it would separate the usage-error exits from their arms"
+)]
 fn main() -> io::Result<()> {
     let cli = Cli::parse();
     let mut session = PlaybackSession::new();
@@ -172,10 +201,7 @@ fn main() -> io::Result<()> {
                 let (Some(consumed_units), Some(total_units), Some(k), Some(n)) =
                     (consumed, total, k, n)
                 else {
-                    eprintln!(
-                        "usage: player progress (--consumed <u> --total <u> --k <k> --n <n> | --indeterminate)"
-                    );
-                    std::process::exit(2);
+                    refuse_progress_usage();
                 };
                 // The zero-sections case (k = 0, n = 0) resolves
                 // indeterminate — the whole session stays

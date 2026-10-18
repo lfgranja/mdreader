@@ -42,8 +42,10 @@ pub enum PermissionState {
 
 /// The immutable platform permission state the Kotlin shell
 /// forwards (FR-008, FR-021): the answers for the two
-/// runtime-relevant permissions, as declared in the manifest
-/// (`FOREGROUND_SERVICE_MEDIA_PLAYBACK`, `POST_NOTIFICATIONS`).
+/// runtime-relevant permissions.
+///
+/// The two permissions are the ones declared in the manifest —
+/// `FOREGROUND_SERVICE_MEDIA_PLAYBACK` and `POST_NOTIFICATIONS`.
 ///
 /// [`Default`] is the all-granted host/CI baseline; a real
 /// device pushes the platform answer through the
@@ -104,7 +106,7 @@ impl PermissionFailure {
     /// the same shape T065's `ShortReason` renders on the
     /// lock screen and in-app.
     #[must_use]
-    pub fn reason(&self) -> &'static str {
+    pub const fn reason(&self) -> &'static str {
         match self {
             Self::ForegroundServiceMissing => "foreground_service_missing",
             Self::NotificationDenied => "notification_denied",
@@ -115,8 +117,10 @@ impl PermissionFailure {
 /// The startup gate (FR-008/FR-010): fails closed when the
 /// foreground-service permission is absent — the cold start
 /// is refused with the stated reason, and no playing state
-/// may be presented. Runs once at boot (the `run` setup
-/// closure, T030b wiring in `src-tauri/src/lib.rs`).
+/// may be presented.
+///
+/// Runs once at boot (the `run` setup closure, T030b wiring
+/// in `src-tauri/src/lib.rs`).
 ///
 /// # Errors
 ///
@@ -124,7 +128,7 @@ impl PermissionFailure {
 /// foreground-service permission is `Denied` or
 /// `NotRequested` — both are "absent", and the gate fails
 /// closed on either.
-pub fn check_startup(snapshot: &PermissionSnapshot) -> Result<(), PermissionFailure> {
+pub const fn check_startup(snapshot: &PermissionSnapshot) -> Result<(), PermissionFailure> {
     match snapshot.foreground_service_media_playback {
         PermissionState::Granted => Ok(()),
         PermissionState::Denied | PermissionState::NotRequested => {
@@ -135,9 +139,10 @@ pub fn check_startup(snapshot: &PermissionSnapshot) -> Result<(), PermissionFail
 
 /// The pre-play gate (FR-008/FR-010): fails closed when the
 /// foreground-service permission is absent, so a Play-class
-/// verb (`Play`, `ExternalStart`, `ResumeAtStored`,
-/// `StartOver` — the verbs that can reach `Playing`) can
-/// never produce a playing state from a refused start.
+/// verb can never produce a playing state from a refused start.
+///
+/// The Play-class verbs are those that can reach `Playing`:
+/// `Play`, `ExternalStart`, `ResumeAtStored`, `StartOver`.
 ///
 /// A denied notification permission is deliberately not a
 /// failure here: FR-021 routes it to the in-app statement
@@ -149,7 +154,7 @@ pub fn check_startup(snapshot: &PermissionSnapshot) -> Result<(), PermissionFail
 /// [`PermissionFailure::ForegroundServiceMissing`] when the
 /// foreground-service permission is `Denied` or
 /// `NotRequested`.
-pub fn check_pre_play(snapshot: &PermissionSnapshot) -> Result<(), PermissionFailure> {
+pub const fn check_pre_play(snapshot: &PermissionSnapshot) -> Result<(), PermissionFailure> {
     match snapshot.foreground_service_media_playback {
         PermissionState::Granted => Ok(()),
         PermissionState::Denied | PermissionState::NotRequested => {
@@ -167,7 +172,7 @@ pub fn check_pre_play(snapshot: &PermissionSnapshot) -> Result<(), PermissionFai
 /// the surface it would otherwise appear on (FR-021,
 /// FR-037). `Granted` and `NotRequested` carry no statement.
 #[must_use]
-pub fn notification_statement(snapshot: &PermissionSnapshot) -> Option<&'static str> {
+pub const fn notification_statement(snapshot: &PermissionSnapshot) -> Option<&'static str> {
     match snapshot.post_notifications {
         PermissionState::Denied => Some("lock_screen_controls_unavailable"),
         PermissionState::Granted | PermissionState::NotRequested => None,

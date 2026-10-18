@@ -81,8 +81,8 @@ const PRIVACIES: [OutputDevicePrivacy; 2] =
 
 /// The wire string of the closed device-direction set — two
 /// explicit arms, never a wildcard (`contracts/shell-ipc.md`
-/// case mapping: Rust PascalCase → wire snake_case).
-fn direction_wire(direction: DeviceDirection) -> &'static str {
+/// case mapping: Rust `PascalCase` → wire `snake_case`).
+const fn direction_wire(direction: DeviceDirection) -> &'static str {
     match direction {
         DeviceDirection::Appeared => "appeared",
         DeviceDirection::Disappeared => "disappeared",
@@ -92,7 +92,7 @@ fn direction_wire(direction: DeviceDirection) -> &'static str {
 /// The wire tag of the closed routing-signal set — three
 /// explicit arms, never a wildcard, so adding a fourth variant
 /// breaks this file's compilation (FR-044).
-fn signal_wire_tag(signal: &RoutingSignal) -> &'static str {
+const fn signal_wire_tag(signal: &RoutingSignal) -> &'static str {
     match signal {
         RoutingSignal::BecomingNoisy => "becoming_noisy",
         RoutingSignal::DeviceDisappeared { .. } => "device_disappeared",
@@ -102,7 +102,7 @@ fn signal_wire_tag(signal: &RoutingSignal) -> &'static str {
 
 /// The decision variant's name — three explicit arms, never a
 /// wildcard, so the closed decision set stays closed here.
-fn decision_variant(decision: &RoutingDecision) -> &'static str {
+const fn decision_variant(decision: &RoutingDecision) -> &'static str {
     match decision {
         RoutingDecision::Pause { .. } => "Pause",
         RoutingDecision::Follow { .. } => "Follow",
@@ -145,7 +145,7 @@ fn assert_pause_within_bound(decision: &RoutingDecision, mechanism: &str) {
 /// signal named — what `EventKind::OutputDevice` records
 /// carry (FR-017a, FR-039): equal as a struct to the expected
 /// `diag::writer::DeviceEvent` and byte-exact on the wire
-/// (`direction` then `device_id`, both snake_case).
+/// (`direction` then `device_id`, both `snake_case`).
 fn assert_device_event(payload: &DeviceEvent, direction: DeviceDirection, device_id: &str) {
     let expected = DeviceEvent {
         direction,
@@ -281,11 +281,15 @@ fn bluetooth_disconnect_carries_exactly_the_wired_consequence() {
 
 /// C6 (wire conformance): every closed signal variant
 /// serializes to its exact `contracts/shell-ipc.md` wire form
-/// (case mapping: Rust PascalCase → wire snake_case), and the
+/// (case mapping: Rust `PascalCase` → wire `snake_case`), and the
 /// `Pause`/`Follow` device payloads serialize to the
 /// `diag::writer::DeviceEvent` wire shape that
 /// `EventKind::OutputDevice` records carry.
 #[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "the C6 wire-conformance test walks the closed signal set and both payload shapes in one flow so every expected wire string sits beside the variant it pins; splitting would separate each variant from its wire form"
+)]
 fn routing_signals_and_device_payloads_carry_the_shell_ipc_wire_shape() {
     let signals = [
         (RoutingSignal::BecomingNoisy, "\"becoming_noisy\""),
@@ -360,11 +364,11 @@ fn routing_signals_and_device_payloads_carry_the_shell_ipc_wire_shape() {
         }
         RoutingDecision::Follow { .. } => {
             let paused = matches!(disappearance, RoutingDecision::Pause { .. });
-            assert!(paused, "a removal must pause, never follow (FR-016)")
+            assert!(paused, "a removal must pause, never follow (FR-016)");
         }
         RoutingDecision::NoChange => {
             let paused = matches!(disappearance, RoutingDecision::Pause { .. });
-            assert!(paused, "a removal must never pass unhandled (FR-016a)")
+            assert!(paused, "a removal must never pass unhandled (FR-016a)");
         }
     }
 
@@ -386,7 +390,7 @@ fn routing_signals_and_device_payloads_carry_the_shell_ipc_wire_shape() {
             assert!(
                 followed,
                 "an appearance while playing follows, never pauses (FR-017a)"
-            )
+            );
         }
         RoutingDecision::Follow { device } => {
             assert_device_event(device, DeviceDirection::Appeared, "bt-headset");
@@ -396,7 +400,7 @@ fn routing_signals_and_device_payloads_carry_the_shell_ipc_wire_shape() {
             assert!(
                 followed,
                 "an appearance while playing follows at the unchanged position (FR-017a)"
-            )
+            );
         }
     }
 

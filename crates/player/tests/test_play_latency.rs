@@ -212,10 +212,11 @@ fn measure_play_to_audio_ms() -> Result<u128, HarnessError> {
 /// Returns 0 when the system clock precedes the epoch (never on a
 /// normal system); the value is only a record timestamp anchor.
 fn now_ms() -> u64 {
-    match SystemTime::now().duration_since(UNIX_EPOCH) {
-        Ok(duration) => u64::try_from(duration.as_millis()).unwrap_or(0),
-        Err(_) => 0,
-    }
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |duration| {
+            u64::try_from(duration.as_millis()).unwrap_or(0)
+        })
 }
 
 /// The record event carrying the measured latency: a transport
@@ -329,6 +330,10 @@ fn the_measured_latency_key_is_exactly_play_to_audio_ms() {
 /// bound is 3 000 ms and the host sanity ceiling is twenty times
 /// it, so a host run is never held to a device-scoped bound while a
 /// broken Play path still fails.
+#[expect(
+    clippy::assertions_on_constants,
+    reason = "the SC-002 bound and the host ceiling are compile-time constants by design; the assertion pins their ordering as a documented, greppable invariant of the suite"
+)]
 #[test]
 fn the_declared_bound_and_the_host_ceiling_stay_generous() {
     assert_eq!(

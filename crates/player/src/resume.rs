@@ -1,12 +1,16 @@
 //! T041 — Resume / sentence-snap / 3 s expiry (FR-015 / FR-032c / FR-041 / SC-041).
+//!
 //! Deliberate-pause: visible 3 s offer, continue-default + start-over; expires everywhere after 3 s.
 //! Unexpected-end: paused + explicit resume control; never auto-starts.
 //! Resume lands at sentence start; total backward ≤30 s (FR-015 / SC-041).
 
 /// The resume-offer window (FR-032c / FR-041): a deliberate
 /// pause offers continue-by-default, an unexpected end offers
-/// an explicit resume control — and both expire everywhere
-/// after 3 s, returning `None` (never auto-resume, FR-014).
+/// an explicit resume control.
+///
+/// Both expire everywhere after 3 s, returning `None` (never
+/// auto-resume, FR-014).
+#[must_use]
 pub fn resume_offer_window(
     secs_since_pause: f64,
     is_deliberate_pause: bool,

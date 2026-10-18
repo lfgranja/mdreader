@@ -145,10 +145,11 @@ pub enum ShortReason {
 
 /// The full in-app reason statement (FR-037): the closed set of reasons
 /// in the full form the application states when it is next opened,
-/// parallel to [`ShortReason`] — the same variants under the same
-/// `snake_case` wire forms, so one wire value deserializes into either
-/// presentation and each surface renders its own form of the same
-/// reason.
+/// parallel to [`ShortReason`].
+///
+/// The variants share the `snake_case` wire forms with [`ShortReason`],
+/// so one wire value deserializes into either presentation and each
+/// surface renders its own form of the same reason.
 ///
 /// The full failure reasons state the failure in Portuguese, the
 /// application's surface language, and never quote document content
@@ -381,11 +382,12 @@ impl Dismissal {
 
 /// The dismissal policy for the transport state the session states
 /// (FR-014, FR-028e): a playing transport refuses dismissal — pausing
-/// is the route to dismissal — and every other state is dismissable,
-/// including the torn-down states (`stopped`, `completed`), whose
-/// FR-032f teardown has nothing left to keep on the surface, and the
-/// interrupted state, whose surface carries the paused state and its
-/// resume control.
+/// is the route to dismissal.
+///
+/// Every other state is dismissable, including the torn-down states
+/// (`stopped`, `completed`), whose FR-032f teardown has nothing left
+/// to keep on the surface, and the interrupted state, whose surface
+/// carries the paused state and its resume control.
 ///
 /// The match is exhaustive over the session's closed transport set
 /// with no catch-all arm (Principle VII): a state added to the
@@ -914,7 +916,7 @@ mod tests {
             }
             // One reason, both presentations, one TTL: the short
             // lock-screen form and the full in-app form agree.
-            assert_eq!(ttl, reason_ttl_of_the_same_reason(&reason));
+            assert_eq!(ttl, reason_ttl_of_the_same_reason(reason));
         }
         // The TTL is exactly the payload's two-valued wire form:
         // 3000 or null, never zero, never a second window.
@@ -924,7 +926,7 @@ mod tests {
     /// The TTL the short presentation carries for the reason the
     /// full presentation names — the parallel-set correspondence a
     /// test can assert without a second classification.
-    fn reason_ttl_of_the_same_reason(full: &FullReason) -> Option<u64> {
+    fn reason_ttl_of_the_same_reason(full: FullReason) -> Option<u64> {
         let short = match full {
             FullReason::FocusSilenceDemanding => ShortReason::FocusSilenceDemanding,
             FullReason::FocusPermanentLoss => ShortReason::FocusPermanentLoss,

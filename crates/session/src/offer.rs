@@ -171,7 +171,7 @@ impl OfferMachine {
     /// no-offer forms answer `None` — their state is
     /// read through `resolve_open` / [`expire`](Self::expire),
     /// never re-derived here (FR-044).
-    pub fn on_session_end(
+    pub const fn on_session_end(
         &mut self,
         fingerprint: [u8; 32],
         stored: Option<StoredPosition>,
@@ -302,7 +302,7 @@ impl OfferMachine {
     /// The open offer, if any — unchanged until a
     /// choice is made or the window elapses
     /// (FR-032c).
-    pub fn continue_offer(&mut self) -> Option<Offer> {
+    pub const fn continue_offer(&mut self) -> Option<Offer> {
         self.offer
     }
 

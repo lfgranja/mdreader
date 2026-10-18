@@ -20,7 +20,7 @@
 //! offer names the remaining selectable engines, so
 //! every selectable engine except the default is
 //! offered exactly once over a full descent (the
-//! prop_fallback F7 oracle). Every failed engine is
+//! `prop_fallback` F7 oracle). Every failed engine is
 //! recorded (FR-023) — never silently dropped, never
 //! re-offered — and a repeated failure re-offers the
 //! same remaining set (the recording is idempotent, so
@@ -87,8 +87,10 @@ const REFUSAL_ENGINE_NOT_SELECTABLE: &str = "engine_not_selectable";
 
 /// The decision the engine authority returns for a
 /// named engine failure or an offer resolution
-/// (FR-023 / FR-023a): the failover's three terminal
-/// forms — an open 3-second offer of alternatives, an
+/// (FR-023 / FR-023a).
+///
+/// The failover's three terminal
+/// forms: an open 3-second offer of alternatives, an
 /// auto- or chosen takeover from the last spoken
 /// position, or a paused session with a stated reason.
 #[derive(Debug, Clone, PartialEq)]
@@ -161,7 +163,7 @@ pub struct RecoveryMachine {
     /// The session's default engine: the first
     /// selectable engine at construction — the engine
     /// selected at session start, never itself an
-    /// offer (FR-023a / the prop_fallback F7 oracle).
+    /// offer (FR-023a / the `prop_fallback` F7 oracle).
     /// `None` when nothing was selectable at
     /// construction.
     session_default: Option<String>,
@@ -184,7 +186,7 @@ impl RecoveryMachine {
     /// The session's default engine is the first
     /// selectable engine at construction — the engine
     /// selected at session start, never itself an
-    /// offer (FR-023a / the prop_fallback F7 oracle):
+    /// offer (FR-023a / the `prop_fallback` F7 oracle):
     /// the offer names the remaining selectable
     /// engines, so every selectable engine except the
     /// default is offered exactly once over a full
@@ -322,7 +324,6 @@ impl RecoveryMachine {
     /// `engine_id` is not selectable — failed,
     /// unregistered, inadmissible, unconsented, or
     /// locked out by the resolution (FR-023a).
-    #[must_use]
     pub fn choose(&mut self, engine_id: &str) -> Result<RecoveryDecision, PlayerError> {
         let chosen = self
             .offerable()
@@ -353,7 +354,7 @@ impl RecoveryMachine {
     /// declared ascending fallback order (FR-023c),
     /// the session's default excluded — the engine
     /// selected at session start is never itself an
-    /// offer (FR-023a / the prop_fallback F7 oracle).
+    /// offer (FR-023a / the `prop_fallback` F7 oracle).
     ///
     /// A failed engine is excluded by the selector's
     /// recorded failures (FR-023); the session's

@@ -165,7 +165,7 @@ enum DecisionKind {
 }
 
 /// The decision kind — three explicit arms, no catch-all.
-fn decision_kind(decision: &RoutingDecision) -> DecisionKind {
+const fn decision_kind(decision: &RoutingDecision) -> DecisionKind {
     match decision {
         RoutingDecision::Pause { .. } => DecisionKind::Pause,
         RoutingDecision::Follow { .. } => DecisionKind::Follow,
@@ -175,7 +175,7 @@ fn decision_kind(decision: &RoutingDecision) -> DecisionKind {
 
 /// Whether a signal is one of the two named FR-016a removal
 /// mechanisms.
-fn is_removal_signal(signal: &RoutingSignal) -> bool {
+const fn is_removal_signal(signal: &RoutingSignal) -> bool {
     matches!(
         signal,
         RoutingSignal::BecomingNoisy | RoutingSignal::DeviceDisappeared { .. }
@@ -184,7 +184,7 @@ fn is_removal_signal(signal: &RoutingSignal) -> bool {
 
 /// Whether an appearance claims the public output class (the
 /// loudspeaker or car Bluetooth in shared-cabin use).
-fn claims_public(signal: &RoutingSignal) -> bool {
+const fn claims_public(signal: &RoutingSignal) -> bool {
     matches!(
         signal,
         RoutingSignal::DeviceAppeared {
@@ -395,15 +395,12 @@ fn device_disappeared_pauses_within_the_normative_bound() {
     assert_eq!(
         decision_kind(&decision),
         DecisionKind::Pause,
-        "a wired pull must pause (FR-006): the decision was {:?}",
-        decision
+        "a wired pull must pause (FR-006): the decision was {decision:?}"
     );
     if let RoutingDecision::Pause { latency_ms, device } = &decision {
         assert!(
             u128::from(*latency_ms) <= ROUTING_PAUSE_BOUND_MS,
-            "the wired pull paused in {} ms, over the normative {} ms FR-006 bound (gating)",
-            latency_ms,
-            ROUTING_PAUSE_BOUND_MS
+            "the wired pull paused in {latency_ms} ms, over the normative {ROUTING_PAUSE_BOUND_MS} ms FR-006 bound (gating)"
         );
         assert_eq!(
             device.direction,
@@ -432,15 +429,12 @@ fn becoming_noisy_pauses_within_the_normative_bound() {
     assert_eq!(
         decision_kind(&decision),
         DecisionKind::Pause,
-        "a BecomingNoisy signal must pause (FR-006 / FR-016a): the decision was {:?}",
-        decision
+        "a BecomingNoisy signal must pause (FR-006 / FR-016a): the decision was {decision:?}"
     );
     if let RoutingDecision::Pause { latency_ms, device } = &decision {
         assert!(
             u128::from(*latency_ms) <= ROUTING_PAUSE_BOUND_MS,
-            "the noisy route paused in {} ms, over the normative {} ms FR-006 bound (gating)",
-            latency_ms,
-            ROUTING_PAUSE_BOUND_MS
+            "the noisy route paused in {latency_ms} ms, over the normative {ROUTING_PAUSE_BOUND_MS} ms FR-006 bound (gating)"
         );
         assert_eq!(
             device.direction,
@@ -455,6 +449,10 @@ fn becoming_noisy_pauses_within_the_normative_bound() {
 /// must agree with) and an informative 250 ms local target that sits
 /// inside it.
 #[test]
+#[expect(
+    clippy::assertions_on_constants,
+    reason = "the FR-006 figures are compile-time constants by design; the assertion pins the informative 250 ms target inside the normative 1000 ms bound as a documented, greppable invariant (FR-006 / SC-002)"
+)]
 fn the_bounds_match_the_fr006_figures_verbatim() {
     assert_eq!(
         ROUTING_PAUSE_BOUND_MS, 1_000,
@@ -471,9 +469,7 @@ fn the_bounds_match_the_fr006_figures_verbatim() {
     );
     assert!(
         ROUTING_LOCAL_TARGET_MS <= ROUTING_PAUSE_BOUND_MS,
-        "the informative local engineering target {} ms must sit inside the normative {} ms bound",
-        ROUTING_LOCAL_TARGET_MS,
-        ROUTING_PAUSE_BOUND_MS
+        "the informative local engineering target {ROUTING_LOCAL_TARGET_MS} ms must sit inside the normative {ROUTING_PAUSE_BOUND_MS} ms bound"
     );
 }
 
@@ -502,9 +498,7 @@ fn a_public_appearance_is_never_followed_out_of_a_private_output() {
     if let RoutingDecision::Pause { latency_ms, .. } = &unlatched {
         assert!(
             u128::from(*latency_ms) <= ROUTING_PAUSE_BOUND_MS,
-            "the fail-closed pause declared {} ms, over the normative {} ms bound",
-            latency_ms,
-            ROUTING_PAUSE_BOUND_MS
+            "the fail-closed pause declared {latency_ms} ms, over the normative {ROUTING_PAUSE_BOUND_MS} ms bound"
         );
     }
     let mut private_tracker = RoutingTracker::new();
@@ -535,9 +529,7 @@ fn a_public_appearance_is_never_followed_out_of_a_private_output() {
     if let RoutingDecision::Pause { latency_ms, device } = &switch {
         assert!(
             u128::from(*latency_ms) <= ROUTING_PAUSE_BOUND_MS,
-            "the privacy-precedence pause declared {} ms, over the normative {} ms bound",
-            latency_ms,
-            ROUTING_PAUSE_BOUND_MS
+            "the privacy-precedence pause declared {latency_ms} ms, over the normative {ROUTING_PAUSE_BOUND_MS} ms bound"
         );
         assert_eq!(
             device.direction,
@@ -573,9 +565,7 @@ fn the_routing_decision_is_pure_so_the_bound_is_decidable_without_a_clock() {
     if let RoutingDecision::Pause { latency_ms, .. } = &first_decision {
         assert!(
             u128::from(*latency_ms) <= ROUTING_PAUSE_BOUND_MS,
-            "the declared pause latency {} ms must sit inside the normative {} ms bound",
-            latency_ms,
-            ROUTING_PAUSE_BOUND_MS
+            "the declared pause latency {latency_ms} ms must sit inside the normative {ROUTING_PAUSE_BOUND_MS} ms bound"
         );
     }
 }

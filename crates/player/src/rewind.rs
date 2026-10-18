@@ -37,13 +37,15 @@ use crate::position::{REWIND_CAP_SECS, REWIND_FRACTION};
 /// real energy peak as a gap.
 const GAP_EPS_SECS: f64 = 0.001;
 
-/// The FR-007 context cue distance: the resume lands a fixed
-/// 5 s BEFORE the containing-sentence start (data-model.md:
-/// "the 004 cue distance is fixed 5 s further-backward from
-/// containing-sentence-start per FR-007"), so the listener
-/// re-hears the tail of the previous sentence and
-/// re-establishes context before the snapped boundary. The
-/// 5–10 s band the contract names is satisfied at its floor
+/// The FR-007 context cue distance (data-model.md: "the 004
+/// cue distance is fixed 5 s further-backward from
+/// containing-sentence-start per FR-007").
+///
+/// The resume lands a fixed 5 s BEFORE the containing-sentence
+/// start: the listener re-hears the tail of the previous
+/// sentence and re-establishes context before the snapped
+/// boundary.
+/// The 5–10 s band the contract names is satisfied at its floor
 /// by the fixed distance; cap-precedence clamps the cue when
 /// the containing sentence is longer than the rewind cap
 /// (total backward movement never exceeds
@@ -169,27 +171,24 @@ pub fn resolve_resume(input: &ResumeInput<'_>) -> ResumeResult {
         (raw_cursor, false)
     } else {
         let mut best: Option<f64> = None;
-        for boundary in input.sentence_starts.iter() {
+        for boundary in input.sentence_starts {
             let b = *boundary;
             if b <= raw_cursor && best.is_none_or(|prev| b > prev) {
                 best = Some(b);
             }
         }
-        match best {
-            Some(boundary) => {
-                if boundary >= cap_point {
-                    (boundary, true)
-                } else {
-                    // Sentence longer than the cap: land exactly at cap.
-                    (cap_point, true)
-                }
+        // Cursor precedes every declared boundary (None): no backward
+        // snap exists, so hold the raw cursor rather than jumping
+        // to document start or forward into unplayed audio — and
+        // cut no cue from an unmoved cursor.
+        best.map_or((raw_cursor, false), |boundary| {
+            if boundary >= cap_point {
+                (boundary, true)
+            } else {
+                // Sentence longer than the cap: land exactly at cap.
+                (cap_point, true)
             }
-            // Cursor precedes every declared boundary: no backward
-            // snap exists, so hold the raw cursor rather than jumping
-            // to document start or forward into unplayed audio — and
-            // cut no cue from an unmoved cursor.
-            None => (raw_cursor, false),
-        }
+        })
     };
 
     // FR-007 cue: step back the fixed cue distance from the
@@ -213,7 +212,7 @@ pub fn resolve_resume(input: &ResumeInput<'_>) -> ResumeResult {
     let mid_word = !is_gap(cue_point, input.word_gaps);
     let resume_secs = if cued && mid_word && cue_point < raw_cursor {
         let mut next_gap: Option<f64> = None;
-        for gap in input.word_gaps.iter() {
+        for gap in input.word_gaps {
             let g = *gap;
             if g > cue_point && next_gap.is_none_or(|prev| g < prev) {
                 next_gap = Some(g);
@@ -246,7 +245,7 @@ pub fn resolve_resume(input: &ResumeInput<'_>) -> ResumeResult {
 #[must_use]
 fn is_gap(point: f64, word_gaps: &[f64]) -> bool {
     let mut found = false;
-    for gap in word_gaps.iter() {
+    for gap in word_gaps {
         if (*gap - point).abs() <= GAP_EPS_SECS {
             found = true;
         }

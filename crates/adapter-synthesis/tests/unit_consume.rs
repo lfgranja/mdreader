@@ -66,7 +66,7 @@ const ALL_PAIRS: [(SsmlLevel, AlignmentGranularity); 9] = [
 ];
 
 /// The full pinned mapping table: declaration -> expected `PlayerPlan`.
-/// Identity mapping per API_CONTRACT §5 — every `SsmlLevel` maps to the
+/// Identity mapping per `API_CONTRACT` §5 — every `SsmlLevel` maps to the
 /// same-strength `SsmlDelivery`, every `AlignmentGranularity` to the
 /// same-strength `ResumeAnchor`.
 const EXPECTED_PLANS: [PlayerPlan; 9] = [
@@ -108,7 +108,7 @@ const EXPECTED_PLANS: [PlayerPlan; 9] = [
     },
 ];
 
-/// T12: the v1 plan is `(PlainText, ParagraphHeading)` — the offline_default
+/// T12: the v1 plan is `(PlainText, ParagraphHeading)` — the `offline_default`
 /// declaration consumed as plain text with paragraph/heading resume.
 #[test]
 fn v1_plan_is_plain_text_and_paragraph_heading() {
@@ -219,7 +219,7 @@ fn plan_is_total_over_all_nine_declaration_pairs() {
     }
 }
 
-/// The full mapping table is pinned, not just the v1 row (API_CONTRACT §5):
+/// The full mapping table is pinned, not just the v1 row (`API_CONTRACT` §5):
 /// `SsmlLevel::None -> PlainText`, `Partial -> PartialSsml`,
 /// `Full -> FullSsml`; `AlignmentGranularity::None -> ParagraphHeading`,
 /// `Word -> Word`, `Sentence -> Sentence`.
@@ -249,6 +249,9 @@ fn full_declaration_to_plan_table_is_pinned() {
 /// here. The format round-trip also proves `Debug` is stable.
 #[test]
 fn consume_types_exercise_debug_clone_copy_partial_eq_eq() {
+    // Eq: no floating-point or partial-comparison member exists.
+    fn assert_eq_trait<T: Eq>() {}
+
     let plan = plan_for(V1_DECLARATION);
 
     // Debug: format the plan and the enums (no `println!` — denied).
@@ -261,6 +264,10 @@ fn consume_types_exercise_debug_clone_copy_partial_eq_eq() {
 
     // Clone: the derived `Clone` is exercised explicitly and preserves
     // equality; Copy: an implicit move-out copy preserves it too.
+    #[expect(
+        clippy::clone_on_copy,
+        reason = "the test deliberately calls the derived `Clone` to pin the trait-derivation contract; the implicit move-out below covers the `Copy` half"
+    )]
     let cloned = plan.clone();
     let copied = plan;
     assert_eq!(plan, cloned);
@@ -268,8 +275,6 @@ fn consume_types_exercise_debug_clone_copy_partial_eq_eq() {
     assert_eq!(SsmlDelivery::PartialSsml, SsmlDelivery::PartialSsml);
     assert_eq!(ResumeAnchor::Word, ResumeAnchor::Word);
 
-    // Eq: no floating-point or partial-comparison member exists.
-    fn assert_eq_trait<T: Eq>() {}
     assert_eq_trait::<PlayerPlan>();
     assert_eq_trait::<SsmlDelivery>();
     assert_eq_trait::<ResumeAnchor>();

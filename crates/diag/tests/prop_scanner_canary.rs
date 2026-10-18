@@ -162,14 +162,15 @@ enum PropError {
 /// Returns 0 when the system clock precedes the epoch (never on a normal
 /// system); the value is only ever used as a timestamp anchor.
 fn now_ms() -> u64 {
-    match SystemTime::now().duration_since(UNIX_EPOCH) {
-        Ok(duration) => u64::try_from(duration.as_millis()).unwrap_or(0),
-        Err(_) => 0,
-    }
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |duration| {
+            u64::try_from(duration.as_millis()).unwrap_or(0)
+        })
 }
 
 /// A record event with every optional field absent.
-fn base_event(kind: EventKind, ts_ms: u64, position_secs: f64) -> RecordEvent {
+const fn base_event(kind: EventKind, ts_ms: u64, position_secs: f64) -> RecordEvent {
     RecordEvent {
         v: RECORD_VERSION,
         ts_ms,
@@ -188,17 +189,21 @@ fn base_event(kind: EventKind, ts_ms: u64, position_secs: f64) -> RecordEvent {
     }
 }
 
-fn session_start(ts_ms: u64, position_secs: f64) -> RecordEvent {
+const fn session_start(ts_ms: u64, position_secs: f64) -> RecordEvent {
     base_event(EventKind::SessionStart, ts_ms, position_secs)
 }
 
-fn transport_change(ts_ms: u64, position_secs: f64, transport: TransportValue) -> RecordEvent {
+const fn transport_change(
+    ts_ms: u64,
+    position_secs: f64,
+    transport: TransportValue,
+) -> RecordEvent {
     let mut event = base_event(EventKind::TransportChange, ts_ms, position_secs);
     event.transport = Some(transport);
     event
 }
 
-fn session_end(
+const fn session_end(
     ts_ms: u64,
     position_secs: f64,
     transport: TransportValue,
@@ -210,7 +215,7 @@ fn session_end(
     event
 }
 
-fn focus_transition(
+const fn focus_transition(
     ts_ms: u64,
     position_secs: f64,
     focus: FocusValue,
@@ -248,14 +253,14 @@ fn failure(
     event
 }
 
-fn refusal(ts_ms: u64, position_secs: f64, error: Option<ErrorValue>) -> RecordEvent {
+const fn refusal(ts_ms: u64, position_secs: f64, error: Option<ErrorValue>) -> RecordEvent {
     let mut event = base_event(EventKind::Refusal, ts_ms, position_secs);
     event.error = error;
     event
 }
 
 /// The closed violation kind of a scanner finding, for counting by kind.
-fn violation_kind(violation: &ScanViolation) -> &'static str {
+const fn violation_kind(violation: &ScanViolation) -> &'static str {
     match violation {
         ScanViolation::ProseInDetail { .. } => "prose_in_detail",
         ScanViolation::DetailTooLong { .. } => "detail_too_long",
@@ -292,13 +297,12 @@ fn write_and_scan(events: &[RecordEvent]) -> Result<ScanReport, PropError> {
 
 /// The timestamp and position of the last event, for appending a canary
 /// after it. The background always contains at least the `session_start`,
-/// so the `None` arm is unreachable; it exists to keep the match total
-/// without `unwrap`.
+/// so the `map_or_else` fallback to a fresh clock anchor never fires;
+/// nothing here unwraps.
 fn last_timestamp_and_position(events: &[RecordEvent]) -> (u64, f64) {
-    match events.last() {
-        Some(last) => (last.ts_ms, last.position_secs),
-        None => (now_ms(), 0.0),
-    }
+    events
+        .last()
+        .map_or_else(|| (now_ms(), 0.0), |last| (last.ts_ms, last.position_secs))
 }
 
 /// A generated middle event of a conforming sequence: its kind, whether
@@ -490,7 +494,7 @@ fn conforming_sequence_strategy() -> impl Strategy<Value = Vec<RecordEvent>> {
 
 /// The number of middle events in a built background: the event count
 /// minus the leading `session_start`.
-fn mids_len_of(events: &[RecordEvent]) -> usize {
+const fn mids_len_of(events: &[RecordEvent]) -> usize {
     events.len().saturating_sub(1)
 }
 

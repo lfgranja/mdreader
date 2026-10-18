@@ -513,7 +513,7 @@ fn ingest_command(
 }
 
 /// The `get` verb: read the stored position for a document.
-fn get_command(cli: &Cli, file: &PathBuf, stdout: &mut dyn Write) -> Result<(), CliError> {
+fn get_command(cli: &Cli, file: &Path, stdout: &mut dyn Write) -> Result<(), CliError> {
     let key = document_key(file)?;
     let mut store = BookmarkStore::open(&cli.db)?;
     let stored = store.get(&key)?;
@@ -526,7 +526,7 @@ fn get_command(cli: &Cli, file: &PathBuf, stdout: &mut dyn Write) -> Result<(), 
 /// The `put` verb: persist a bookmark for a document.
 fn put_command(
     cli: &Cli,
-    file: &PathBuf,
+    file: &Path,
     offset_secs: f64,
     first_yield_ms: u64,
     end_kind: SessionEndInput,
@@ -542,7 +542,7 @@ fn put_command(
         });
     }
     let offset_secs = checked_offset(offset_secs)?;
-    let key = document_key(&file)?;
+    let key = document_key(file)?;
     let mut store = BookmarkStore::open(&cli.db)?;
     let position = StoredPosition {
         offset_secs,
@@ -558,12 +558,12 @@ fn put_command(
     );
     write_payload(
         stdout,
-        &position_payload("put", &file, key, Some(position), cli.format)?,
+        &position_payload("put", file, key, Some(position), cli.format)?,
     )
 }
 
 /// The `clear` verb: delete the stored position for a document.
-fn clear_command(cli: &Cli, file: &PathBuf, stdout: &mut dyn Write) -> Result<(), CliError> {
+fn clear_command(cli: &Cli, file: &Path, stdout: &mut dyn Write) -> Result<(), CliError> {
     let key = document_key(file)?;
     let mut store = BookmarkStore::open(&cli.db)?;
     store.delete(&key)?;
@@ -572,11 +572,7 @@ fn clear_command(cli: &Cli, file: &PathBuf, stdout: &mut dyn Write) -> Result<()
 }
 
 /// The `rate get` / `rate set` verbs.
-fn rate_command(
-    cli: &Cli,
-    command: &RateCommand,
-    stdout: &mut dyn Write,
-) -> Result<(), CliError> {
+fn rate_command(cli: &Cli, command: &RateCommand, stdout: &mut dyn Write) -> Result<(), CliError> {
     match command {
         RateCommand::Get => {
             let mut store = BookmarkStore::open(&cli.db)?;
@@ -584,8 +580,7 @@ fn rate_command(
             // The call-site default is the normal-speed rung on first use
             // (storage-schema.md); the payload reports whether the stored value
             // or the default answered.
-            let (rate, defaulted) =
-                stored.map_or((PlaybackRate::R1_0, true), |rate| (rate, false));
+            let (rate, defaulted) = stored.map_or((PlaybackRate::R1_0, true), |rate| (rate, false));
             write_payload(stdout, &rate_get_payload(rate, defaulted, cli.format)?)
         }
         RateCommand::Set { rate } => {
@@ -643,10 +638,7 @@ fn offer_command(
             // discard is the caller's (the machine holds no store).
             store.delete(&key)?;
             tracing::debug!("start-over: stored position discarded");
-            write_payload(
-                stdout,
-                &start_over_payload(file, key, outcome, cli.format)?,
-            )
+            write_payload(stdout, &start_over_payload(file, key, outcome, cli.format)?)
         }
         OfferCommand::Expire { file, foreground } => {
             let key = document_key(file)?;

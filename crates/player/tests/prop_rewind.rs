@@ -54,11 +54,19 @@ use player::rewind::{CUE_SECS, ResumeInput, cursor, resolve_resume, supersede};
 const TEST_GAP_EPS_SECS: f64 = 0.001;
 
 /// Yield positions on the exact quarter-second grid `k × 0.25` ∈ [0, 3600].
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the strategy bounds every quarter-second/centisecond count below 2^17, far below f64's exact-integer range (2^53); the grid value converts exactly"
+)]
 fn yield_position_strategy() -> impl Strategy<Value = f64> {
     (0u64..=14_400).prop_map(|quarters| quarters as f64 * 0.25)
 }
 
 /// Paused durations `d` ∈ [0, 7200] s as exact centisecond multiples.
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the strategy bounds every quarter-second/centisecond count below 2^17, far below f64's exact-integer range (2^53); the grid value converts exactly"
+)]
 fn paused_duration_strategy() -> impl Strategy<Value = f64> {
     (0u64..=720_000).prop_map(|centis| centis as f64 / 100.0)
 }
@@ -66,10 +74,14 @@ fn paused_duration_strategy() -> impl Strategy<Value = f64> {
 /// Ascending sentence/word-start boundaries on the quarter-second grid,
 /// always including the document start `0.0` (every document has a
 /// first boundary; the empty list is covered by the degrade tests).
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the strategy bounds every quarter-second/centisecond count below 2^17, far below f64's exact-integer range (2^53); the grid value converts exactly"
+)]
 fn boundaries_strategy() -> impl Strategy<Value = Vec<f64>> {
     proptest::collection::vec(0u64..=14_400, 0..=16).prop_map(|mut quarters| {
         quarters.push(0);
-        quarters.sort();
+        quarters.sort_unstable();
         quarters.dedup();
         quarters.into_iter().map(|q| q as f64 * 0.25).collect()
     })
@@ -78,6 +90,10 @@ fn boundaries_strategy() -> impl Strategy<Value = Vec<f64>> {
 /// Extra inter-word gaps on the quarter-second grid (the oracle unions
 /// these with the boundaries, so every boundary is also a gap — a
 /// boundary is silence, never an energy peak).
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the strategy bounds every quarter-second/centisecond count below 2^17, far below f64's exact-integer range (2^53); the grid value converts exactly"
+)]
 fn extra_gaps_strategy() -> impl Strategy<Value = Vec<f64>> {
     proptest::collection::vec(0u64..=14_400, 0..=8)
         .prop_map(|quarters| quarters.into_iter().map(|q| q as f64 * 0.25).collect())
@@ -145,6 +161,10 @@ fn union_positions(first: &[f64], second: &[f64]) -> Vec<f64> {
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "yields, pauses, caps, cursors and gaps are exact quarter-second grid values; == is the correct assertion and a tolerance would admit an off-boundary or mid-word landing"
+    )]
     #[test]
     fn given_a_paused_duration_when_computing_the_cursor_then_it_is_five_percent_capped_at_thirty_seconds(
         paused_duration_secs in paused_duration_strategy()
@@ -166,6 +186,10 @@ proptest! {
         );
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "yields, pauses, caps, cursors and gaps are exact quarter-second grid values; == is the correct assertion and a tolerance would admit an off-boundary or mid-word landing"
+    )]
     #[test]
     fn given_any_yield_pause_and_boundaries_when_resolving_then_total_backward_never_exceeds_thirty_seconds(
         (yield_secs, paused_duration_secs, boundaries, extra_gaps, granularity) in (
@@ -212,6 +236,10 @@ proptest! {
         );
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "yields, pauses, caps, cursors and gaps are exact quarter-second grid values; == is the correct assertion and a tolerance would admit an off-boundary or mid-word landing"
+    )]
     #[test]
     fn given_a_containing_sentence_when_resolving_then_audio_resumes_at_its_start_or_exactly_at_the_cap(
         (yield_secs, paused_duration_secs, boundaries, granularity) in (
@@ -283,6 +311,18 @@ proptest! {
         }
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "yields, pauses, caps, cursors and gaps are exact quarter-second grid values; == is the correct assertion and a tolerance would admit an off-boundary or mid-word landing"
+    )]
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "the strategy bounds every quarter-second/centisecond count below 2^17, far below f64's exact-integer range (2^53); the grid value converts exactly"
+    )]
+    #[expect(
+        clippy::suboptimal_flops,
+        reason = "the 0.25 product is exact on the binary grid; the separate multiply-add mirrors the module's own cap-plus-gap arithmetic the == assertions compare against — mul_add's single rounding would diverge in the last ulp"
+    )]
     #[test]
     fn given_a_cap_point_mid_word_when_snapping_then_the_resume_moves_forward_to_the_next_gap_unless_that_gap_leaves_the_window(
         (yield_secs, paused_duration_secs, gap_quarters) in (
@@ -344,6 +384,10 @@ proptest! {
         );
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "yields, pauses, caps, cursors and gaps are exact quarter-second grid values; == is the correct assertion and a tolerance would admit an off-boundary or mid-word landing"
+    )]
     #[test]
     fn given_no_sentence_granularity_when_resolving_then_the_resume_is_the_raw_cursor_never_document_start(
         (yield_secs, paused_duration_secs, boundaries) in (
@@ -405,6 +449,10 @@ proptest! {
         }
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "yields, pauses, caps, cursors and gaps are exact quarter-second grid values; == is the correct assertion and a tolerance would admit an off-boundary or mid-word landing"
+    )]
     #[test]
     fn given_synthetic_audio_with_known_gaps_when_resolving_then_the_resume_lands_in_a_gap_never_on_an_energy_peak(
         (yield_secs, paused_duration_secs, boundaries, extra_gaps, granularity) in (

@@ -78,9 +78,11 @@ const ROUTING_PAUSE_LATENCY_MS: u64 = 250;
 const ROUTE_FALLBACK_ID: &str = "route";
 
 /// Closed output-device privacy set (FR-016 / FR-017a): exactly two
-/// variants. Private outputs: wired headsets, wired headphones,
-/// Bluetooth headsets (A2DP/SCO worn by the reader). Public outputs:
-/// the built-in loudspeaker and car Bluetooth in shared-cabin use.
+/// variants.
+///
+/// Private outputs: wired headsets, wired headphones, Bluetooth
+/// headsets (A2DP/SCO worn by the reader). Public outputs: the
+/// built-in loudspeaker and car Bluetooth in shared-cabin use.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum OutputDevicePrivacy {
@@ -93,10 +95,11 @@ pub enum OutputDevicePrivacy {
     Public,
 }
 
-/// Closed routing-signal set (FR-016a): exactly three variants — the
-/// primary `ACTION_AUDIO_BECOMING_NOISY` mechanism and the secondary
-/// `AudioDeviceCallback.onAudioDevicesRemoved` mechanism, plus the
-/// appearance side of FR-017a.
+/// Closed routing-signal set (FR-016a): exactly three variants.
+///
+/// The primary `ACTION_AUDIO_BECOMING_NOISY` mechanism and the
+/// secondary `AudioDeviceCallback.onAudioDevicesRemoved` mechanism,
+/// plus the appearance side of FR-017a.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RoutingSignal {

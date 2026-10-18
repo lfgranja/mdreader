@@ -51,11 +51,8 @@ pub struct PositionClock {
 impl PositionClock {
     /// Create a new clock initialised at `start_secs`, clamped to the
     /// declared floor of 0.0 (data-model `PlaybackPosition: f64 ≥ 0`).
-    #[expect(
-        clippy::cast_possible_truncation,
-        reason = "input is f64; clamped to floor"
-    )]
-    pub fn new(start_secs: f64) -> Self {
+    #[must_use]
+    pub const fn new(start_secs: f64) -> Self {
         let position_secs = start_secs.max(0.0);
         Self {
             position_secs,
@@ -82,8 +79,12 @@ impl PositionClock {
     /// never runs on its own. Position advances only while audible, never
     /// during pre-roll or silence.
     ///
-    /// Returns the new position, or [`PlayerError::NegativeProgress`] when
-    /// the caller supplies a negative elapsed value.
+    /// Returns the new position.
+    ///
+    /// # Errors
+    ///
+    /// [`PlayerError::NegativeProgress`] when the caller supplies a
+    /// negative elapsed value.
     #[instrument(skip(self))]
     pub fn on_audible_progress(&mut self, elapsed_secs: f64) -> Result<f64, PlayerError> {
         if elapsed_secs < 0.0 {
@@ -100,10 +101,6 @@ impl PositionClock {
     }
 
     /// Skip forward exactly [`SKIP_STEP_SECS`] (FR-018).
-    #[expect(
-        clippy::float_cmp,
-        reason = "SKIP_STEP_SECS is an exact binary fraction; == is exact"
-    )]
     pub fn skip_forward(&mut self) -> f64 {
         self.position_secs += SKIP_STEP_SECS;
         self.stored_basis_secs = self.position_secs;
@@ -112,10 +109,6 @@ impl PositionClock {
 
     /// Skip backward exactly [`SKIP_STEP_SECS`], clamped at the 0.0 floor
     /// (FR-018).
-    #[expect(
-        clippy::float_cmp,
-        reason = "SKIP_STEP_SECS is an exact binary fraction; == is exact"
-    )]
     pub fn skip_back(&mut self) -> f64 {
         self.position_secs = (self.position_secs - SKIP_STEP_SECS).max(0.0);
         self.stored_basis_secs = self.position_secs;
@@ -128,10 +121,6 @@ impl PositionClock {
     /// for the cap.
     ///
     /// Returns the new cursor position.
-    #[expect(
-        clippy::cast_possible_truncation,
-        reason = "multiplication of two f64 values stays within f64 range"
-    )]
     pub fn rewind_for_silence(&mut self, paused_duration_secs: f64) -> f64 {
         let rewind_amount = (REWIND_FRACTION * paused_duration_secs).min(REWIND_CAP_SECS);
         self.position_secs = (self.position_secs - rewind_amount).max(0.0);
@@ -145,10 +134,6 @@ impl PositionClock {
     /// rule (FR-015).
     ///
     /// Returns the snapped position.
-    #[expect(
-        clippy::cast_possible_truncation,
-        reason = "boundaries are f64 values on the same grid"
-    )]
     #[must_use]
     pub fn snap_to_boundary(&self, boundaries: &[f64]) -> f64 {
         // Cap origin = last yield (stored_basis / audible progress), not cursor arbitrarily (FR-015 / spec.md:59).
@@ -189,12 +174,20 @@ impl PositionClock {
 mod tests {
     use super::*;
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the clock's positions are exact f64 values — the 0.0 clamp floor, exact elapsed adds and the five-percent/cap arithmetic on grid literals; == pins the exact-value contract and a tolerance would admit an off-by-one-ulp drift"
+    )]
     #[test]
     fn new_clamps_negative_start_to_zero() {
         let clock = PositionClock::new(-1.0);
         assert_eq!(clock.position_secs(), 0.0);
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the clock's positions are exact f64 values — the 0.0 clamp floor, exact elapsed adds and the five-percent/cap arithmetic on grid literals; == pins the exact-value contract and a tolerance would admit an off-by-one-ulp drift"
+    )]
     #[test]
     fn on_audible_progress_advances_by_exactly_elapsed() -> Result<(), PlayerError> {
         let mut clock = PositionClock::new(0.0);
@@ -204,6 +197,10 @@ mod tests {
         Ok(())
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the clock's positions are exact f64 values — the 0.0 clamp floor, exact elapsed adds and the five-percent/cap arithmetic on grid literals; == pins the exact-value contract and a tolerance would admit an off-by-one-ulp drift"
+    )]
     #[test]
     fn on_audible_progress_rejects_negative() {
         let mut clock = PositionClock::new(10.0);
@@ -212,6 +209,10 @@ mod tests {
         assert_eq!(clock.position_secs(), 10.0); // unchanged
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the clock's positions are exact f64 values — the 0.0 clamp floor, exact elapsed adds and the five-percent/cap arithmetic on grid literals; == pins the exact-value contract and a tolerance would admit an off-by-one-ulp drift"
+    )]
     #[test]
     fn skip_forward_moves_exactly_five_seconds() {
         let mut clock = PositionClock::new(10.0);
@@ -220,6 +221,10 @@ mod tests {
         assert_eq!(clock.position_secs(), 15.0);
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the clock's positions are exact f64 values — the 0.0 clamp floor, exact elapsed adds and the five-percent/cap arithmetic on grid literals; == pins the exact-value contract and a tolerance would admit an off-by-one-ulp drift"
+    )]
     #[test]
     fn skip_back_moves_exactly_five_seconds_clamped_at_zero() {
         let mut clock = PositionClock::new(3.0);
@@ -228,6 +233,10 @@ mod tests {
         assert_eq!(clock.position_secs(), 0.0);
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the clock's positions are exact f64 values — the 0.0 clamp floor, exact elapsed adds and the five-percent/cap arithmetic on grid literals; == pins the exact-value contract and a tolerance would admit an off-by-one-ulp drift"
+    )]
     #[test]
     fn rewind_for_silence_is_five_percent_capped_at_thirty_seconds() {
         let mut clock = PositionClock::new(3600.0);
@@ -235,6 +244,10 @@ mod tests {
         assert_eq!(rewound, 3600.0 - 30.0); // 5% of 600 = 30, capped at 30
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the clock's positions are exact f64 values — the 0.0 clamp floor, exact elapsed adds and the five-percent/cap arithmetic on grid literals; == pins the exact-value contract and a tolerance would admit an off-by-one-ulp drift"
+    )]
     #[test]
     fn rewind_for_silence_never_goes_below_zero() {
         let mut clock = PositionClock::new(1.0);
@@ -242,6 +255,10 @@ mod tests {
         assert_eq!(rewound, 0.0); // clamped at floor
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the clock's positions are exact f64 values — the 0.0 clamp floor, exact elapsed adds and the five-percent/cap arithmetic on grid literals; == pins the exact-value contract and a tolerance would admit an off-by-one-ulp drift"
+    )]
     #[test]
     fn snap_to_boundary_lands_on_boundary() {
         let boundaries = vec![0.0, 10.0, 20.0, 30.0];
@@ -250,6 +267,10 @@ mod tests {
         assert_eq!(snapped, 20.0); // greatest boundary ≤ 25
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the clock's positions are exact f64 values — the 0.0 clamp floor, exact elapsed adds and the five-percent/cap arithmetic on grid literals; == pins the exact-value contract and a tolerance would admit an off-by-one-ulp drift"
+    )]
     #[test]
     fn snap_to_boundary_respects_cap() {
         // Cursor at 25, cap at 25-30=-5 → 0, boundary at 0.0 is ≥ cap (cap origin = stored_basis / yield).
@@ -259,6 +280,10 @@ mod tests {
         assert_eq!(snapped, 20.0);
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the clock's positions are exact f64 values — the 0.0 clamp floor, exact elapsed adds and the five-percent/cap arithmetic on grid literals; == pins the exact-value contract and a tolerance would admit an off-by-one-ulp drift"
+    )]
     #[test]
     fn stored_basis_tracks_last_audible_progress() -> Result<(), PlayerError> {
         let mut clock = PositionClock::new(0.0);

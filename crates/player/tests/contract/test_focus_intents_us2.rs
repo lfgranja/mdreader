@@ -120,24 +120,23 @@ const ALL_INTENTS: [FocusIntent; 9] = [
     FocusIntent::AppBackgrounded,
 ];
 
-/// FR anchor for every closed intent — nine explicit arms, never a
-/// wildcard, so adding a tenth intent breaks compilation here (FR-044).
-fn fr_anchor(intent: FocusIntent) -> &'static str {
+/// FR anchor for every closed intent — one explicit arm per anchor
+/// (the intents sharing an anchor are grouped, never a wildcard), so
+/// adding a tenth intent breaks compilation here (FR-044).
+const fn fr_anchor(intent: FocusIntent) -> &'static str {
     match intent {
         FocusIntent::DuckableTransient => "FR-013",
         FocusIntent::SilenceDemanding => "FR-013a",
         FocusIntent::PermanentLoss => "FR-014",
         FocusIntent::FocusRegained => "FR-015",
-        FocusIntent::BecomingNoisy => "FR-016",
+        FocusIntent::BecomingNoisy | FocusIntent::DeviceDisappeared => "FR-016",
         FocusIntent::DeviceAppeared => "FR-017a",
-        FocusIntent::DeviceDisappeared => "FR-016",
-        FocusIntent::AppForegrounded => "FR-032c",
-        FocusIntent::AppBackgrounded => "FR-032c",
+        FocusIntent::AppForegrounded | FocusIntent::AppBackgrounded => "FR-032c",
     }
 }
 
 /// Wire string for every closed intent (`contracts/shell-ipc.md` case
-/// mapping: Rust PascalCase → wire snake_case).
+/// mapping: Rust `PascalCase` → wire `snake_case`).
 const WIRE: [(FocusIntent, &str); 9] = [
     (FocusIntent::DuckableTransient, "duckable_transient"),
     (FocusIntent::SilenceDemanding, "silence_demanding"),
@@ -153,6 +152,10 @@ const WIRE: [(FocusIntent, &str); 9] = [
 /// The 7 pre-existing intents each map to exactly one FR-013 / FR-013a /
 /// FR-014 / FR-015 / FR-016 / FR-017a outcome (T035): exact outcome,
 /// exact transport, exact gain shape, exact FR anchor.
+#[expect(
+    clippy::float_cmp,
+    reason = "the focus gains are exact f64 literals (FULL_GAIN and the duck band bounds from focus.rs); == is the correct assertion and a tolerance would admit a drifted gain"
+)]
 #[test]
 fn seven_pre_existing_intents_each_map_to_exactly_one_fr_outcome() {
     assert_eq!(
@@ -202,6 +205,10 @@ fn seven_pre_existing_intents_each_map_to_exactly_one_fr_outcome() {
 /// A regain (FR-015) owes a transient resume through the tracker while
 /// changing no gain; an appearance (FR-017a) decides no pause — the
 /// follow itself belongs to the routing machine (T046).
+#[expect(
+    clippy::float_cmp,
+    reason = "the focus gains are exact f64 literals (FULL_GAIN and the duck band bounds from focus.rs); == is the correct assertion and a tolerance would admit a drifted gain"
+)]
 #[test]
 fn regain_owes_resume_and_appearance_decides_no_pause() {
     let mut tracker = FocusTracker::new();
@@ -384,9 +391,10 @@ fn supersede_is_two_ordered_entries_with_link_never_merged() {
 }
 
 /// Every closed intent serializes to its `contracts/shell-ipc.md` wire
-/// string (case mapping: Rust PascalCase → wire snake_case).
+/// string (case mapping: Rust `PascalCase` → wire `snake_case`).
 #[test]
-fn all_nine_intents_serialize_to_shell_ipc_wire_strings() {
+fn all_nine_intents_serialize_to_shell_ipc_wire_strings() -> Result<(), Box<dyn std::error::Error>>
+{
     assert_eq!(
         ALL_INTENTS.len(),
         9,
@@ -399,12 +407,11 @@ fn all_nine_intents_serialize_to_shell_ipc_wire_strings() {
     );
     for (intent, wire) in WIRE {
         let expected = format!("\"{wire}\"");
-        match serde_json::to_string(&intent) {
-            Ok(json) => assert_eq!(
-                json, expected,
-                "intent {intent:?} did not serialize to its wire string"
-            ),
-            Err(err) => assert!(false, "intent {intent:?} failed to serialize: {err}"),
-        }
+        let json = serde_json::to_string(&intent)?;
+        assert_eq!(
+            json, expected,
+            "intent {intent:?} did not serialize to its wire string"
+        );
     }
+    Ok(())
 }

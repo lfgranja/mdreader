@@ -71,7 +71,7 @@
 //! consumes (contracts/shell-ipc.md): the session's
 //! authoritative transport and position plus the
 //! session-start progress, serializing to exactly the
-//! contract's snake_case wire keys.
+//! contract's `snake_case` wire keys.
 
 use engine_core::closed::TransportState;
 pub use doc_structure::Heading;
@@ -123,7 +123,7 @@ pub const TRANSIENT_DISMISS_MS: u64 = 3000;
 /// "total_units": …, "k": …, "n": …}}`
 /// and `"indeterminate"` — the indeterminate
 /// variant carries no unit fields.
-#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Progress {
     /// The session-start totals are known: the progress
@@ -206,7 +206,7 @@ pub fn progress_label(progress: &Progress) -> Option<String> {
 /// and a resident pause becomes dismissable without
 /// being dismissed automatically, so its resume
 /// control survives.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Dismissal {
     /// The surface cannot be dismissed — the ongoing
     /// state while audio plays (FR-028e: pausing is
@@ -237,11 +237,11 @@ pub enum Dismissal {
 /// progress — never document body text,
 /// elapsed/remaining time, rate, or voice.
 ///
-/// The wire form is exactly the snake_case keys
+/// The wire form is exactly the `snake_case` keys
 /// `title`, `section_title`, and `progress`, with
 /// `section_title` absent (not `null`) when no
 /// heading has been passed yet (FR-028c).
-#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct SurfaceSnapshot {
     /// The surface title (FR-029): the document
     /// metadata title, or the filename as the stable
@@ -259,16 +259,17 @@ pub struct SurfaceSnapshot {
     pub progress: Progress,
 }
 
-/// The shell-IPC mirror state (contracts/shell-ipc.md)
-/// — the view of the session the Kotlin `MediaSession`
-/// mirror consumes: the session's authoritative
-/// transport and position, and the progress
-/// indication fixed at session start.
+/// The frontend mirror state (contracts/shell-ipc.md): the
+/// session's authoritative transport and position, plus the
+/// progress fixed at session start.
+///
+/// It also carries the optional pt-BR label used only by
+/// the in-app surface.
 ///
 /// The mirror is derived, never a second clock
 /// (SC-035 / FR-003): it carries the position the
 /// Rust module reports and nothing the module does
-/// not. The wire form is exactly the snake_case keys
+/// not. The wire form is exactly the `snake_case` keys
 /// `transport`, `position_secs`, `progress_label` (when
 /// determinate), and `progress`, with
 /// the progress externally tagged
@@ -364,6 +365,10 @@ impl SurfaceResolver {
     /// count and the unit total were known at start,
     /// never switches mid-session, never estimated).
     #[must_use]
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "the parsed-content unit total is bounded by the MAX_DOC_BYTES document cap, so it stays orders of magnitude below 2^53 and the u64 count converts to f64 exactly for every reachable document"
+    )]
     pub fn new(
         metadata_title: Option<String>,
         filename: String,
@@ -371,10 +376,10 @@ impl SurfaceResolver {
         total_secs: f64,
         duration_known_at_start: bool,
     ) -> Self {
-        let unit_secs = if total_units == 0 || !(total_secs > 0.0) {
-            0.0
-        } else {
+        let unit_secs = if total_units > 0 && total_secs > 0.0 {
             total_secs / total_units as f64
+        } else {
+            0.0
         };
         Self {
             title: metadata_title.unwrap_or(filename),
@@ -410,10 +415,13 @@ impl SurfaceResolver {
     #[expect(
         clippy::cast_possible_truncation,
         clippy::cast_precision_loss,
+        clippy::cast_sign_loss,
         reason = "the projection divides the authoritative position by the fixed seconds-per-unit basis and clamps the result against the session-start total. The f64-to-u64 cast is Rust's saturating cast (NaN/negative to 0, out-of-range to u64::MAX) and the u64-to-f64 comparison is a bound check against a value that cannot exceed the session's segment count - a fixture-scale document cannot approach 2^53 units, so neither conversion can lose the compared value."
     )]
     pub fn consumed_units_at(&self, position_secs: f64) -> u64 {
-        if !(self.unit_secs > 0.0) || !(position_secs > 0.0) {
+        let has_basis = self.unit_secs > 0.0;
+        let past_start = position_secs > 0.0;
+        if !has_basis || !past_start {
             // No projection basis (the totals were unknown
             // at start) or a position at/before the start:
             // nothing has been consumed.
@@ -463,9 +471,8 @@ impl SurfaceResolver {
         let k = headings
             .iter()
             .rposition(|h| h.position_secs <= position_secs)
-            .map(|i| (i + 1) as u32)
-            .unwrap_or(0);
-        let n = headings.len() as u32;
+            .map_or(0, |i| u32::try_from(i + 1).unwrap_or(u32::MAX));
+        let n = u32::try_from(headings.len()).unwrap_or(u32::MAX);
         SurfaceSnapshot {
             title: self.title.clone(),
             section_title: most_recent_passed_section(headings, position_secs),
@@ -510,11 +517,7 @@ impl SurfaceResolver {
     /// carries a stated transient reason, and only the
     /// playing state ignores it.
     #[must_use]
-    #[expect(
-        clippy::unused_self,
-        reason = "the FR-028e policy is a pure function of the transport and the surface's transiency — the resolver holds no state the policy reads; the method lives on the resolver so every surface query routes through one type (Principle II / FR-042)"
-    )]
-    pub fn dismissal(&self, transport: TransportState, transient: bool) -> Dismissal {
+    pub const fn dismissal(&self, transport: TransportState, transient: bool) -> Dismissal {
         match transport {
             TransportState::Playing => Dismissal::NonDismissable,
             TransportState::Paused | TransportState::Interrupted => {

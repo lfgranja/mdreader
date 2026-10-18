@@ -100,7 +100,7 @@ impl SampleQueue {
     }
 
     /// The currently applied output gain.
-    fn gain(&self) -> f32 {
+    const fn gain(&self) -> f32 {
         self.gain
     }
 
@@ -133,7 +133,7 @@ impl SampleQueue {
             let earcon = self.short_mix.pop_front();
             match (speech, earcon) {
                 (Some(sample), Some(tone)) => {
-                    *slot = sample * gain + tone;
+                    *slot = sample.mul_add(gain, tone);
                     speech_consumed += 1;
                 }
                 (Some(sample), None) => {
@@ -297,6 +297,10 @@ impl CpalBackend {
 
     /// Append synthesized mono `f32` samples at the declared rate
     /// to the playback queue.
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "the app-shell caller hands over its owned synthesis buffer in an ownership transfer; the queue copies the samples immediately, but taking &[f32] would change the app-shell call signature for no behavioral difference"
+    )]
     pub fn enqueue_pcm(&self, pcm: Vec<f32>) {
         if let Ok(mut queue) = self.queue.lock() {
             queue.push(&pcm);
@@ -314,16 +318,16 @@ impl CpalBackend {
     /// the confirmation when a pause stands; a pause or stop
     /// through [`pause`](Self::pause) / [`stop`](Self::stop)
     /// stands the short mix down with the speech queue.
-    pub fn enqueue_earcon(&self, pcm: Vec<f32>) {
+    pub fn enqueue_earcon(&self, pcm: &[f32]) {
         if let Ok(mut queue) = self.queue.lock() {
-            queue.push_short_mix(&pcm);
+            queue.push_short_mix(pcm);
         }
     }
 
     /// Buffered sample count not yet consumed by the stream.
     #[must_use]
     pub fn buffered_samples(&self) -> usize {
-        self.queue.lock().map(|q| q.len()).unwrap_or(0)
+        self.queue.lock().map_or(0, |q| q.len())
     }
 
     /// Set the output gain factor (the FR-013 duck actuator).
@@ -342,11 +346,11 @@ impl CpalBackend {
     /// while panics are denied); the previous gain stands in
     /// every rejection case.
     pub fn set_gain(&self, factor: f32) -> Result<(), BackendError> {
-        if let Ok(mut queue) = self.queue.lock() {
-            queue.set_gain(factor)
-        } else {
-            Err(BackendError::InvalidGain(factor))
-        }
+        self.queue
+            .lock()
+            .map_or(Err(BackendError::InvalidGain(factor)), |mut queue| {
+                queue.set_gain(factor)
+            })
     }
 
     /// The currently applied output gain: full gain (`1.0`) on
@@ -354,10 +358,7 @@ impl CpalBackend {
     /// [`set_gain`](Self::set_gain) factor, echoed exactly.
     #[must_use]
     pub fn gain(&self) -> f32 {
-        self.queue
-            .lock()
-            .map(|queue| queue.gain())
-            .unwrap_or(FULL_GAIN)
+        self.queue.lock().map_or(FULL_GAIN, |queue| queue.gain())
     }
 
     /// Start (or resume) playback.
@@ -410,8 +411,7 @@ impl CpalBackend {
     pub fn position_secs(&self) -> f64 {
         self.position_clock
             .lock()
-            .map(|clock| clock.position_secs())
-            .unwrap_or(0.0)
+            .map_or(0.0, |clock| clock.position_secs())
     }
 
     /// Whether every enqueued speech sample has been consumed by
@@ -461,6 +461,10 @@ mod tests {
     use super::*;
     use crate::focus::DUCK_GAIN;
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the queue copies samples verbatim along the empty and unity paths and every literal is an exact binary fraction, so the buffer must match bit-for-bit; a tolerance would admit a corrupted sample"
+    )]
     #[test]
     fn an_empty_queue_yields_silence_and_zero_consumed() {
         let mut queue = SampleQueue::default();
@@ -471,6 +475,10 @@ mod tests {
         assert_eq!(out, [0.0; 4]);
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the queue copies samples verbatim along the empty and unity paths and every literal is an exact binary fraction, so the buffer must match bit-for-bit; a tolerance would admit a corrupted sample"
+    )]
     #[test]
     fn queued_samples_come_out_fifo_with_silence_tail() {
         let mut queue = SampleQueue::default();
@@ -483,6 +491,10 @@ mod tests {
         assert_eq!(queue.len(), 0);
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the queue copies samples verbatim along the empty and unity paths and every literal is an exact binary fraction, so the buffer must match bit-for-bit; a tolerance would admit a corrupted sample"
+    )]
     #[test]
     fn consumption_shorter_than_queued_leaves_the_rest() {
         let mut queue = SampleQueue::default();
@@ -531,6 +543,10 @@ mod tests {
         assert_eq!(queue.gain(), FULL_GAIN);
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the queue copies samples verbatim along the empty and unity paths and every literal is an exact binary fraction, so the buffer must match bit-for-bit; a tolerance would admit a corrupted sample"
+    )]
     #[test]
     fn unity_gain_leaves_samples_bit_identical() {
         let mut queue = SampleQueue::default();
@@ -559,6 +575,10 @@ mod tests {
         }
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the queue copies samples verbatim along the empty and unity paths and every literal is an exact binary fraction, so the buffer must match bit-for-bit; a tolerance would admit a corrupted sample"
+    )]
     #[test]
     fn duck_gain_leaves_silence_silent() {
         let mut queue = SampleQueue::default();

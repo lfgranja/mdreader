@@ -83,9 +83,11 @@ use crate::surface::{FullReason, ReasonExpiry, ShortReason, full_reason, short_r
 
 /// The engine-failure surface (T078; FR-023, FR-023a, FR-037,
 /// FR-037a): the named failure rendered through the T065 reason
-/// shapes, carrying the recovery decision the machine returned
-/// (T076) so the shell can name the offered alternatives, the
-/// takeover, or the stated pause reason.
+/// shapes.
+///
+/// It carries the recovery decision the machine returned (T076)
+/// so the shell can name the offered alternatives, the takeover,
+/// or the stated pause reason.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FailureSurface {
     /// The short lock-screen statement (FR-037) — the named
@@ -126,18 +128,19 @@ pub struct FailureSurface {
     pub decision: RecoveryDecision,
 }
 
-/// Map the engine failure taxonomy to the T065 reason shapes:
-/// the closed 1:1 correspondence between the seven [`EngineError`]
-/// variants and the seven `Engine*` members of [`ShortReason`]
-/// and [`FullReason`] (no catch-all arm; adding a variant to
-/// either set is a coordinated edit).
+/// Map the engine failure taxonomy to the T065 reason shapes.
+///
+/// The closed 1:1 correspondence between the seven [`EngineError`]
+/// variants and the seven `Engine*` members of [`ShortReason`] and
+/// [`FullReason`] (no catch-all arm; adding a variant to either
+/// set is a coordinated edit).
 ///
 /// The taxonomy is the adapter's re-export of the
 /// `engine_core::closed` declaration — the single authoritative
 /// declaration of the failure set (FR-044) — so the mapping
 /// cannot drift from the errors the engine actually reports.
 #[must_use]
-pub fn failure_reason(error: &EngineError) -> (ShortReason, FullReason) {
+pub const fn failure_reason(error: &EngineError) -> (ShortReason, FullReason) {
     match error {
         EngineError::Unreachable => (
             ShortReason::EngineUnreachable,
@@ -165,9 +168,11 @@ pub fn failure_reason(error: &EngineError) -> (ShortReason, FullReason) {
 }
 
 /// Render the engine-failure surface: the named failure through
-/// the T065 getters plus the machine's decision. `document_title`
-/// is consumed by the T065 getters' focus-loss arms alone — a
-/// failure statement never contains document text (FR-037).
+/// the T065 getters plus the machine's decision.
+///
+/// `document_title` is consumed by the T065 getters' focus-loss
+/// arms alone — a failure statement never contains document text
+/// (FR-037).
 ///
 /// The expiry is the T065 classification the [`FullReason`]
 /// getter derives for the named failure — the persistent regime

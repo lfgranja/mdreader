@@ -16,14 +16,15 @@ use tracing::{debug, instrument};
 const ENGINE_ID: &str = "rust-player";
 
 /// Shell verb — the closed verb set that every surface maps to
-/// (contracts/shell-ipc.md): the fifteen verbs `Play | Pause |
-/// Stop | Complete | Interrupt | RateUp | RateDown |
-/// CycleVoiceNext | CycleVoicePrev | SkipForward | SkipBackward |
-/// ResumeAtStored | StartOver | ChooseEngine | ExternalStart`
-/// (the thirteen transport/session verbs plus the two voice-cycle
-/// verbs of FR-018b). Excludes read-only queries (`position`,
-/// `state`) which are handled separately and are not part of the
-/// closed-verb exhaustiveness.
+/// (contracts/shell-ipc.md): the fifteen verbs listed below.
+///
+/// The thirteen transport/session verbs plus the two voice-cycle
+/// verbs of FR-018b are `Play | Pause | Stop | Complete |
+/// Interrupt | RateUp | RateDown | CycleVoiceNext |
+/// CycleVoicePrev | SkipForward | SkipBackward | ResumeAtStored |
+/// StartOver | ChooseEngine | ExternalStart`. Read-only queries
+/// (`position`, `state`) are handled separately and are not part
+/// of the closed-verb exhaustiveness.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ShellVerb {
     /// Play.
@@ -65,21 +66,21 @@ pub enum ShellVerb {
 impl std::fmt::Display for ShellVerb {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let name = match self {
-            ShellVerb::Play => "play",
-            ShellVerb::Pause => "pause",
-            ShellVerb::Stop => "stop",
-            ShellVerb::Complete => "complete",
-            ShellVerb::Interrupt => "interrupt",
-            ShellVerb::RateUp => "rate-up",
-            ShellVerb::RateDown => "rate-down",
-            ShellVerb::CycleVoiceNext => "cycle-voice-next",
-            ShellVerb::CycleVoicePrev => "cycle-voice-prev",
-            ShellVerb::SkipForward => "skip-forward",
-            ShellVerb::SkipBackward => "skip-backward",
-            ShellVerb::ResumeAtStored => "resume-at-stored",
-            ShellVerb::StartOver => "start-over",
-            ShellVerb::ChooseEngine => "choose-engine",
-            ShellVerb::ExternalStart => "external-start",
+            Self::Play => "play",
+            Self::Pause => "pause",
+            Self::Stop => "stop",
+            Self::Complete => "complete",
+            Self::Interrupt => "interrupt",
+            Self::RateUp => "rate-up",
+            Self::RateDown => "rate-down",
+            Self::CycleVoiceNext => "cycle-voice-next",
+            Self::CycleVoicePrev => "cycle-voice-prev",
+            Self::SkipForward => "skip-forward",
+            Self::SkipBackward => "skip-backward",
+            Self::ResumeAtStored => "resume-at-stored",
+            Self::StartOver => "start-over",
+            Self::ChooseEngine => "choose-engine",
+            Self::ExternalStart => "external-start",
         };
         f.write_str(name)
     }
@@ -98,11 +99,13 @@ pub enum ShellVariant {
 
 impl ShellVariant {
     /// Create a skip-forward verb.
-    pub fn skip_forward() -> ShellVerb {
+    #[must_use]
+    pub const fn skip_forward() -> ShellVerb {
         ShellVerb::SkipForward
     }
     /// Create a skip-backward verb.
-    pub fn skip_back() -> ShellVerb {
+    #[must_use]
+    pub const fn skip_back() -> ShellVerb {
         ShellVerb::SkipBackward
     }
 }
@@ -111,7 +114,7 @@ impl ShellVariant {
 ///
 /// The wire form is the shell-IPC mirror's source
 /// (contracts/shell-ipc.md case-mapping table):
-/// exactly the four snake_case keys `transport`,
+/// exactly the four `snake_case` keys `transport`,
 /// `position_secs`, `rate`, `engine_id` — the
 /// mirror carries the session's authoritative
 /// state and nothing else (SC-035).
@@ -234,7 +237,11 @@ enum Transition {
     clippy::match_same_arms,
     reason = "Principle VII / FR-044: the closed 5x15 transition table's illegal cells all construct the same IllegalTransition and its legal control cells share effect constructors by design; enumerating every cell explicitly (rather than a catch-all arm) is what makes an added state or verb a compile error"
 )]
-fn transition(transport: TransportState, verb: ShellVerb) -> Result<Transition, PlayerError> {
+#[expect(
+    clippy::too_many_lines,
+    reason = "the 5x15 closed transition table is deliberately one exhaustive match with each cell spelled out beside its contract comment; splitting it across helpers would scatter the table the gate reviews as a whole (tasks.md T020 / Principle VII)"
+)]
+const fn transition(transport: TransportState, verb: ShellVerb) -> Result<Transition, PlayerError> {
     match (transport, verb) {
         // Playing: exactly {Paused, Interrupted, Stopped,
         // Completed} is reachable (tasks.md T020) — a
@@ -536,12 +543,13 @@ pub struct PlaybackSession {
 }
 
 impl PlaybackSession {
-    /// Create a new session at position 0.0, rate R1_0,
+    /// Create a new session at position 0.0, rate `R1_0`,
     /// transport `Paused` (FR-019b default), with no
     /// duration knowledge (FR-028c): the total is unknown,
     /// so skips clamp at the 0.0 floor only and never
     /// reach an end-state.
-    pub fn new() -> Self {
+    #[must_use]
+    pub const fn new() -> Self {
         Self {
             clock: PositionClock::new(0.0),
             transport: TransportState::Paused,
@@ -551,7 +559,7 @@ impl PlaybackSession {
         }
     }
 
-    /// Create a new session at position 0.0, rate R1_0,
+    /// Create a new session at position 0.0, rate `R1_0`,
     /// transport `Paused` (FR-019b default), over a
     /// document of known duration `duration_secs`
     /// (FR-028c): the duration fixes determinate progress
@@ -560,7 +568,7 @@ impl PlaybackSession {
     /// clamped to the 0.0 position floor — no document
     /// is shorter than its start.
     #[must_use]
-    pub fn with_duration(duration_secs: f64) -> Self {
+    pub const fn with_duration(duration_secs: f64) -> Self {
         Self {
             clock: PositionClock::new(0.0),
             transport: TransportState::Paused,
@@ -604,7 +612,7 @@ impl PlaybackSession {
 
     /// Snapshot of the current session state.
     #[must_use]
-    pub fn snapshot(&self) -> SessionSnapshot {
+    pub const fn snapshot(&self) -> SessionSnapshot {
         SessionSnapshot {
             transport: self.transport,
             position_secs: self.clock.position_secs(),
@@ -623,6 +631,12 @@ impl PlaybackSession {
     /// skip that reaches or passes a known duration lands at the
     /// duration in the `Paused` end-state (FR-018) — completion
     /// is document-end only, never a skip.
+    ///
+    /// # Errors
+    ///
+    /// [`PlayerError::IllegalTransition`] when the closed transition
+    /// table rejects the (transport, verb) cell — the press is
+    /// refused with transport and position untouched (FR-020).
     #[instrument(skip(self))]
     pub fn execute(&mut self, verb: ShellVerb) -> Result<SessionSnapshot, PlayerError> {
         let effect = transition(self.transport, verb)?;
@@ -669,19 +683,15 @@ impl PlaybackSession {
                 // PAUSED end-state — completion is
                 // document-end only, never a skip.
                 let landing = self.skip_landing(SkipDirection::Forward);
-                let reached_the_end = match self.duration {
-                    Some(duration) => landing >= duration,
-                    None => false,
-                };
+                let reached_the_end = self.duration.is_some_and(|duration| landing >= duration);
+                self.clock = PositionClock::new(landing);
                 if reached_the_end {
-                    self.clock = PositionClock::new(landing);
                     self.transport = TransportState::Paused;
                     debug!(
                         position = landing,
                         "skip forward reached the end — landed paused at the duration (FR-018)"
                     );
                 } else {
-                    self.clock = PositionClock::new(landing);
                     let position = landing;
                     debug!(position, "skip forward");
                 }
@@ -734,6 +744,10 @@ impl Default for PlaybackSession {
 mod tests {
     use super::*;
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the session position is the exact f64 carried by the closed transport table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are exact binary literals; == pins the exact-value contract and a tolerance would admit a drifting transport"
+    )]
     #[test]
     fn new_session_defaults_to_paused_at_zero() {
         let session = PlaybackSession::new();
@@ -758,6 +772,10 @@ mod tests {
         assert!(matches!(result, Ok(ref snap) if snap.transport == TransportState::Paused));
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the session position is the exact f64 carried by the closed transport table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are exact binary literals; == pins the exact-value contract and a tolerance would admit a drifting transport"
+    )]
     #[test]
     fn stop_resets_position() {
         let mut session = PlaybackSession::new();
@@ -767,6 +785,10 @@ mod tests {
         assert_eq!(session.snapshot().position_secs, 0.0);
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the session position is the exact f64 carried by the closed transport table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are exact binary literals; == pins the exact-value contract and a tolerance would admit a drifting transport"
+    )]
     #[test]
     fn audible_progress_advances_only_while_playing() {
         let mut session = PlaybackSession::new();
@@ -780,6 +802,10 @@ mod tests {
         assert_eq!(session.snapshot().position_secs, 5.0);
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the session position is the exact f64 carried by the closed transport table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are exact binary literals; == pins the exact-value contract and a tolerance would admit a drifting transport"
+    )]
     #[test]
     fn sectionless_skip_forward_moves_ten_seconds() {
         let mut session = PlaybackSession::new();
@@ -788,6 +814,10 @@ mod tests {
         assert_eq!(session.snapshot().position_secs, 10.0);
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the session position is the exact f64 carried by the closed transport table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are exact binary literals; == pins the exact-value contract and a tolerance would admit a drifting transport"
+    )]
     #[test]
     fn skip_back_clamps_at_zero() {
         let mut session = PlaybackSession::new();
@@ -855,13 +885,13 @@ mod tests {
     /// must name the state and the verb, and the
     /// session must not move.
     fn assert_rejected(
-        result: Result<SessionSnapshot, PlayerError>,
+        result: &Result<SessionSnapshot, PlayerError>,
         current: TransportState,
         verb: ShellVerb,
     ) {
         assert!(
             matches!(
-                &result,
+                result,
                 Err(PlayerError::IllegalTransition {
                     current: rejected_current,
                     verb: rejected_verb,
@@ -871,11 +901,15 @@ mod tests {
         );
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the session position is the exact f64 carried by the closed transport table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are exact binary literals; == pins the exact-value contract and a tolerance would admit a drifting transport"
+    )]
     #[test]
     fn play_from_stopped_is_rejected() {
         let mut session = session_in(TransportState::Stopped);
         assert_rejected(
-            session.execute(ShellVerb::Play),
+            &session.execute(ShellVerb::Play),
             TransportState::Stopped,
             ShellVerb::Play,
         );
@@ -884,11 +918,15 @@ mod tests {
         assert_eq!(snap.position_secs, 0.0);
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the session position is the exact f64 carried by the closed transport table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are exact binary literals; == pins the exact-value contract and a tolerance would admit a drifting transport"
+    )]
     #[test]
     fn play_from_completed_is_rejected() {
         let mut session = session_in(TransportState::Completed);
         assert_rejected(
-            session.execute(ShellVerb::Play),
+            &session.execute(ShellVerb::Play),
             TransportState::Completed,
             ShellVerb::Play,
         );
@@ -897,11 +935,15 @@ mod tests {
         assert_eq!(snap.position_secs, 0.0);
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the session position is the exact f64 carried by the closed transport table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are exact binary literals; == pins the exact-value contract and a tolerance would admit a drifting transport"
+    )]
     #[test]
     fn pause_from_paused_is_rejected() {
         let mut session = PlaybackSession::new();
         assert_rejected(
-            session.execute(ShellVerb::Pause),
+            &session.execute(ShellVerb::Pause),
             TransportState::Paused,
             ShellVerb::Pause,
         );
@@ -910,11 +952,15 @@ mod tests {
         assert_eq!(snap.position_secs, 0.0);
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the session position is the exact f64 carried by the closed transport table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are exact binary literals; == pins the exact-value contract and a tolerance would admit a drifting transport"
+    )]
     #[test]
     fn complete_from_paused_is_rejected() {
         let mut session = PlaybackSession::new();
         assert_rejected(
-            session.execute(ShellVerb::Complete),
+            &session.execute(ShellVerb::Complete),
             TransportState::Paused,
             ShellVerb::Complete,
         );
@@ -923,11 +969,15 @@ mod tests {
         assert_eq!(snap.position_secs, 0.0);
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the session position is the exact f64 carried by the closed transport table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are exact binary literals; == pins the exact-value contract and a tolerance would admit a drifting transport"
+    )]
     #[test]
     fn resume_at_stored_from_stopped_is_rejected() {
         let mut session = session_in(TransportState::Stopped);
         assert_rejected(
-            session.execute(ShellVerb::ResumeAtStored),
+            &session.execute(ShellVerb::ResumeAtStored),
             TransportState::Stopped,
             ShellVerb::ResumeAtStored,
         );
@@ -936,11 +986,15 @@ mod tests {
         assert_eq!(snap.position_secs, 0.0);
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the session position is the exact f64 carried by the closed transport table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are exact binary literals; == pins the exact-value contract and a tolerance would admit a drifting transport"
+    )]
     #[test]
     fn skip_backward_from_completed_is_rejected() {
         let mut session = session_in(TransportState::Completed);
         assert_rejected(
-            session.execute(ShellVerb::SkipBackward),
+            &session.execute(ShellVerb::SkipBackward),
             TransportState::Completed,
             ShellVerb::SkipBackward,
         );
@@ -949,11 +1003,15 @@ mod tests {
         assert_eq!(snap.position_secs, 0.0);
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the session position is the exact f64 carried by the closed transport table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are exact binary literals; == pins the exact-value contract and a tolerance would admit a drifting transport"
+    )]
     #[test]
     fn double_play_from_playing_is_rejected() {
         let mut session = session_in(TransportState::Playing);
         assert_rejected(
-            session.execute(ShellVerb::Play),
+            &session.execute(ShellVerb::Play),
             TransportState::Playing,
             ShellVerb::Play,
         );
@@ -962,6 +1020,10 @@ mod tests {
         assert_eq!(snap.position_secs, 0.0);
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the session position is the exact f64 carried by the closed transport table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are exact binary literals; == pins the exact-value contract and a tolerance would admit a drifting transport"
+    )]
     #[test]
     fn rejected_verbs_leave_state_and_position_untouched() {
         // A paused session holding a retained position:
@@ -973,13 +1035,17 @@ mod tests {
         session.on_audible_progress(12.5);
         assert!(session.execute(ShellVerb::Pause).is_ok());
         for verb in [ShellVerb::Pause, ShellVerb::Complete, ShellVerb::Interrupt] {
-            assert_rejected(session.execute(verb), TransportState::Paused, verb);
+            assert_rejected(&session.execute(verb), TransportState::Paused, verb);
             let snap = session.snapshot();
             assert_eq!(snap.transport, TransportState::Paused);
             assert_eq!(snap.position_secs, 12.5);
         }
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the session position is the exact f64 carried by the closed transport table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are exact binary literals; == pins the exact-value contract and a tolerance would admit a drifting transport"
+    )]
     #[test]
     fn start_over_from_paused_discards_the_stored_position() {
         let mut session = PlaybackSession::new();
@@ -994,6 +1060,10 @@ mod tests {
         assert_eq!(session.snapshot().position_secs, 0.0);
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the session position is the exact f64 carried by the closed transport table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are exact binary literals; == pins the exact-value contract and a tolerance would admit a drifting transport"
+    )]
     #[test]
     fn resume_at_stored_from_interrupted_retains_the_position() {
         let mut session = PlaybackSession::new();
@@ -1041,7 +1111,7 @@ mod tests {
                 ShellVerb::SkipBackward,
             ] {
                 let mut session = session_in(state);
-                assert_rejected(session.execute(verb), state, verb);
+                assert_rejected(&session.execute(verb), state, verb);
             }
         }
     }
@@ -1075,7 +1145,7 @@ mod tests {
                 ShellVerb::ExternalStart,
             ] {
                 let mut session = session_in(state);
-                assert_rejected(session.execute(verb), state, verb);
+                assert_rejected(&session.execute(verb), state, verb);
             }
         }
     }

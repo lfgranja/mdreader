@@ -3,7 +3,7 @@
 //! Measurement note (T001b):
 //!   Fixture byte size: `tests/device/fixtures/fixture-pt-2h.md`
 //!   Measured via `stat -c %s` → 62424 bytes.
-//!   MAX_DOC_BYTES = 62424 × 1.5 = 93636 (headroom for ~3h at 1.0x).
+//!   `MAX_DOC_BYTES` = 62424 × 1.5 = 93636 (headroom for ~3h at 1.0x).
 //!   Wire reference: FR-018 ingest refusal → `FormatUndeliverable` when exceeded.
 
 /// Fixture-scale document byte cap (FR-018).
@@ -24,7 +24,7 @@ pub enum InterruptionReason {
     /// Permanent audio-focus loss (e.g. headset removed, call won) → pause + 3s.
     PermanentLoss,
     /// Transient interruption; may duck or pause depending on class.
-    /// DuckableTransient → duck ~20%, restore on GAIN; SilenceDemanding → pause + 3s.
+    /// `DuckableTransient` → duck ~20%, restore on GAIN; `SilenceDemanding` → pause + 3s.
     TransientPaused,
     /// Output device removed; pauses with latest reason (latest-wins).
     DeviceRemoved,
@@ -40,39 +40,35 @@ impl InterruptionReason {
     /// Exhaustive match — no catch-all arm (gate 7).
     /// Returns the ≤8-word pt-BR line per contracts/surface.md reason-line table.
     /// `FocusDelayed` returns empty string (Deferred = zero-audio hold, no line).
-    /// Undeliverables (VoiceUnavailable, FormatUndeliverable, DecodeFailed) are persistent (reason_ttl_ms=null).
+    /// Undeliverables (`VoiceUnavailable`, `FormatUndeliverable`, `DecodeFailed`) are persistent (`reason_ttl_ms` = null).
     #[must_use]
-    pub fn reason_line(&self) -> &'static str {
+    pub const fn reason_line(&self) -> &'static str {
         match self {
-            InterruptionReason::FocusDenied => "Foco de áudio negado — pausado",
-            InterruptionReason::FocusDelayed => "",
-            InterruptionReason::PermanentLoss => "Áudio perdido — pausado",
-            InterruptionReason::TransientPaused => {
-                "Pausado por interrupção — retome para continuar"
-            }
-            InterruptionReason::DeviceRemoved => "Fones removidos — pausado",
-            InterruptionReason::VoiceUnavailable => "Voz indisponível — leitura não pode iniciar",
-            InterruptionReason::FormatUndeliverable => "Formato do documento não pode ser lido",
-            InterruptionReason::DecodeFailed => "Falha ao decodificar áudio — leitura parada",
+            Self::FocusDenied => "Foco de áudio negado — pausado",
+            Self::FocusDelayed => "",
+            Self::PermanentLoss => "Áudio perdido — pausado",
+            Self::TransientPaused => "Pausado por interrupção — retome para continuar",
+            Self::DeviceRemoved => "Fones removidos — pausado",
+            Self::VoiceUnavailable => "Voz indisponível — leitura não pode iniciar",
+            Self::FormatUndeliverable => "Formato do documento não pode ser lido",
+            Self::DecodeFailed => "Falha ao decodificar áudio — leitura parada",
         }
     }
 
-    /// Returns true if this reason is persistent (reason_ttl_ms = null).
-    /// Undeliverable failures: VoiceUnavailable, FormatUndeliverable, DecodeFailed.
+    /// Returns true if this reason is persistent (`reason_ttl_ms` = null).
+    /// Undeliverable failures: `VoiceUnavailable`, `FormatUndeliverable`, `DecodeFailed`.
     #[must_use]
     pub const fn is_persistent(&self) -> bool {
         matches!(
             self,
-            InterruptionReason::VoiceUnavailable
-                | InterruptionReason::FormatUndeliverable
-                | InterruptionReason::DecodeFailed
+            Self::VoiceUnavailable | Self::FormatUndeliverable | Self::DecodeFailed
         )
     }
 
     /// Returns the reason TTL in milliseconds, or `None` for persistent.
     /// Transient reasons: 3000 ms. Persistent: None.
     #[must_use]
-    pub fn reason_ttl_ms(&self) -> Option<u64> {
+    pub const fn reason_ttl_ms(&self) -> Option<u64> {
         if self.is_persistent() {
             None
         } else {
@@ -82,12 +78,13 @@ impl InterruptionReason {
 }
 
 /// Free-function wrapper for external use (tests, FFI).
-pub fn reason_line(reason: &InterruptionReason) -> &'static str {
+#[must_use]
+pub const fn reason_line(reason: &InterruptionReason) -> &'static str {
     reason.reason_line()
 }
 
 /// Maps a `FocusOutcome` to an `InterruptionReason` for the pause branch.
-/// DuckableTransient ducks (no InterruptionReason); SilenceDemanding/PermanentLoss pause.
+/// `DuckableTransient` ducks (no `InterruptionReason`); `SilenceDemanding`/`PermanentLoss` pause.
 #[must_use]
 pub const fn from_focus_outcome(outcome: crate::focus::FocusOutcome) -> Option<InterruptionReason> {
     match outcome {
@@ -98,7 +95,7 @@ pub const fn from_focus_outcome(outcome: crate::focus::FocusOutcome) -> Option<I
 }
 
 /// Maps a `FocusGrant` to an `InterruptionReason`.
-/// Granted → None; Deferred → FocusDelayed; Refused → FocusDenied.
+/// Granted → None; Deferred → `FocusDelayed`; Refused → `FocusDenied`.
 #[must_use]
 pub const fn from_focus_grant(grant: crate::focus::FocusGrant) -> Option<InterruptionReason> {
     match grant {
@@ -109,16 +106,17 @@ pub const fn from_focus_grant(grant: crate::focus::FocusGrant) -> Option<Interru
 }
 
 /// Maps a `RoutingDecision` pause to an `InterruptionReason`.
-/// Both BecomingNoisy and DeviceDisappeared while playing → DeviceRemoved.
-/// Privacy-precedence pause (private→public switch) → DeviceRemoved.
+///
+/// Both `BecomingNoisy` and `DeviceDisappeared` while playing → `DeviceRemoved`.
+/// Privacy-precedence pause (private→public switch) → `DeviceRemoved`.
 #[must_use]
-pub fn from_routing_pause(
+pub const fn from_routing_pause(
     decision: &crate::routing::RoutingDecision,
 ) -> Option<InterruptionReason> {
     match decision {
         crate::routing::RoutingDecision::Pause { .. } => Some(InterruptionReason::DeviceRemoved),
-        crate::routing::RoutingDecision::Follow { .. } => None,
-        crate::routing::RoutingDecision::NoChange => None,
+        crate::routing::RoutingDecision::Follow { .. }
+        | crate::routing::RoutingDecision::NoChange => None,
     }
 }
 

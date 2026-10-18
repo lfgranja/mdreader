@@ -613,8 +613,7 @@ mod tests {
             let fp = desc.perceptual_fingerprint;
             assert!(
                 fingerprints.insert((fp.timbre, fp.rhythm, fp.contour)),
-                "Duplicate fingerprint for {:?}",
-                kind
+                "Duplicate fingerprint for {kind:?}"
             );
         }
         assert_eq!(fingerprints.len(), 7);

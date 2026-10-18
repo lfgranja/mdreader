@@ -37,7 +37,10 @@
 //! (FR-018: re-prompt, never crash).
 //
 // Allow unsafe code for JNI operations (FFI boundary).
-#![allow(unsafe_code)]
+#![allow(
+    unsafe_code,
+    reason = "the JNI FFI boundary requires raw-pointer operations"
+)]
 
 use std::ffi::c_void;
 use std::sync::mpsc::{Receiver, Sender};
@@ -165,8 +168,13 @@ pub fn publish_mirror_to_kotlin(
     Ok(())
 }
 /// No-op on non-Android targets.
+///
+/// # Errors
+///
+/// Never fails: the host build has no shell to publish to, so the
+/// call always completes as an `Ok` no-op.
 #[cfg(not(target_os = "android"))]
-pub fn publish_mirror_to_kotlin(
+pub const fn publish_mirror_to_kotlin(
     _mirror_json: &str,
     _delete_intent_json: Option<&str>,
 ) -> Result<(), String> {
@@ -210,6 +218,11 @@ pub fn command_document_end_to_kotlin() -> Result<(), String> {
 
 /// No shell to command on non-Android targets: the error routes the
 /// caller to its in-process document-end completion.
+///
+/// # Errors
+///
+/// Always errors, with the "no Android shell on this host" reason:
+/// nothing on this host can command a shell.
 #[cfg(not(target_os = "android"))]
 pub fn command_document_end_to_kotlin() -> Result<(), String> {
     Err(String::from("shell JNI: no Android shell on this host"))
@@ -246,7 +259,7 @@ pub fn install(app: AppHandle) {
     }
     match std::thread::Builder::new()
         .name(String::from("shell-drain"))
-        .spawn(move || drain_loop(app, rx))
+        .spawn(move || drain_loop(&app, &rx))
     {
         Ok(_) => {}
         Err(error) => {
@@ -267,7 +280,7 @@ pub fn install(app: AppHandle) {
 /// outside the table resolve to [`None`]: fail-closed, never a
 /// default verb, never a playing state.
 #[must_use]
-pub fn code_to_action(code: u32) -> Option<&'static str> {
+pub const fn code_to_action(code: u32) -> Option<&'static str> {
     match code {
         1 => Some("play"),
         2 => Some("pause"),
@@ -390,7 +403,7 @@ pub extern "C" fn Java_app_mdreader_ShellHost_postShellIntent(
 /// recorded as a diagnostic; an unknown code likewise. The loop ends
 /// only when every sender is gone, which outlives the application, so
 /// its exit is itself recorded as a diagnostic.
-fn drain_loop(app: AppHandle, rx: Receiver<u32>) {
+fn drain_loop(app: &AppHandle, rx: &Receiver<u32>) {
     while let Ok(code) = rx.recv() {
         match code_to_action(code) {
             Some(wire) => {
@@ -583,7 +596,10 @@ mod tests {
                 );
             }
             other => {
-                panic!("a missing snapshot must be the named unreadable failure, got {other:?}")
+                assert!(
+                    matches!(other, Err(IngestError::SnapshotUnreadable { .. })),
+                    "a missing snapshot must be the named unreadable failure, got {other:?}"
+                );
             }
         }
         // Nothing started and nothing loaded: the failure
@@ -778,9 +794,11 @@ pub extern "C" fn Java_app_mdreader_DocIngest_onDocumentIngested(
 
 /// The named failures of the document-ingest path (T017 /
 /// T019) — a closed set with no catch-all variant: every
-/// rejection names its cause, which is the failure half of
-/// the text-I/O protocol (the diagnostic on stderr, nothing
-/// on stdout, never a playing state — FR-005 / FR-018).
+/// rejection names its cause.
+///
+/// The named cause is the failure half of the text-I/O
+/// protocol (the diagnostic on stderr, nothing on stdout,
+/// never a playing state — FR-005 / FR-018).
 #[derive(Debug)]
 pub enum IngestError {
     /// The snapshot file could not be read: a revoked, moved,
@@ -846,7 +864,7 @@ pub struct IngestSnapshot {
 impl IngestSnapshot {
     /// One snapshot as the Kotlin picker reports it (T017).
     #[must_use]
-    pub fn new(
+    pub const fn new(
         path: String,
         fingerprint_hex: String,
         original_uri: String,
@@ -876,6 +894,12 @@ impl IngestSnapshot {
 /// crash and never a playing state (FR-018: re-prompt); an
 /// open refusal carries the open path's own named reason.
 /// The caller re-prompts the same picker on either.
+///
+/// # Errors
+///
+/// [`IngestError::SnapshotUnreadable`] when the snapshot file
+/// cannot be read, or the named open refusal the open path itself
+/// carries — either way the picker is re-prompted.
 pub fn ingest_snapshot(snapshot: &IngestSnapshot) -> Result<(), IngestError> {
     let Some(app) = installed_app() else {
         tracing::warn!(

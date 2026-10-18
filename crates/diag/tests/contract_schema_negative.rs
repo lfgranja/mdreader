@@ -32,7 +32,8 @@
 //!   Result<Self, DiagError>` and `pub fn append(&mut self, event:
 //!   &RecordEvent) -> Result<(), DiagError>` (append-only JSONL, one
 //!   record per line)
-//! (Full field list documented in contract_schema.rs, T011.)
+//!
+//! (Full field list documented in `contract_schema.rs`, T011.)
 
 use jsonschema::Validator;
 use serde_json::{Value, json};
@@ -171,9 +172,8 @@ fn the_schema_rejects_every_planted_violation() -> Result<(), Box<dyn std::error
     );
 
     for (name, violation) in planted_violations() {
-        let errors: Vec<_> = validator.iter_errors(&violation).collect();
         assert!(
-            !errors.is_empty(),
+            validator.iter_errors(&violation).next().is_some(),
             "planted violation ACCEPTED by the schema (broken validator, not a passing test): {name}\nplanted record: {violation}"
         );
     }

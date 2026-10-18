@@ -96,6 +96,10 @@ use player::rate::{LADDER, RATE_EFFECTIVE_BOUND_SECS, step_down, step_up};
 use player::skip::{apply_skip_exact, rate_change_effective_time};
 
 /// Positions on the exact quarter-second grid `k × 0.25` ∈ [0, 3600].
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the strategy bounds every centisecond/quarter-second count at 720 000 / 14 400 (< 2^20), far below f64's exact-integer range (2^53); the grid value converts exactly"
+)]
 fn position_strategy() -> impl Strategy<Value = f64> {
     (0u64..=14_400).prop_map(|quarters| quarters as f64 * 0.25)
 }
@@ -103,22 +107,34 @@ fn position_strategy() -> impl Strategy<Value = f64> {
 /// Sentence boundaries on the same grid: sorted, deduplicated, and
 /// always containing the document start `0.0` (so a greatest-boundary-
 /// at-or-before lookup always has an answer).
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the strategy bounds every centisecond/quarter-second count at 720 000 / 14 400 (< 2^20), far below f64's exact-integer range (2^53); the grid value converts exactly"
+)]
 fn boundaries_strategy() -> impl Strategy<Value = Vec<f64>> {
     proptest::collection::vec(0u64..=14_400, 0..=16).prop_map(|mut quarters| {
         quarters.push(0);
-        quarters.sort();
+        quarters.sort_unstable();
         quarters.dedup();
         quarters.into_iter().map(|q| q as f64 * 0.25).collect()
     })
 }
 
 /// Paused durations `d` ∈ [0, 7200] s as exact centisecond multiples.
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the strategy bounds every centisecond/quarter-second count at 720 000 / 14 400 (< 2^20), far below f64's exact-integer range (2^53); the grid value converts exactly"
+)]
 fn paused_duration_strategy() -> impl Strategy<Value = f64> {
     (0u64..=720_000).prop_map(|centis| centis as f64 / 100.0)
 }
 
 /// Audible progress in `(0.00, 5.00]` s — strictly positive, so a
 /// progress tick while `Playing` is a strictly greater position.
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the strategy bounds every centisecond/quarter-second count at 720 000 / 14 400 (< 2^20), far below f64's exact-integer range (2^53); the grid value converts exactly"
+)]
 fn progress_strategy() -> impl Strategy<Value = f64> {
     (1u64..=500).prop_map(|centis| centis as f64 / 100.0)
 }
@@ -197,17 +213,19 @@ struct RecordEntry {
 /// is where device loss and named failure land per data-model.md).
 /// The match is exhaustive over the closed set, so a state added
 /// without an ender decision cannot compile silently (FR-044).
-fn is_ender(state: TransportState) -> bool {
+const fn is_ender(state: TransportState) -> bool {
     match state {
         TransportState::Playing => false,
-        TransportState::Paused | TransportState::Stopped => true,
-        TransportState::Completed | TransportState::Interrupted => true,
+        TransportState::Paused
+        | TransportState::Stopped
+        | TransportState::Completed
+        | TransportState::Interrupted => true,
     }
 }
 
 /// The session has ended: no transport control can move it except a
 /// Stop press, which is idempotent.
-fn is_terminal(state: TransportState) -> bool {
+const fn is_terminal(state: TransportState) -> bool {
     matches!(state, TransportState::Stopped | TransportState::Completed)
 }
 
@@ -218,14 +236,10 @@ fn is_terminal(state: TransportState) -> bool {
 /// skip-backward repositioning lands first (FR-018: the user moved
 /// the cursor back on purpose, ending the prior window and opening
 /// a new one at the earlier point). The final entry's window is open — a hard kill cuts the record mid-session
-/// with no session_end entry (FR-004, SC-007) — so only entries
+/// with no `session_end` entry (FR-004, SC-007) — so only entries
 /// with a later entry can violate. Returns the indices of the
 /// violating playing entries; an empty result is the conforming
 /// report.
-#[expect(
-    clippy::float_cmp,
-    reason = "the scan compares recorded position_secs values for strict order (>, the SC-005 advance check); == and ordering on f64 record values are exact comparisons of the represented values, and a tolerance would admit a no-advance playing window as conforming, defeating the rule (FR-005)"
-)]
 fn sc005_violations(record: &[RecordEntry]) -> Vec<usize> {
     let mut violations = Vec::new();
     for (i, entry) in record.iter().enumerate() {
@@ -299,12 +313,16 @@ fn drive(action: DrivingAction, session: &mut PlaybackSession) {
 /// Simulate a driving session and return its record-shaped entries.
 /// An entry is recorded whenever the transport state or the position
 /// changes — the record carries a position on every transport change
-/// (SC-005: "every transport change therefore carries position_secs")
+/// (SC-005: "every transport change therefore carries `position_secs`")
 /// and on every audible-progress event. With `hard_kill` the record
-/// ends mid-session exactly as a hard kill leaves it (no session_end
+/// ends mid-session exactly as a hard kill leaves it (no `session_end`
 /// entry, FR-004); otherwise the session is closed with a Stop press
 /// so every open playing window ends in an ender entry, as a real
 /// session's record does.
+#[expect(
+    clippy::float_cmp,
+    reason = "the record-entry change detection compares the exact stored f64 positions; != on the represented values is the correct change detector and a tolerance would drop or add a recorded entry"
+)]
 fn simulate(actions: &[DrivingAction], hard_kill: bool) -> Vec<RecordEntry> {
     let mut session = PlaybackSession::new();
     let start = session.snapshot();
@@ -330,10 +348,7 @@ fn simulate(actions: &[DrivingAction], hard_kill: bool) -> Vec<RecordEntry> {
     }
     if !hard_kill {
         let last = record.last();
-        let already_ended = match last {
-            None => true,
-            Some(entry) => is_terminal(entry.transport),
-        };
+        let already_ended = last.is_none_or(|entry| is_terminal(entry.transport));
         if !already_ended {
             drive(DrivingAction::Stop, &mut session);
             let after = session.snapshot();
@@ -350,6 +365,10 @@ fn simulate(actions: &[DrivingAction], hard_kill: bool) -> Vec<RecordEntry> {
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the grid positions, the 5 %-of-pause rewind and the recorded f64 values are exact quarter/centisecond arithmetic; == pins the exact-value contract and a tolerance would admit drift"
+    )]
     #[test]
     fn skip_forward_moves_exactly_five_seconds(position in position_strategy()) {
         // FR-018: "Skip MUST move the playback position by exactly 5
@@ -370,6 +389,10 @@ proptest! {
         );
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the grid positions, the 5 %-of-pause rewind and the recorded f64 values are exact quarter/centisecond arithmetic; == pins the exact-value contract and a tolerance would admit drift"
+    )]
     #[test]
     fn skip_back_moves_exactly_five_seconds_clamped_at_zero(position in position_strategy()) {
         // FR-018: exactly 5 seconds backward, measured against the
@@ -390,6 +413,10 @@ proptest! {
         );
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the grid positions, the 5 %-of-pause rewind and the recorded f64 values are exact quarter/centisecond arithmetic; == pins the exact-value contract and a tolerance would admit drift"
+    )]
     #[test]
     fn the_rewind_is_five_percent_of_the_pause_capped_at_thirty_seconds(
         (yield_position, paused_duration) in (position_strategy(), paused_duration_strategy())
@@ -417,6 +444,10 @@ proptest! {
         );
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the grid positions, the 5 %-of-pause rewind and the recorded f64 values are exact quarter/centisecond arithmetic; == pins the exact-value contract and a tolerance would admit drift"
+    )]
     #[test]
     fn the_sentence_snap_lands_on_a_boundary_never_mid_word(
         (yield_position, paused_duration, boundaries) in
@@ -461,6 +492,10 @@ proptest! {
         );
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the grid positions, the 5 %-of-pause rewind and the recorded f64 values are exact quarter/centisecond arithmetic; == pins the exact-value contract and a tolerance would admit drift"
+    )]
     #[test]
     fn audible_progress_advances_the_position_exactly_while_playing(
         progress in progress_strategy()
@@ -489,6 +524,10 @@ proptest! {
         );
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the grid positions, the 5 %-of-pause rewind and the recorded f64 values are exact quarter/centisecond arithmetic; == pins the exact-value contract and a tolerance would admit drift"
+    )]
     #[test]
     fn audible_progress_never_advances_the_position_while_not_playing(
         progress in progress_strategy()
@@ -517,6 +556,10 @@ proptest! {
         );
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the grid positions, the 5 %-of-pause rewind and the recorded f64 values are exact quarter/centisecond arithmetic; == pins the exact-value contract and a tolerance would admit drift"
+    )]
     #[test]
     fn the_position_is_monotonically_non_decreasing_while_playing(
         progresses in proptest::collection::vec(progress_strategy(), 1..=64)
@@ -675,24 +718,22 @@ fn walked_to(rung: PlaybackRate) -> PlaybackSession {
 /// The one-step-up neighbor on the closed ladder, saturating at
 /// `R4_0` (FR-019). The exhaustive match compiles only against
 /// exactly the seven declared rungs.
-fn rate_up_from(rate: PlaybackRate) -> PlaybackRate {
+const fn rate_up_from(rate: PlaybackRate) -> PlaybackRate {
     match rate {
         PlaybackRate::R0_75 => PlaybackRate::R1_0,
         PlaybackRate::R1_0 => PlaybackRate::R1_25,
         PlaybackRate::R1_25 => PlaybackRate::R1_5,
         PlaybackRate::R1_5 => PlaybackRate::R1_75,
         PlaybackRate::R1_75 => PlaybackRate::R2_0,
-        PlaybackRate::R2_0 => PlaybackRate::R4_0,
-        PlaybackRate::R4_0 => PlaybackRate::R4_0,
+        PlaybackRate::R2_0 | PlaybackRate::R4_0 => PlaybackRate::R4_0,
     }
 }
 
 /// The one-step-down neighbor on the closed ladder, saturating at
 /// `R0_75` (FR-019).
-fn rate_down_from(rate: PlaybackRate) -> PlaybackRate {
+const fn rate_down_from(rate: PlaybackRate) -> PlaybackRate {
     match rate {
-        PlaybackRate::R0_75 => PlaybackRate::R0_75,
-        PlaybackRate::R1_0 => PlaybackRate::R0_75,
+        PlaybackRate::R0_75 | PlaybackRate::R1_0 => PlaybackRate::R0_75,
         PlaybackRate::R1_25 => PlaybackRate::R1_0,
         PlaybackRate::R1_5 => PlaybackRate::R1_25,
         PlaybackRate::R1_75 => PlaybackRate::R1_5,
@@ -873,6 +914,10 @@ fn a_negative_start_is_clamped_to_the_declared_floor() {
 /// `[0.0, duration]` — the press-time state a skip verb
 /// is pressed from (FR-018 measures the skip against the
 /// position at the moment the control was pressed).
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the strategy bounds every centisecond/quarter-second count at 720 000 / 14 400 (< 2^20), far below f64's exact-integer range (2^53); the grid value converts exactly"
+)]
 fn duration_and_press_time_strategy() -> impl Strategy<Value = (f64, f64)> {
     (0u64..=14_400, 0u64..=14_400).prop_map(|(duration_quarters, press_quarters)| {
         let press = press_quarters.min(duration_quarters);
@@ -885,6 +930,10 @@ fn duration_and_press_time_strategy() -> impl Strategy<Value = (f64, f64)> {
 /// `press + 5.0 >= duration` (20 quarters = 5.0 s of
 /// headroom below the duration), on the quarter-second
 /// grid.
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the strategy bounds every centisecond/quarter-second count at 720 000 / 14 400 (< 2^20), far below f64's exact-integer range (2^53); the grid value converts exactly"
+)]
 fn end_reaching_press_strategy() -> impl Strategy<Value = (f64, f64)> {
     (0u64..=14_400)
         .prop_flat_map(|duration_quarters| {
@@ -998,6 +1047,10 @@ proptest! {
         }
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the grid positions, the 5 %-of-pause rewind and the recorded f64 values are exact quarter/centisecond arithmetic; == pins the exact-value contract and a tolerance would admit drift"
+    )]
     #[test]
     fn a_forward_skip_that_reaches_the_end_lands_paused_at_the_duration(
         (duration, press) in end_reaching_press_strategy(),
@@ -1101,6 +1154,10 @@ proptest! {
         );
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the grid positions, the 5 %-of-pause rewind and the recorded f64 values are exact quarter/centisecond arithmetic; == pins the exact-value contract and a tolerance would admit drift"
+    )]
     #[test]
     fn a_rate_change_is_effective_within_the_bound_and_never_moves_the_position(
         (rung, press) in (rate_strategy(), position_strategy()),
@@ -1147,6 +1204,10 @@ proptest! {
         );
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the grid positions, the 5 %-of-pause rewind and the recorded f64 values are exact quarter/centisecond arithmetic; == pins the exact-value contract and a tolerance would admit drift"
+    )]
     #[test]
     fn a_rate_change_discards_the_pre_roll_so_it_is_re_prepared_at_the_new_rate(
         (rung, delivered) in (rate_strategy(), progress_strategy()),
@@ -1234,8 +1295,7 @@ fn the_rate_change_effective_bound_is_exactly_two_seconds() {
     for rung in LADDER {
         assert!(
             rate_change_effective_time(rung) <= RATE_EFFECTIVE_BOUND_SECS,
-            "the rate change at {:?} exceeded the effective bound (FR-019a)",
-            rung
+            "the rate change at {rung:?} exceeded the effective bound (FR-019a)"
         );
     }
 }
@@ -1243,10 +1303,6 @@ fn the_rate_change_effective_bound_is_exactly_two_seconds() {
 /// A `with_duration` session reports its known duration,
 /// and a default session reports none — the FR-028c
 /// determinacy input and the FR-018 clamp ceiling.
-#[expect(
-    clippy::float_cmp,
-    reason = "the declared duration 3600.0 is an exact binary fraction; == is exact and a tolerance would admit a drifted duration"
-)]
 #[test]
 fn a_with_duration_session_reports_its_known_duration() {
     let known = PlaybackSession::with_duration(3600.0);

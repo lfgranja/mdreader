@@ -73,8 +73,7 @@ fn reason_line_exhaustive_no_catchall_and_word_bound() {
         let line = reason_line(&r);
         assert_eq!(
             line, expected,
-            "reason_line({:?}) expected final contract label {:?}",
-            r, expected
+            "reason_line({r:?}) expected final contract label {expected:?}"
         );
         // ≤8 words (split by whitespace) for non-empty lines
         if !line.is_empty() {

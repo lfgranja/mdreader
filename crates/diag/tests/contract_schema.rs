@@ -249,7 +249,7 @@ fn every_valid_sample_event_conforms_to_the_contract_schema()
 
 /// The four required root properties are required on every kind — a record
 /// missing any of `v/ts_ms/kind/position_secs` is not a valid event. (The
-/// negative-control suite in contract_schema_negative.rs asserts the planted
+/// negative-control suite in `contract_schema_negative.rs` asserts the planted
 /// violations are rejected; this test pins the required-field floor that the
 /// schema enforces on the samples above.)
 #[test]

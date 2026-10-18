@@ -6,8 +6,8 @@
 //! `replay_secs` / `failure` + `error`); `detail` ≤ 200 ch; `failure` / `refusal`
 //! without `error` FAILS; prose predicate FAILS.
 
-use diag::scan::{ScanReport, ScanViolation, scan_record};
-use diag::writer::{DiagnosticWriter, EventKind, FocusValue, RecordEvent, TransportValue};
+use diag::scan::{ScanViolation, scan_record};
+use diag::writer::{DiagnosticWriter, ErrorValue, EventKind, RecordEvent};
 
 /// The closed event-kind set required by the 004 diagnostic-trace
 /// contract: exactly the nine kinds the schema declares (the base
@@ -32,7 +32,7 @@ const MEASURED_DETAIL_KEYS: [&str; 3] = ["play_to_audio_ms", "removal_pause_ms",
 /// A conforming identifier-pattern `detail` token used across
 /// assertions (matches `^[A-Za-z0-9_]+=[A-Za-z0-9_.+\-]+$`).
 fn conforming_detail_token(key: &str, value: &str) -> String {
-    format!("{}={}", key, value)
+    format!("{key}={value}")
 }
 
 /// Replicates the contract's non-prose predicate (scan.rs `is_conforming_detail`)
@@ -99,14 +99,12 @@ fn measured_latency_detail_keys_present() {
     for key in &MEASURED_DETAIL_KEYS {
         assert!(
             key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'),
-            "measured detail key '{}' must match identifier-pattern",
-            key
+            "measured detail key '{key}' must match identifier-pattern"
         );
         let token = conforming_detail_token(key, "42");
         assert!(
             is_conforming_detail(&token),
-            "measured detail token '{}' must conform to non-prose pattern",
-            token
+            "measured detail token '{token}' must conform to non-prose pattern"
         );
     }
     // FocusTransition is the interruption-carrier kind; it must exist.
@@ -126,7 +124,7 @@ fn detail_length_bound_200() -> Result<(), Box<dyn std::error::Error>> {
 
     // A 200-character conforming detail: `k=` (2) + 198 chars = 200.
     let value_198 = "a".repeat(198);
-    let detail_200 = format!("k={}", value_198);
+    let detail_200 = format!("k={value_198}");
     assert_eq!(
         detail_200.chars().count(),
         200,
@@ -143,7 +141,7 @@ fn detail_length_bound_200() -> Result<(), Box<dyn std::error::Error>> {
 
     // A 201-character detail: `k=` + 199 chars = 201.
     let value_199 = "a".repeat(199);
-    let detail_201 = format!("k={}", value_199);
+    let detail_201 = format!("k={value_199}");
     assert_eq!(
         detail_201.chars().count(),
         201,
@@ -154,11 +152,11 @@ fn detail_length_bound_200() -> Result<(), Box<dyn std::error::Error>> {
     {
         let mut writer = DiagnosticWriter::open(&path)?;
         let mut event_200 = base_event(EventKind::TransportChange, 1.0);
-        event_200.detail = Some(detail_200.clone());
+        event_200.detail = Some(detail_200);
         writer.append(&event_200)?;
 
         let mut event_201 = base_event(EventKind::TransportChange, 2.0);
-        event_201.detail = Some(detail_201.clone());
+        event_201.detail = Some(detail_201);
         writer.append(&event_201)?;
     }
 
@@ -185,13 +183,11 @@ fn detail_length_bound_200() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // Confirm no prose violation on the 200-char entry.
-    let prose_violations: Vec<_> = report
-        .violations
-        .iter()
-        .filter(|v| matches!(v, ScanViolation::ProseInDetail { .. }))
-        .collect();
     assert!(
-        prose_violations.is_empty(),
+        !report
+            .violations
+            .iter()
+            .any(|v| matches!(v, ScanViolation::ProseInDetail { .. })),
         "a pattern-valid 200-char detail must not trigger ProseInDetail"
     );
     Ok(())
@@ -218,7 +214,6 @@ fn failure_and_refusal_require_error() -> Result<(), Box<dyn std::error::Error>>
         writer.append(&refusal_no_error)?;
 
         // A failure WITH error must NOT produce any violation.
-        use diag::writer::ErrorValue;
         let mut failure_ok = base_event(EventKind::Failure, 3.0);
         failure_ok.error = Some(ErrorValue::EngineUnreachable);
         writer.append(&failure_ok)?;
@@ -245,7 +240,7 @@ fn failure_and_refusal_require_error() -> Result<(), Box<dyn std::error::Error>>
     );
 
     // The conforming entries (with error) must not trigger violations.
-    let error_violations = report.violations.iter().filter(|v| {
+    let _error_violations = report.violations.iter().filter(|v| {
         matches!(
             v,
             ScanViolation::FailureWithoutError { .. } | ScanViolation::RefusalWithoutError { .. }
@@ -292,18 +287,17 @@ fn prose_predicate_fails() -> Result<(), Box<dyn std::error::Error>> {
         writer.append(&event_prose)?;
 
         let mut event_conforming = base_event(EventKind::TransportChange, 2.0);
-        event_conforming.detail = Some(conforming.clone());
+        event_conforming.detail = Some(conforming);
         writer.append(&event_conforming)?;
     }
 
     let report = scan_record(&path)?;
-    let prose_violations: Vec<_> = report
-        .violations
-        .iter()
-        .filter(|v| matches!(v, ScanViolation::ProseInDetail { .. }))
-        .collect();
     assert_eq!(
-        prose_violations.len(),
+        report
+            .violations
+            .iter()
+            .filter(|v| matches!(v, ScanViolation::ProseInDetail { .. }))
+            .count(),
         1,
         "exactly one ProseInDetail violation expected for the prose canary"
     );
@@ -319,7 +313,7 @@ fn prose_predicate_fails() -> Result<(), Box<dyn std::error::Error>> {
 
 /// Helper to construct a minimal base event (replicates the pattern
 /// used in other diag contract tests).
-fn base_event(kind: EventKind, position_secs: f64) -> RecordEvent {
+const fn base_event(kind: EventKind, position_secs: f64) -> RecordEvent {
     RecordEvent {
         v: 1,
         ts_ms: 1_759_000_000_000,

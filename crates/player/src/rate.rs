@@ -106,8 +106,9 @@ pub const LADDER: [PlaybackRate; 7] = [
 ];
 
 /// Move exactly one rung up the closed ladder
-/// (FR-019), saturating at [`PlaybackRate::R4_0`]:
-/// the top rung is the ceiling, so a press at
+/// (FR-019), saturating at [`PlaybackRate::R4_0`].
+///
+/// The top rung is the ceiling, so a press at
 /// `R4_0` stays at `R4_0` — the press never wraps,
 /// never fails, and never yields a rung off the
 /// ladder.
@@ -121,7 +122,7 @@ pub const LADDER: [PlaybackRate; 7] = [
     clippy::match_same_arms,
     reason = "FR-019 / Principle VII: the saturation arm (R4_0 => R4_0) legitimately shares its body with the R2_0 step — a press at the top rung stays at the top rung; the exhaustive seven-arm match with no catch-all is the closed-set contract (FR-044)"
 )]
-pub fn step_up(rung: PlaybackRate) -> PlaybackRate {
+pub const fn step_up(rung: PlaybackRate) -> PlaybackRate {
     match rung {
         PlaybackRate::R0_75 => PlaybackRate::R1_0,
         PlaybackRate::R1_0 => PlaybackRate::R1_25,
@@ -134,8 +135,9 @@ pub fn step_up(rung: PlaybackRate) -> PlaybackRate {
 }
 
 /// Move exactly one rung down the closed ladder
-/// (FR-019), saturating at [`PlaybackRate::R0_75`]:
-/// the bottom rung is the floor, so a press at
+/// (FR-019), saturating at [`PlaybackRate::R0_75`].
+///
+/// The bottom rung is the floor, so a press at
 /// `R0_75` stays at `R0_75` — the press never wraps,
 /// never fails, and never yields a rung off the
 /// ladder.
@@ -149,7 +151,7 @@ pub fn step_up(rung: PlaybackRate) -> PlaybackRate {
     clippy::match_same_arms,
     reason = "FR-019 / Principle VII: the saturation arm (R0_75 => R0_75) legitimately shares its body with the R1_0 step — a press at the bottom rung stays at the bottom rung; the exhaustive seven-arm match with no catch-all is the closed-set contract (FR-044)"
 )]
-pub fn step_down(rung: PlaybackRate) -> PlaybackRate {
+pub const fn step_down(rung: PlaybackRate) -> PlaybackRate {
     match rung {
         PlaybackRate::R0_75 => PlaybackRate::R0_75,
         PlaybackRate::R1_0 => PlaybackRate::R0_75,
@@ -169,8 +171,9 @@ pub const DEFAULT_RATE: PlaybackRate = PlaybackRate::R1_0;
 
 /// The rung a session opens at (FR-019b / T042):
 /// the stored `last_rate` when the settings row
-/// survives the reopen, [`DEFAULT_RATE`] on a miss —
-/// the read-at-start half of the persistence
+/// survives the reopen, [`DEFAULT_RATE`] on a miss.
+///
+/// The read-at-start half of the persistence
 /// wiring, resolved once here so every call site
 /// (IPC, lock screen, CLI) applies the same default
 /// (Principle II).
@@ -183,8 +186,9 @@ pub const fn rate_at_start(stored: Option<PlaybackRate>) -> PlaybackRate {
 }
 
 /// The direction of a rate-step press — the closed
-/// two-member set (FR-019 / FR-044): the in-app
-/// stepper and the lock-screen rate-step action
+/// two-member set (FR-019 / FR-044).
+///
+/// The in-app stepper and the lock-screen rate-step action
 /// each name exactly one of the two directions, and
 /// nothing else exists. No catch-all arm matches on
 /// it (Principle VII).
@@ -198,17 +202,19 @@ pub enum RateStep {
 
 /// One rate-step press (T042): exactly one rung in
 /// `step`'s direction, saturating at the ladder's
-/// end — the single move both surfaces call, the
-/// in-app stepper and the lock-screen rate-step
-/// action alike, so no second ladder navigation
-/// exists (FR-019 / FR-044). The move routes
-/// through the existing [`step_up`] / [`step_down`]
-/// core; it selects a rung and never stretches
-/// audio (the engine owns the pitch-preserving
-/// stretch, FR-043), and it renders no rung value
-/// (the value-blind contract, T042).
+/// end — the single move both surfaces call.
+///
+/// The in-app stepper and the lock-screen rate-step
+/// action call it alike, so no second ladder
+/// navigation exists (FR-019 / FR-044). The move
+/// routes through the existing [`step_up`] /
+/// [`step_down`] core; it selects a rung and never
+/// stretches audio (the engine owns the
+/// pitch-preserving stretch, FR-043), and it
+/// renders no rung value (the value-blind contract,
+/// T042).
 #[must_use]
-pub fn step_rate(current: PlaybackRate, step: RateStep) -> PlaybackRate {
+pub const fn step_rate(current: PlaybackRate, step: RateStep) -> PlaybackRate {
     match step {
         RateStep::Up => step_up(current),
         RateStep::Down => step_down(current),
@@ -268,11 +274,11 @@ impl RateStepper {
     #[must_use]
     pub fn step(&mut self, step: RateStep) -> Option<PlaybackRate> {
         let next = step_rate(self.current, step);
-        if next != self.current {
+        if next == self.current {
+            None
+        } else {
             self.current = next;
             Some(next)
-        } else {
-            None
         }
     }
 }

@@ -13,7 +13,7 @@
 //! - data-model.md `PlaybackSession` transition table — the
 //!   closed list this file's reference model implements
 //!   exactly: `Playing → Paused` (pause, transient-silence
-//!   demand, BECOMING_NOISY, device loss); `Playing →
+//!   demand, `BECOMING_NOISY`, device loss); `Playing →
 //!   Interrupted` (permanent loss, engine failure pending
 //!   offer); `Interrupted → Playing` (offer choice or
 //!   fallback takeover, same position); `Paused → Playing`
@@ -95,13 +95,13 @@ impl LifecycleAction {
     /// five-verb subset of `ShellVerb` (the full verb set
     /// also carries rate, skip, and resume verbs, which no
     /// lifecycle transition depends on).
-    fn verb(self) -> ShellVerb {
+    const fn verb(self) -> ShellVerb {
         match self {
-            LifecycleAction::Play => ShellVerb::Play,
-            LifecycleAction::Pause => ShellVerb::Pause,
-            LifecycleAction::Stop => ShellVerb::Stop,
-            LifecycleAction::Complete => ShellVerb::Complete,
-            LifecycleAction::Interrupt => ShellVerb::Interrupt,
+            Self::Play => ShellVerb::Play,
+            Self::Pause => ShellVerb::Pause,
+            Self::Stop => ShellVerb::Stop,
+            Self::Complete => ShellVerb::Complete,
+            Self::Interrupt => ShellVerb::Interrupt,
         }
     }
 }
@@ -140,7 +140,10 @@ enum ReferenceVerdict {
     clippy::match_same_arms,
     reason = "Principle VII / FR-044: the closed 5x5 transition table's fifteen illegal cells all share the Rejected verdict by design; enumerating them explicitly (rather than a catch-all arm) is what makes an added state or verb a compile error"
 )]
-fn reference_transition(current: TransportState, action: LifecycleAction) -> ReferenceVerdict {
+const fn reference_transition(
+    current: TransportState,
+    action: LifecycleAction,
+) -> ReferenceVerdict {
     match (current, action) {
         // Playing: exactly {Paused, Interrupted, Stopped,
         // Completed} is reachable (tasks.md T020).
@@ -298,7 +301,7 @@ fn session_in(state: TransportState) -> PlaybackSession {
 /// audible progress fed while passing through `Playing`
 /// (retained by `Paused`, `Playing`, and `Interrupted`),
 /// or `0.0` where the session never held or discarded it.
-fn position_in(state: TransportState) -> f64 {
+const fn position_in(state: TransportState) -> f64 {
     match state {
         TransportState::Playing | TransportState::Interrupted => AUDIBLE_PROGRESS_SECS,
         TransportState::Paused | TransportState::Stopped | TransportState::Completed => 0.0,
@@ -308,6 +311,10 @@ fn position_in(state: TransportState) -> f64 {
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the session's audible progress and stored position are exact f64 values fed and compared verbatim on the grid; == is the correct assertion and a tolerance would admit a spurious position advance"
+    )]
     #[test]
     fn every_driven_sequence_tracks_the_reference_transition_table(
         actions in lifecycle_action_vec_strategy()

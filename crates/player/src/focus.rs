@@ -55,7 +55,9 @@ pub enum FocusRegained {
 }
 
 /// Closed Kotlin→Rust intent set (contracts/shell-ipc.md): exactly
-/// the nine intents below — no `Other`. Device identity travels
+/// the nine intents below — no `Other`.
+///
+/// Device identity travels
 /// alongside the intent (diagnostic record), never inside it, so the
 /// set stays fieldless.
 ///
@@ -127,6 +129,10 @@ pub struct FocusClassification {
 /// response here; the ≤1 s timing and device-switch rules belong to
 /// the routing machine (T046), not to this mapping.
 #[must_use]
+#[expect(
+    clippy::match_same_arms,
+    reason = "Principle VII closed-set explicitness: each of the nine intents keeps its own arm so the mapping stays a literal one-per-member table beside its documentation; grouping SilenceDemanding/BecomingNoisy, PermanentLoss/DeviceDisappeared and FocusRegained/DeviceAppeared into or-patterns would hide the per-intent pairing (API_CONTRACT.md §0.1 entry 1, the convention earcon_for records)"
+)]
 pub const fn classify(intent: FocusIntent) -> FocusClassification {
     match intent {
         FocusIntent::DuckableTransient => FocusClassification {
@@ -208,6 +214,10 @@ pub struct SupersedeFlags {
 /// transient after a permanent loss authorizes nothing; steady or
 /// de-escalating pairs keep the flags the tracker already holds).
 #[must_use]
+#[expect(
+    clippy::match_same_arms,
+    reason = "Principle VII closed-set explicitness: the 3×3 outcome product keeps one arm per (previous, next) pair so the escalation table is literally enumerable; grouping the identical non-escalation arms would flatten the FR-014 table into a catch-all (API_CONTRACT.md §0.1 entry 1, the convention earcon_for records)"
+)]
 pub const fn supersede_flags(previous: FocusOutcome, next: FocusOutcome) -> SupersedeFlags {
     match (previous, next) {
         (FocusOutcome::DuckableTransient, FocusOutcome::PermanentLoss) => SupersedeFlags {
@@ -251,7 +261,11 @@ pub const fn supersede_flags(previous: FocusOutcome, next: FocusOutcome) -> Supe
 
 /// Stateful focus tracker: current outcome, duck/resume flags, and
 /// the foreground latch (FR-014 latest-event-wins + FR-032c latch).
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "the four flags are independent, individually contracted state bits (FR-014 duck/resume/duck-restore, FR-032c foreground latch); legal combinations such as ducked + resume_due coexist, so an enum or bitfield would only restate the same product with less readable field names"
+)]
 pub struct FocusTracker {
     /// Current classified outcome, or `None` before the first
     /// loss or after a regain resolved it.
@@ -402,7 +416,8 @@ pub const fn apply_grant(grant: FocusGrant) -> Result<bool, EngineError> {
 }
 
 /// Duck band [0.15, 0.25] (FR-013) — must remain `Playing`; gain ≈20%.
-/// SilenceDemanding / PermanentLoss → `Paused` / `Interrupted`; never auto-resume.
+/// `SilenceDemanding` / `PermanentLoss` → `Paused` / `Interrupted`; never auto-resume.
+///
 /// Supersede transient→permanent clears resume/duck-restore flags.
 /// Deferred grant → zero audio before grant, no rewind; refusal → named failure + no playing state.
 ///

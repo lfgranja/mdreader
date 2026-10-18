@@ -72,6 +72,10 @@ fn invalid_gain_strategy() -> impl Strategy<Value = f32> {
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the accepted factor is echoed back verbatim as the stored f32 and the rejected case pins the unchanged baseline; == is exact and a tolerance would admit drift"
+    )]
     #[test]
     fn given_a_gain_inside_the_unit_interval_when_setting_then_it_is_accepted_and_echoed(
         factor in 0.0f32..=1.0f32
@@ -96,6 +100,10 @@ proptest! {
         // the hardware note above.
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the accepted factor is echoed back verbatim as the stored f32 and the rejected case pins the unchanged baseline; == is exact and a tolerance would admit drift"
+    )]
     #[test]
     fn given_a_gain_outside_the_unit_interval_when_setting_then_it_is_rejected_with_gain_unchanged(
         factor in invalid_gain_strategy()
@@ -159,14 +167,12 @@ fn silence_duck_and_full_factors_are_accepted_and_echoed() {
             let accepted = backend.set_gain(factor);
             assert!(
                 accepted.is_ok(),
-                "gain factor {} inside [0.0, 1.0] was rejected",
-                factor
+                "gain factor {factor} inside [0.0, 1.0] was rejected"
             );
             assert_eq!(
                 backend.gain(),
                 factor,
-                "gain() did not echo the accepted factor {}",
-                factor
+                "gain() did not echo the accepted factor {factor}"
             );
         }
     }
@@ -183,8 +189,7 @@ fn nan_is_rejected_with_gain_unchanged() {
         let baseline = backend.set_gain(BASELINE_GAIN);
         assert!(
             baseline.is_ok(),
-            "baseline gain {} was rejected before the NaN attempt",
-            BASELINE_GAIN
+            "baseline gain {BASELINE_GAIN} was rejected before the NaN attempt"
         );
         let before = backend.gain();
         let rejected = backend.set_gain(f32::NAN);

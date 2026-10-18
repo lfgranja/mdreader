@@ -17,7 +17,7 @@
 //!
 //! - Kill mid-playback: a session driven `Playing` with audible progress
 //!   is hard-killed — dropped with no Stop verb, so the record ends
-//!   mid-session with no session_end entry. The kill-replay basis
+//!   mid-session with no `session_end` entry. The kill-replay basis
 //!   (`stored_basis`, the position at the last audible tick) must trail
 //!   the final position by at most [`REWIND_CAP_SECS`]: that is the
 //!   ≤30 s replay bound of FR-004/SC-007, the bound that holds exactly
@@ -101,17 +101,29 @@ const FIXTURE_DOCUMENT_BYTES: &[u8] = b"us1-kill-recovery-fixture-document";
 
 /// Audible progress in `(0.00, 5.00]` s — strictly positive, so a
 /// progress tick while `Playing` is a strictly greater position.
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the strategy bounds every centisecond/quarter-second count at 720 000 / 14 400 (< 2^20), far below f64's exact-integer range (2^53); the grid value converts exactly"
+)]
 fn progress_strategy() -> impl Strategy<Value = f64> {
     (1u64..=500).prop_map(|centis| centis as f64 / 100.0)
 }
 
 /// Silence-pause durations `d` ∈ [0, 7200] s as exact centisecond
 /// multiples — the FR-015 paused-duration input.
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the strategy bounds every centisecond/quarter-second count at 720 000 / 14 400 (< 2^20), far below f64's exact-integer range (2^53); the grid value converts exactly"
+)]
 fn paused_duration_strategy() -> impl Strategy<Value = f64> {
     (0u64..=720_000).prop_map(|centis| centis as f64 / 100.0)
 }
 
 /// Positions on the exact quarter-second grid `k × 0.25` ∈ [0, 3600].
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the strategy bounds every centisecond/quarter-second count at 720 000 / 14 400 (< 2^20), far below f64's exact-integer range (2^53); the grid value converts exactly"
+)]
 fn position_strategy() -> impl Strategy<Value = f64> {
     (0u64..=14_400).prop_map(|quarters| quarters as f64 * 0.25)
 }
@@ -119,10 +131,14 @@ fn position_strategy() -> impl Strategy<Value = f64> {
 /// Sentence starts for the relaunch resume snap: ascending, on the same
 /// quarter-second grid, always containing the document start `0.0` so a
 /// greatest-boundary-at-or-before lookup always has an answer.
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the strategy bounds every centisecond/quarter-second count at 720 000 / 14 400 (< 2^20), far below f64's exact-integer range (2^53); the grid value converts exactly"
+)]
 fn sentence_starts_strategy() -> impl Strategy<Value = Vec<f64>> {
     proptest::collection::vec(0u64..=14_400, 0..=16).prop_map(|mut quarters| {
         quarters.push(0);
-        quarters.sort();
+        quarters.sort_unstable();
         quarters.dedup();
         quarters.into_iter().map(|q| q as f64 * 0.25).collect()
     })
@@ -162,6 +178,10 @@ fn the_kill_power_loss_fixture_replays_within_the_thirty_second_bound() {
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the accumulated audible progress, the stored basis and the 5 %-of-pause rewind are exact grid arithmetic; == pins the exact-value contract and a tolerance would admit drift"
+    )]
     #[test]
     fn a_hard_kill_replays_at_most_thirty_seconds_of_already_spoken_audio(
         (progresses, pause_lengths) in (
@@ -240,6 +260,10 @@ proptest! {
         );
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the accumulated audible progress, the stored basis and the 5 %-of-pause rewind are exact grid arithmetic; == pins the exact-value contract and a tolerance would admit drift"
+    )]
     #[test]
     fn a_relaunch_opens_at_the_stored_basis_and_the_resume_rewind_stays_within_the_cap(
         (yield_position, paused_duration, sentence_starts) in

@@ -265,7 +265,7 @@ impl SyntheticClock {
     }
 
     /// The current simulated time, in seconds.
-    const fn now(&self) -> f64 {
+    const fn now(self) -> f64 {
         self.now_secs
     }
 
@@ -335,6 +335,10 @@ impl Engine for SpyEngine {
     /// runs (FR-015a) — a named failure, never an
     /// open-ended synthesis.
     fn stream(&mut self, position_secs: f64, max_secs: f64) -> Result<StreamChunk, EngineError> {
+        #[expect(
+            clippy::neg_cmp_op_on_partial_ord,
+            reason = "the negated >= deliberately rejects NaN inputs: NaN >= 0.0 is false, so a NaN position or bound fails closed before any synthesis runs (FR-015a)"
+        )]
         if !(position_secs >= 0.0) || !(max_secs >= 0.0) || max_secs > MAX_PREROLL_SECS {
             return Err(EngineError::StartRefused);
         }
@@ -446,7 +450,7 @@ impl IdlePipeline {
     /// A pipeline over the single registered engine — the
     /// configuration the idle-drain trials run under.
     fn single_engine() -> Self {
-        Self::from_registry(vec![PRIMARY_ENGINE_ID])
+        Self::from_registry(&[PRIMARY_ENGINE_ID])
     }
 
     /// A pipeline over both stand-ins (the SC-051 failover
@@ -455,13 +459,13 @@ impl IdlePipeline {
     /// no non-`test_double` adapter is registered
     /// (FR-023c / the 2026-10-05 clarification).
     fn two_engines() -> Self {
-        Self::from_registry(vec![PRIMARY_ENGINE_ID, FALLBACK_ENGINE_ID])
+        Self::from_registry(&[PRIMARY_ENGINE_ID, FALLBACK_ENGINE_ID])
     }
 
     /// A pipeline over `engine_ids`, registered in order
     /// with the engine authority as the `test_double`
     /// stand-ins they are.
-    fn from_registry(engine_ids: Vec<&str>) -> Self {
+    fn from_registry(engine_ids: &[&str]) -> Self {
         let registry: Vec<EngineDescriptor> = engine_ids
             .iter()
             .map(|id| EngineDescriptor {
@@ -525,7 +529,7 @@ impl IdlePipeline {
     /// Whether the pre-roll is empty in both views: the
     /// Play-gated buffer and the sample ring (FR-015a /
     /// FR-015c).
-    fn pre_roll_is_empty(&self) -> bool {
+    const fn pre_roll_is_empty(&self) -> bool {
         self.pre_roll.is_empty() && self.ring.buffer.is_empty()
     }
 
@@ -583,6 +587,10 @@ impl IdlePipeline {
     /// position-advance path.
     fn feed_audible_progress(&mut self, secs: f64) -> Result<(), EngineError> {
         let mut remaining = secs;
+        #[expect(
+            clippy::while_float,
+            reason = "each bounded step is min(remaining, MAX_PREROLL_SECS): while remaining > MAX the decrement is exact (a representable subtrahend), and the final step lands on exactly 0.0; > 0.0 is the only correct termination guard"
+        )]
         while remaining > 0.0 {
             // One synthesis request never exceeds the
             // engine-side bound (MAX_PREROLL_SECS): audible
@@ -591,7 +599,7 @@ impl IdlePipeline {
             let step = remaining.min(MAX_PREROLL_SECS);
             let position = self.session.snapshot().position_secs;
             let chunk = self.bound_spy().stream(position, step)?;
-            let _audible = chunk;
+            let _ = chunk;
             self.session.on_audible_progress(step);
             remaining -= step;
         }
@@ -1096,7 +1104,7 @@ proptest! {
 /// begins: a fixed sub-second request, inside the FR-027
 /// window, so the post-takeover billing is a single
 /// countable request.
-fn pre_roll_after_takeover() -> f64 {
+const fn pre_roll_after_takeover() -> f64 {
     0.5
 }
 
@@ -1106,6 +1114,10 @@ fn pre_roll_after_takeover() -> f64 {
 /// synthesis at all across a full one-hour idle window:
 /// zero requests, zero characters, zero bytes, and an
 /// empty pre-roll buffer at every checkpoint.
+#[expect(
+    clippy::float_cmp,
+    reason = "the floor position is the exact f64 literal 0.0 and an idle session must not move it by a single ulp (FR-002 / FR-005); == is the correct assertion"
+)]
 #[test]
 fn a_paused_session_with_no_progress_serves_nothing_across_an_idle_hour() {
     let mut pipeline = IdlePipeline::single_engine();
@@ -1202,8 +1214,7 @@ fn the_full_capacity_pre_roll_request_bills_within_the_documented_budget() {
     );
     assert!(
         characters_for(MAX_PREROLL_SECS) * BYTES_PER_CHAR <= BYTE_BUDGET,
-        "a full-capacity pre-roll request bills over the documented {}-byte per-request budget (SC-050b / T007c)",
-        BYTE_BUDGET
+        "a full-capacity pre-roll request bills over the documented {BYTE_BUDGET}-byte per-request budget (SC-050b / T007c)"
     );
     // The per-character arithmetic itself: 3 bytes per
     // character, 15 characters per second.

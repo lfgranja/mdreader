@@ -130,14 +130,15 @@ enum PropError {
 /// Returns 0 when the system clock precedes the epoch (never on a normal
 /// system); the value is only ever used as a timestamp anchor.
 fn now_ms() -> u64 {
-    match SystemTime::now().duration_since(UNIX_EPOCH) {
-        Ok(duration) => u64::try_from(duration.as_millis()).unwrap_or(0),
-        Err(_) => 0,
-    }
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |duration| {
+            u64::try_from(duration.as_millis()).unwrap_or(0)
+        })
 }
 
 /// A record event with every optional field absent.
-fn base_event(kind: EventKind, ts_ms: u64, position_secs: f64) -> RecordEvent {
+const fn base_event(kind: EventKind, ts_ms: u64, position_secs: f64) -> RecordEvent {
     RecordEvent {
         v: RECORD_VERSION,
         ts_ms,
@@ -156,17 +157,21 @@ fn base_event(kind: EventKind, ts_ms: u64, position_secs: f64) -> RecordEvent {
     }
 }
 
-fn session_start(ts_ms: u64, position_secs: f64) -> RecordEvent {
+const fn session_start(ts_ms: u64, position_secs: f64) -> RecordEvent {
     base_event(EventKind::SessionStart, ts_ms, position_secs)
 }
 
-fn transport_change(ts_ms: u64, position_secs: f64, transport: TransportValue) -> RecordEvent {
+const fn transport_change(
+    ts_ms: u64,
+    position_secs: f64,
+    transport: TransportValue,
+) -> RecordEvent {
     let mut event = base_event(EventKind::TransportChange, ts_ms, position_secs);
     event.transport = Some(transport);
     event
 }
 
-fn session_end(
+const fn session_end(
     ts_ms: u64,
     position_secs: f64,
     transport: TransportValue,
@@ -181,7 +186,11 @@ fn session_end(
 /// A `focus_transition` to `permanent_loss` superseding the entry at
 /// `supersedes_ts_ms` (FR-044: a superseding permanent-loss entry
 /// carries `supersedes_ts_ms`).
-fn permanent_loss_focus(ts_ms: u64, position_secs: f64, supersedes_ts_ms: u64) -> RecordEvent {
+const fn permanent_loss_focus(
+    ts_ms: u64,
+    position_secs: f64,
+    supersedes_ts_ms: u64,
+) -> RecordEvent {
     let mut event = base_event(EventKind::FocusTransition, ts_ms, position_secs);
     event.focus = Some(FocusValue::PermanentLoss);
     event.supersedes_ts_ms = Some(supersedes_ts_ms);
@@ -212,7 +221,7 @@ fn trim_markers(lines: &[RecordEvent]) -> Vec<TrimMarker> {
 
 /// Whether the line is a retained record event (a trim or gap marker is
 /// metadata, not a retained entry).
-fn is_retained_event(line: &RecordEvent) -> bool {
+const fn is_retained_event(line: &RecordEvent) -> bool {
     match line.kind {
         EventKind::Trim | EventKind::Gap => false,
         EventKind::SessionStart

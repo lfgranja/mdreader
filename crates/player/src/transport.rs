@@ -35,7 +35,7 @@ pub use engine_core::closed::PlaybackRate;
     reason = "FR-019 / Principle VII: exactly 7 rungs enumerated;
     exhaustive match with no catch-all arm"
 )]
-pub fn rate_up_from(rate: PlaybackRate) -> PlaybackRate {
+pub const fn rate_up_from(rate: PlaybackRate) -> PlaybackRate {
     match rate {
         PlaybackRate::R0_75 => PlaybackRate::R1_0,
         PlaybackRate::R1_0 => PlaybackRate::R1_25,
@@ -61,7 +61,7 @@ pub fn rate_up_from(rate: PlaybackRate) -> PlaybackRate {
     reason = "FR-019 / Principle VII: exactly 7 rungs enumerated;
     exhaustive match with no catch-all arm"
 )]
-pub fn rate_down_from(rate: PlaybackRate) -> PlaybackRate {
+pub const fn rate_down_from(rate: PlaybackRate) -> PlaybackRate {
     match rate {
         PlaybackRate::R4_0 => PlaybackRate::R2_0,
         PlaybackRate::R2_0 => PlaybackRate::R1_75,
@@ -175,12 +175,7 @@ pub enum SkipDirection {
 /// Panics never occur: the match is exhaustive over the seven
 /// rungs, with explicit arms for each.
 #[must_use]
-#[expect(
-    clippy::match_same_arms,
-    reason = "FR-019 / Principle VII: exactly 7 rungs enumerated;
-    exhaustive match with no catch-all arm"
-)]
-pub fn select_rate(current_rate: PlaybackRate, step: i8) -> PlaybackRate {
+pub const fn select_rate(current_rate: PlaybackRate, step: i8) -> PlaybackRate {
     // Ladder saturates at ends; one step per press.
     // Exact rung mapping documented in spec FR-019.
     match current_rate {

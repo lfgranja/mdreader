@@ -40,7 +40,7 @@ use crate::surface::{FullReason, ReasonExpiry, full_reason};
 /// The in-app status view (T065b): the read-only mirror of
 /// the session's authoritative state, the document title and
 /// current section title (FR-011: title + section + progress
-/// only — never document prose), the stored last_rate, the
+/// only — never document prose), the stored `last_rate`, the
 /// current reason statement with its expiry, and the content
 /// fingerprint the Stop control clears.
 ///
@@ -107,9 +107,11 @@ fn serialize_fingerprint_hex<S: serde::Serializer>(
     fingerprint: &[u8; 32],
     serializer: S,
 ) -> Result<S::Ok, S::Error> {
+    const HEX_ALPHABET: [u8; 16] = *b"0123456789abcdef";
     let mut hex = String::with_capacity(64);
     for byte in fingerprint {
-        hex.push_str(&format!("{byte:02x}"));
+        hex.push(char::from(HEX_ALPHABET[usize::from(byte >> 4)]));
+        hex.push(char::from(HEX_ALPHABET[usize::from(byte & 0x0f)]));
     }
     serializer.serialize_str(&hex)
 }

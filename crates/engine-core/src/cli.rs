@@ -99,7 +99,7 @@ pub fn run(
             return Ok(());
         }
     };
-    match execute(cli, stdin, stdout) {
+    match execute(&cli, stdin, stdout) {
         Ok(()) => Ok(()),
         Err(error) => {
             // The failure half of the protocol: nothing was

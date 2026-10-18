@@ -2,6 +2,11 @@
 //! Declares capabilities against existing engine-core shapes (format.rs / closed.rs);
 //! does NOT invent phantom trait methods (T016 not yet built — Assumption 3 corrected).
 
+#![expect(
+    clippy::multiple_crate_versions,
+    reason = "the jni-sys duplicate is third-party-forced at newest-release pins: ndk 0.9.0 and ndk-sys 0.6.0 (the latest on crates.io) depend on jni-sys 0.3.1, whose published 0.3.1 release itself depends on jni-sys 0.4.1 — every ndk consumer therefore always carries both versions, cargo cannot unify a dependency with its own transitive re-export, and supply-chain governance for this duplicate belongs to cargo-deny, not this lint"
+)]
+
 use engine_core::closed::EngineTier;
 
 pub use engine_core::trait_::{AlignmentGranularity, SsmlLevel};

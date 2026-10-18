@@ -16,7 +16,8 @@ use player::surface::{Progress, SurfaceResolver};
 /// Shape contract: `Determinate` must expose the new
 /// unit-based fields, not the old time-based ones.
 #[test]
-fn progress_determinate_has_new_shape_not_old_time_fields() {
+fn progress_determinate_has_new_shape_not_old_time_fields() -> Result<(), Box<dyn std::error::Error>>
+{
     let resolver = SurfaceResolver::new(
         Some("Title".to_string()),
         "doc.wav".to_string(),
@@ -27,8 +28,8 @@ fn progress_determinate_has_new_shape_not_old_time_fields() {
     let snapshot = resolver.resolve(10.0, resolver.consumed_units_at(10.0), &[]);
     match snapshot.progress {
         Progress::Determinate { .. } => {
-            let value = serde_json::to_value(&snapshot.progress).expect("serialize progress");
-            let obj = value.get("determinate").expect("determinate key present");
+            let value = serde_json::to_value(&snapshot.progress)?;
+            let obj = value.get("determinate").ok_or("determinate key present")?;
             // The new shape requires these four keys.
             assert!(
                 obj.get("consumed_units").is_some(),
@@ -57,16 +58,20 @@ fn progress_determinate_has_new_shape_not_old_time_fields() {
             );
         }
         Progress::Indeterminate => {
-            panic!("expected Determinate when duration_known_at_start=true (T002f)");
+            assert!(
+                matches!(snapshot.progress, Progress::Determinate { .. }),
+                "expected Determinate when duration_known_at_start=true (T002f)"
+            );
         }
     }
+    Ok(())
 }
 
 /// Fixed-at-session-start: determinacy never switches.
 /// With zero headings and `fixed_at_session_start` false,
 /// progress must stay `Indeterminate` for every call.
 #[test]
-fn fixed_at_session_start_is_false_for_zero_sections() {
+fn fixed_at_session_start_is_false_for_zero_sections() -> Result<(), Box<dyn std::error::Error>> {
     let resolver = SurfaceResolver::new(
         None,
         "doc.wav".to_string(),
@@ -85,18 +90,19 @@ fn fixed_at_session_start_is_false_for_zero_sections() {
         "section_title must be None for zero headings, not a rule payload (T002f)"
     );
     // Assert no forbidden `None`-section payload key is injected.
-    let serialized = serde_json::to_string(&snapshot).expect("serialize");
+    let serialized = serde_json::to_string(&snapshot)?;
     assert!(
         !serialized.contains("none_section_rule"),
         "payload must not include None-section rule incorrectly (T002f)"
     );
+    Ok(())
 }
 
 /// Fixed-at-session-start true: progress stays determinate
 /// regardless of headings count — the total is known.
 /// The determinate payload carries the four new fields.
 #[test]
-fn fixed_at_session_start_true_keeps_determinate_shape() {
+fn fixed_at_session_start_true_keeps_determinate_shape() -> Result<(), Box<dyn std::error::Error>> {
     let resolver = SurfaceResolver::new(
         Some("Title".to_string()),
         "doc.wav".to_string(),
@@ -111,12 +117,13 @@ fn fixed_at_session_start_true_keeps_determinate_shape() {
         matches!(snapshot.progress, Progress::Determinate { .. }),
         "fixed_at_session_start=true must keep Determinate even with zero sections (T002f)"
     );
-    let value = serde_json::to_value(&snapshot.progress).expect("serialize");
-    let obj = value.get("determinate").expect("determinate");
+    let value = serde_json::to_value(&snapshot.progress)?;
+    let obj = value.get("determinate").ok_or("determinate")?;
     assert!(obj.get("consumed_units").is_some());
     assert!(obj.get("total_units").is_some());
     assert!(obj.get("k").is_some());
     assert!(obj.get("n").is_some());
+    Ok(())
 }
 
 /// The unit total is the parsed-content unit count fixed at
@@ -163,7 +170,12 @@ fn the_total_is_the_session_start_parsed_content_units_not_the_heading_extent() 
                     "{label}: the consumed offset is the projected parsed-content offset"
                 );
             }
-            Progress::Indeterminate => panic!("{label}: the totals are known at start"),
+            Progress::Indeterminate => {
+                assert!(
+                    matches!(snapshot.progress, Progress::Determinate { .. }),
+                    "{label}: the totals are known at start"
+                );
+            }
         }
     }
 }

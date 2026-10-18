@@ -38,7 +38,7 @@ use adapter_synthesis::{
 /// compile right here — that compile failure is the assertion
 /// (constitution Principle VII, `constitution.md:314-317`;
 /// `mechanism-gate.md` CHK031; `API_CONTRACT.md` §0 rule 1).
-fn ssml_discriminant(level: SsmlLevel) -> u8 {
+const fn ssml_discriminant(level: SsmlLevel) -> u8 {
     match level {
         SsmlLevel::None => 0,
         SsmlLevel::Partial => 1,
@@ -50,7 +50,7 @@ fn ssml_discriminant(level: SsmlLevel) -> u8 {
 /// discriminant. Exhaustive with **no `_ =>` arm**: a fourth member
 /// would fail to compile here — that is the point of the test
 /// (constitution Principle VII; `mechanism-gate.md` CHK031).
-fn granularity_discriminant(granularity: AlignmentGranularity) -> u8 {
+const fn granularity_discriminant(granularity: AlignmentGranularity) -> u8 {
     match granularity {
         AlignmentGranularity::None => 0,
         AlignmentGranularity::Word => 1,
@@ -243,6 +243,10 @@ fn declaration_precedes_any_synthesis_and_requires_no_engine_state() {
 /// caught in this file rather than at the next consumer
 /// (`missing_debug_implementations` is `deny` at workspace level,
 /// `constitution.md:462`; `API_CONTRACT.md` §1).
+#[expect(
+    clippy::clone_on_copy,
+    reason = "the test's contract is that the derived Clone impl compiles and yields an equal value — the lint's suggested removal would stop exercising Clone entirely; the Copy impl is separately exercised by the assignment below"
+)]
 #[test]
 fn adapter_capabilities_derives_debug_clone_copy_partial_eq_and_eq() {
     let declared = declared_capabilities();

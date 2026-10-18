@@ -26,6 +26,10 @@ use player::transport::SkipDirection;
 /// position arguments are drawn from the same grid so the
 /// generated (position, headings) pairs are dense in the
 /// boundary-crossing cases the invariant cares about.
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the strategy bounds every quarter-second count at 14 400 (< 2^14), far below f64's exact-integer range (2^53); the grid position converts exactly"
+)]
 fn position_strategy() -> impl Strategy<Value = f64> {
     (0u64..=14_400).prop_map(|quarters| quarters as f64 * 0.25)
 }
@@ -33,12 +37,24 @@ fn position_strategy() -> impl Strategy<Value = f64> {
 /// A generated document duration that always covers every
 /// generated position (so the clamp bounds are exercised at
 /// the document end, not before it).
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the strategy bounds every quarter-second count at 14 400 (< 2^14), far below f64's exact-integer range (2^53); the grid position converts exactly"
+)]
+#[expect(
+    clippy::suboptimal_flops,
+    reason = "the +1.0 s guard stays separate from the exact ×0.25 grid product so the duration remains the exact binary fraction the clamp assertions compare against"
+)]
 fn duration_strategy() -> impl Strategy<Value = f64> {
     (0u64..=14_400).prop_map(|quarters| quarters as f64 * 0.25 + 1.0)
 }
 
 /// An ascending, de-duplicated heading list on the
 /// quarter-second grid.
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the strategy bounds every quarter-second count at 14 400 (< 2^14), far below f64's exact-integer range (2^53); the grid position converts exactly"
+)]
 fn headings_strategy() -> impl Strategy<Value = Vec<Heading>> {
     proptest::collection::vec(
         (
@@ -72,6 +88,10 @@ proptest! {
     /// heading (no boundary ahead) the skip clamps to the
     /// document end — the ±10 s fallback is a ZERO-SECTIONS
     /// rule only, never a non-empty-list fallback (T013).
+    #[expect(
+        clippy::float_cmp,
+        reason = "heading positions are exact quarter-second grid values and the landing must equal one of them; == is the correct assertion and a tolerance would admit a mid-anchor landing"
+    )]
     #[test]
     fn prop_forward_skip_lands_on_next_boundary(
         position in position_strategy(),
@@ -112,8 +132,7 @@ proptest! {
         let landing = skip_section(position, &headings, SkipDirection::Backward, duration);
         let expected = headings
             .iter()
-            .filter(|h| h.position_secs < position)
-            .next_back()
+            .rfind(|h| h.position_secs < position)
             .map_or(0.0, |h| h.position_secs);
         prop_assert!(
             (landing - expected).abs() < 1e-9,

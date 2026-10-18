@@ -71,8 +71,7 @@ fn no_other_or_unknown_variant_exists() {
                     | EarconKind::Failure
                     | EarconKind::RateStep
             ),
-            "Unexpected EarconKind variant found: {:?}; closed set violated",
-            kind
+            "Unexpected EarconKind variant found: {kind:?}; closed set violated"
         );
     }
 }

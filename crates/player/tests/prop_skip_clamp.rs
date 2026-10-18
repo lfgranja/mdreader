@@ -67,6 +67,10 @@ fn direction_strategy() -> impl Strategy<Value = SkipDirection> {
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(256))]
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the displacement is exactly 5.0 s from an exact grid position, clamped to the exact endpoints 0.0 and duration; == is the correct assertion and a tolerance would admit a mis-clamped landing"
+    )]
     #[test]
     fn skip_clamped_displaces_exactly_five_seconds_clamped_to_zero_and_duration(
         position in 0.0f64..=7200.0f64,

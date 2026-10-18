@@ -161,7 +161,10 @@ impl PreRollBuffer {
         if !self.preparing {
             return Err(BufferError::NotPreparing);
         }
-        if !(delivered_secs >= 0.0) {
+        // `!(x >= 0.0)` rejects NaN too ("not a number", doc above);
+        // stated explicitly rather than through a negated comparison
+        // on a partially ordered type.
+        if delivered_secs.is_nan() || delivered_secs < 0.0 {
             return Err(BufferError::NegativeDelivery(delivered_secs));
         }
         self.buffered_secs = (self.buffered_secs + delivered_secs).min(PREROLL_CAP_SECS);

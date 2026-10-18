@@ -5,17 +5,22 @@ use crate::transport::{PlaybackRate, SkipDirection};
 use doc_structure::{Document, Heading};
 
 /// Skip ±5.0 s exactly — displacement must land at sentence/node boundary
-/// when re-anchor applies (FR-038 / FR-018). Callers pass ±5.0 s by
-/// construction (the closed [`SKIP_STEP_SECS`](crate::position::SKIP_STEP_SECS)
-/// step); the canonical clamped path — direction-typed so an off-±5.0
-/// displacement is unrepresentable — is [`skip_clamped`].
+/// when re-anchor applies (FR-038 / FR-018).
+///
+/// Callers pass ±5.0 s by construction (the closed
+/// [`SKIP_STEP_SECS`](crate::position::SKIP_STEP_SECS) step); the canonical
+/// clamped path — direction-typed so an off-±5.0 displacement is
+/// unrepresentable — is [`skip_clamped`].
+#[must_use]
 pub fn apply_skip_exact(position: f64, delta: f64) -> f64 {
     (position + delta).max(0.0)
 }
 
 /// Skip exactly ±5.0 s from `position`, clamped into `[0.0, duration]`
 /// (FR-018 / SC-016): `+5.0` for [`SkipDirection::Forward`], `-5.0` for
-/// [`SkipDirection::Backward`]. The direction-typed signature admits only
+/// [`SkipDirection::Backward`].
+///
+/// The direction-typed signature admits only
 /// the two closed displacements, so no assertion or error arm is needed —
 /// the clamp-without-error rule holds by construction and this function
 /// never panics and never errors.
@@ -29,8 +34,9 @@ pub fn skip_clamped(position: f64, direction: SkipDirection, duration: f64) -> f
 }
 
 /// Skip to the next/previous section boundary using
-/// document headings (FR-038 / FR-002): the
-/// lock-screen skip control jumps to the NEXT
+/// document headings (FR-038 / FR-002).
+///
+/// The lock-screen skip control jumps to the NEXT
 /// section boundary going forward — the first
 /// boundary strictly after the press position — and
 /// the PREVIOUS one going backward — the greatest
@@ -138,17 +144,18 @@ impl PreRollRing {
 
     /// Create an empty ring with capacity for the full 60 s cap.
     #[expect(
-        clippy::cast_precision_loss,
-        reason = "SAMPLE_RATE (22 050) and MAX_SECS (PREROLL_CAP_SECS) are exact values; their product is an exact f64 integer"
-    )]
-    #[expect(
         clippy::cast_possible_truncation,
         reason = "the product PREROLL_CAP_SECS × 22 050 = 1 323 000 is an exact integer, far below usize range"
     )]
+    #[expect(
+        clippy::cast_sign_loss,
+        reason = "MAX_SECS and SAMPLE_RATE are positive constants, so their product is positive — no sign bit is lost in the cast"
+    )]
+    #[must_use]
     pub fn new() -> Self {
         Self {
-            buffer: Vec::with_capacity((Self::MAX_SECS * Self::SAMPLE_RATE as f64) as usize),
-            max_samples: (Self::MAX_SECS * Self::SAMPLE_RATE as f64) as usize,
+            buffer: Vec::with_capacity((Self::MAX_SECS * f64::from(Self::SAMPLE_RATE)) as usize),
+            max_samples: (Self::MAX_SECS * f64::from(Self::SAMPLE_RATE)) as usize,
         }
     }
 
@@ -175,7 +182,8 @@ impl Default for PreRollRing {
 
 /// Rate-change effective ≤2 s (FR-019c). Engine applies pitch-preserving stretch;
 /// this layer selects rung only (FR-043 contract).
-pub fn rate_change_effective_time(rung: PlaybackRate) -> f64 {
+#[must_use]
+pub const fn rate_change_effective_time(rung: PlaybackRate) -> f64 {
     match rung {
         PlaybackRate::R0_75
         | PlaybackRate::R1_0

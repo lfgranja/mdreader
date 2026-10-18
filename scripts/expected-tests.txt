@@ -33,6 +33,7 @@ player::prop_focus
 player::prop_focus8
 player::prop_idle_drain
 player::prop_ladder
+player::prop_first_audio_3s
 player::prop_lifecycle
 player::prop_persist
 player::prop_progress
@@ -63,7 +64,9 @@ player::test_setup_progress_shape
 player::test_shell_ipc_us4
 session
 session::integration_ingest
+session::prop_bookmark_durable_20s
 session::prop_bookmark_lifecycle
+session::prop_second_document_preserves_first_bookmark
 session::prop_end_kind_codes
 session::prop_fingerprint
 session::prop_ingest

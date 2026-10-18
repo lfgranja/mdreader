@@ -264,6 +264,9 @@ pub const DURABLE_CADENCE_MS: u64 = 20000; // 20 s fixed (FR-007 / data-model.md
 /// The redb-backed bookmark + settings store: atomic, crash-safe
 /// writes (FR-004) over one database file. Stores reading positions
 /// keyed by BLAKE3 content fingerprint and the app-wide speed setting.
+/// The redb-backed bookmark + settings store:
+/// atomic, crash-safe writes (storage-schema.md)
+/// over one database file (FR-004).
 pub struct BookmarkStore {
     /// The redb database file.
     db: Database,
@@ -349,6 +352,14 @@ impl BookmarkStore {
     ///
     /// [`Error::Storage`] when the write transaction cannot begin
     /// or commit.
+    /// Write `position` under the document's content
+    /// `fingerprint` (FR-036) — overwriting any previous
+    /// bookmark for the same document.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Storage`] when the write
+    /// transaction cannot begin or commit.
     pub fn put(&mut self, fingerprint: &[u8; 32], position: StoredPosition) -> Result<(), Error> {
         let write_tx = self.db.begin_write()?;
         {

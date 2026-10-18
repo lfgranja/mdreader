@@ -446,3 +446,30 @@ Subagent E: "T032 rewind.rs + resume.rs sentence-snap (independent)"
 - [ ] T080 [US4] Make `src-tauri/src/lib.rs::publish_mirror` model only the Kotlin/lock-screen wire contract and omit `progress_label`; preserve the distinct frontend label path; gate: `test_publish_payload`, `test_purity`, and Kotlin mirror payload suites pass (FR-011, contracts/surface.md) (`partial`)
 - [ ] T081 [P] Fix `Seq` in `crates/player/tests/prop_first_audio_3s.rs` to support its `HashMap` use (derive the required lawful traits or use a suitable ordered map), then run `cargo nextest list --workspace` and perform the two-way sync of `scripts/expected-tests.txt` required by T068; gate: non-empty live inventory and verify.sh gate-2 target diff clean (Principle V) (`missing`)
 - [ ] T082 [P] Update `lock_screen_controls_remain_functional_on_the_resident_service` in `crates/player/tests/integration/test_lockscreen_us4.rs` to assert the FR-002 sectionless +10 s landing (20 s → 30 s), not the superseded +5 s result; do not weaken the behavioral requirement; gate: `cargo nextest run -p player --test test_lockscreen_us4` passes (`partial`)
+
+---
+
+## Phase 13: Convergence
+
+> Source: `spec.md` FR-011/FR-013, `contracts/surface.md` §Lock-screen surface (explicit content-offset bar + pt-BR label) and §Payload, constitution Principles III/V/VIII and Tauri Platform Contract, Phase 12 evidence and current implementation. This phase resolves the discovered contradiction: Phase 12's T071 says in-app-only, while the normative contract says the lock-screen progress includes a translated label.
+
+### Convergence Findings (in-session, before append)
+
+| ID | Gap Type | Severity | Source | Evidence | Remediation (tasks below) |
+|----|----------|----------|--------|----------|---------------------------|
+| F1 | partial | HIGH | FR-011/FR-013, `contracts/surface.md:7-10` | `build_kotlin_mirror_json` (`src-tauri/src/lib.rs`) emits progress units but no translated label; the contract explicitly requires a pt-BR lock-screen progress label. T071's in-app-only interpretation contradicts the contract's lock-screen clause. | T083 (red) → T084 |
+| F2 | partial | HIGH | Principle III / T079 | `src-tauri/tests/test_publish_payload.rs` now asserts the lock-screen helper excludes `progress_label`, but this contract direction is opposite the normative surface contract; test expectation needs an explicit contract-backed correction before implementation. | T085 (red) → T086 |
+| F3 | partial | MEDIUM | Principle III / T074 | `prop_skip_resident` exercises paused session math, while the host integration test verifies the lock-screen callback-to-dispatch resident path. Property did not produce a red result; retain as supplemental invariant and report its observed result accurately. | T087 verification/traceability |
+| F4 | missing | HIGH | SC-001…SC-008 / T051–T052 | Reference-phone acceptance sheets and pulled diagnostic audit remain unrecorded; host tests cannot attest these acceptance criteria. | T051–T052 (carry forward) |
+| F5 | missing | HIGH | T069 / Principle V | Full deterministic `./scripts/verify.sh` completion and attached gate evidence remain outstanding; workspace clippy and expected target inventory are still blockers. | T088 final verification (last) |
+
+**Gate evidence (current run):** `test_progress_label` 2/2 PASS; `test_lockscreen_us4` 11/11 PASS after T082; `test_publish_payload` must be rerun after T080; workspace `cargo check` passed earlier, before the latest helper cleanup; clippy remains pending/failed as detailed in T070; target list and `verify.sh` remain pending. Device-only T051/T052 are unverified.
+
+### Phase 13 Tasks (append-only, zero renumber of T001–T082)
+
+- [ ] T083 [P] RED-FIRST contract test lock-screen progress label in `src-tauri/tests/test_kotlin_mirror_payload.rs`: determinate payload exposes pt-BR label translated from the frozen template; indeterminate exposes no label; label contains only section/progress numbers and is not prose/time/rate/voice; demonstrate current implementation fails before T084 (FR-011/FR-013, Principle III) (`partial`)
+- [ ] T084 Implement the contract-required pt-BR progress label in `build_kotlin_mirror_json` and Kotlin `MediaMirror` parsing/render path while preserving the purity rule and the exact allowed display fields; covered by T083 red→green and lock-screen purity contract tests (FR-011/FR-013, `contracts/surface.md`) (`partial`)
+- [ ] T085 [P] RED-FIRST update/extend `src-tauri/tests/test_publish_payload.rs` contract assertions: determinate lock-screen payload requires the pt-BR progress label per `contracts/surface.md`; indeterminate must omit it; show current failure before T086 (FR-011/FR-013, Principle III) (`contradicts`)
+- [ ] T086 Reconcile `publish_mirror` helper and test key inventory with the normative lock-screen contract, including the determinate-only `progress_label`; keep transient reason behavior and all prohibited fields unchanged; covered by T085 red→green (FR-011, `contracts/surface.md`) (`partial`)
+- [ ] T087 [P] Run and record `cargo nextest run -p player --test prop_skip_resident` and `cargo nextest run -p player --test test_lockscreen_us4`; clarify that the property supplements (does not replace) the resident callback integration test; update T074/T082 outcome only with exact output (FR-002, Principle III) (`partial`)
+- [ ] T088 VERIFICATION (only this attests): after T070–T087 and T051–T052 evidence are complete, run `./scripts/verify.sh`, gate 9 Android build, and the final device acceptance/audit requirements; record outputs/artifact hashes/trial sheets; do not mark T069 complete by implementer assertion alone (Principle V; SC-001…SC-010) (`missing`)

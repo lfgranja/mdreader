@@ -86,7 +86,6 @@ use std::error::Error;
 
 use engine_core::closed::{PlaybackRate, TransportState};
 use player::cli::{PlaybackSession, PlayerError, ShellVerb};
-use player::position::SKIP_STEP_SECS;
 use player::rate::{LADDER, step_down, step_up};
 use player::surface::{Heading, Progress, SurfaceResolver};
 use serde::Deserialize;
@@ -426,18 +425,18 @@ fn blind_control_sweep_confirms_every_effect() -> Result<(), Box<dyn Error>> {
         "a resume must keep the stored position (FR-032a)"
     );
 
-    // Skip forward: exactly +5.0 s (FR-018).
+    // Skip forward in a sectionless session: exactly +10 s (FR-002).
     let forward = session.execute(ShellVerb::SkipForward)?;
     assert!(
-        (forward.position_secs - 35.0).abs() <= POS_EPS_SECS,
-        "a skip-forward press must advance exactly {SKIP_STEP_SECS} s (FR-018)"
+        (forward.position_secs - 40.0).abs() <= POS_EPS_SECS,
+        "a sectionless skip-forward press must advance exactly 10 s (FR-002)"
     );
 
-    // Skip backward: exactly −5.0 s (FR-018).
+    // Skip backward returns to the prior sectionless fallback position.
     let backward = session.execute(ShellVerb::SkipBackward)?;
     assert!(
         (backward.position_secs - 30.0).abs() <= POS_EPS_SECS,
-        "a skip-backward press must retreat exactly {SKIP_STEP_SECS} s (FR-018)"
+        "a sectionless skip-backward press must retreat exactly 10 s (FR-002)"
     );
 
     // The backward skip clamps at the 0.0 floor (FR-018).
@@ -449,7 +448,7 @@ fn blind_control_sweep_confirms_every_effect() -> Result<(), Box<dyn Error>> {
         "a backward skip at the document start clamps at 0.0 (FR-018)"
     );
 
-    // The forward skip clamps at the duration (FR-018).
+    // The sectionless forward skip clamps at the duration (FR-002).
     let mut capped = PlaybackSession::with_duration(DURATION_SECS);
     let _played = capped.execute(ShellVerb::Play)?;
     capped.on_audible_progress(DURATION_SECS - 2.0);
@@ -1144,13 +1143,12 @@ fn fixture_replay_confirms_every_blind_control_step() -> Result<(), Box<dyn Erro
     let played = session.execute(ShellVerb::Play)?;
     assert_eq!(played.transport, TransportState::Playing);
 
-    // Step 1: skip forward 5.0 s — the position advances
-    // by exactly the skip step (FR-018).
+    // Step 1: sectionless skip forward advances exactly 10 s (FR-002).
     let skipped = session.execute(verb_for(first.payload.action))?;
     assert_eq!(skipped.transport, TransportState::Playing);
     assert!(
-        (skipped.position_secs - SKIP_STEP_SECS).abs() <= POS_EPS_SECS,
-        "the skip-forward press must advance exactly {SKIP_STEP_SECS} s (FR-018)"
+        (skipped.position_secs - 10.0).abs() <= POS_EPS_SECS,
+        "the sectionless skip-forward press must advance 10 s (FR-002)"
     );
 
     // Step 2: rate up — the rate moves exactly one rung
@@ -1163,7 +1161,7 @@ fn fixture_replay_confirms_every_blind_control_step() -> Result<(), Box<dyn Erro
         "the rate-up press must move one rung (FR-019)"
     );
     assert!(
-        (rated.position_secs - SKIP_STEP_SECS).abs() <= POS_EPS_SECS,
+        (rated.position_secs - 10.0).abs() <= POS_EPS_SECS,
         "the rate press must retain the position (FR-019)"
     );
 
@@ -1172,7 +1170,7 @@ fn fixture_replay_confirms_every_blind_control_step() -> Result<(), Box<dyn Erro
     let paused = session.execute(verb_for(third.payload.action))?;
     assert_eq!(paused.transport, TransportState::Paused);
     assert!(
-        (paused.position_secs - SKIP_STEP_SECS).abs() <= POS_EPS_SECS,
+        (paused.position_secs - 10.0).abs() <= POS_EPS_SECS,
         "the pause must retain the stored position (FR-032a)"
     );
     Ok(())
@@ -1203,14 +1201,14 @@ fn lock_screen_controls_remain_functional_on_the_resident_service() -> Result<()
     );
 
     // A lock-screen skip press reaches the resident
-    // session through the single dispatch (FR-042) and
-    // moves the stored position — the control remains
-    // functional on the resident service.
+    // session through the single dispatch (FR-042). This
+    // resident document has no headings, so FR-002 requires
+    // the exact +10 s sectionless fallback.
     let skipped = resident.execute(ShellVerb::SkipForward)?;
     assert_eq!(skipped.transport, TransportState::Paused);
     assert!(
-        (skipped.position_secs - 25.0).abs() <= POS_EPS_SECS,
-        "a lock-screen skip press must move the resident session's stored position (FR-018)"
+        (skipped.position_secs - 30.0).abs() <= POS_EPS_SECS,
+        "a sectionless lock-screen skip advances ten seconds from 20.0 (FR-002)"
     );
 
     // A rate press and a voice press are equally

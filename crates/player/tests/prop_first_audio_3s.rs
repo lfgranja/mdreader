@@ -35,7 +35,7 @@ const FIXTURE_MAX_SEGMENTS: usize = 12;
 
 /// Sequence events that model the source ordering at
 /// `src-tauri/src/lib.rs` 2410-2498 and the required correct order.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 enum Seq {
     FirstSegmentSynth,
     FirstChunkEnqueue,

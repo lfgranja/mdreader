@@ -91,13 +91,21 @@ upstream PR #4059 open).
    release APK — needs debuggable variant or another pull route).
 
 ## Commits this session (004)
-`92129da` · `7ca4c1d` · `1849761` · `72f369e` · `18dd86a` · `7a25821` ·
+`c14e294` (T076 workspace clippy, this session) · `92129da` · `7ca4c1d` ·
+`1849761` · `72f369e` · `18dd86a` · `7a25821` ·
 `c6c3da4` (STATE) · `b856bfc` (R8 keep) · `728557b` (docstring) ·
 `cc9164e` (STATE R8) · `2177c67` (vendor sherpa-onnx-sys) · `410a9b1`
 (STATE wave-b3) · `02164b6` (patch + lock zip 9.0.4) · `8435260` (v1.7.0
 governance) · `9208578` (v1.8.0 bzip2-1.0.6 admission).
 
 ## Verification summary
+- T076 clippy (commit `c14e294`): `cargo clippy --workspace --all-targets --
+  -D warnings` is clean for every file in this lane. Residual red is blocked
+  on sibling lanes, NOT clippy debt: `src-tauri/src/lib.rs` (152 body + 20
+  `multiple_crate_versions`), `tests/test_earcon_mirror.rs` (7, T074),
+  `tests/integration/test_lockscreen_us4.rs` (8, T079). `cli.rs`/`surface.rs`
+  committed via curated `update-index` blobs (sibling lane's rewrites left in
+  worktree).
 - Host: zip-9 tree gates 1–4 PASS (775 tests); gate-5 green after v1.8.0;
   6 mirror tests pinned.
 - Device: Wave A + Wave B mirror path VERIFIED (start/pause/stop publishes;

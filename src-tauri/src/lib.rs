@@ -2484,7 +2484,11 @@ pub mod commands {
             let mut headings_guard = state.headings.lock().map_err(|e| OpenError::NoStart {
                 reason: e.to_string(),
             })?;
-            *headings_guard = headings;
+            *headings_guard = headings.clone();
+            let mut session = state.session.lock().map_err(|e| OpenError::NoStart {
+                reason: e.to_string(),
+            })?;
+            session.set_document_structure(duration_secs, headings);
         }
 
         // Compute and store the document's blake3 fingerprint (FR-036 / T059)
@@ -2529,35 +2533,6 @@ pub mod commands {
         // Publish mirror snapshot after successful play start —
         // the same helper every verb path uses.
         publish_current_state(state, None);
-
-        // T054 durable cadence: fixed 20 s heartbeat while Playing
-        // (FR-007 / data-model.md:43; envelope 15–30 s). Timer mechanism
-        // present; event-durable writes handled by existing put on pause/etc.
-        // T054 timer mechanism uses session bookmark path (same
-        // source as line 1129: data_dir/bookmarks.redb); heartbeat
-        // writes last-spoken position at 20 s cadence.
-        let heartbeat_path = std::path::PathBuf::from("data/bookmarks.redb");
-        std::thread::spawn(move || {
-            use std::thread::sleep;
-            use std::time::Duration;
-            loop {
-                sleep(Duration::from_millis(
-                    session::store::DURABLE_CADENCE_MS,
-                ));
-                let _ = std::panic::catch_unwind(|| {
-                    if let Ok(mut s) = session::store::BookmarkStore::open(&heartbeat_path) {
-                        let _ = s.durable_heartbeat(
-                            &[0u8; 32],
-                            &session::store::StoredPosition {
-                                offset_secs: 0.0,
-                                first_yield_ms: 0,
-                                end_kind: engine_core::closed::SessionEnd::Paused,
-                            },
-                        );
-                    }
-                });
-            }
-        });
 
         Ok(serde_json::json!({
             "status": "playing",
@@ -3247,6 +3222,28 @@ pub mod publish {
             return; // channel not registered yet, drop silently
         };
 
+        let mirror = frontend_mirror(snapshot.transport, snapshot.position_secs, surface);
+
+        // The channel send is infallible in the Tauri API;
+        // a send failure means the frontend disconnected,
+        // which is acceptable — the frontend will resync on
+        // next registration.
+        let _ = channel.send(mirror);
+        // Also log the transient reason if present (diagnostic).
+        if let Some(reason) = transient_reason {
+            tracing::debug!(%reason, "publish mirror with transient reason");
+        }
+    }
+
+    /// Build the Rust-to-frontend mirror projection from the authoritative
+    /// session state and resolved surface snapshot. This view-only label is
+    /// not included by [`build_kotlin_mirror_json`] for the lock-screen.
+    #[must_use]
+    pub fn frontend_mirror(
+        transport: TransportState,
+        position_secs: f64,
+        surface: &SurfaceSnapshot,
+    ) -> MirrorState {
         let progress = match surface.progress {
             Progress::Determinate {
                 consumed_units,
@@ -3261,23 +3258,19 @@ pub mod publish {
             },
             Progress::Indeterminate => Progress::Indeterminate,
         };
-
-        let mirror = MirrorState {
-            transport: snapshot.transport,
-            position_secs: snapshot.position_secs,
+        MirrorState {
+            transport,
+            position_secs,
             progress,
-        };
-
-        // The channel send is infallible in the Tauri API;
-        // a send failure means the frontend disconnected,
-        // which is acceptable — the frontend will resync on
-        // next registration.
-        let _ = channel.send(mirror);
-
-        // Also log the transient reason if present (diagnostic).
-        if let Some(reason) = transient_reason {
-            tracing::debug!(%reason, "publish mirror with transient reason");
+            progress_label: pt_br_progress_label(&surface.progress),
         }
+    }
+
+    /// Translate the closed player progress label into the application's
+    /// required pt-BR user-facing string (FR-011, FR-013).
+    pub fn pt_br_progress_label(progress: &Progress) -> Option<String> {
+        player::surface::progress_label(progress)
+            .map(|label| label.replace("Section ", "Seção ").replace(" of ", " de "))
     }
 
     /// Builds the Kotlin-facing mirror payload (T133): the wire form
@@ -3330,6 +3323,11 @@ pub mod publish {
             haptic.map_or(Value::Null, Value::from),
         );
         let _ = payload.insert(String::from("progress"), kotlin_progress(&surface.progress));
+        // Lock-screen progress label (FR-011, FR-013): pt-BR translated label for
+        // determinate progress; omitted for indeterminate per contract.
+        if let Some(label) = pt_br_progress_label(&surface.progress) {
+            let _ = payload.insert(String::from("progressLabel"), Value::from(label));
+        }
         let _ = payload.insert(String::from("dismissal"), kotlin_dismissal(dismissal));
         Value::Object(payload).to_string()
     }
@@ -3426,7 +3424,7 @@ pub mod publish {
         if let Some(section) = section_title {
             let _ = obj.insert("section_title".to_string(), Value::String(section));
         }
-        let progress = if determinate {
+        let progress_payload = if determinate {
             Value::Object({
                 let mut m = Map::new();
                 let _ = m.insert(
@@ -3446,7 +3444,7 @@ pub mod publish {
         } else {
             Value::String("indeterminate".to_string())
         };
-        let _ = obj.insert("progress".to_string(), progress);
+        let _ = obj.insert("progress".to_string(), progress_payload);
         if let Some(reason) = transient_reason {
             let _ = obj.insert("transient_reason".to_string(), Value::String(reason));
         }

@@ -111,7 +111,7 @@ impl StoredPosition {
 /// session-end kind (FR-044): the closed set's
 /// ordinal — `Paused` → `0`, `Stopped` → `1`,
 /// `Completed` → `2`, `Interrupted` → `3`.
-fn end_kind_to_code(end_kind: SessionEnd) -> u8 {
+const fn end_kind_to_code(end_kind: SessionEnd) -> u8 {
     match end_kind {
         SessionEnd::Paused => 0,
         SessionEnd::Stopped => 1,
@@ -125,7 +125,7 @@ fn end_kind_to_code(end_kind: SessionEnd) -> u8 {
 /// outside the closed set (FR-044): a row written
 /// by an incompatible version names no end kind,
 /// and a closed set has no catch-all.
-fn end_kind_from_code(code: u8) -> Result<SessionEnd, Error> {
+const fn end_kind_from_code(code: u8) -> Result<SessionEnd, Error> {
     match code {
         0 => Ok(SessionEnd::Paused),
         1 => Ok(SessionEnd::Stopped),
@@ -138,7 +138,7 @@ fn end_kind_from_code(code: u8) -> Result<SessionEnd, Error> {
 /// The settings byte a playback-rate rung encodes
 /// to (FR-019): the rung's ordinal `0..=6`, in
 /// ladder order.
-fn rate_to_byte(rate: PlaybackRate) -> u8 {
+const fn rate_to_byte(rate: PlaybackRate) -> u8 {
     match rate {
         PlaybackRate::R0_75 => 0,
         PlaybackRate::R1_0 => 1,
@@ -153,7 +153,7 @@ fn rate_to_byte(rate: PlaybackRate) -> u8 {
 /// The ladder rung a settings byte names, or `None`
 /// when the byte is outside the closed ladder
 /// (FR-019).
-fn rate_from_byte(byte: u8) -> Option<PlaybackRate> {
+const fn rate_from_byte(byte: u8) -> Option<PlaybackRate> {
     match byte {
         0 => Some(PlaybackRate::R0_75),
         1 => Some(PlaybackRate::R1_0),
@@ -183,7 +183,7 @@ pub enum Error {
     /// The underlying redb storage operation
     /// failed.
     #[error("redb storage failure: {0}")]
-    Storage(#[from] redb::Error),
+    Storage(#[from] Box<redb::Error>),
     /// A stored `end_kind` discriminant is not a
     /// member of the closed session-end set
     /// (FR-044) — the row was written by an
@@ -255,18 +255,7 @@ impl From<redb::CommitError> for Error {
 /// (FR-004) over one database file.
 pub const DURABLE_CADENCE_MS: u64 = 20000; // 20 s fixed (FR-007 / data-model.md:43; envelope 15–30 s)
 
-/// The redb-backed bookmark + settings store
-/// (storage-schema.md): owns the one database file
-/// and every atomic, crash-safe read/write over it
-/// (FR-004). Positions are keyed by the document's
-/// content `fingerprint` (FR-036), so an edited
-/// document never resumes a stale entry.
-/// The redb-backed bookmark + settings store: atomic, crash-safe
-/// writes (FR-004) over one database file. Stores reading positions
-/// keyed by BLAKE3 content fingerprint and the app-wide speed setting.
-/// The redb-backed bookmark + settings store:
-/// atomic, crash-safe writes (storage-schema.md)
-/// over one database file (FR-004).
+/// The redb-backed bookmark + settings store (FR-004).
 pub struct BookmarkStore {
     /// The redb database file.
     db: Database,
@@ -326,32 +315,9 @@ impl BookmarkStore {
         fingerprint: &[u8; 32],
         position: &StoredPosition,
     ) -> Result<(), Error> {
-        self.put(fingerprint, position.clone())
+        self.put(fingerprint, *position)
     }
 
-    /// Persist `position` under the document's
-    /// content `fingerprint` (FR-036) in a single
-    /// atomic write transaction, replacing any
-    /// previous entry for the same fingerprint
-    /// (storage-schema.md).
-    ///
-    /// # Errors
-    ///
-    /// [`Error::Storage`] when the write
-    /// transaction cannot begin, the table cannot
-    /// be opened, the insert fails, or the commit
-    /// fails.
-    /// Store `position` under the document's content `fingerprint`
-    /// (FR-036) as an atomic single-row transaction. The write is
-    /// the durable persistence point for pause / app-close /
-    /// focus-loss / engine-failure events (FR-007), and the
-    /// content-keyed identity means a moved or renamed document
-    /// still resolves to the same stored position.
-    ///
-    /// # Errors
-    ///
-    /// [`Error::Storage`] when the write transaction cannot begin
-    /// or commit.
     /// Write `position` under the document's content
     /// `fingerprint` (FR-036) — overwriting any previous
     /// bookmark for the same document.
@@ -390,12 +356,12 @@ impl BookmarkStore {
         let read_tx = self.db.begin_read()?;
         let table = read_tx.open_table(BOOKMARKS)?;
         let guard = table.get(fingerprint)?;
-        Ok(guard
+        guard
             .map(|entry| {
                 let (offset_secs, first_yield_ms, code) = entry.value();
                 StoredPosition::from_tuple(offset_secs, first_yield_ms, code)
             })
-            .transpose()?)
+            .transpose()
     }
 
     /// Delete the entry under `fingerprint` — the
@@ -474,20 +440,19 @@ impl BookmarkStore {
         let read_tx = self.db.begin_read()?;
         let table = read_tx.open_table(SETTINGS)?;
         let guard = table.get(LAST_RATE_KEY)?;
-        Ok(guard
+        guard
             .map(|entry| {
                 let bytes = entry.value();
                 rate_from_slice(bytes)
             })
-            .transpose()?)
+            .transpose()
     }
 }
 
 /// The decision a document-open lookup resolves
 /// (T036): the document's content fingerprint, the
 /// stored position it keys to, and the offer form
-/// that end kind opens — the one callable form of
-/// the re-hash-on-open rule (FR-036 / FR-044).
+/// that end kind opens (FR-036 / FR-044).
 ///
 /// `Eq` is precluded by the `f64` field; every
 /// offset lives on the quarter-second grid, an
@@ -517,16 +482,8 @@ pub struct OpenLookup {
 }
 
 /// The re-hash-on-open lookup (T036): the
-/// document-open decision in one callable form —
-/// the document `bytes` are blake3-256
-/// fingerprinted (FR-036), the `bookmarks` table
-/// is read under that key ([`BookmarkStore::get`]),
-/// and the offer form is resolved through the
-/// canonical offer machine
-/// ([`OfferMachine::resolve_open`], T060) — the
-/// same decision the `ingest` verb composes by
-/// hand, so no caller re-assembles the pieces
-/// (FR-044).
+/// document-open decision in one callable form
+/// (FR-036 / FR-044).
 ///
 /// The rule the composition establishes:
 /// identical bytes at ANY path ⇒ the same

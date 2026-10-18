@@ -38,7 +38,7 @@ use crate::store::StoredPosition;
 /// The offer a session end opens (FR-032c /
 /// FR-032d): the continue offer a deliberate
 /// pause presents, or the start-over alternative.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Offer {
     /// Continue from the stored position — the
     /// deliberate-pause offer (FR-032c), carrying
@@ -60,7 +60,7 @@ pub enum Offer {
 
 /// The outcome of the 3-second window elapsing
 /// (FR-032c / FR-032d / FR-032f).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ExpiryOutcome {
     /// Reading begins from the stored position —
     /// the auto-start of a foregrounded
@@ -84,11 +84,7 @@ pub enum ExpiryOutcome {
 
 /// The offer form a session-open lookup resolves
 /// (T036): the decision the stored session end
-/// carries, resolved SOLELY from the stored
-/// `end_kind` through the same core
-/// [`OfferMachine::resolve_open`] runs — the
-/// session-open form of the offer decision, so no
-/// second decision exists (FR-044).
+/// carries (FR-044).
 ///
 /// The three forms are the whole outcome space of
 /// an open: a deliberate pause continues, an
@@ -218,9 +214,8 @@ impl OfferMachine {
         // session, FR-032f).
         self.offer = None;
         self.explicit_resume = false;
-        let stored = match stored {
-            Some(stored) => stored,
-            None => return OpenOffer::NoOffer,
+        let Some(stored) = stored else {
+            return OpenOffer::NoOffer;
         };
         match stored.end_kind {
             SessionEnd::Paused => {
@@ -228,7 +223,7 @@ impl OfferMachine {
                     offset_secs: stored.offset_secs,
                     first_yield_ms: stored.first_yield_ms,
                 };
-                self.offer = Some(offer.clone());
+                self.offer = Some(offer);
                 OpenOffer::Continue {
                     offset_secs: stored.offset_secs,
                     first_yield_ms: stored.first_yield_ms,
@@ -255,7 +250,7 @@ impl OfferMachine {
     /// `AppForegrounded` intent): the latch is read
     /// at expiry ONLY and never converts an open
     /// offer early (FR-032c's visibility MUST).
-    pub fn on_foregrounded(&mut self) {
+    pub const fn on_foregrounded(&mut self) {
         self.foregrounded = true;
     }
 
@@ -263,7 +258,7 @@ impl OfferMachine {
     /// `AppBackgrounded` intent): the latch is read
     /// at expiry ONLY and never converts an open
     /// offer early (FR-032c's visibility MUST).
-    pub fn on_backgrounded(&mut self) {
+    pub const fn on_backgrounded(&mut self) {
         self.foregrounded = false;
     }
 
@@ -279,7 +274,7 @@ impl OfferMachine {
     /// stands as itself (FR-032d / SC-021). The
     /// window ends: nothing remains open.
     #[must_use]
-    pub fn expire(&mut self) -> ExpiryOutcome {
+    pub const fn expire(&mut self) -> ExpiryOutcome {
         if let Some(offer) = self.offer.take() {
             // The window ends: the offer does not
             // outlive its expiry (FR-032f).
@@ -321,7 +316,7 @@ impl OfferMachine {
     /// discard is the caller's (FR-032c /
     /// FR-032f).
     #[must_use]
-    pub fn start_over(&mut self) -> ExpiryOutcome {
+    pub const fn start_over(&mut self) -> ExpiryOutcome {
         self.offer = None;
         self.explicit_resume = false;
         ExpiryOutcome::AutoStart { offset_secs: 0.0 }
@@ -332,7 +327,7 @@ impl OfferMachine {
     /// resume offer are mutually exclusive states —
     /// no offer remains, no residency survives,
     /// and an expiry yields no outcome.
-    pub fn on_completion(&mut self) {
+    pub const fn on_completion(&mut self) {
         self.offer = None;
         self.explicit_resume = false;
     }

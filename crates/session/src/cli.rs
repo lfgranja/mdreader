@@ -60,8 +60,10 @@ use clap::{Parser, Subcommand, ValueEnum};
 use engine_core::closed::{PlaybackRate, SessionEnd};
 use serde::Serialize;
 
-use crate::fingerprint::fingerprint;
-use crate::offer::{ExpiryOutcome, Offer, OfferMachine};
+use std::path::PathBuf;
+
+use crate::fingerprint::{IngestPayload, fingerprint};
+use crate::offer::{ExpiryOutcome, Offer, OfferCommand, OfferMachine};
 use crate::store::{BookmarkStore, StoredPosition};
 
 /// The program name: the name the generated parser
@@ -103,7 +105,7 @@ const PROGRAM_NAME: &str = "session";
 ///   entry instead of storing one (FR-032 / FR-032b).
 /// * [`CliError::Rendering`] when a machine-readable
 ///   payload cannot be rendered.
-pub fn run(
+pub const fn run(
     args: impl Iterator<Item = String>,
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
@@ -457,203 +459,231 @@ enum Visibility {
 /// completes the failure half of the protocol.
 fn execute(cli: Cli, stdout: &mut dyn Write) -> Result<(), CliError> {
     match cli.command {
-        Command::Ingest { file, path } => {
-            // The document bytes: the named file's
-            // — positionally or by `--path` — or the
-            // bytes piped on stdin when no file is
-            // named (the pipe form of the protocol,
-            // `echo <bytes> | session ingest`). The
-            // bytes are fingerprinted; the path is
-            // never the key (FR-036).
-            let document_bytes = match file.or(path) {
-                Some(path) => std::fs::read(path)?,
-                None => read_stdin_bytes()?,
-            };
-            let key = fingerprint(&document_bytes);
-            let mut store = BookmarkStore::open(&cli.db)?;
-            let stored = store.get(&key)?;
-            // The resume decision reads the stored
-            // end kind (storage-schema.md): only the
-            // deliberate pause opens the continue
-            // offer, so `resume` is true exactly
-            // then. An unexpected end (FR-032d) auto-resumes
-            // nothing, but its stored position is
-            // still reported — the offer form
-            // itself resolves in `offer.rs`
-            // (`offer show`), never here, so the
-            // payload carries the stored offset on
-            // either path and `0.0` on a miss
-            // (FR-036a: an edited document resolves
-            // to a start at 0.0 with no offer).
-            let (resume, offset) = match stored {
-                Some(position) => (
-                    matches!(position.end_kind, SessionEnd::Paused),
-                    position.offset_secs,
-                ),
-                None => (false, 0.0),
-            };
-            let fingerprint_hex = hex_key(key);
-            let payload = IngestPayload {
-                fingerprint: &fingerprint_hex,
-                resume,
-                offset,
-            };
-            write_payload(stdout, &ingest_payload(&payload, cli.format)?)
-        }
-        Command::Get { file } => {
-            let key = document_key(&file)?;
-            let mut store = BookmarkStore::open(&cli.db)?;
-            let stored = store.get(&key)?;
-            write_payload(
-                stdout,
-                &position_payload("get", &file, key, stored, cli.format)?,
-            )
-        }
+        Command::Ingest { file, path } => ingest_command(&cli, file, path, stdout),
+        Command::Get { file } => get_command(&cli, file, stdout),
         Command::Put {
             file,
             offset_secs,
             first_yield_ms,
             end_kind,
-        } => {
-            let end_kind = end_kind_of(end_kind);
-            // The terminal ends delete the entry instead
-            // of storing one (FR-032 / FR-032b): they
-            // are rejected as `put` inputs with a named
-            // error, never stored.
-            if matches!(end_kind, SessionEnd::Stopped | SessionEnd::Completed) {
-                return Err(CliError::TerminalEndKind {
-                    wire: end_kind_wire(end_kind),
-                });
-            }
-            let offset_secs = checked_offset(offset_secs)?;
-            let key = document_key(&file)?;
+        } => put_command(&cli, file, offset_secs, first_yield_ms, end_kind, stdout),
+        Command::Clear { file } => clear_command(&cli, file, stdout),
+        Command::Rate { command } => rate_command(&cli, command, stdout),
+        Command::Offer { command } => offer_command(&cli, command, stdout),
+        Command::Foreground { visibility } => foreground_command(&cli, visibility, stdout),
+    }
+}
+
+/// The `ingest` verb: fingerprint the document and report the resume decision.
+fn ingest_command(
+    cli: &Cli,
+    file: Option<PathBuf>,
+    path: Option<PathBuf>,
+    stdout: &mut dyn Write,
+) -> Result<(), CliError> {
+    // The document bytes: the named file's — positionally or by `--path` —
+    // or the bytes piped on stdin when no file is named (the pipe form of
+    // the protocol, `echo <bytes> | session ingest`). The bytes are
+    // fingerprinted; the path is never the key (FR-036).
+    let document_bytes = match file.or(path) {
+        Some(path) => std::fs::read(path)?,
+        None => read_stdin_bytes()?,
+    };
+    let key = fingerprint(&document_bytes);
+    let mut store = BookmarkStore::open(&cli.db)?;
+    let stored = store.get(&key)?;
+    // The resume decision reads the stored end kind (storage-schema.md): only
+    // the deliberate pause opens the continue offer, so `resume` is true
+    // exactly then. An unexpected end (FR-032d) auto-resumes nothing, but its
+    // stored position is still reported — the offer form itself resolves in
+    // `offer.rs` (`offer show`), never here, so the payload carries the stored
+    // offset on either path and `0.0` on a miss (FR-036a: an edited document
+    // resolves to a start at 0.0 with no offer).
+    let (resume, offset) = stored.map_or((false, 0.0), |position| {
+        (
+            matches!(position.end_kind, SessionEnd::Paused),
+            position.offset_secs,
+        )
+    });
+    let fingerprint_hex = hex_key(key);
+    let payload = IngestPayload {
+        fingerprint: &fingerprint_hex,
+        resume,
+        offset,
+    };
+    write_payload(stdout, &ingest_payload(&payload, cli.format)?)
+}
+
+/// The `get` verb: read the stored position for a document.
+fn get_command(cli: &Cli, file: PathBuf, stdout: &mut dyn Write) -> Result<(), CliError> {
+    let key = document_key(&file)?;
+    let mut store = BookmarkStore::open(&cli.db)?;
+    let stored = store.get(&key)?;
+    write_payload(
+        stdout,
+        &position_payload("get", &file, key, stored, cli.format)?,
+    )
+}
+
+/// The `put` verb: persist a bookmark for a document.
+fn put_command(
+    cli: &Cli,
+    file: PathBuf,
+    offset_secs: f64,
+    first_yield_ms: u64,
+    end_kind: SessionEndInput,
+    stdout: &mut dyn Write,
+) -> Result<(), CliError> {
+    let end_kind = end_kind_of(end_kind);
+    // The terminal ends delete the entry instead of storing one
+    // (FR-032 / FR-032b): they are rejected as `put` inputs with a named
+    // error, never stored.
+    if matches!(end_kind, SessionEnd::Stopped | SessionEnd::Completed) {
+        return Err(CliError::TerminalEndKind {
+            wire: end_kind_wire(end_kind),
+        });
+    }
+    let offset_secs = checked_offset(offset_secs)?;
+    let key = document_key(&file)?;
+    let mut store = BookmarkStore::open(&cli.db)?;
+    let position = StoredPosition {
+        offset_secs,
+        first_yield_ms,
+        end_kind,
+    };
+    store.put(&key, position)?;
+    tracing::debug!(
+        offset_secs,
+        first_yield_ms,
+        end_kind = end_kind_wire(end_kind),
+        "stored position"
+    );
+    write_payload(
+        stdout,
+        &position_payload("put", &file, key, Some(position), cli.format)?,
+    )
+}
+
+/// The `clear` verb: delete the stored position for a document.
+fn clear_command(cli: &Cli, file: PathBuf, stdout: &mut dyn Write) -> Result<(), CliError> {
+    let key = document_key(&file)?;
+    let mut store = BookmarkStore::open(&cli.db)?;
+    store.delete(&key)?;
+    tracing::debug!("deleted stored position");
+    write_payload(stdout, &clear_payload(&file, key, cli.format)?)
+}
+
+/// The `rate get` / `rate set` verbs.
+fn rate_command(
+    cli: &Cli,
+    command: RateCommand,
+    stdout: &mut dyn Write,
+) -> Result<(), CliError> {
+    match command {
+        RateCommand::Get => {
             let mut store = BookmarkStore::open(&cli.db)?;
-            let position = StoredPosition {
-                offset_secs,
-                first_yield_ms,
-                end_kind,
-            };
-            store.put(&key, position)?;
-            tracing::debug!(
-                offset_secs,
-                first_yield_ms,
-                end_kind = end_kind_wire(end_kind),
-                "stored position"
-            );
-            write_payload(
-                stdout,
-                &position_payload("put", &file, key, Some(position), cli.format)?,
-            )
+            let stored = store.get_last_rate()?;
+            // The call-site default is the normal-speed rung on first use
+            // (storage-schema.md); the payload reports whether the stored value
+            // or the default answered.
+            let (rate, defaulted) =
+                stored.map_or((PlaybackRate::R1_0, true), |rate| (rate, false));
+            write_payload(stdout, &rate_get_payload(rate, defaulted, cli.format)?)
         }
-        Command::Clear { file } => {
-            let key = document_key(&file)?;
+        RateCommand::Set { rate } => {
+            // The ladder is validated through the rung's own serde form — the
+            // round trip the closed declaration itself defines — so no second
+            // rung list exists here (FR-019 / FR-044).
+            let rung = rate_of(rate)?;
             let mut store = BookmarkStore::open(&cli.db)?;
-            store.delete(&key)?;
-            tracing::debug!("deleted stored position");
-            write_payload(stdout, &clear_payload(&file, key, cli.format)?)
-        }
-        Command::Rate { command } => match command {
-            RateCommand::Get => {
-                let mut store = BookmarkStore::open(&cli.db)?;
-                let stored = store.get_last_rate()?;
-                // The call-site default is the
-                // normal-speed rung on first use
-                // (storage-schema.md); the payload
-                // reports whether the stored value or
-                // the default answered.
-                let (rate, defaulted) = match stored {
-                    Some(rate) => (rate, false),
-                    None => (PlaybackRate::R1_0, true),
-                };
-                write_payload(stdout, &rate_get_payload(rate, defaulted, cli.format)?)
-            }
-            RateCommand::Set { rate } => {
-                // The ladder is validated through the
-                // rung's own serde form — the round
-                // trip the closed declaration itself
-                // defines — so no second rung list
-                // exists here (FR-019 / FR-044).
-                let rung = rate_of(rate)?;
-                let mut store = BookmarkStore::open(&cli.db)?;
-                store.put_last_rate(rung)?;
-                tracing::debug!(rate, "stored last rate");
-                write_payload(stdout, &rate_set_payload(rate, cli.format)?)
-            }
-        },
-        Command::Offer { command } => match command {
-            OfferCommand::Show { file } => {
-                let key = document_key(&file)?;
-                let mut store = BookmarkStore::open(&cli.db)?;
-                let stored = store.get(&key)?;
-                let mut machine = OfferMachine::new();
-                let offer = machine.on_session_end(key, stored);
-                write_payload(
-                    stdout,
-                    &offer_payload("offer_show", &file, key, offer, cli.format)?,
-                )
-            }
-            OfferCommand::Continue { file } => {
-                let key = document_key(&file)?;
-                let mut store = BookmarkStore::open(&cli.db)?;
-                let stored = store.get(&key)?;
-                let mut machine = OfferMachine::new();
-                // The returned offer is re-read through
-                // `continue_offer` below — the same
-                // open offer the reader chooses from.
-                let _opened = machine.on_session_end(key, stored);
-                machine.on_foregrounded();
-                let offer = machine.continue_offer();
-                write_payload(
-                    stdout,
-                    &offer_payload("offer_continue", &file, key, offer, cli.format)?,
-                )
-            }
-            OfferCommand::StartOver { file } => {
-                let key = document_key(&file)?;
-                let mut store = BookmarkStore::open(&cli.db)?;
-                let mut machine = OfferMachine::new();
-                let outcome = machine.start_over();
-                // FR-032f: the stored position is
-                // discarded with the choice — the
-                // discard is the caller's (the machine
-                // holds no store).
-                store.delete(&key)?;
-                tracing::debug!("start-over: stored position discarded");
-                write_payload(
-                    stdout,
-                    &start_over_payload(&file, key, outcome, cli.format)?,
-                )
-            }
-            OfferCommand::Expire { file, foreground } => {
-                let key = document_key(&file)?;
-                let mut store = BookmarkStore::open(&cli.db)?;
-                let stored = store.get(&key)?;
-                let mut machine = OfferMachine::new();
-                let _opened = machine.on_session_end(key, stored);
-                if foreground {
-                    machine.on_foregrounded();
-                }
-                let outcome = machine.expire();
-                write_payload(
-                    stdout,
-                    &expire_payload(&file, key, foreground, outcome, cli.format)?,
-                )
-            }
-        },
-        Command::Foreground { visibility } => {
-            let mut machine = OfferMachine::new();
-            match visibility {
-                Visibility::On => machine.on_foregrounded(),
-                Visibility::Off => machine.on_backgrounded(),
-            }
-            // The machine holds no accessor for the
-            // latch, so the verb renders the latch it
-            // applied — the latch's observable effect
-            // is the `offer expire` outcome (SC-020).
-            let foregrounded = matches!(visibility, Visibility::On);
-            write_payload(stdout, &foreground_payload(foregrounded, cli.format)?)
+            store.put_last_rate(rung)?;
+            tracing::debug!(rate, "stored last rate");
+            write_payload(stdout, &rate_set_payload(rate, cli.format)?)
         }
     }
+}
+
+/// The `offer show` / `offer continue` / `offer expire` / `offer start-over` verbs.
+fn offer_command(
+    cli: &Cli,
+    command: OfferCommand,
+    stdout: &mut dyn Write,
+) -> Result<(), CliError> {
+    match command {
+        OfferCommand::Show { file } => {
+            let key = document_key(&file)?;
+            let mut store = BookmarkStore::open(&cli.db)?;
+            let stored = store.get(&key)?;
+            let mut machine = OfferMachine::new();
+            let offer = machine.on_session_end(key, stored);
+            write_payload(
+                stdout,
+                &offer_payload("offer_show", &file, key, offer, cli.format)?,
+            )
+        }
+        OfferCommand::Continue { file } => {
+            let key = document_key(&file)?;
+            let mut store = BookmarkStore::open(&cli.db)?;
+            let stored = store.get(&key)?;
+            let mut machine = OfferMachine::new();
+            // The returned offer is re-read through `continue_offer` below —
+            // the same open offer the reader chooses from.
+            machine.on_session_end(key, stored);
+            machine.on_foregrounded();
+            let offer = machine.continue_offer();
+            write_payload(
+                stdout,
+                &offer_payload("offer_continue", &file, key, offer, cli.format)?,
+            )
+        }
+        OfferCommand::StartOver { file } => {
+            let key = document_key(&file)?;
+            let mut store = BookmarkStore::open(&cli.db)?;
+            let mut machine = OfferMachine::new();
+            let outcome = machine.start_over();
+            // FR-032f: the stored position is discarded with the choice — the
+            // discard is the caller's (the machine holds no store).
+            store.delete(&key)?;
+            tracing::debug!("start-over: stored position discarded");
+            write_payload(
+                stdout,
+                &start_over_payload(&file, key, outcome, cli.format)?,
+            )
+        }
+        OfferCommand::Expire { file, foreground } => {
+            let key = document_key(&file)?;
+            let mut store = BookmarkStore::open(&cli.db)?;
+            let stored = store.get(&key)?;
+            let mut machine = OfferMachine::new();
+            machine.on_session_end(key, stored);
+            if foreground {
+                machine.on_foregrounded();
+            }
+            let outcome = machine.expire();
+            write_payload(
+                stdout,
+                &expire_payload(&file, key, foreground, outcome, cli.format)?,
+            )
+        }
+    }
+}
+
+/// The `foreground` verb: latch the application visibility.
+fn foreground_command(
+    cli: &Cli,
+    visibility: Visibility,
+    stdout: &mut dyn Write,
+) -> Result<(), CliError> {
+    let mut machine = OfferMachine::new();
+    match visibility {
+        Visibility::On => machine.on_foregrounded(),
+        Visibility::Off => machine.on_backgrounded(),
+    }
+    // The machine holds no accessor for the latch, so the verb renders the
+    // latch it applied — the latch's observable effect is the `offer expire`
+    // outcome (SC-020).
+    let foregrounded = matches!(visibility, Visibility::On);
+    write_payload(stdout, &foreground_payload(foregrounded, cli.format)?)
 }
 
 /// The bookmark key of a document: the blake3-256
@@ -691,7 +721,7 @@ fn hex_key(key: [u8; 32]) -> String {
 /// The session-end kind of a `put` input, in the
 /// closed set's canonical type.
 #[must_use]
-fn end_kind_of(input: SessionEndInput) -> SessionEnd {
+const fn end_kind_of(input: SessionEndInput) -> SessionEnd {
     match input {
         SessionEndInput::Paused => SessionEnd::Paused,
         SessionEndInput::Stopped => SessionEnd::Stopped,
@@ -705,7 +735,7 @@ fn end_kind_of(input: SessionEndInput) -> SessionEnd {
 /// carries (the closed set's own projection, not a
 /// second list).
 #[must_use]
-fn end_kind_wire(end_kind: SessionEnd) -> &'static str {
+const fn end_kind_wire(end_kind: SessionEnd) -> &'static str {
     match end_kind {
         SessionEnd::Paused => "paused",
         SessionEnd::Stopped => "stopped",
@@ -752,7 +782,7 @@ fn rate_of(value: f64) -> Result<PlaybackRate, CliError> {
 /// The offer in wire form: the FR-032c continue
 /// offer or the start-over alternative.
 #[must_use]
-fn offer_wire(offer: Offer) -> OfferWire {
+const fn offer_wire(offer: Offer) -> OfferWire {
     match offer {
         Offer::Continue {
             offset_secs,
@@ -767,7 +797,7 @@ fn offer_wire(offer: Offer) -> OfferWire {
 
 /// The expiry outcome in wire form.
 #[must_use]
-fn expiry_wire(outcome: ExpiryOutcome) -> ExpiryWire {
+const fn expiry_wire(outcome: ExpiryOutcome) -> ExpiryWire {
     match outcome {
         ExpiryOutcome::AutoStart { offset_secs } => ExpiryWire::AutoStart { offset_secs },
         ExpiryOutcome::ExplicitResume => ExpiryWire::ExplicitResume,
@@ -1208,7 +1238,7 @@ fn read_stdin_bytes() -> Result<Vec<u8>, CliError> {
 /// the ladder ever grows, so the two cannot
 /// drift.
 #[must_use]
-fn rate_wire(rate: PlaybackRate) -> f64 {
+const fn rate_wire(rate: PlaybackRate) -> f64 {
     match rate {
         PlaybackRate::R0_75 => 0.75,
         PlaybackRate::R1_0 => 1.0,

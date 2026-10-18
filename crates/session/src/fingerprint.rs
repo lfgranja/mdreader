@@ -59,8 +59,7 @@ pub struct Reanchor {
 /// against the new engine's `boundaries`: the
 /// greatest boundary at or before the stored
 /// position, or exactly `0.0` when none precedes
-/// it — never a value strictly between two
-/// boundaries, and never an arbitrary offset.
+/// it (FR-038).
 ///
 /// `reported` carries the boundary the re-anchor
 /// landed on, or `None` when the fallback fired. A
@@ -70,10 +69,6 @@ pub struct Reanchor {
 /// any input order — the caller supplies the
 /// ordered list (doc-structure, T061c).
 #[must_use]
-#[expect(
-    clippy::float_cmp,
-    reason = "boundary positions and the stored offset are exact binary fractions on the quarter-second grid, so <= is the correct comparison; a tolerance would admit an off-boundary re-anchor (FR-038)"
-)]
 pub fn reanchor(stored_offset_secs: f64, boundaries: &[f64]) -> Reanchor {
     // The greatest boundary at or before the stored
     // position.
@@ -83,17 +78,14 @@ pub fn reanchor(stored_offset_secs: f64, boundaries: &[f64]) -> Reanchor {
             greatest = Some(boundary);
         }
     }
-    match greatest {
-        Some(reported) => Reanchor {
-            nearest: reported,
-            reported: Some(reported),
-        },
-        // No boundary at or before the stored
-        // position: the document start, and nothing
-        // is reported (FR-038).
-        None => Reanchor {
+    greatest.map_or(
+        Reanchor {
             nearest: 0.0,
             reported: None,
         },
-    }
+        |reported| Reanchor {
+            nearest: reported,
+            reported: Some(reported),
+        },
+    )
 }

@@ -342,7 +342,7 @@ impl DiagnosticWriter {
     /// The number of retained record events; trim and gap
     /// markers are metadata, not entries.
     #[must_use]
-    pub fn retained_entries(&self) -> usize {
+    pub const fn retained_entries(&self) -> usize {
         self.retained.len()
     }
 

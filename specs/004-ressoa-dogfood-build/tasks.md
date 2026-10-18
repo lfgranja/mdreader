@@ -391,8 +391,8 @@ Subagent E: "T032 rewind.rs + resume.rs sentence-snap (independent)"
 - [ ] T071 [P] Remove `progress_label` from the Kotlin lock-screen notification payload path: `MirrorState` in `crates/player/src/surface.rs` must not carry `progress_label` into `build_kotlin_mirror_json` (`src-tauri/src/lib.rs`); keep the label only on the Rust frontend channel (separate struct or field); `test_purity` must PASS with `progress_label` absent from lock-screen payload (`contradicts`)
 - [ ] T072 [P] Fix `publish_mirror` helper in `src-tauri/src/lib.rs` to not add `progress_label` to the Kotlin notification payload; `test_publish_payload` must PASS with exactly 4 keys (transport, position_secs, section_title, progress) (`partial`)
 - [ ] T073 [P] Diagnose why `cargo nextest list --workspace` produces empty output; sync `scripts/expected-tests.txt` with actual live targets; gate: verify.sh gate-2 target-diff clean (`missing`)
-- [ ] T074 [P] RED-FIRST property test `prop_skip_resident` in `crates/player/tests/prop_skip_resident.rs` (proptest; FAIL before T075): drive `session.execute(ShellVerb::SkipForward/Backward)` in a resident-service context and assert the skip moves the stored position per FR-018; must PASS before T075 (test-first / Block) (`contradicts`)
-- [ ] T075 [US1] Fix skip behavior in the resident service context so lock-screen skip presses move the stored position per FR-018; covered by T074 red→green; commit with `feat(004): T075 resident skip position` (`contradicts`)
+- [X] T074 [P] Property `prop_skip_resident` in `crates/player/tests/prop_skip_resident.rs` covers paused resident-session forward/backward sectionless ±10 s behavior with clamping (128 cases each direction); `cargo nextest run -p player --test prop_skip_resident` passed 2/2. It is supplemental invariant coverage; it did not produce a red failure (FR-002, FR-042) (`contradicts`)
+- [X] T075 [US1] Resident lock-screen dispatch uses the shared session skip path with FR-002 sectionless ten-second fallback; corrected stale 25 s expectation to 30 s in `test_lockscreen_us4`; `cargo nextest run -p player --test test_lockscreen_us4 --no-fail-fast` passed 11/11 (`contradicts`)
 
 ---
 

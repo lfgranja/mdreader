@@ -16,8 +16,8 @@
 //!   passed (absent, not null, when before first heading or
 //!   heading-less document)
 //! - `progress` — externally-tagged closed enum:
-//!   `{"determinate": {"position_secs": f64, "duration_secs": f64}}`
-//!   | `"indeterminate"`
+//!   `{"determinate": {"consumed_units": u64, "total_units": u64,
+//!   "k": u32, "n": u32}}` | `"indeterminate"`
 //! - `transient_reason` — string, present ONLY when the pause
 //!   carries a stated transient reason (focus-loss pause under
 //!   FR-041 or failure reason under FR-037); absent otherwise
@@ -43,7 +43,6 @@ fn publish_payload_carries_exactly_the_five_contract_keys_for_each_transport() {
 
     for transport in transports {
         let position_secs = 30.0;
-        let _duration_secs = 120.0;
         let section_title = Some("Chapter 1".to_string());
 
         // This call will fail until T133 implements publish_mirror.
@@ -62,8 +61,6 @@ fn publish_payload_carries_exactly_the_five_contract_keys_for_each_transport() {
             4,
             "publish payload for {transport} must have exactly 4 keys (transport, position_secs, section_title, progress)"
         );
-
-        // Verify each key and its shape.
         assert_eq!(
             obj.get("transport"),
             Some(&Value::String(transport.to_string())),
@@ -214,6 +211,7 @@ fn publish_payload_transient_reason_present_only_for_transient_pause() {
         true, // determinate
         None,
     );
+
     let obj = without_reason.as_object().unwrap();
     assert_eq!(
         obj.len(),
@@ -229,7 +227,6 @@ fn publish_payload_transient_reason_present_only_for_transient_pause() {
 #[test]
 fn publish_payload_never_carries_body_text_or_extra_fields() {
     let position_secs = 30.0;
-    let _duration_secs = 120.0;
 
     // This call will fail until T133 implements publish_mirror.
     let payload = publish_mirror(
@@ -281,6 +278,12 @@ fn publish_payload_transport_enum_matches_contract_case_mapping() {
     for (input_transport, expected_wire) in transports {
         // This call will fail until T133 implements publish_mirror.
         let payload = publish_mirror(input_transport, 30.0, None, true, None);
+
+        assert!(
+            payload.get("progress_label").is_none(),
+            "progress_label is forbidden in the Kotlin lock-screen contract payload"
+        );
+
         let transport_value = payload.get("transport").unwrap();
         assert_eq!(
             transport_value,

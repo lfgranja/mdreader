@@ -217,19 +217,19 @@ enum Command {
 /// a failure returns the diagnostic having written nothing to
 /// `stdout`, so the caller completes the failure half of the
 /// protocol.
-fn execute(cli: Cli, stdin: &mut dyn Read, stdout: &mut dyn Write) -> Result<(), CliError> {
-    match cli.command {
+fn execute(cli: &Cli, stdin: &mut dyn Read, stdout: &mut dyn Write) -> Result<(), CliError> {
+    match &cli.command {
         Command::Capabilities => write_payload(stdout, &capabilities_payload(cli.format)?),
         Command::SetRate { rate } => {
-            let rung = rate_of(rate)?;
-            write_payload(stdout, &set_rate_payload(rung, rate, cli.format)?)
+            let rung = rate_of(*rate)?;
+            write_payload(stdout, &set_rate_payload(rung, *rate, cli.format)?)
         }
         Command::Stream { at, budget_secs } => {
             let position_secs = match at {
-                Some(position) => check_position_secs(position)?,
+                Some(position) => check_position_secs(*position)?,
                 Option::None => read_position_from_stdin(stdin)?,
             };
-            let budget = check_budget_secs(budget_secs)?;
+            let budget = check_budget_secs(*budget_secs)?;
             // The shape gate travels with the stream check:
             // the declared mono-`f32`-at-22050 Hz shape passes
             // its own check, and any deviation would route
@@ -302,12 +302,14 @@ fn read_position_from_stdin(stdin: &mut dyn Read) -> Result<f64, CliError> {
             "stream needs --at <secs> or a position on stdin",
         )));
     }
-    match trimmed.parse::<f64>() {
-        Ok(value) => check_position_secs(value),
-        Err(_) => Err(CliError::Usage(format!(
-            "could not parse a position_secs float from stdin, got {trimmed:?}"
-        ))),
-    }
+    trimmed.parse::<f64>().map_or_else(
+        |_| {
+            Err(CliError::Usage(format!(
+                "could not parse a position_secs float from stdin, got {trimmed:?}"
+            )))
+        },
+        check_position_secs,
+    )
 }
 
 /// The implied PCM frame count of a validated pre-roll
@@ -322,10 +324,6 @@ fn frame_count_for_budget(budget_secs: f64) -> usize {
     #[expect(
         clippy::cast_possible_truncation,
         reason = "budget_secs is validated to (0, 60], so the product is at most 1_323_000 — far below any usize truncation boundary"
-    )]
-    #[expect(
-        clippy::cast_precision_loss,
-        reason = "budget_secs is validated to (0, 60], so the product is at most 1_323_000 — exactly representable in f64 and usize"
     )]
     #[expect(
         clippy::cast_sign_loss,
@@ -386,7 +384,7 @@ fn set_rate_payload(
     rate: f64,
     format: OutputFormat,
 ) -> Result<String, CliError> {
-    let _accepted = rung;
+    let _ = rung;
     let payload = SetRatePayload {
         capability: "set_rate",
         rate,
@@ -509,11 +507,15 @@ mod tests {
     /// Drive [`run`] in-process with the given arguments and
     /// stdin text, returning the raw streams and the outcome.
     fn drive(args: &[&str], stdin_text: &str) -> (Vec<u8>, Vec<u8>, Result<(), CliError>) {
-        let owned: Vec<String> = args.iter().map(|arg| String::from(*arg)).collect();
         let mut stdin = Cursor::new(stdin_text.as_bytes().to_vec());
         let mut stdout: Vec<u8> = Vec::new();
         let mut stderr: Vec<u8> = Vec::new();
-        let outcome = run(owned.into_iter(), &mut stdin, &mut stdout, &mut stderr);
+        let outcome = run(
+            args.iter().map(|arg| String::from(*arg)),
+            &mut stdin,
+            &mut stdout,
+            &mut stderr,
+        );
         (stdout, stderr, outcome)
     }
 

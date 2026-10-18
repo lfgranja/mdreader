@@ -3,6 +3,11 @@ name = "session"
 license = "MIT"
 version = "0.1.0"
 edition = "2024"
+description = "Session persistence: redb-backed bookmarks and settings with content-hash fingerprinting."
+repository = "https://github.com/mdreader/mdreader"
+readme = "README.md"
+keywords = ["session", "bookmark", "persistence", "redb"]
+categories = ["database"]
 
 [dependencies]
 redb = "2.6.0"

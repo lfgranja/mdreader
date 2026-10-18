@@ -3,6 +3,11 @@ name = "player"
 license = "MIT"
 version = "0.1.0"
 edition = "2024"
+description = "Audio playback engine: transport, position, buffering, pre-roll, and rate management over the engine-core contract."
+repository = "https://github.com/mdreader/mdreader"
+readme = "README.md"
+keywords = ["audio", "playback", "tts", "engine"]
+categories = ["multimedia::audio"]
 
 [dependencies]
 cpal = "0.18.2"

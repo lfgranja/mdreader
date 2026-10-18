@@ -8,5 +8,5 @@
 //! re-verifies the built manifest on every build.
 
 fn main() {
-    tauri_build::build()
+    tauri_build::build();
 }

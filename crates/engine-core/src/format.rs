@@ -151,7 +151,7 @@ mod tests {
             assert!(
                 matches!(
                     result,
-                    Err(EngineError::RateMismatch) | Err(EngineError::ChannelMismatch)
+                    Err(EngineError::RateMismatch | EngineError::ChannelMismatch)
                 ),
                 "width {width} bits was not surfaced as a named error"
             );

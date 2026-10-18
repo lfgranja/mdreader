@@ -210,7 +210,7 @@ pub struct StreamChunk {
 impl StreamChunk {
     /// The number of PCM frames in the chunk.
     #[must_use]
-    pub fn frame_count(&self) -> usize {
+    pub const fn frame_count(&self) -> usize {
         self.frames.len()
     }
 }
@@ -283,7 +283,7 @@ mod tests {
 
     #[test]
     fn the_pre_roll_bound_is_sixty_seconds() {
-        assert_eq!(MAX_PREROLL_SECS, 60.0);
+        assert!((MAX_PREROLL_SECS - 60.0).abs() < f64::EPSILON);
     }
 
     #[test]

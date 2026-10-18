@@ -3,6 +3,11 @@ name = "engine-core"
 license = "MIT"
 version = "0.1.0"
 edition = "2024"
+description = "Engine-neutral synthesis core: closed-set vocabulary, engine trait, handoff format, and stand-in engines."
+repository = "https://github.com/mdreader/mdreader"
+readme = "README.md"
+keywords = ["tts", "synthesis", "engine", "audio"]
+categories = ["multimedia::audio"]
 
 [dependencies]
 thiserror = { workspace = true }

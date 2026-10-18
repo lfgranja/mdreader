@@ -3,6 +3,11 @@ name = "src-tauri"
 license = "MIT"
 version = "0.1.0"
 edition = "2024"
+description = "Tauri Android shell: media session, notification, and audio focus management."
+repository = "https://github.com/mdreader/mdreader"
+readme = "README.md"
+keywords = ["tauri", "android", "media-session", "audio"]
+categories = ["multimedia::audio"]
 
 [lib]
 crate-type = ["staticlib", "cdylib", "rlib"]

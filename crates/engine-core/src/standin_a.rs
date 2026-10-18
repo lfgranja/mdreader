@@ -189,7 +189,10 @@ fn synthesize_frames(position_secs: f64, max_secs: f64) -> Vec<f32> {
         let fundamental = phase.sin();
         let second_harmonic = (2.0 * phase).sin();
         let third_harmonic = (3.0 * phase).sin();
-        frames.push((fundamental + 0.5 * second_harmonic + 0.25 * third_harmonic) as f32);
+        frames.push(0.25_f64.mul_add(
+            third_harmonic,
+            0.5_f64.mul_add(second_harmonic, fundamental),
+        ) as f32);
         phase += phase_step;
     }
     frames
@@ -402,10 +405,9 @@ mod tests {
         let Ok(chunk) = Engine::stream(&mut engine, 12.5, 1.0) else {
             // The stream is inside the pre-roll bound: a
             // conforming stand-in never refuses it.
-            assert!(false, "the mid-document stream was refused");
-            return;
+            panic!("the mid-document stream was refused");
         };
-        assert_eq!(chunk.start_position_secs, 12.5);
+        assert!((chunk.start_position_secs - 12.5).abs() < f64::EPSILON);
         assert_eq!(chunk.frame_count(), 22_050);
         // Sentence alignment: the one-second cadence puts
         // the single boundary of the half-open [12.5,
@@ -449,7 +451,7 @@ mod tests {
         // permits (H6).
         let at_bound = Engine::stream(&mut engine, 0.0, MAX_PREROLL_SECS);
         assert!(
-            matches!(at_bound, Ok(_)),
+            at_bound.is_ok(),
             "a pre-roll budget of exactly {MAX_PREROLL_SECS} s was refused: {at_bound:?}"
         );
     }

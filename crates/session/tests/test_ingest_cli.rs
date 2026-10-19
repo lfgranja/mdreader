@@ -88,10 +88,13 @@ fn json_of(text: &str) -> Result<Value, Box<dyn std::error::Error>> {
 /// [`fingerprint`] so the oracle is the same
 /// function the verb drives.
 fn hex_of_bytes(bytes: &[u8]) -> String {
+    use std::fmt::Write as _;
     fingerprint(bytes)
         .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
+        .fold(String::new(), |mut hex, byte| {
+            let _ignored = write!(hex, "{byte:02x}");
+            hex
+        })
 }
 
 /// Store `position` for the document at `file`,
@@ -214,7 +217,11 @@ fn ingest_from_the_stdin_pipe_reports_the_fingerprint_and_no_resume()
         "the fingerprint must be the blake3-256 of the piped bytes"
     );
     assert!(!report.resume, "an empty store opens no resume offer");
-    assert_eq!(report.offset, 0.0, "a miss resolves to a start at 0.0");
+    assert_eq!(
+        report.offset.to_bits(),
+        0.0_f64.to_bits(),
+        "a miss resolves to a start at 0.0"
+    );
     Ok(())
 }
 
@@ -233,7 +240,11 @@ fn ingest_reports_resume_for_a_paused_entry() -> Result<(), Box<dyn std::error::
         report.resume,
         "a stored deliberate pause opens the resume offer (FR-032c)"
     );
-    assert_eq!(report.offset, 42.0, "the stored position is reported");
+    assert_eq!(
+        report.offset.to_bits(),
+        42.0_f64.to_bits(),
+        "the stored position is reported"
+    );
     assert_eq!(
         report.fingerprint,
         hex_of_bytes(BYTES),
@@ -259,7 +270,8 @@ fn ingest_reports_the_stored_offset_without_resume_for_an_interrupted_entry()
         "an unexpected end auto-resumes nothing — resume stays false (FR-032d)"
     );
     assert_eq!(
-        report.offset, 90.0,
+        report.offset.to_bits(),
+        90.0_f64.to_bits(),
         "the interrupted entry still reports its stored offset"
     );
     Ok(())
@@ -319,7 +331,11 @@ fn an_edited_document_resolves_to_no_resume_at_zero() -> Result<(), Box<dyn std:
         "an edited byte must fingerprint differently (FR-036a)"
     );
     assert!(!report.resume, "an edited document opens no resume offer");
-    assert_eq!(report.offset, 0.0, "a miss resolves to a start at 0.0");
+    assert_eq!(
+        report.offset.to_bits(),
+        0.0_f64.to_bits(),
+        "a miss resolves to a start at 0.0"
+    );
     Ok(())
 }
 

@@ -44,7 +44,7 @@
 //! width_bits)` accessor assertion at every rung lives in the
 //! per-stand-in shape tests below), and the F0 contour and the
 //! spectral-peak contour of the delivered frames at rung R match
-//! the R1_0 reference contour within ±50 cents for every window.
+//! the `R1_0` reference contour within ±50 cents for every window.
 //! The 2.0×→4.0× pair — the harshest — is asserted explicitly.
 //! A non-pitch-preserving engine would fail these contour bounds:
 //! one whose delivered pitch follows the rung (a naive resample)
@@ -86,7 +86,7 @@ use engine_core::trait_::{Engine, MAX_PREROLL_SECS, StreamChunk};
 /// violation.
 const ESTIMATOR_TOLERANCE_CENTS: f64 = 25.0;
 
-/// The reference rung every contour is compared against: R1_0
+/// The reference rung every contour is compared against: `R1_0`
 /// (normal speed), the comparison point of the SC-015 property.
 const REFERENCE_RUNG: PlaybackRate = PlaybackRate::R1_0;
 
@@ -122,22 +122,14 @@ const PEAK_SEARCH_MAX_HZ: f64 = 800.0;
 /// fails to compile here — and in `rung_label` — until the
 /// property covers it.
 const fn rung_identity(rate: PlaybackRate) -> PlaybackRate {
-    match rate {
-        PlaybackRate::R0_75 => PlaybackRate::R0_75,
-        PlaybackRate::R1_0 => PlaybackRate::R1_0,
-        PlaybackRate::R1_25 => PlaybackRate::R1_25,
-        PlaybackRate::R1_5 => PlaybackRate::R1_5,
-        PlaybackRate::R1_75 => PlaybackRate::R1_75,
-        PlaybackRate::R2_0 => PlaybackRate::R2_0,
-        PlaybackRate::R4_0 => PlaybackRate::R4_0,
-    }
+    rate
 }
 
 /// Every rung of the closed ladder, in ascending order (FR-019):
 /// exactly `[0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 4.0]`, built
 /// through the exhaustive `rung_identity` match so the enumeration
 /// itself is gated against an uncovered eighth rung.
-fn every_rung() -> [PlaybackRate; 7] {
+const fn every_rung() -> [PlaybackRate; 7] {
     [
         rung_identity(PlaybackRate::R0_75),
         rung_identity(PlaybackRate::R1_0),
@@ -151,7 +143,7 @@ fn every_rung() -> [PlaybackRate; 7] {
 
 /// The diagnostic label of every rung — also a wildcard-free
 /// exhaustive match, so the closed set is gated twice over.
-fn rung_label(rate: PlaybackRate) -> &'static str {
+const fn rung_label(rate: PlaybackRate) -> &'static str {
     match rate {
         PlaybackRate::R0_75 => "0.75×",
         PlaybackRate::R1_0 => "1.0×",
@@ -185,7 +177,7 @@ fn frames_for_secs(secs: f64) -> usize {
 /// fundamental period and the zero-crossing estimator is unbiased
 /// on the source.
 #[expect(
-    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
     reason = "the source signal is a deterministic test waveform; the f64→f32 narrowing is the declared handoff width (f32 PCM) and the estimator calibration tolerances absorb the rounding"
 )]
 fn source_frames() -> Vec<f32> {
@@ -198,7 +190,9 @@ fn source_frames() -> Vec<f32> {
         let fundamental = phase.sin();
         let second_harmonic = (2.0 * phase).sin();
         let third_harmonic = (3.0 * phase).sin();
-        frames.push((fundamental + 0.5 * second_harmonic + 0.25 * third_harmonic) as f32);
+        frames.push(
+            0.25f64.mul_add(third_harmonic, 0.5f64.mul_add(second_harmonic, fundamental)) as f32,
+        );
         phase += phase_step;
     }
     frames
@@ -256,11 +250,11 @@ fn dft_magnitude(window: &[f32], bin: usize) -> f64 {
     let mut real = 0.0_f64;
     let mut imaginary = 0.0_f64;
     for frame in window {
-        real += f64::from(*frame) * angle.cos();
-        imaginary += f64::from(*frame) * angle.sin();
+        real = f64::from(*frame).mul_add(angle.cos(), real);
+        imaginary = f64::from(*frame).mul_add(angle.sin(), imaginary);
         angle += angle_step;
     }
-    (real * real + imaginary * imaginary).sqrt()
+    real.hypot(imaginary)
 }
 
 /// Pick the strongest spectral peak of one analysis window: the DFT
@@ -277,7 +271,6 @@ fn dft_magnitude(window: &[f32], bin: usize) -> f64 {
     clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
     clippy::cast_sign_loss,
-    clippy::float_cmp,
     reason = "the peak search band edges and the parabolic refinement are computed from the window length and bin indices (small non-negative counts, exact in f64); the argmax and the curvature-zero check are the comparisons the algorithm is made of, with no epsilon tolerance to tune"
 )]
 fn spectral_peak_hz(window: &[f32], sample_rate_hz: f64) -> Option<f64> {
@@ -310,7 +303,7 @@ fn spectral_peak_hz(window: &[f32], sample_rate_hz: f64) -> Option<f64> {
     let peak_log = best_magnitude.ln();
     let left_log = dft_magnitude(window, peak_bin - 1).ln();
     let right_log = dft_magnitude(window, peak_bin + 1).ln();
-    let curvature = left_log - 2.0 * peak_log + right_log;
+    let curvature = 2.0f64.mul_add(-peak_log, left_log) + right_log;
     let bin_offset = if curvature.abs() < f64::EPSILON {
         0.0
     } else {
@@ -415,10 +408,6 @@ fn peak_contour(frames: &[f32]) -> Vec<Option<f64>> {
 /// windows both contours hold are compared (an engine may deliver
 /// fewer frames at one rung than another; the overlap is the
 /// contract surface).
-#[expect(
-    clippy::float_cmp,
-    reason = "the ±tolerance bound is the SC-015 contract margin itself; the comparison is the assertion, with no epsilon to tune"
-)]
 fn contour_matches_within(
     candidate: &[Option<f64>],
     reference: &[Option<f64>],
@@ -456,7 +445,7 @@ fn contour_matches_within(
 /// (SC-015, SC-034, FR-043): `set_rate` accepts every rung with
 /// `Ok`, every delivered chunk is in the declared handoff shape
 /// with analysis signal, and the F0 contour and the spectral-peak
-/// contour of the delivered frames at each rung match the R1_0
+/// contour of the delivered frames at each rung match the `R1_0`
 /// reference contour within ±50 cents for every window.
 ///
 /// A non-pitch-preserving engine — one whose delivered pitch
@@ -541,16 +530,15 @@ fn pitch_matches_across_the_two_to_four_pair<E: Engine>(
 /// could never reach the delivered frames of an over-bound
 /// request.
 #[expect(
-    clippy::float_cmp,
-    reason = "the bound check 0 < ANALYSIS_SECS <= MAX_PREROLL_SECS is the pre-roll precondition itself; exact comparison against the declared constant is the assertion"
+    clippy::assertions_on_constants,
+    reason = "the bound check 0 < ANALYSIS_SECS <= MAX_PREROLL_SECS is the pre-roll precondition itself, asserted against the two declared constants (no runtime input); a const block cannot carry the formatted message"
 )]
 #[test]
 fn the_analysis_request_stays_within_the_pre_roll_bound() {
     assert!(ANALYSIS_SECS > 0.0);
     assert!(
         ANALYSIS_SECS <= MAX_PREROLL_SECS,
-        "the {ANALYSIS_SECS} s analysis request exceeds the {} s pre-roll bound",
-        MAX_PREROLL_SECS
+        "the {ANALYSIS_SECS} s analysis request exceeds the {MAX_PREROLL_SECS} s pre-roll bound"
     );
 }
 
@@ -559,10 +547,6 @@ fn the_analysis_request_stays_within_the_pre_roll_bound() {
 /// fundamental within [`ESTIMATOR_TOLERANCE_CENTS`] — well inside
 /// the SC-015 margin — so the estimator's own error cannot mask a
 /// contract violation.
-#[expect(
-    clippy::float_cmp,
-    reason = "the ±25-cent calibration bound is the estimator's own accuracy budget; the comparison against it is the assertion"
-)]
 #[test]
 fn the_zero_crossing_estimator_recovers_the_source_fundamental() -> Result<(), String> {
     let frames = source_frames();
@@ -594,10 +578,6 @@ fn the_zero_crossing_estimator_recovers_the_source_fundamental() -> Result<(), S
 /// [`ESTIMATOR_TOLERANCE_CENTS`] — the fundamental (amplitude 1.0)
 /// dominates the decaying harmonics (0.5, 0.25), so the peak
 /// picker's choice is the fundamental, not a harmonic.
-#[expect(
-    clippy::float_cmp,
-    reason = "the ±25-cent calibration bound is the estimator's own accuracy budget; the comparison against it is the assertion"
-)]
 #[test]
 fn the_spectral_peak_picker_recovers_the_source_fundamental() -> Result<(), String> {
     let frames = source_frames();
@@ -693,7 +673,7 @@ fn standin_b_delivers_the_declared_shape_at_every_rung() {
 
 /// The SC-015 ladder property for stand-in A: the F0 contour and
 /// the spectral-peak contour of the delivered frames at each of the
-/// seven rungs match the R1_0 reference contour within ±50 cents
+/// seven rungs match the `R1_0` reference contour within ±50 cents
 /// for every window (SC-015, SC-034, FR-043).
 #[test]
 fn standin_a_holds_pitch_across_all_seven_rungs() {

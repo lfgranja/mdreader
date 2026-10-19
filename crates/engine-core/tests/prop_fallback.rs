@@ -4,8 +4,8 @@
 //! "Property test: fallback-order + consent in
 //! `crates/engine-core/tests/prop_fallback.rs` (proptest:
 //! order = ascending `EngineTier::ORDER` (remaining
-//! same-tier → cloud_default → cloud_escalation →
-//! test_double → evaluated_fallback last, never default);
+//! same-tier → `cloud_default` → `cloud_escalation` →
+//! `test_double` → `evaluated_fallback` last, never default);
 //! `test_double` tiers are reachable only while no
 //! non-`test_double` adapter is registered, asserted as
 //! an invariant in both directions; consent for a
@@ -27,15 +27,15 @@
 //! paused-with-reason, never silence), FR-023a (the
 //! offer names the alternatives), FR-023c (the fallback
 //! order is the declared `EngineTier::ORDER`, ascending:
-//! offline_default → cloud_default → cloud_escalation →
-//! test_double → evaluated_fallback; consent is read per
+//! `offline_default` → `cloud_default` → `cloud_escalation` →
+//! `test_double` → `evaluated_fallback`; consent is read per
 //! attempt from app-private storage; the Edge endpoint
 //! stays last and is never a default), FR-005 (the
 //! no-alternative expiry pauses with a stated reason —
 //! never silence), the 2026-10-05 clarification
-//! (test_double engines — the stand-ins — are admissible
+//! (`test_double` engines — the stand-ins — are admissible
 //! only while no non-test_double adapter is registered,
-//! asserted in both directions; consent for a test_double
+//! asserted in both directions; consent for a `test_double`
 //! is granted by construction because it carries no
 //! provider/egress field at all), contracts/engine-handoff.md
 //! §"Fallback order" ("Remaining engines of the failing
@@ -85,16 +85,16 @@
 //!   `EngineTier::ORDER`: every engine of a lower tier
 //!   precedes every engine of a higher tier, and within
 //!   a tier the remaining same-tier engines keep registry
-//!   order; evaluated_fallback is last when present and
+//!   order; `evaluated_fallback` is last when present and
 //!   never a default.
 //! - F2 [`test_double_engines_are_admissible_only_while_no_other_adapter_is_registered`] —
-//!   both directions: a test_double is selectable when the
-//!   registry holds only test_doubles, and is NOT
+//!   both directions: a `test_double` is selectable when the
+//!   registry holds only `test_doubles`, and is NOT
 //!   selectable when any non-test_double adapter is
 //!   registered.
 //! - F3 [`test_double_consent_is_granted_by_construction`] —
-//!   consent for a test_double is always Granted: a
-//!   test_double carries no provider/egress field at all,
+//!   consent for a `test_double` is always Granted: a
+//!   `test_double` carries no provider/egress field at all,
 //!   so there is no egress to gate.
 //! - F4 [`an_unconsented_engine_is_never_selectable`] —
 //!   whatever the per-attempt consent read yields, a
@@ -144,7 +144,7 @@ use engine_core::standin_b::StandinB;
 /// observable. The ids mirror the constitution's TTS
 /// Engine Registry (`.specify/memory/constitution.md`,
 /// "TTS Engine Registry") for the four registry tiers;
-/// the test_double ids are the only two the 2026-10-05
+/// the `test_double` ids are the only two the 2026-10-05
 /// clarification permits at that tier.
 const ENGINE_POOL: [(&str, EngineTier); 9] = [
     ("sherpa-onnx-piper-pt-br", EngineTier::OfflineDefault),
@@ -209,7 +209,7 @@ fn test_double_only_registry_strategy() -> impl Strategy<Value = Vec<EngineDescr
 /// `EngineTier::ORDER` (FR-023c) — five explicit arms
 /// and no catch-all, so a sixth tier is a compile error
 /// until the properties cover it (F8, Principle VII).
-fn tier_order_index(tier: EngineTier) -> usize {
+const fn tier_order_index(tier: EngineTier) -> usize {
     match tier {
         EngineTier::OfflineDefault => 0,
         EngineTier::CloudDefault => 1,
@@ -249,7 +249,7 @@ fn expected_selectable(
             continue;
         }
         // A failed engine is no longer remaining.
-        if failed.iter().any(|failed_id| *failed_id == entry.id) {
+        if failed.contains(&entry.id) {
             continue;
         }
         // FR-023c: an unconsented engine is never selected.
@@ -321,12 +321,12 @@ proptest! {
     fn selectable_engines_follow_the_declared_ascending_order(
         registry in registry_strategy(),
     ) {
-        let mut selector = FallbackSelector::new(registry.clone());
+        let selector = FallbackSelector::new(registry.clone());
         let selectable = selector.selectable();
         let expected = expected_selectable(&registry, &[], |id| selector.consent(id));
         prop_assert_eq!(
-            selectable.clone(),
-            expected,
+            &selectable,
+            &expected,
             "the selectable engines did not follow the declared ascending order"
         );
         // The pairwise form of the same invariant: every
@@ -368,7 +368,7 @@ proptest! {
     ) {
         // Direction (a): only test_doubles registered.
         {
-            let mut selector = FallbackSelector::new(test_double_only.clone());
+            let selector = FallbackSelector::new(test_double_only.clone());
             let selectable = selector.selectable();
             let expected: Vec<EngineOffer> = test_double_only
                 .iter()
@@ -385,7 +385,7 @@ proptest! {
         }
         // Direction (b): any non-test_double registered.
         {
-            let mut selector = FallbackSelector::new(registry.clone());
+            let selector = FallbackSelector::new(registry.clone());
             let selectable = selector.selectable();
             let holds_non_test_double = registry
                 .iter()
@@ -413,7 +413,7 @@ proptest! {
     fn test_double_consent_is_granted_by_construction(
         registry in registry_strategy(),
     ) {
-        let mut selector = FallbackSelector::new(registry.clone());
+        let selector = FallbackSelector::new(registry.clone());
         for entry in &registry {
             if entry.tier == EngineTier::TestDouble {
                 prop_assert_eq!(
@@ -442,7 +442,7 @@ proptest! {
     fn an_unconsented_engine_is_never_selectable(
         registry in registry_strategy(),
     ) {
-        let mut selector = FallbackSelector::new(registry.clone());
+        let selector = FallbackSelector::new(registry.clone());
         let selectable = selector.selectable();
         for entry in &registry {
             if selector.consent(&entry.id) == Consent::Denied {
@@ -476,23 +476,20 @@ proptest! {
         let initial = selector.selectable();
         let (actual, expected) = drive_full_descent(&registry, &mut selector);
         prop_assert_eq!(
-            actual.clone(),
-            expected.clone(),
+            &actual,
+            &expected,
             "the descent offer sequence diverged from the declared fallback order"
         );
         // The descent ended because nothing remained: the
         // last failure exhausted the selectable set.
-        match expected.last() {
-            Some(last) => {
-                prop_assert!(
-                    last.is_none(),
-                    "the descent ended while an offer was still remaining"
-                );
-            }
-            None => {
-                // Nothing was selectable, so the descent
-                // never began.
-            }
+        if let Some(last) = expected.last() {
+            prop_assert!(
+                last.is_none(),
+                "the descent ended while an offer was still remaining"
+            );
+        } else {
+            // Nothing was selectable, so the descent
+            // never began.
         }
         // F7 soundness: every offered engine is in the
         // registry, with a tier-accurate tier. Both
@@ -550,20 +547,20 @@ proptest! {
                 let first_offer = selector.on_failure(&default_engine.engine_id);
                 let repeated_offer = selector.on_failure(&default_engine.engine_id);
                 prop_assert_eq!(
-                    first_offer,
-                    repeated_offer.clone(),
+                    &first_offer,
+                    &repeated_offer,
                     "the repeated failure did not re-offer the same remaining engines"
                 );
                 let oracle = expected_selectable(
                     &registry,
-                    &[default_engine.engine_id.clone()],
+                    std::slice::from_ref(&default_engine.engine_id),
                     |id| selector.consent(id),
                 )
                 .into_iter()
                 .next();
                 prop_assert_eq!(
-                    repeated_offer.clone(),
-                    oracle,
+                    &repeated_offer,
+                    &oracle,
                     "the re-offer did not name the first remaining engine in the declared order"
                 );
             }
@@ -571,18 +568,15 @@ proptest! {
                 // Nothing is selectable: the failure of any
                 // registered engine offers nothing, because
                 // nothing remains.
-                match registry.first() {
-                    Some(entry) => {
-                        prop_assert_eq!(
-                            selector.on_failure(&entry.id),
-                            None,
-                            "a failure offered an engine while nothing is selectable"
-                        );
-                    }
-                    None => {
-                        // An empty registry holds no engine
-                        // to fail.
-                    }
+                if let Some(entry) = registry.first() {
+                    prop_assert_eq!(
+                        selector.on_failure(&entry.id),
+                        None,
+                        "a failure offered an engine while nothing is selectable"
+                    );
+                } else {
+                    // An empty registry holds no engine
+                    // to fail.
                 }
             }
         }
@@ -607,35 +601,34 @@ proptest! {
     ) {
         prop_assume!(failure_index < registry.len());
         let failed_entry = registry[failure_index].clone();
-        let mut selector = FallbackSelector::new(registry.clone());
+        let mut selector = FallbackSelector::new(registry);
         let offer = selector.on_failure(&failed_entry.id);
-        match offer {
-            Some(offered) => {
-                // An alternative remains: the expiry
-                // continues from the last spoken position.
-                let expiry = selector.expire_offer();
-                prop_assert_eq!(
-                    expiry,
-                    FallbackExpiry::ContinueFromLastPosition {
-                        engine_id: offered.engine_id
-                    },
-                    "the expired offer did not continue from the last spoken position"
-                );
-            }
-            None => {
-                // No alternative remains: the expiry pauses
-                // with a stated reason — never silence, and
-                // never a continuation, because no engine is
-                // left to continue on.
-                let expiry = selector.expire_offer();
-                prop_assert!(
-                    matches!(
-                        &expiry,
-                        FallbackExpiry::PausedWithReason { reason } if !reason.is_empty()
-                    ),
-                    "the no-alternative expiry was {expiry:?} instead of a pause with a stated reason"
-                );
-            }
+        // The expiry is computed once, independent of whether an
+        // alternative remains — the two branches differ only in what
+        // the resulting expiry is asserted to be.
+        let expiry = selector.expire_offer();
+        if let Some(offered) = offer {
+            // An alternative remains: the expiry
+            // continues from the last spoken position.
+            prop_assert_eq!(
+                expiry,
+                FallbackExpiry::ContinueFromLastPosition {
+                    engine_id: offered.engine_id
+                },
+                "the expired offer did not continue from the last spoken position"
+            );
+        } else {
+            // No alternative remains: the expiry pauses
+            // with a stated reason — never silence, and
+            // never a continuation, because no engine is
+            // left to continue on.
+            prop_assert!(
+                matches!(
+                    &expiry,
+                    FallbackExpiry::PausedWithReason { reason } if !reason.is_empty()
+                ),
+                "the no-alternative expiry was {expiry:?} instead of a pause with a stated reason"
+            );
         }
     }
 }

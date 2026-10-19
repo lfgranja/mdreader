@@ -3,12 +3,12 @@
 //! heartbeat + event-durable writes (durable every 20 s fixed within the
 //! FR-007 15–30 s envelope while Playing; on every pause, focus-loss,
 //! device-removal, section-change, Stop (then delete), app-background,
-//! DocumentEnd).
+//! `DocumentEnd`).
 //!
 //! Invariant (verbatim from data-model.md:43 / FR-007 / tasks.md T053):
 //! "durable every 20 s fixed (within the FR-007 15–30 s envelope) while
 //! Playing + on every pause, focus-loss, device-removal, section-change,
-//! Stop (then delete), app-background, DocumentEnd"; worst-case loss =
+//! Stop (then delete), app-background, `DocumentEnd`"; worst-case loss =
 //! one interval (20 s); caps: 30 s interruption replay, 60 s kill/power-loss
 //! replay; cursor = last-spoken position (never buffered-ahead); single atomic
 //! row tx.
@@ -27,7 +27,7 @@
 //!   15–30 s envelope while Playing + on every listed event).
 //! - FR-007 / spec.md:158 (durable every 20 s fixed; event-durable writes
 //!   on pause / focus-loss / device-removal / section-change / Stop /
-//!   DocumentEnd / app-background; last-spoken cursor; single-row tx).
+//!   `DocumentEnd` / app-background; last-spoken cursor; single-row tx).
 //! - storage-schema.md (normative): bookmark key `[u8; 32]` →
 //!   `{ offset_secs: f64, first_yield_ms: u64, end_kind: SessionEnd }`; delete on
 //!   Stop / Completed only; nothing else deletes.
@@ -36,7 +36,7 @@
 //!   `put`, `get`, `delete` — mutators `Result<(), Error>`, readers
 //!   `Result<Option<…>, Error>`, `Error: std::error::Error`.
 //!
-//! Proptest-body note (same as prop_resume.rs): `proptest!` wraps each
+//! Proptest-body note (same as `prop_resume.rs)`: `proptest!` wraps each
 //! body in a closure returning `TestCaseResult`; `?` works for `E:
 //! std::error::Error`; body must evaluate to `()` — no trailing `Ok(())`.
 //! Every message uses explicit positional arguments (`{}`, `arg`), never
@@ -46,26 +46,12 @@
 
 use proptest::prelude::*;
 
-use engine_core::closed::{PlaybackRate, SessionEnd};
+use engine_core::closed::SessionEnd;
 use session::store::{BookmarkStore, StoredPosition};
 
 // ------------------------------------------------------------------
 // Strategies — arbitrary durations and event sequences
 // ------------------------------------------------------------------
-
-/// The closed seven-rung rate ladder (FR-019) — included because
-/// `last_rate` may accompany durable writes; never an unknown value.
-fn rate_ladder() -> impl Strategy<Value = PlaybackRate> {
-    prop_oneof![
-        Just(PlaybackRate::R0_75),
-        Just(PlaybackRate::R1_0),
-        Just(PlaybackRate::R1_25),
-        Just(PlaybackRate::R1_5),
-        Just(PlaybackRate::R1_75),
-        Just(PlaybackRate::R2_0),
-        Just(PlaybackRate::R4_0),
-    ]
-}
 
 /// A playback position on the exact quarter-second grid `k × 0.25`
 /// ∈ [0, 3600] s — every binary-fraction, exact on `f64`.
@@ -96,7 +82,7 @@ fn session_end_strategy() -> impl Strategy<Value = SessionEnd> {
 }
 
 /// A durable bookmark entry (the shape a 20 s heartbeat or event
-/// write produces) — offset + first_yield + end_kind.
+/// write produces) — offset + `first_yield` + `end_kind`.
 fn durable_position_strategy() -> impl Strategy<Value = StoredPosition> {
     (
         offset_strategy(),
@@ -115,7 +101,7 @@ fn durable_position_strategy() -> impl Strategy<Value = StoredPosition> {
 /// within (data-model.md:43 “within the FR-007 15–30 s envelope”).
 fn envelope_duration_strategy() -> impl Strategy<Value = f64> {
     // 15.0 ..= 30.0 inclusive, on the quarter-second grid for exactness.
-    (60u64..=120u64).prop_map(|q| q as f64 * 0.25) // 15.0 .. 30.0
+    (60u16..=120u16).prop_map(|q| f64::from(q) * 0.25) // 15.0 .. 30.0
 }
 
 /// An event sequence that triggers an event-durable write.
@@ -183,7 +169,7 @@ proptest! {
     ) {
         // The interval must be inside the FR-007 envelope [15,30].
         prop_assert!(
-            interval_s >= 15.0 && interval_s <= 30.0,
+            (15.0..=30.0).contains(&interval_s),
             "envelope interval {} s not in [15,30] s (FR-007 / data-model.md:43)",
             interval_s
         );
@@ -205,27 +191,28 @@ proptest! {
             interval_s
         );
 
-        let found_pos = found.unwrap();
-        prop_assert_eq!(
-            found_pos.offset_secs,
-            pos.offset_secs,
-            "durable bookmark offset {} ≠ expected last-spoken {} (cursor must be last-spoken, never buffered-ahead; FR-007 / data-model.md:43)",
-            found_pos.offset_secs,
-            pos.offset_secs
-        );
-        prop_assert_eq!(
-            found_pos.end_kind, pos.end_kind,
-            "durable bookmark end_kind {:?} ≠ expected {:?} (FR-044 / storage-schema.md)",
-            found_pos.end_kind, pos.end_kind
-        );
+        if let Some(found_pos) = found {
+            prop_assert_eq!(
+                found_pos.offset_secs.to_bits(),
+                pos.offset_secs.to_bits(),
+                "durable bookmark offset {} ≠ expected last-spoken {} (cursor must be last-spoken, never buffered-ahead; FR-007 / data-model.md:43)",
+                found_pos.offset_secs,
+                pos.offset_secs
+            );
+            prop_assert_eq!(
+                found_pos.end_kind, pos.end_kind,
+                "durable bookmark end_kind {:?} ≠ expected {:?} (FR-044 / storage-schema.md)",
+                found_pos.end_kind, pos.end_kind
+            );
 
-        // The bookmark must carry a non-negative offset (last-spoken never
-        // before document start); exact comparison on quarter-second grid.
-        prop_assert!(
-            found_pos.offset_secs >= 0.0,
-            "durable bookmark offset {} < 0.0 (invalid last-spoken cursor; data-model.md:39)",
-            found_pos.offset_secs
-        );
+            // The bookmark must carry a non-negative offset (last-spoken never
+            // before document start); exact comparison on quarter-second grid.
+            prop_assert!(
+                found_pos.offset_secs >= 0.0,
+                "durable bookmark offset {} < 0.0 (invalid last-spoken cursor; data-model.md:39)",
+                found_pos.offset_secs
+            );
+        }
     }
 
     // T053: event-durable writes fire immediately on each listed
@@ -259,12 +246,14 @@ proptest! {
                         "event {} ({:?}): no event-durable bookmark after Pause (FR-007 / T053); i={}, event={:?}",
                         i, event, i, event
                     );
-                    prop_assert_eq!(
-                        found.unwrap().end_kind,
-                        SessionEnd::Paused,
-                        "event {} ({:?}): bookmark end_kind ≠ Paused (retained; FR-044)",
-                        i, event,
-                    );
+                    if let Some(found) = found {
+                        prop_assert_eq!(
+                            found.end_kind,
+                            SessionEnd::Paused,
+                            "event {} ({:?}): bookmark end_kind ≠ Paused (retained; FR-044)",
+                            i, event,
+                        );
+                    }
                 }
                 DurableEvent::FocusLoss
                 | DurableEvent::DeviceRemoved
@@ -285,13 +274,14 @@ proptest! {
                         "event {} ({:?}): no event-durable bookmark on interruption (FR-007 / T053); i={}, event={:?}",
                         i, event, i, event
                     );
-                    let found_pos = found.unwrap();
-                    prop_assert!(
-                        found_pos.end_kind == SessionEnd::Interrupted
-                            || found_pos.end_kind == SessionEnd::Paused,
-                        "event {} ({:?}): bookmark end_kind {:?} not in retained set (FR-044 / storage-schema.md)",
-                        i, event, found_pos.end_kind,
-                    );
+                    if let Some(found_pos) = found {
+                        prop_assert!(
+                            found_pos.end_kind == SessionEnd::Interrupted
+                                || found_pos.end_kind == SessionEnd::Paused,
+                            "event {} ({:?}): bookmark end_kind {:?} not in retained set (FR-044 / storage-schema.md)",
+                            i, event, found_pos.end_kind,
+                        );
+                    }
                 }
                 DurableEvent::SectionChange => {
                     // Section change — durable write (retained).
@@ -370,15 +360,21 @@ proptest! {
         };
 
         store.put(&fp, durable)?;
-        let found = store.get(&fp)?.unwrap();
-
-        prop_assert_eq!(
-            found.offset_secs,
-            offset,
-            "durable bookmark offset {} ≠ last-spoken input {} (FR-007: cursor must be last-spoken, never buffered-ahead; data-model.md:39)",
-            found.offset_secs,
-            offset
+        let found = store.get(&fp)?;
+        prop_assert!(
+            found.is_some(),
+            "no durable bookmark found under the content fingerprint after put (FR-007 / storage-schema.md)"
         );
+
+        if let Some(found) = found {
+            prop_assert_eq!(
+                found.offset_secs.to_bits(),
+                offset.to_bits(),
+                "durable bookmark offset {} ≠ last-spoken input {} (FR-007: cursor must be last-spoken, never buffered-ahead; data-model.md:39)",
+                found.offset_secs,
+                offset
+            );
+        }
 
         // The bookmark key is the content fingerprint (blake3-256), never
         // the document path — FR-036 / storage-schema.md.

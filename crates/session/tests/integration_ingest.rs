@@ -23,6 +23,7 @@
 //! injected writers, so the IPC path and the CLI path are
 //! exercised identically (Principle II).
 
+use std::error::Error;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -35,15 +36,15 @@ use session::store::{BookmarkStore, StoredPosition};
 struct TempDir(PathBuf);
 
 impl TempDir {
-    fn new(label: &str) -> Self {
+    fn new(label: &str) -> Result<Self, Box<dyn Error>> {
         let base = std::env::temp_dir().join(format!(
             "t014-{label}-{}-{:?}",
             std::process::id(),
             std::thread::current().id()
         ));
         let _ = fs::remove_dir_all(&base);
-        fs::create_dir_all(&base).expect("create tempdir");
-        Self(base)
+        fs::create_dir_all(&base)?;
+        Ok(Self(base))
     }
 
     fn path(&self) -> &Path {
@@ -57,11 +58,21 @@ impl Drop for TempDir {
     }
 }
 
+/// The 64-digit lowercase hex form of a 32-byte fingerprint —
+/// the same form the payload carries.
+fn hex_of(bytes: &[u8; 32]) -> String {
+    use std::fmt::Write as _;
+    bytes.iter().fold(String::new(), |mut hex, byte| {
+        let _ignored = write!(hex, "{byte:02x}");
+        hex
+    })
+}
+
 /// Runs `session --db <db> ingest <file>` and returns the
 /// parsed JSON payload (stdout) — the machine-readable
 /// default. A usage/IO failure asserts: nothing reaches
 /// stdout and the error is reported on stderr.
-fn ingest_json(db: &Path, document: &Path) -> String {
+fn ingest_json(db: &Path, document: &Path) -> Result<String, Box<dyn Error>> {
     let mut stdout: Vec<u8> = Vec::new();
     let mut stderr: Vec<u8> = Vec::new();
     let args = [
@@ -70,45 +81,44 @@ fn ingest_json(db: &Path, document: &Path) -> String {
         "ingest".to_string(),
         document.to_string_lossy().into_owned(),
     ];
-    session_cli(args.into_iter(), &mut stdout, &mut stderr)
-        .expect("ingest of an existing file must succeed");
+    session_cli(args.into_iter(), &mut stdout, &mut stderr)?;
     assert!(
         stderr.is_empty(),
         "a successful ingest must write nothing to stderr, got: {}",
         String::from_utf8_lossy(&stderr)
     );
-    String::from_utf8(stdout).expect("stdout is UTF-8 JSON")
+    Ok(String::from_utf8(stdout)?)
 }
 
 /// Extracts a JSON string value for `key` from a flat JSON
 /// object payload — the payload shape is flat (`{...}`), so
 /// a scan for `"key":` is exact here.
-fn json_field(payload: &str, key: &str) -> String {
+fn json_field(payload: &str, key: &str) -> Result<String, Box<dyn Error>> {
     let needle = format!("\"{key}\":");
     let start = payload
         .find(&needle)
-        .unwrap_or_else(|| panic!("payload {payload} missing key {key}"))
+        .ok_or_else(|| format!("payload {payload} missing key {key}"))?
         + needle.len();
-    let rest = &payload[start..];
-    let rest = rest.trim_start();
-    if let Some(stripped) = rest.strip_prefix('"') {
-        let end = stripped
-            .find('"')
-            .unwrap_or_else(|| panic!("unterminated string for {key} in {payload}"));
-        stripped[..end].to_string()
-    } else {
-        let end = rest
-            .find(|c: char| c == ',' || c == '}')
-            .unwrap_or(rest.len());
-        rest[..end].to_string()
-    }
+    let rest = payload[start..].trim_start();
+    rest.strip_prefix('"').map_or_else(
+        || {
+            let end = rest.find([',', '}']).unwrap_or(rest.len());
+            Ok(rest[..end].to_string())
+        },
+        |stripped| {
+            let end = stripped
+                .find('"')
+                .ok_or_else(|| format!("unterminated string for {key} in {payload}"))?;
+            Ok(stripped[..end].to_string())
+        },
+    )
 }
 
 /// Writes `bytes` to `dir/name` and returns the path.
-fn write_document(dir: &Path, name: &str, bytes: &[u8]) -> PathBuf {
+fn write_document(dir: &Path, name: &str, bytes: &[u8]) -> Result<PathBuf, Box<dyn Error>> {
     let path = dir.join(name);
-    fs::write(&path, bytes).expect("write document");
-    path
+    fs::write(&path, bytes)?;
+    Ok(path)
 }
 
 const DOC_A: &[u8] =
@@ -116,134 +126,130 @@ const DOC_A: &[u8] =
 const DOC_B: &[u8] = b"# Outro Documento\n\nConteudo diferente por completo.\n";
 
 #[test]
-fn ingest_of_a_fresh_document_reports_no_resume_and_zero_offset() {
-    let dir = TempDir::new("fresh");
+fn ingest_of_a_fresh_document_reports_no_resume_and_zero_offset() -> Result<(), Box<dyn Error>> {
+    let dir = TempDir::new("fresh")?;
     let db = dir.path().join("bookmarks.redb");
-    let document = write_document(dir.path(), "roteiro.md", DOC_A);
+    let document = write_document(dir.path(), "roteiro.md", DOC_A)?;
 
-    let payload = ingest_json(&db, &document);
-    let expected_fp = fingerprint(DOC_A);
-    let expected_hex: String = expected_fp.iter().map(|b| format!("{b:02x}")).collect();
+    let payload = ingest_json(&db, &document)?;
+    let expected_hex = hex_of(&fingerprint(DOC_A));
     assert_eq!(
-        json_field(&payload, "fingerprint"),
+        json_field(&payload, "fingerprint")?,
         expected_hex,
         "ingest must report the blake3 fingerprint of the document bytes"
     );
     assert_eq!(
-        json_field(&payload, "resume"),
+        json_field(&payload, "resume")?,
         "false",
         "a fresh document (no stored position) must resolve to no offer"
     );
     assert_eq!(
-        json_field(&payload, "offset"),
+        json_field(&payload, "offset")?,
         "0.0",
         "a fresh document starts at 0.0 (FR-036a)"
     );
+    Ok(())
 }
 
 #[test]
-fn ingest_after_a_deliberate_pause_reports_resume_and_the_offset() {
-    let dir = TempDir::new("paused");
+fn ingest_after_a_deliberate_pause_reports_resume_and_the_offset() -> Result<(), Box<dyn Error>> {
+    let dir = TempDir::new("paused")?;
     let db = dir.path().join("bookmarks.redb");
-    let document = write_document(dir.path(), "roteiro.md", DOC_A);
+    let document = write_document(dir.path(), "roteiro.md", DOC_A)?;
 
     // Store a deliberate pause under the document's content
     // fingerprint — the host-side shape of "the listener
     // paused and closed the app".
     let key = fingerprint(DOC_A);
-    let mut store = BookmarkStore::open(&db).expect("open store");
-    store
-        .put(
-            &key,
-            StoredPosition {
-                offset_secs: 317.25,
-                first_yield_ms: 0,
-                end_kind: SessionEnd::Paused,
-            },
-        )
-        .expect("put paused position");
+    let mut store = BookmarkStore::open(&db)?;
+    store.put(
+        &key,
+        StoredPosition {
+            offset_secs: 317.25,
+            first_yield_ms: 0,
+            end_kind: SessionEnd::Paused,
+        },
+    )?;
     drop(store);
 
-    let payload = ingest_json(&db, &document);
+    let payload = ingest_json(&db, &document)?;
     assert_eq!(
-        json_field(&payload, "resume"),
+        json_field(&payload, "resume")?,
         "true",
         "a stored deliberate pause is the only resume-offering end kind"
     );
     assert_eq!(
-        json_field(&payload, "offset"),
+        json_field(&payload, "offset")?,
         "317.25",
         "ingest must report the stored last-spoken offset"
     );
+    Ok(())
 }
 
 #[test]
-fn moved_or_renamed_document_restores_the_same_position() {
-    let dir = TempDir::new("moved");
+fn moved_or_renamed_document_restores_the_same_position() -> Result<(), Box<dyn Error>> {
+    let dir = TempDir::new("moved")?;
     let db = dir.path().join("bookmarks.redb");
 
     // The document is picked once under one name...
-    let original = write_document(dir.path(), "original.md", DOC_A);
+    let original = write_document(dir.path(), "original.md", DOC_A)?;
     let key = fingerprint(DOC_A);
-    let mut store = BookmarkStore::open(&db).expect("open store");
-    store
-        .put(
-            &key,
-            StoredPosition {
-                offset_secs: 512.0,
-                first_yield_ms: 1_700_000_000_000,
-                end_kind: SessionEnd::Paused,
-            },
-        )
-        .expect("put");
+    let mut store = BookmarkStore::open(&db)?;
+    store.put(
+        &key,
+        StoredPosition {
+            offset_secs: 512.0,
+            first_yield_ms: 1_700_000_000_000,
+            end_kind: SessionEnd::Paused,
+        },
+    )?;
     drop(store);
 
     // ...then moved and renamed on disk and re-picked. The
     // fingerprint is keyed on the CONTENT, never the path
     // (FR-036), so the same bytes resolve to the same row.
     let moved_dir = dir.path().join("subdir");
-    fs::create_dir_all(&moved_dir).expect("create subdir");
+    fs::create_dir_all(&moved_dir)?;
     let moved = moved_dir.join("outro-nome.md");
-    fs::rename(&original, &moved).expect("move document");
-    fs::write(&moved, DOC_A).expect("ensure content after move");
+    fs::rename(&original, &moved)?;
+    fs::write(&moved, DOC_A)?;
 
-    let payload = ingest_json(&db, &moved);
+    let payload = ingest_json(&db, &moved)?;
     assert_eq!(
-        json_field(&payload, "fingerprint"),
-        key.iter().map(|b| format!("{b:02x}")).collect::<String>(),
+        json_field(&payload, "fingerprint")?,
+        hex_of(&key),
         "the moved/renamed document must fingerprint identically"
     );
     assert_eq!(
-        json_field(&payload, "resume"),
+        json_field(&payload, "resume")?,
         "true",
         "hash-match restore: a moved/renamed re-pick must offer resume"
     );
     assert_eq!(
-        json_field(&payload, "offset"),
+        json_field(&payload, "offset")?,
         "512.0",
         "hash-match restore must report the stored offset"
     );
+    Ok(())
 }
 
 #[test]
-fn an_edited_document_resolves_to_no_resume() {
-    let dir = TempDir::new("edited");
+fn an_edited_document_resolves_to_no_resume() -> Result<(), Box<dyn Error>> {
+    let dir = TempDir::new("edited")?;
     let db = dir.path().join("bookmarks.redb");
-    let original = write_document(dir.path(), "doc.md", DOC_A);
+    let original = write_document(dir.path(), "doc.md", DOC_A)?;
 
     // A position stored for the original bytes.
     let key = fingerprint(DOC_A);
-    let mut store = BookmarkStore::open(&db).expect("open store");
-    store
-        .put(
-            &key,
-            StoredPosition {
-                offset_secs: 100.0,
-                first_yield_ms: 0,
-                end_kind: SessionEnd::Paused,
-            },
-        )
-        .expect("put");
+    let mut store = BookmarkStore::open(&db)?;
+    store.put(
+        &key,
+        StoredPosition {
+            offset_secs: 100.0,
+            first_yield_ms: 0,
+            end_kind: SessionEnd::Paused,
+        },
+    )?;
     drop(store);
 
     // The document is edited on disk — one byte of content
@@ -251,111 +257,105 @@ fn an_edited_document_resolves_to_no_resume() {
     let mut edited = DOC_A.to_vec();
     let last = edited.len() - 1;
     edited[last] ^= 0x01;
-    fs::write(&original, &edited).expect("write edited document");
+    fs::write(&original, &edited)?;
 
-    let payload = ingest_json(&db, &original);
+    let payload = ingest_json(&db, &original)?;
     let edited_key = fingerprint(&edited);
     assert_eq!(
-        json_field(&payload, "fingerprint"),
-        edited_key
-            .iter()
-            .map(|b| format!("{b:02x}"))
-            .collect::<String>(),
+        json_field(&payload, "fingerprint")?,
+        hex_of(&edited_key),
         "the edited document must fingerprint to the edited content"
     );
     assert_eq!(
-        json_field(&payload, "resume"),
+        json_field(&payload, "resume")?,
         "false",
         "an edited document's stored position is unreachable — no offer (FR-036a)"
     );
     assert_eq!(
-        json_field(&payload, "offset"),
+        json_field(&payload, "offset")?,
         "0.0",
         "an edited document starts at 0.0"
     );
+    Ok(())
 }
 
 #[test]
-fn switching_documents_never_deletes_the_first_documents_position() {
-    let dir = TempDir::new("switch");
+fn switching_documents_never_deletes_the_first_documents_position() -> Result<(), Box<dyn Error>> {
+    let dir = TempDir::new("switch")?;
     let db = dir.path().join("bookmarks.redb");
-    let doc_a = write_document(dir.path(), "a.md", DOC_A);
-    let _doc_b = write_document(dir.path(), "b.md", DOC_B);
+    let doc_a = write_document(dir.path(), "a.md", DOC_A)?;
+    let _doc_b = write_document(dir.path(), "b.md", DOC_B)?;
 
     // Document A is paused with a stored position.
     let key_a = fingerprint(DOC_A);
-    let mut store = BookmarkStore::open(&db).expect("open store");
-    store
-        .put(
-            &key_a,
-            StoredPosition {
-                offset_secs: 42.5,
-                first_yield_ms: 7,
-                end_kind: SessionEnd::Paused,
-            },
-        )
-        .expect("put A");
+    let mut store = BookmarkStore::open(&db)?;
+    store.put(
+        &key_a,
+        StoredPosition {
+            offset_secs: 42.5,
+            first_yield_ms: 7,
+            end_kind: SessionEnd::Paused,
+        },
+    )?;
     // Document B is ingested and stored separately.
     let key_b = fingerprint(DOC_B);
-    store
-        .put(
-            &key_b,
-            StoredPosition {
-                offset_secs: 8.0,
-                first_yield_ms: 9,
-                end_kind: SessionEnd::Paused,
-            },
-        )
-        .expect("put B");
+    store.put(
+        &key_b,
+        StoredPosition {
+            offset_secs: 8.0,
+            first_yield_ms: 9,
+            end_kind: SessionEnd::Paused,
+        },
+    )?;
     drop(store);
 
     // Re-ingesting A must still see A's position: the store
     // is keyed by content, so a second document's row never
     // overwrites or deletes the first's.
-    let payload_a = ingest_json(&db, &doc_a);
+    let payload_a = ingest_json(&db, &doc_a)?;
     assert_eq!(
-        json_field(&payload_a, "resume"),
+        json_field(&payload_a, "resume")?,
         "true",
         "the first document's position must survive a second document's ingest"
     );
     assert_eq!(
-        json_field(&payload_a, "offset"),
+        json_field(&payload_a, "offset")?,
         "42.5",
         "the first document's stored offset must be unchanged"
     );
+    Ok(())
 }
 
 #[test]
-fn an_interrupted_end_stores_but_offers_no_resume() {
-    let dir = TempDir::new("interrupted");
+fn an_interrupted_end_stores_but_offers_no_resume() -> Result<(), Box<dyn Error>> {
+    let dir = TempDir::new("interrupted")?;
     let db = dir.path().join("bookmarks.redb");
-    let document = write_document(dir.path(), "doc.md", DOC_A);
+    let document = write_document(dir.path(), "doc.md", DOC_A)?;
 
     // A kill/power-loss end (FR-009 / FR-032d) stores the
     // position but is not the deliberate offer kind.
     let key = fingerprint(DOC_A);
-    let mut store = BookmarkStore::open(&db).expect("open store");
-    store
-        .put(
-            &key,
-            StoredPosition {
-                offset_secs: 60.0,
-                first_yield_ms: 0,
-                end_kind: SessionEnd::Interrupted,
-            },
-        )
-        .expect("put interrupted");
+    let mut store = BookmarkStore::open(&db)?;
+    store.put(
+        &key,
+        StoredPosition {
+            offset_secs: 60.0,
+            first_yield_ms: 0,
+            end_kind: SessionEnd::Interrupted,
+        },
+    )?;
     drop(store);
 
-    let payload = ingest_json(&db, &document);
+    let payload = ingest_json(&db, &document)?;
     assert_eq!(
-        json_field(&payload, "resume"),
+        json_field(&payload, "resume")?,
         "false",
         "an interrupted end auto-resumes nothing (FR-014); the explicit-resume form resolves in offer.rs"
     );
     assert_eq!(
-        json_field(&payload, "offset"),
+        json_field(&payload, "offset")?,
         "60.0",
         "the interrupted end's stored position is still reported"
     );
+    Ok(())
 }

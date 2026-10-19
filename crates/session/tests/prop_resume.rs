@@ -281,7 +281,7 @@ fn playback_rate_strategy() -> impl Strategy<Value = PlaybackRate> {
 )]
 fn boundary_list_strategy() -> impl Strategy<Value = Vec<f64>> {
     proptest::collection::vec(0u64..=14_400, 0..=32).prop_map(|mut quarters| {
-        quarters.sort();
+        quarters.sort_unstable();
         quarters.dedup();
         quarters
             .iter()
@@ -305,7 +305,7 @@ fn store_path(dir: &std::path::Path) -> std::path::PathBuf {
 /// delete the entry instead of storing one — and
 /// opens nothing either; that arm is pinned by R4
 /// and by `prop_offer.rs` O6/O7.
-fn expected_offer(stored: &StoredPosition) -> Option<Offer> {
+const fn expected_offer(stored: &StoredPosition) -> Option<Offer> {
     match stored.end_kind {
         SessionEnd::Paused => Some(Offer::Continue {
             offset_secs: stored.offset_secs,
@@ -321,10 +321,6 @@ fn expected_offer(stored: &StoredPosition) -> Option<Offer> {
 /// timeline or at the document start (FR-038). The
 /// float comparisons are exact on the quarter-second
 /// grid.
-#[expect(
-    clippy::float_cmp,
-    reason = "the stored position, the re-anchor and the boundaries are exact binary fractions on the quarter-second grid, so <= and == are the correct comparisons; a tolerance would admit an off-boundary or post-position re-anchor"
-)]
 fn is_a_valid_reanchor(position: f64, offset: f64, boundaries: &[f64]) -> bool {
     let on_a_boundary = boundaries.contains(&position);
     let at_the_document_start = position == 0.0;
@@ -335,14 +331,10 @@ fn is_a_valid_reanchor(position: f64, offset: f64, boundaries: &[f64]) -> bool {
 /// `None` when no boundary precedes it — the
 /// FR-038 oracle, computed independently of the
 /// implementation under test.
-#[expect(
-    clippy::float_cmp,
-    reason = "boundary positions and cursors are exact binary fractions on the quarter-second grid, so <= and > are the correct comparisons; a tolerance would admit an off-boundary re-anchor"
-)]
 fn greatest_boundary_at_or_before(cursor: f64, boundaries: &[f64]) -> Option<f64> {
     let mut best: Option<f64> = None;
     for &boundary in boundaries {
-        if boundary <= cursor && best.map_or(true, |previous| boundary > previous) {
+        if boundary <= cursor && best.is_none_or(|previous| boundary > previous) {
             best = Some(boundary);
         }
     }
@@ -844,8 +836,7 @@ fn a_terminal_end_reopens_at_the_first_spoken_position_with_no_offer()
         let found = store.get(&key)?;
         assert_eq!(
             found, None,
-            "the entry survived a terminal end ({:?}) (FR-032, FR-032b)",
-            terminal
+            "the entry survived a terminal end ({terminal:?}) (FR-032, FR-032b)"
         );
 
         // …and the reopen is a miss: no offer, reading from 0.0.
@@ -853,14 +844,12 @@ fn a_terminal_end_reopens_at_the_first_spoken_position_with_no_offer()
         let offer = machine.on_session_end(key, found);
         assert_eq!(
             offer, None,
-            "a terminal-end reopen opened a resume offer ({:?}) (FR-032e)",
-            terminal
+            "a terminal-end reopen opened a resume offer ({terminal:?}) (FR-032e)"
         );
         assert_eq!(
             machine.expire(),
             ExpiryOutcome::NoOffer,
-            "a terminal-end reopen produced an expiry outcome ({:?}) (FR-032e)",
-            terminal
+            "a terminal-end reopen produced an expiry outcome ({terminal:?}) (FR-032e)"
         );
     }
     Ok(())
@@ -879,8 +868,7 @@ fn a_terminal_end_reopens_at_the_first_spoken_position_with_no_offer()
     reason = "the positions 40.0 and 0.0 and the boundary lists are exact binary fractions on the quarter-second grid, so == is the correct comparison; a tolerance would admit an off-boundary re-anchor"
 )]
 #[test]
-fn a_position_with_no_boundary_at_or_before_it_falls_back_to_the_document_start()
--> Result<(), Box<dyn std::error::Error>> {
+fn a_position_with_no_boundary_at_or_before_it_falls_back_to_the_document_start() {
     // An empty timeline: nothing precedes the position.
     let empty = reanchor(40.0, &[]);
     assert_eq!(
@@ -915,7 +903,6 @@ fn a_position_with_no_boundary_at_or_before_it_falls_back_to_the_document_start(
         Some(40.0),
         "a boundary exactly at the position was not reported (FR-038)"
     );
-    Ok(())
 }
 
 /// Boundary case (R7, FR-019 / FR-019b): every
@@ -935,8 +922,7 @@ fn every_ladder_rung_round_trips_through_the_store() -> Result<(), Box<dyn std::
         assert_eq!(
             found,
             Some(rate),
-            "the ladder rung {:?} did not round-trip (FR-019b)",
-            rate
+            "the ladder rung {rate:?} did not round-trip (FR-019b)"
         );
     }
     Ok(())

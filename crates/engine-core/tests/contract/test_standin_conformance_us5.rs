@@ -204,7 +204,7 @@ const ENGINE_ERRORS: [(EngineError, &str); 7] = [
 /// exact": it compiles only while `EngineError` has
 /// exactly the seven named members (Principle VII,
 /// FR-044).
-fn engine_error_wire_of(error: EngineError) -> &'static str {
+const fn engine_error_wire_of(error: EngineError) -> &'static str {
     match error {
         EngineError::Unreachable => "engine_unreachable",
         EngineError::InitFailed => "engine_init_failed",
@@ -509,7 +509,7 @@ fn the_standins_satisfy_the_contract_role_split() {
 /// 60.5 s is the smallest the contract rejects.
 #[test]
 fn the_declared_pre_roll_bound_is_sixty_seconds() {
-    assert_eq!(MAX_PREROLL_SECS, 60.0);
+    assert_eq!(MAX_PREROLL_SECS.to_bits(), 60.0_f64.to_bits());
 }
 
 proptest! {
@@ -702,8 +702,7 @@ fn standin_a_rejects_a_pre_roll_budget_above_sixty_seconds() {
     match Engine::stream(&mut engine, 0.0, over_bound) {
         Ok(_) => assert!(
             exactly_equal(over_bound, MAX_PREROLL_SECS),
-            "a pre-roll budget of {over_bound} s was accepted despite exceeding the {bound} s bound",
-            bound = MAX_PREROLL_SECS
+            "a pre-roll budget of {over_bound} s was accepted despite exceeding the {MAX_PREROLL_SECS} s bound"
         ),
         Err(error) => {
             // The rejection surfaces as a named
@@ -735,8 +734,7 @@ fn standin_a_rejects_a_pre_roll_budget_above_sixty_seconds() {
     let at_bound = Engine::stream(&mut engine, 0.0, MAX_PREROLL_SECS);
     assert!(
         at_bound.is_ok(),
-        "a pre-roll budget of exactly {bound} s was rejected",
-        bound = MAX_PREROLL_SECS
+        "a pre-roll budget of exactly {MAX_PREROLL_SECS} s was rejected"
     );
 }
 
@@ -751,8 +749,7 @@ fn standin_b_rejects_a_pre_roll_budget_above_sixty_seconds() {
     match Engine::stream(&mut engine, 0.0, over_bound) {
         Ok(_) => assert!(
             exactly_equal(over_bound, MAX_PREROLL_SECS),
-            "a pre-roll budget of {over_bound} s was accepted despite exceeding the {bound} s bound",
-            bound = MAX_PREROLL_SECS
+            "a pre-roll budget of {over_bound} s was accepted despite exceeding the {MAX_PREROLL_SECS} s bound"
         ),
         Err(error) => {
             // The rejection surfaces as a named
@@ -784,7 +781,6 @@ fn standin_b_rejects_a_pre_roll_budget_above_sixty_seconds() {
     let at_bound = Engine::stream(&mut engine, 0.0, MAX_PREROLL_SECS);
     assert!(
         at_bound.is_ok(),
-        "a pre-roll budget of exactly {bound} s was rejected",
-        bound = MAX_PREROLL_SECS
+        "a pre-roll budget of exactly {MAX_PREROLL_SECS} s was rejected"
     );
 }

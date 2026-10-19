@@ -15,7 +15,7 @@
 use proptest::prelude::*;
 
 use engine_core::closed::SessionEnd;
-use session::store::{BookmarkStore, StoredPosition, clear_bookmark};
+use session::store::{BookmarkStore, StoredPosition};
 
 /// Arbitrary 32-byte content fingerprint (blake3-256).
 fn fingerprint_strategy() -> impl Strategy<Value = [u8; 32]> {
@@ -40,12 +40,29 @@ fn session_state_strategy() -> impl Strategy<Value = SessionState> {
     ]
 }
 
+/// One step of the open/switch flow — a closed three-member set
+/// (FR-018), so the event match enumerates every step and needs no
+/// catch-all arm.
+#[derive(Clone, Copy, Debug)]
+enum SwitchEvent {
+    /// Durable bookmark put for the first document (`Paused`/`Interrupted`).
+    DurableSave,
+    /// Second document picked (no store mutation — simulated intent).
+    PickSecond,
+    /// Second snapshot saved (new bookmark written).
+    SaveSecondSnapshot,
+}
+
 /// Event sequence over the open/switch flow.
-/// 0 = durable bookmark put for first document (Paused/Interrupted);
-/// 1 = second document picked (no store mutation — simulated intent);
-/// 2 = second snapshot saved (new bookmark written).
-fn event_sequence_strategy() -> impl Strategy<Value = Vec<u8>> {
-    prop::collection::vec(0u8..=2u8, 1..=4)
+fn event_sequence_strategy() -> impl Strategy<Value = Vec<SwitchEvent>> {
+    prop::collection::vec(
+        prop_oneof![
+            Just(SwitchEvent::DurableSave),
+            Just(SwitchEvent::PickSecond),
+            Just(SwitchEvent::SaveSecondSnapshot),
+        ],
+        1..=4,
+    )
 }
 
 proptest! {
@@ -70,12 +87,10 @@ proptest! {
 
         // Event sequence applied to the store — models the
         // open-switch flow (durable save → pick → save).
-        let mut had_durable = false;
         let mut had_save = false;
         for step in sequence {
             match step {
-                0 => {
-                    had_durable = true;
+                SwitchEvent::DurableSave => {
                     // Durable bookmark with correct end_kind for
                     // non-terminal session states (FR-018 / FR-044).
                     if state != SessionState::Stopped {
@@ -90,11 +105,11 @@ proptest! {
                         })?;
                     }
                 }
-                1 => {
+                SwitchEvent::PickSecond => {
                     // Second document picked — simulated intent,
                     // no direct store mutation (the wire is missing).
                 }
-                2 => {
+                SwitchEvent::SaveSecondSnapshot => {
                     had_save = true;
                     // New snapshot written for second document.
                     store.put(&second_fp, StoredPosition {
@@ -103,7 +118,6 @@ proptest! {
                         end_kind: SessionEnd::Paused,
                     })?;
                 }
-                _ => unreachable!(),
             }
         }
 
@@ -116,11 +130,12 @@ proptest! {
                 first_after.is_some(),
                 "first bookmark deleted after second document pick (FR-018); durable-save wire missing"
             );
-            let pos = first_after.unwrap();
-            prop_assert!(
-                pos.end_kind == SessionEnd::Paused || pos.end_kind == SessionEnd::Interrupted,
-                "first bookmark lost Paused/Interrupted end_kind after switch (FR-018)"
-            );
+            if let Some(pos) = first_after {
+                prop_assert!(
+                    pos.end_kind == SessionEnd::Paused || pos.end_kind == SessionEnd::Interrupted,
+                    "first bookmark lost Paused/Interrupted end_kind after switch (FR-018)"
+                );
+            }
         }
 
         // Invariant 2: new snapshot exists ONLY after save step.
@@ -135,11 +150,10 @@ proptest! {
         // Invariant 3: `clear_bookmark` NOT called before save.
         // Verified negatively by the first bookmark still resolving
         // (if `clear_bookmark` had fired, `store.get(&first_fp)`
-        // would be None — see assertion above). The free function
-        // `clear_bookmark` lives in `session::store` (lib.rs re-export)
-        // and is only invoked by Stop / document-end flows, never
-        // by a second-document pick (storage-schema.md).
-        let _ref_clear = clear_bookmark; // reference only — never invoked
+        // would be None — see assertion above). `clear_bookmark`
+        // lives in `session::store` and is only invoked by Stop /
+        // document-end flows, never by a second-document pick
+        // (storage-schema.md).
         prop_assert!(
             true,
             "clear_bookmark must not fire before new snapshot (FR-018 / storage-schema.md)"
@@ -150,8 +164,9 @@ proptest! {
         // state. The resume-offer form is resolved solely from the
         // stored `end_kind` (FR-044); a `Paused` entry opens the
         // 3-second offer (FR-032c), never auto-audio.
-        if had_save {
-            let second_pos = store.get(&second_fp)?.unwrap();
+        if had_save
+            && let Some(second_pos) = store.get(&second_fp)?
+        {
             prop_assert!(
                 second_pos.end_kind == SessionEnd::Paused,
                 "second snapshot must carry Paused (not auto-start) (FR-018)"

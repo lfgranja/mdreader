@@ -40,10 +40,18 @@ use player::transport::TransportState;
 use serde_json::{Map, Value};
 use src_tauri::publish::build_kotlin_mirror_json;
 
+#[expect(
+    clippy::expect_used,
+    reason = "test harness: the Kotlin mirror payload shape IS the contract under test, so a missing/ill-typed key must fail this test loudly rather than be swallowed"
+)]
 fn parse(json: &str) -> Value {
     serde_json::from_str(json).expect("kotlin mirror payload is valid JSON")
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "test harness: the Kotlin mirror payload shape IS the contract under test, so a missing/ill-typed key must fail this test loudly rather than be swallowed"
+)]
 fn object_of(value: &Value) -> &Map<String, Value> {
     value.as_object().expect("payload is a JSON object")
 }
@@ -71,6 +79,10 @@ fn sorted_keys(object: &Map<String, Value>) -> Vec<&str> {
 /// the content-offset units in the Kotlin determinate shape, and the
 /// ongoing (non-dismissable) policy.
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "test harness: the Kotlin mirror payload shape IS the contract under test, so a missing/ill-typed key must fail this test loudly rather than be swallowed"
+)]
 fn playing_publishes_units_and_an_ongoing_surface() {
     let surface = determinate(12, 60);
     let payload = parse(&build_kotlin_mirror_json(
@@ -154,9 +166,7 @@ fn determinate_lock_screen_publishes_localized_progress_label() {
     ));
     assert_eq!(
         payload.get("progressLabel"),
-        Some(&Value::from(
-            "Seção 2 de 5 — 20% (content-offset)"
-        )),
+        Some(&Value::from("Seção 2 de 5 — 20% (content-offset)")),
         "T089 RED: determinante progress label is pt-BR identifier per surface.md FR-011/FR-013; includes (content-offset) not rendered prose"
     );
 }
@@ -186,11 +196,15 @@ fn indeterminate_lock_screen_omits_localized_progress_label() {
 /// payload must carry the frozen pt-BR identifier label with
 /// (content-offset), and never for indeterminate.
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "test harness: the Kotlin mirror payload shape IS the contract under test, so a missing/ill-typed key must fail this test loudly rather than be swallowed"
+)]
 fn prop_kotlin_mirror_progress_label_invariant() {
     // Property-style: sweep k in [1..4], n in [k+1..7], p = floor(100*k/n)
     for k in 1..=4 {
         for n in (k + 1)..=7 {
-            let consumed = (100 * k / n) as u64 * 10; // arbitrary content-offset units
+            let consumed = u64::from(100 * k / n) * 10; // arbitrary content-offset units
             let total = 100u64;
             let surface = SurfaceSnapshot {
                 title: String::from("Prop doc"),
@@ -215,8 +229,12 @@ fn prop_kotlin_mirror_progress_label_invariant() {
                 .expect("T089 RED: progressLabel present for determinate");
             let s = label.as_str().expect("label is string");
             assert!(
-                s.contains("Seção") && s.contains("de") && s.contains("—") && s.contains("%") && s.contains("(content-offset)"),
-                "T089 RED: determinate label format broken: {} (expected pt-BR identifier with (content-offset))", s
+                s.contains("Seção")
+                    && s.contains("de")
+                    && s.contains("—")
+                    && s.contains('%')
+                    && s.contains("(content-offset)"),
+                "T089 RED: determinate label format broken: {s} (expected pt-BR identifier with (content-offset))"
             );
         }
     }
@@ -273,6 +291,10 @@ fn indeterminate_progress_carries_no_determinate_key() {
 /// A transient pause auto-dismisses at the shared window (FR-028e):
 /// the Kotlin shape is the single-key `autoDismiss` object.
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "test harness: the Kotlin mirror payload shape IS the contract under test, so a missing/ill-typed key must fail this test loudly rather than be swallowed"
+)]
 fn transient_pause_auto_dismisses_at_the_shared_window() {
     let surface = determinate(7, 60);
     let payload = parse(&build_kotlin_mirror_json(
@@ -309,6 +331,10 @@ fn transient_pause_auto_dismisses_at_the_shared_window() {
 /// A resident pause (no stated reason) carries the dismissable
 /// shape: the resume control survives dismissal (FR-028e).
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "test harness: the Kotlin mirror payload shape IS the contract under test, so a missing/ill-typed key must fail this test loudly rather than be swallowed"
+)]
 fn resident_pause_is_dismissable_without_auto_dismissal() {
     let surface = determinate(30, 60);
     let payload = parse(&build_kotlin_mirror_json(
@@ -355,7 +381,7 @@ fn haptic_id_rides_verbatim_when_selected() {
     assert_eq!(object_of(&without_id).get("haptic"), Some(&Value::Null));
 }
 
-/// The Kotlin form never leaks the in-app (snake_case) names or the
+/// The Kotlin form never leaks the in-app (`snake_case`) names or the
 /// section counters: the vocabulary of the two wire forms stays
 /// disjoint, so a field rename on one side cannot silently reach the
 /// other.

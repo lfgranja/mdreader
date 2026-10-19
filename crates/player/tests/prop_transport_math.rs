@@ -93,7 +93,7 @@ use player::buffer::PreRollBuffer;
 use player::cli::{PlaybackSession, ShellVariant, ShellVerb};
 use player::position::{PositionClock, REWIND_CAP_SECS, REWIND_FRACTION, SKIP_STEP_SECS};
 use player::rate::{LADDER, RATE_EFFECTIVE_BOUND_SECS, step_down, step_up};
-use player::skip::{apply_skip_exact, rate_change_effective_time};
+use player::skip::rate_change_effective_time;
 
 /// Positions on the exact quarter-second grid `k × 0.25` ∈ [0, 3600].
 #[expect(
@@ -881,8 +881,10 @@ fn a_negative_start_is_clamped_to_the_declared_floor() {
 //   `None` for `new()`, whose skips clamp at the 0.0
 //   floor only and never reach an end-state).
 // - Skip verb semantics: `SkipForward` lands at
-//   `min(press_time + 5.0, duration)` and, when that
-//   reaches the duration, lands the transport on
+//   `min(press_time + 10.0, duration)` — the FR-002
+//   zero-sections fallback for a session with no document
+//   structure — and, when that reaches the duration, lands
+//   the transport on
 //   `Paused` (the end-state); `SkipBackward` lands at
 //   `max(press_time - 5.0, 0.0)` and never changes the
 //   transport. Rate verbs change exactly one rung, leave
@@ -890,17 +892,19 @@ fn a_negative_start_is_clamped_to_the_declared_floor() {
 //   buffer (it must be re-prepared at the new rate,
 //   FR-043).
 //
-// Oracle note: the unclamped ±5.0 s core is
-// `apply_skip_exact` (`player::skip`); the session-level
-// oracle additionally clamps at the session's duration
-// ceiling. The one-step ladder oracles are this file's
-// own `rate_up_from`/`rate_down_from` — exhaustive
+// Oracle note: the session-level skip oracle is the
+// FR-002 zero-sections fallback — exactly ±10.0 s for a
+// session with no document structure — clamped at the
+// session's duration ceiling; `apply_skip_exact` (the
+// ±5.0 s FR-018 core) gates only the PositionClock unit
+// tests above. The one-step ladder oracles are this
+// file's own `rate_up_from`/`rate_down_from` — exhaustive
 // matches over the same closed seven-rung set, with no
 // catch-all arm. Every position and duration below is
 // generated on the quarter-second grid (`k × 0.25`), an
 // exact binary-fraction grid, so all comparisons are
 // bit-exact — a tolerance would wrongly admit an
-// off-step skip (FR-018 demands *exactly* ±5.0 s).
+// off-step skip (FR-002 demands *exactly* ±10.0 s).
 //
 // Format note: every `prop_assert*!` message uses
 // explicit positional arguments (`{}`, `arg`), never
@@ -948,13 +952,21 @@ fn end_reaching_press_strategy() -> impl Strategy<Value = (f64, f64)> {
         })
 }
 
-/// The session-level skip oracle (FR-018): the unclamped
-/// ±5.0 s core (`apply_skip_exact`, whose own 0.0-floor
-/// clamp is part of the contract) further clamped at the
-/// session's duration ceiling — the document end bounds
-/// every skip on a `with_duration` session.
+/// The sectionless skip fallback step (FR-002): the live
+/// skip verb path (`player::skip::skip_section`) displaces
+/// a session with no document structure by exactly ±10.0 s —
+/// the zero-sections rule — so every `with_duration`-only
+/// session in this block (no `set_document_structure`) skips
+/// by the fallback, never the ±5.0 s FR-018 core.
+const SECTIONLESS_SKIP_SECS: f64 = 10.0;
+
+/// The session-level skip oracle (FR-002): the sectionless
+/// fallback — exactly ±10.0 s, clamped at the 0.0 floor —
+/// further clamped at the session's duration ceiling: the
+/// document end bounds every skip on a `with_duration`
+/// session.
 fn session_skip_landing(press_time_secs: f64, delta_secs: f64, duration_secs: f64) -> f64 {
-    apply_skip_exact(press_time_secs, delta_secs).min(duration_secs)
+    (press_time_secs + delta_secs).max(0.0).min(duration_secs)
 }
 
 /// Drive a `with_duration` session to a press-time
@@ -980,9 +992,10 @@ proptest! {
         (duration, press) in duration_and_press_time_strategy(),
         forward in prop_oneof![Just(true), Just(false)],
     ) {
-        // P1 (FR-018): exactly ±5.0 s measured against the
-        // press-time position, clamped to [0.0, duration] —
-        // never dependent on document structure.
+        // P1 (FR-002): exactly ±10.0 s — the zero-sections
+        // fallback for a session with no document structure —
+        // measured against the press-time position, clamped
+        // to [0.0, duration].
         let mut session = PlaybackSession::with_duration(duration);
         prop_assert_eq!(
             session.duration_secs(),
@@ -996,9 +1009,9 @@ proptest! {
             ShellVariant::skip_back()
         };
         let delta = if forward {
-            SKIP_STEP_SECS
+            SECTIONLESS_SKIP_SECS
         } else {
-            -SKIP_STEP_SECS
+            -SECTIONLESS_SKIP_SECS
         };
         let expected = session_skip_landing(press, delta, duration);
         let landed = session.execute(verb);
@@ -1012,7 +1025,7 @@ proptest! {
         prop_assert_eq!(
             snapshot.position_secs,
             expected,
-            "a {} skip from press-time {} did not land at exactly the clamped ±5.0 s point {}",
+            "a {} skip from press-time {} did not land at exactly the clamped ±10.0 s point {}",
             if forward { "forward" } else { "backward" },
             press,
             expected
@@ -1031,7 +1044,7 @@ proptest! {
         // A skip is not a transport control: only a forward
         // skip that reaches the end lands the paused
         // end-state.
-        let reaches_the_end = forward && press + SKIP_STEP_SECS >= duration;
+        let reaches_the_end = forward && press + SECTIONLESS_SKIP_SECS >= duration;
         if reaches_the_end {
             prop_assert_eq!(
                 snapshot.transport,
@@ -1319,11 +1332,12 @@ fn a_with_duration_session_reports_its_known_duration() {
     );
 }
 
-/// Skip forward lands exactly 5.0 s past the press time
-/// (FR-018), leaving the transport `Playing`.
+/// Skip forward lands exactly 10.0 s past the press time —
+/// the FR-002 zero-sections fallback for a session with no
+/// document structure — leaving the transport `Playing`.
 #[expect(
     clippy::float_cmp,
-    reason = "the press time 100.0 and SKIP_STEP_SECS 5.0 are exact binary fractions; == is exact and a tolerance would admit an off-step skip"
+    reason = "the press time 100.0 and the 10.0 s fallback step are exact binary fractions; == is exact and a tolerance would admit an off-step skip"
 )]
 #[test]
 fn skip_forward_lands_exactly_five_seconds_past_the_press_time() {
@@ -1333,8 +1347,8 @@ fn skip_forward_lands_exactly_five_seconds_past_the_press_time() {
     assert!(landed.is_ok(), "a forward skip from 100.0 s was rejected");
     assert_eq!(
         session.snapshot().position_secs,
-        105.0,
-        "a forward skip from 100.0 s did not land at exactly 105.0 s (FR-018)"
+        110.0,
+        "a forward skip from 100.0 s did not land at exactly 110.0 s (FR-002)"
     );
     assert_eq!(
         session.snapshot().transport,
@@ -1343,11 +1357,12 @@ fn skip_forward_lands_exactly_five_seconds_past_the_press_time() {
     );
 }
 
-/// Skip backward lands exactly 5.0 s before the press
-/// time (FR-018), never changing the transport.
+/// Skip backward lands exactly 10.0 s before the press
+/// time — the FR-002 zero-sections fallback for a session
+/// with no document structure — never changing the transport.
 #[expect(
     clippy::float_cmp,
-    reason = "the press time 100.0 and SKIP_STEP_SECS 5.0 are exact binary fractions; == is exact and a tolerance would admit an off-step skip"
+    reason = "the press time 100.0 and the 10.0 s fallback step are exact binary fractions; == is exact and a tolerance would admit an off-step skip"
 )]
 #[test]
 fn skip_backward_lands_exactly_five_seconds_before_the_press_time() {
@@ -1357,8 +1372,8 @@ fn skip_backward_lands_exactly_five_seconds_before_the_press_time() {
     assert!(landed.is_ok(), "a backward skip from 100.0 s was rejected");
     assert_eq!(
         session.snapshot().position_secs,
-        95.0,
-        "a backward skip from 100.0 s did not land at exactly 95.0 s (FR-018)"
+        90.0,
+        "a backward skip from 100.0 s did not land at exactly 90.0 s (FR-002)"
     );
     assert_eq!(
         session.snapshot().transport,

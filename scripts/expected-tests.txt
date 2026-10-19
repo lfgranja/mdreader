@@ -44,6 +44,8 @@ player::prop_routing
 player::prop_routing_bound
 player::prop_skip
 player::prop_skip_clamp
+player::prop_skip_resident
+player::prop_skip_wire
 player::prop_surface
 player::prop_transport_math
 player::t069_adapter_declaration_consumption
@@ -79,4 +81,5 @@ src-tauri::test_kotlin_mirror_payload
 src-tauri::test_noscope
 src-tauri::test_publish_payload
 src-tauri::test_purity
+src-tauri::test_progress_label
 src-tauri::test_surface_us1

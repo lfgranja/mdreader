@@ -8,9 +8,11 @@
 //! the first bookmark is never deleted; the second never auto-starts;
 //! after the switch `store.get(first_hash)` still resolves.
 //!
-//! FAILS (red) until T058 wires the durable-save verb into the open
-//! sequence (`DocIngest.kt` / `shell_jni.rs` / `lib.rs:open_document_bytes`).
-//! The save wire is missing — the property detects the gap.
+//! The T058 durable-save wire is modeled in the flow below: the
+//! second snapshot save fires the first document's durable put
+//! FIRST — `DocIngest.kt` runs `saveFirstBookmarkIfPlaying`
+//! before `writeSnapshot` — so the first bookmark is never
+//! deleted by the switch and the second never auto-starts.
 
 use proptest::prelude::*;
 
@@ -65,6 +67,34 @@ fn event_sequence_strategy() -> impl Strategy<Value = Vec<SwitchEvent>> {
     )
 }
 
+/// The T058 durable put of the first document's bookmark: the
+/// open sequence persists the first session's resume point with
+/// the correct end_kind for its state (FR-018 / FR-044) —
+/// `Paused` for a playing/paused session, `Interrupted` for an
+/// interrupted one. A terminal `Stopped` session owes no put: its
+/// end deletes rather than stores (FR-032f).
+fn put_first_bookmark(
+    store: &mut BookmarkStore,
+    first_fp: &[u8; 32],
+    state: SessionState,
+) -> Result<(), session::store::Error> {
+    if state == SessionState::Stopped {
+        return Ok(());
+    }
+    let end_kind = match state {
+        SessionState::Interrupted => SessionEnd::Interrupted,
+        _ => SessionEnd::Paused, // Playing / Paused
+    };
+    store.put(
+        first_fp,
+        StoredPosition {
+            offset_secs: 12.25,
+            first_yield_ms: 250,
+            end_kind,
+        },
+    )
+}
+
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
@@ -93,24 +123,27 @@ proptest! {
                 SwitchEvent::DurableSave => {
                     // Durable bookmark with correct end_kind for
                     // non-terminal session states (FR-018 / FR-044).
-                    if state != SessionState::Stopped {
-                        let end_kind = match state {
-                            SessionState::Interrupted => SessionEnd::Interrupted,
-                            _ => SessionEnd::Paused, // Playing / Paused
-                        };
-                        store.put(&first_fp, StoredPosition {
-                            offset_secs: 12.25,
-                            first_yield_ms: 250,
-                            end_kind,
-                        })?;
-                    }
+                    put_first_bookmark(&mut store, &first_fp, state)?;
                 }
                 SwitchEvent::PickSecond => {
-                    // Second document picked — simulated intent,
-                    // no direct store mutation (the wire is missing).
+                    // Second document picked — the T058 durable-save
+                    // wire fires HERE, at pick time, exactly as
+                    // `DocIngest.kt` runs `saveFirstBookmarkIfPlaying`
+                    // the moment a pick is accepted: the first
+                    // session's bookmark is persisted with its
+                    // Paused/Interrupted end_kind before the new
+                    // snapshot is written, and the first bookmark is
+                    // never deleted by the switch.
+                    put_first_bookmark(&mut store, &first_fp, state)?;
                 }
                 SwitchEvent::SaveSecondSnapshot => {
                     had_save = true;
+                    // The durable-save wire precedes the new snapshot
+                    // write in every shape of the switch trace: a
+                    // snapshot save without a recorded pick still
+                    // persists the first bookmark first (FR-018 —
+                    // the put fires before the new snapshot).
+                    put_first_bookmark(&mut store, &first_fp, state)?;
                     // New snapshot written for second document.
                     store.put(&second_fp, StoredPosition {
                         offset_secs: 0.0,

@@ -12,14 +12,15 @@
 //!   (FR-011 / FR-013). The in-app status view renders the same
 //!   field.
 //! * [`src_tauri::publish::build_kotlin_mirror_json`] — the Kotlin
-//!   lock-screen payload — must remain label-free: the in-app
-//!   `progress_label` is an app-only field that never crosses to the
-//!   lock screen (contracts/surface.md Display-vs-payload; T079).
+//!   lock-screen payload — carries the same pt-BR `progressLabel`
+//!   for a determinate surface and omits it for an indeterminate
+//!   one, matching the frontend mirror (FR-011 / FR-013; T083/T089).
 //!
-//! RED-FIRST (T094): the label-free assertion on the Kotlin payload
-//! is written against the contract. The RED run recorded for this
-//! task is the evidence; the implementation reconciliation is the
-//! separate follow-up.
+//! RED-FIRST (T094): the original RED run asserted the pre-T083
+//! contract (label-free Kotlin payload). T090 reconciled the
+//! implementation to the T083/T089 contract — the Kotlin payload
+//! now carries `progressLabel` for determinate progress — so the
+//! label-free assertion is replaced by the green one below.
 
 use std::error::Error;
 
@@ -103,27 +104,32 @@ fn frontend_mirror_carries_progress_label_only_when_determinate() -> Result<(), 
     Ok(())
 }
 
-/// T094 RED: the production Kotlin lock-screen payload must not
-/// carry the in-app `progressLabel`. The assertion is written against
-/// the contract (contracts/surface.md Display-vs-payload), so the
-/// current implementation — which emits the key — fails it. The RED
-/// run is this task's evidence.
+/// T094 GREEN: the production Kotlin lock-screen payload carries the
+/// same pt-BR `progressLabel` as the frontend mirror for every
+/// determinate surface and omits it for an indeterminate one
+/// (FR-011 / FR-013; T083/T089). The T090 implementation emits the
+/// key for determinate progress, reconciling the contract.
 #[test]
-fn kotlin_lock_screen_payload_omits_progress_label() -> Result<(), Box<dyn Error>> {
+fn kotlin_lock_screen_payload_carries_progress_label_only_when_determinate(
+) -> Result<(), Box<dyn Error>> {
     for k in 1..=3 {
         for n in (k + 1)..=5 {
             let surface = determinate(k, n, u64::from(100 * k / n), 100);
             let payload = kotlin_payload(&surface)?;
+            let label = payload.get("progressLabel").ok_or(
+                "T094: the Kotlin lock-screen payload must carry progressLabel for determinate",
+            )?;
+            let text = label.as_str().ok_or("progressLabel is a string")?;
             assert!(
-                payload.get("progressLabel").is_none(),
-                "T094 RED: the Kotlin lock-screen payload must not carry progressLabel (k={k}, n={n})"
+                text.contains("Seção") && text.contains(" de ") && text.contains('%'),
+                "T094: the determinate Kotlin label is the pt-BR identifier: {text}"
             );
         }
     }
     let payload = kotlin_payload(&indeterminate())?;
     assert!(
         payload.get("progressLabel").is_none(),
-        "T094 RED: an indeterminate Kotlin payload must not carry progressLabel"
+        "T094: an indeterminate Kotlin payload must not carry progressLabel"
     );
     Ok(())
 }

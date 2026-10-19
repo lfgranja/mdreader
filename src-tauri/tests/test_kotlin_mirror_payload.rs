@@ -23,11 +23,16 @@
 //!   "haptic": null | <int id>,
 //!   "progress": {"determinate": {"consumedUnits": u, "totalUnits": t}}
 //!             | {},
+//!   "progressLabel": "...", // determinate progress only; absent otherwise
 //!   "dismissal": {"nonDismissable": null}
 //!              | {"autoDismiss": <ms>}
 //!              | {"dismissable": null}
 //! }
 //! ```
+//!
+//! `progressLabel` is the pt-BR localized progress identifier for
+//! determinate progress (T090); the key is absent for an
+//! indeterminate session (FR-028a).
 //!
 //! camelCase keys and the single-key `dismissal` object are the
 //! Kotlin enum shapes; `progress.determinate` carries the
@@ -102,6 +107,7 @@ fn playing_publishes_units_and_an_ongoing_surface() {
             "haptic",
             "positionSecs",
             "progress",
+            "progressLabel",
             "sectionTitle",
             "title",
             "transientReason",

@@ -110,8 +110,8 @@ fn frontend_mirror_carries_progress_label_only_when_determinate() -> Result<(), 
 /// (FR-011 / FR-013; T083/T089). The T090 implementation emits the
 /// key for determinate progress, reconciling the contract.
 #[test]
-fn kotlin_lock_screen_payload_carries_progress_label_only_when_determinate(
-) -> Result<(), Box<dyn Error>> {
+fn kotlin_lock_screen_payload_carries_progress_label_only_when_determinate()
+-> Result<(), Box<dyn Error>> {
     for k in 1..=3 {
         for n in (k + 1)..=5 {
             let surface = determinate(k, n, u64::from(100 * k / n), 100);

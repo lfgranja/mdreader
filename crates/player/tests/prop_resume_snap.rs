@@ -197,7 +197,7 @@ fn gaps_for(boundaries: &[f64], extra_gaps: &[f64], cap: f64) -> Vec<f64> {
 }
 
 /// Build one resume input on the generated grid.
-fn resume_input<'a>(
+const fn resume_input<'a>(
     yield_secs: f64,
     paused_duration_secs: f64,
     granularity: AlignmentGranularity,
@@ -249,8 +249,10 @@ proptest! {
         // The cursor is the single FR-015 formula, read through the
         // shared constants: `min(0.05 × paused, 30)`.
         prop_assert_eq!(
-            cursor(paused_duration_secs),
-            (REWIND_FRACTION * paused_duration_secs).min(REWIND_CAP_SECS),
+            cursor(paused_duration_secs).to_bits(),
+            (REWIND_FRACTION * paused_duration_secs)
+                .min(REWIND_CAP_SECS)
+                .to_bits(),
             "the cursor for a {}s pause was not min(0.05 × paused, 30.0)",
             paused_duration_secs
         );
@@ -271,18 +273,7 @@ proptest! {
         } else {
             containing_start(raw, &boundaries)
         };
-        if degrade || containing.is_none() {
-            // The degrade paths hold the raw cursor exactly and cut
-            // no cue (rewind.rs: the algorithm never moved there).
-            prop_assert_eq!(
-                result.resume_secs,
-                raw,
-                "the resume {} was not the raw cursor {} on the degrade path (never document start)",
-                result.resume_secs,
-                raw
-            );
-        } else {
-            let boundary = containing.expect("checked above");
+        if let Some(boundary) = containing {
             let cue_floor = if boundary >= cap {
                 (boundary - CUE_SECS).max(cap)
             } else {
@@ -310,13 +301,23 @@ proptest! {
                 result.resume_secs,
                 cue_floor
             );
+        } else {
+            // The degrade paths hold the raw cursor exactly and cut
+            // no cue (rewind.rs: the algorithm never moved there).
+            prop_assert_eq!(
+                result.resume_secs.to_bits(),
+                raw.to_bits(),
+                "the resume {} was not the raw cursor {} on the degrade path (never document start)",
+                result.resume_secs,
+                raw
+            );
         }
 
         // Never mid-word: the resume sits on a declared gap, unless it
         // is the raw last-spoken cursor held by a degrade path (the
         // algorithm cuts no word there — it simply never moved).
         let in_gap = is_test_gap(result.resume_secs, &gaps);
-        let holds_raw_cursor = result.resume_secs == raw;
+        let holds_raw_cursor = result.resume_secs.to_bits() == raw.to_bits();
         prop_assert!(
             in_gap || holds_raw_cursor,
             "the resume {} landed on an energy peak — neither in a declared gap nor the raw cursor {}",
@@ -352,8 +353,8 @@ proptest! {
             result.resume_secs
         );
         prop_assert_eq!(
-            result.backward_secs,
-            yield_secs.max(0.0) - result.resume_secs,
+            result.backward_secs.to_bits(),
+            (yield_secs.max(0.0) - result.resume_secs).to_bits(),
             "total backward movement did not equal the yield {} minus the resume {}",
             yield_secs,
             result.resume_secs
@@ -425,12 +426,12 @@ proptest! {
 /// 30 s — the hard ceiling — and never before document start.
 #[test]
 fn the_caps_hold_for_a_two_hour_pause() {
-    assert!(
-        INTERRUPTION_REPLAY_CAP_SECS <= KILL_REPLAY_CAP_SECS,
-        "the interruption replay cap {} must be at most the kill replay cap {}",
-        INTERRUPTION_REPLAY_CAP_SECS,
-        KILL_REPLAY_CAP_SECS
-    );
+    const {
+        assert!(
+            INTERRUPTION_REPLAY_CAP_SECS <= KILL_REPLAY_CAP_SECS,
+            "the interruption replay cap must be at most the kill replay cap (FR-004)"
+        );
+    }
     let boundaries = [0.0];
     let input = ResumeInput {
         yield_secs: 3_600.0,

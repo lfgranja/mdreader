@@ -69,7 +69,7 @@ fn event_sequence_strategy() -> impl Strategy<Value = Vec<SwitchEvent>> {
 
 /// The T058 durable put of the first document's bookmark: the
 /// open sequence persists the first session's resume point with
-/// the correct end_kind for its state (FR-018 / FR-044) —
+/// the correct `end_kind` for its state (FR-018 / FR-044) —
 /// `Paused` for a playing/paused session, `Interrupted` for an
 /// interrupted one. A terminal `Stopped` session owes no put: its
 /// end deletes rather than stores (FR-032f).

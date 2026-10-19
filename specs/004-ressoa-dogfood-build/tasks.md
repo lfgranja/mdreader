@@ -509,3 +509,45 @@ Subagent E: "T032 rewind.rs + resume.rs sentence-snap (independent)"
 
 **Dependencies / order:** T091 (clippy) independent; T089→T090/94 (label wiring); T092→T093 (test inventory); T095 last (requires T091 + T093 + device/T051/T052 evidence if produced). All property/red-first tasks block their implementation tasks per Rule 1/2.
 
+---
+
+## Phase 15: Convergence
+
+> Source: `spec.md` FR-011/FR-013/FR-015/FR-017/FR-018, `contracts/surface.md`, constitution v1.8.0 (Principles III/V/IX/XI), `plan.md` offline/purity decisions, Phase 14 evidence. Assessment agent `ses_ea9b3aed5ffes9362Ody0zuGRY` (read-only). Findings ordered CRITICAL/HIGH first; test tasks block implementation per Rule 1/2.
+
+### Convergence Findings (in-session, before append)
+
+| ID | Gap Type | Severity | Source | Evidence | Remediation (tasks below) |
+|----|----------|----------|--------|----------|---------------------------|
+| F1 | missing | CRITICAL | FR-018 | `DocIngest.kt:308–319` reflectively calls `saveSessionBookmark` which exists nowhere; `lib.rs` never persists previous fingerprint before switching | T096 |
+| F2 | missing | HIGH | FR-017 / SC-008 | `src-tauri/Cargo.toml` has no `diag` dependency; `DiagWriter::append` never called from production | T097 |
+| F3 | unrequested | HIGH | FR-015 / IX / T047 | `status_view.html:8` imports Google Fonts over HTTPS; `test_noscope.rs` scans only `.rs`/`.kt`; manifest declares INTERNET | T098 |
+| F4 | contradicts | HIGH | FR-011/FR-013 · contracts/surface.md | `publish_mirror` + `test_publish_payload` assert label-free; `build_kotlin_mirror_json` + `test_purity` assert label present | T099 |
+| F5 | partial | MEDIUM | FR-011 / FR-013 | `pt_br_progress_label` keeps English `(content-offset)` fragment; contract says `(deslocamento de conteúdo)` | T100 |
+| F6 | partial | MEDIUM | FR-005 · contracts/surface.md:10 | 3 reason lines exceed ≤40-char limit: TransientPaused 47, VoiceUnavailable 43, DecodeFailed 43 | T101 |
+| F7 | contradicts | MEDIUM | Principle III/V · workflow | tasks.md has two Phase 11 headers, T73 typo, 36 unchecked tasks (many landed) | T102 |
+| F8 | partial | LOW | FR-011 | Title source is first heading of any level, not H1; fallback is "Document" not filename | T103 |
+| F9 | contradicts | LOW | contracts/surface.md:36 | `status_view.html` uses red `#FF4D63` for Stop button; contract reserves red for failure-only | T104 |
+| F10 | partial | LOW | T060 | Repo-root `contracts/` missing `resume-algorithm.md` | T105 |
+| F11 | partial | LOW | FR-015 | Manifest declares INTERNET permission | T106 |
+| F12 | partial | LOW | Rule 5 | Working tree dirty: 17 modified files + untracked dirs | T107 |
+
+**Metrics:** 12 findings (1 CRITICAL missing, 3 HIGH, 3 MEDIUM, 5 LOW). 2 missing · 3 contradicts · 6 partial · 1 unrequested. FRs checked: 19 · SCs checked: 10 · Plan decisions: 20 · Constitution principles: 11 + constraints. No code-rigor violations (unsafe only at sanctioned JNI with #[expect]; no unwrap/expect in crates/*/src; no _ => catch-alls; closed sets intact).
+
+### Phase 15 Tasks (append-only; zero renumber of T001–T095)
+
+- [ ] T096 [P] (CRITICAL) Wire real durable bookmark save on second-document pick per FR-018: remove the dead reflective `saveFirstBookmarkIfPlaying` call in `DocIngest.kt:308–319`; implement the durable put in Rust (`src-tauri/src/lib.rs` `open_ingested_document` / `open_document_bytes`) before the new snapshot write — persist the previous fingerprint's last-spoken position with `Paused`/`Interrupted` end_kind via `BookmarkStore::put`; never delete the first bookmark; never auto-start the second document; covered by `prop_second_document_preserves_first_bookmark` (commit `c89406b`) (`missing`)
+- [ ] T097 [P] Wire the diagnostic record into production per FR-017: add `diag` dependency to `src-tauri/Cargo.toml`; call `DiagWriter::append` / `RecordEvent` from session lifecycle (session start/stop, transport actions, per-section progress, per-rate changes, buffer states, interruptions with measured latencies, failures); ensure the JSONL record is written to app-private storage with 30-day + 10 MB trim; covered by `crates/diag/tests/contract_trace.rs` + `prop_trace.rs` (`missing`)
+- [ ] T98 [P] Remove external font import from `src-tauri/src/status_view.html:8` (Google Fonts HTTPS); extend `test_noscope.rs` guard to scan HTML/external URLs; remove `android.permission.INTERNET` from `AndroidManifest.xml` for pure-offline build per FR-015/Principle IX (`unrequested`)
+- [ ] T099 [P] Reconcile the lock-screen payload contract contradiction: update/remove the stale `publish_mirror` helper in `src-tauri/src/lib.rs` and `test_publish_payload.rs` to match the T090/T094 contract (`progressLabel` present for determinate, absent for indeterminate); delete or update the contradictory task text in Phase 11/12; covered by `test_purity` + `test_kotlin_mirror_payload` (`contradicts`)
+- [ ] T100 Translate the `(content-offset)` fragment in `pt_br_progress_label` to pt-BR (`(deslocamento de conteúdo)`) per `contracts/surface.md:9`; or record a deliberate exception with rationale; covered by `test_progress_label` + `test_kotlin_mirror_payload` (`partial`)
+- [ ] T101 Shorten the 3 reason lines exceeding ≤40-char limit in `crates/player/src/interruption.rs:47–54`: `TransientPaused` (47 ch), `VoiceUnavailable` (43 ch), `DecodeFailed` (43 ch); contract says ≤40 chars wins over ≤8 words; covered by `test_setup_interruption_shape` + `the_focus_pause_reason_exceeds_the_content_text_limit_and_the_conflict_is_recorded` (`partial`)
+- [ ] T102 Deduplicate `tasks.md`: remove the duplicate `## Phase 11: Convergence` header; fix the `T73` typo; mark landed tasks [X] where git log confirms completion (T070, T076–T082, T083–T088, T089–T095); close out stale entries; do NOT renumber existing IDs (`contradicts`)
+- [ ] T103 Honor FR-011 title sourcing: use first Markdown H1 heading (not any level) for `.md`; filename without extension for `.txt`; fallback to filename (not literal "Document"); covered by `test_surface_us1` + `test_purity` (`partial`)
+- [ ] T104 Replace the red `#FF4D63` token for the Stop button in `src-tauri/src/status_view.html` with a non-reserved token per `contracts/surface.md:36` (red is failure-only); covered by `test_purity` (`contradicts`)
+- [ ] T105 Copy `contracts/resume-algorithm.md` to repo-root `contracts/` per T060; or narrow T060's claim to the 3 contracts actually copied (`partial`)
+- [ ] T106 Remove `android.permission.INTERNET` from `AndroidManifest.xml` per FR-015/Principle IX (pure-offline build); covered by `test_noscope` + `check-manifest.sh` (`partial`)
+- [ ] T107 Commit outstanding working-tree edits atomically per Rule 5: 17 modified files (clippy fixes, `surface.rs`, `status_view.html`, `MediaMirror.kt`, engine-core tests) + untracked `.github/`, `supply-chain/`, `.proptest-regressions`; stage and commit per logical unit with detailed summaries (`partial`)
+
+**Dependencies / order:** T096 (FR-018 auto-save) blocks device T051; T097 (diag wiring) blocks T052; T098/T106 (offline purity) independent; T099 (contract reconcile) independent; T100/T101 (label/line fixes) independent; T102 (tasks.md cleanup) independent; T103/T104 (surface fixes) independent; T105 (contract copy) independent; T107 (commit cleanup) last. All [P] tasks may run in parallel on disjoint files; shared tooling (cargo) serialized per user rule.
+

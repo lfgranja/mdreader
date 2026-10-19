@@ -39,6 +39,11 @@
 //! (write-on-change) through `persist_last_rate`, value-blind at
 //! every step (FR-012).
 
+#![expect(
+    clippy::multiple_crate_versions,
+    reason = "every duplicate is third-party-forced at newest-release pins: the Tauri 2 / Android / desktop dependency tree carries base64 0.21+0.22+0.23, bitflags 1+2, cpufeatures 0.2+0.3, hashbrown 0.12+0.17, heck 0.4+0.5, indexmap 1+2, jni 0.21+0.22, jni-sys 0.3+0.4, miniz_oxide 0.8+0.9, png 0.17+0.18, proc-macro-crate 1+2+3, r-efi 5+6, schemars 0.8+0.9+1, serde_spanned 0.6+1, syn 1+2+3, thiserror 1+2, thiserror-impl 1+2, toml_datetime 0.6+1, toml_edit 0.19+0.20+0.25 and winnow 0.5+1 — cargo cannot unify across semver majors, crates.io shows no newer unifying release, and supply-chain governance for these transitive duplicates belongs to cargo-deny, not this lint"
+)]
+
 use std::sync::Mutex;
 
 use engine_core::closed::SessionEnd;
@@ -54,49 +59,54 @@ use std::time::Duration;
 use tauri::Manager;
 use tokio::time;
 
-/// The permission-state gate (T030b): the pure,
-/// headless half of FR-008/FR-010/FR-021. The Kotlin
-/// shell reads the platform permissions and pushes the
+/// The permission-state gate (T030b).
+///
+/// The pure, headless half of FR-008/FR-010/FR-021. The
+/// Kotlin shell reads the platform permissions and pushes the
 /// answer as a `PermissionSnapshot`; the startup and
 /// pre-play gates consume it. No Android API calls live
 /// here (Principle V).
 pub mod permissions;
 
-/// The Kotlin-to-Rust shell channel (T111): the integer-code drain
-/// the `ShellHost` bootstrap posts through. Installed once in
-/// [`run`]; consulted (never constructed) by
-/// [`commands::register_android_plugin`].
+/// The Kotlin-to-Rust shell channel (T111).
+///
+/// The integer-code drain the `ShellHost` bootstrap posts
+/// through. Installed once in [`run`]; consulted (never
+/// constructed) by [`commands::register_android_plugin`].
 pub mod shell_jni;
 
-/// The shared reason shapes every surface renders
-/// (T065): short lock-screen strings, full in-app
-/// strings, and the reason expiry (3 s focus-loss
-/// vs persistent failure). T065b's status view and
-/// T078's failure surface render through these
-/// getters — never a second definition.
+/// The shared reason shapes every surface renders (T065).
+///
+/// Short lock-screen strings, full in-app strings, and the
+/// reason expiry (3 s focus-loss vs persistent failure).
+/// T065b's status view and T078's failure surface render
+/// through these getters — never a second definition.
 pub mod surface;
 
-/// The minimal in-app status view (T065b): the
-/// read-only render of the stored `last_rate`, the
-/// transport/position mirror, and the current
-/// failure/focus reason with its expiry — through the
-/// T065 getters alone, with no playback logic and
-/// no second string definition.
+/// The minimal in-app status view (T065b).
+///
+/// The read-only render of the stored `last_rate`, the
+/// transport/position mirror, and the current failure/focus
+/// reason with its expiry — through the T065 getters alone,
+/// with no playback logic and no second string definition.
 pub mod status_view;
 
-/// The engine-failure surface (T078): the named
-/// failure + alternatives rendering, conforming to
+/// The engine-failure surface (T078).
+///
+/// The named failure + alternatives rendering, conforming to
 /// the T065 reason shapes.
 pub mod failure;
 
-/// Shared app state: one playback session, one lazily-opened
-/// audio backend, the platform permission snapshot the
-/// Kotlin shell pushes, the held focus/offer machines
-/// (T125, FR-014 / FR-032c), and the Rust→shell publish
-/// channel (T133, FR-003 / FR-028): streams `MirrorState`
-/// snapshots on every transport/position/focus event.
-/// Does not derive Debug because it contains `tauri::ipc::Channel`
-/// which does not implement Debug.
+/// Shared application state for the Tauri bridge.
+///
+/// One playback session, one lazily-opened audio backend,
+/// the platform permission snapshot the Kotlin shell
+/// pushes, the held focus/offer machines (T125, FR-014 /
+/// FR-032c), and the Rust→shell publish channel (T133,
+/// FR-003 / FR-028): streams `MirrorState` snapshots on
+/// every transport/position/focus event. Does not derive
+/// Debug because it contains `tauri::ipc::Channel` which
+/// does not implement Debug.
 pub struct AppState {
     /// The single playback session (sole position authority).
     session: Mutex<PlaybackSession>,
@@ -129,7 +139,7 @@ pub struct AppState {
     /// when no document is loaded.
     pub(crate) surface_resolver: Mutex<Option<player::surface::SurfaceResolver>>,
     /// The document headings for the current session (T133):
-    /// ordered list of (position_secs, title) for section
+    /// ordered list of (`position_secs`, title) for section
     /// title resolution (FR-028b). Empty when no document
     /// is loaded or document has no headings.
     pub(crate) headings: Mutex<Vec<player::surface::Heading>>,
@@ -249,23 +259,23 @@ fn now_ms() -> u64 {
 /// is loaded or the lock is poisoned — the key every
 /// bookmark write persists the position under.
 fn current_fingerprint(state: &AppState) -> Option<[u8; 32]> {
-    match state.current_fingerprint.lock() {
-        Ok(guard) => *guard,
-        Err(_) => {
+    state.current_fingerprint.lock().map_or_else(
+        |_| {
             tracing::warn!("the fingerprint lock is poisoned; no bookmark can be keyed");
             None
-        }
-    }
+        },
+        |guard| *guard,
+    )
 }
 
 /// The FR-015 supersede clock in unix milliseconds,
 /// or `0` — the "no interval recorded" value — when
 /// no interval is open or the lock is poisoned.
 fn current_first_yield_ms(state: &AppState) -> u64 {
-    match state.first_yield_ms.lock() {
-        Ok(clock) => clock.unwrap_or(0),
-        Err(_) => 0,
-    }
+    state
+        .first_yield_ms
+        .lock()
+        .map_or(0, |clock| clock.unwrap_or(0))
 }
 
 /// Record the loaded document's blake3-256 content
@@ -283,9 +293,10 @@ fn current_first_yield_ms(state: &AppState) -> u64 {
 /// heartbeat finds no document.
 pub(crate) fn set_document_fingerprint(state: &AppState, bytes: &[u8]) {
     let fp = fingerprint::fingerprint(bytes);
-    match state.current_fingerprint.lock() {
-        Ok(mut guard) => *guard = Some(fp),
-        Err(_) => tracing::warn!("document fingerprint not recorded: the state lock is poisoned"),
+    if let Ok(mut guard) = state.current_fingerprint.lock() {
+        *guard = Some(fp);
+    } else {
+        tracing::warn!("document fingerprint not recorded: the state lock is poisoned");
     }
 }
 
@@ -297,8 +308,8 @@ pub(crate) fn set_document_fingerprint(state: &AppState, bytes: &[u8]) {
 /// terminal ends (`Stopped` / `Completed`), which
 /// end the interval it anchors.
 fn note_transport(state: &AppState, transport: TransportState) {
-    match state.first_yield_ms.lock() {
-        Ok(mut clock) => match transport {
+    if let Ok(mut clock) = state.first_yield_ms.lock() {
+        match transport {
             TransportState::Playing => {
                 if clock.is_none() {
                     *clock = Some(now_ms());
@@ -306,8 +317,9 @@ fn note_transport(state: &AppState, transport: TransportState) {
             }
             TransportState::Paused | TransportState::Interrupted => {}
             TransportState::Stopped | TransportState::Completed => *clock = None,
-        },
-        Err(_) => tracing::warn!("the FR-015 clock was not updated: the state lock is poisoned"),
+        }
+    } else {
+        tracing::warn!("the FR-015 clock was not updated: the state lock is poisoned");
     }
 }
 
@@ -323,7 +335,7 @@ fn note_transport(state: &AppState, transport: TransportState) {
 /// `interrupted` kind that leaves the FR-032d
 /// explicit-resume requirement. Any other transport
 /// names no stored end and records nothing.
-fn end_kind_of_pause(transport: TransportState) -> Option<SessionEnd> {
+const fn end_kind_of_pause(transport: TransportState) -> Option<SessionEnd> {
     match transport {
         TransportState::Paused => Some(SessionEnd::Paused),
         TransportState::Interrupted => Some(SessionEnd::Interrupted),
@@ -345,7 +357,7 @@ fn end_kind_of_pause(transport: TransportState) -> Option<SessionEnd> {
 /// transport records its own kind through
 /// [`end_kind_of_pause`], and a terminal transport records
 /// nothing (the row is deleted at those ends instead).
-fn event_end_kind(transport: TransportState) -> Option<SessionEnd> {
+const fn event_end_kind(transport: TransportState) -> Option<SessionEnd> {
     match transport {
         TransportState::Playing => Some(SessionEnd::Interrupted),
         TransportState::Paused | TransportState::Interrupted => end_kind_of_pause(transport),
@@ -380,12 +392,9 @@ fn persist_bookmark(state: &AppState, position_secs: f64, end_kind: SessionEnd) 
         return; // no document loaded — nothing to key the bookmark under
     };
     let first_yield_ms = current_first_yield_ms(state);
-    let mut store_guard = match state.bookmark_store.lock() {
-        Ok(guard) => guard,
-        Err(_) => {
-            tracing::warn!("bookmark not persisted: the store lock is poisoned");
-            return;
-        }
+    let Ok(mut store_guard) = state.bookmark_store.lock() else {
+        tracing::warn!("bookmark not persisted: the store lock is poisoned");
+        return;
     };
     let Some(store) = store_guard.as_mut() else {
         return; // the store never opened — durability degrades to no bookmark
@@ -404,6 +413,7 @@ fn persist_bookmark(state: &AppState, position_secs: f64, end_kind: SessionEnd) 
             "bookmark persisted"
         );
     }
+    drop(store_guard);
 }
 
 /// Delete the stored bookmark row under the current document's
@@ -427,12 +437,9 @@ fn delete_bookmark(state: &AppState) {
     let Some(fingerprint) = current_fingerprint(state) else {
         return; // no document loaded — no row to delete
     };
-    let mut store_guard = match state.bookmark_store.lock() {
-        Ok(guard) => guard,
-        Err(_) => {
-            tracing::warn!("bookmark not deleted: the store lock is poisoned");
-            return;
-        }
+    let Ok(mut store_guard) = state.bookmark_store.lock() else {
+        tracing::warn!("bookmark not deleted: the store lock is poisoned");
+        return;
     };
     let Some(store) = store_guard.as_mut() else {
         return; // the store never opened — there is no row to delete
@@ -442,6 +449,7 @@ fn delete_bookmark(state: &AppState) {
     } else {
         tracing::debug!("bookmark deleted");
     }
+    drop(store_guard);
 }
 
 /// Persist the last playback rate (T042, write-on-change /
@@ -463,12 +471,9 @@ fn delete_bookmark(state: &AppState) {
 /// store is locked last and no other state lock is ever
 /// held with it.
 fn persist_last_rate(state: &AppState, rate: PlaybackRate) {
-    let mut store_guard = match state.bookmark_store.lock() {
-        Ok(guard) => guard,
-        Err(_) => {
-            tracing::warn!("last rate not persisted: the store lock is poisoned");
-            return;
-        }
+    let Ok(mut store_guard) = state.bookmark_store.lock() else {
+        tracing::warn!("last rate not persisted: the store lock is poisoned");
+        return;
     };
     let Some(store) = store_guard.as_mut() else {
         return; // the store never opened — the setting degrades to unpersisted
@@ -478,6 +483,7 @@ fn persist_last_rate(state: &AppState, rate: PlaybackRate) {
     } else {
         tracing::debug!("last rate persisted");
     }
+    drop(store_guard);
 }
 
 /// The direction and the number of one-rung rate presses
@@ -517,7 +523,7 @@ fn rate_seed_moves(current: PlaybackRate, target: PlaybackRate) -> Option<(RateS
 /// catch-all arm, so a new verb is a compile error here
 /// (FR-044 / Principle VII).
 #[must_use]
-fn rate_press_of(verb: ShellVerb) -> Option<RateStep> {
+const fn rate_press_of(verb: ShellVerb) -> Option<RateStep> {
     match verb {
         ShellVerb::RateUp => Some(RateStep::Up),
         ShellVerb::RateDown => Some(RateStep::Down),
@@ -568,12 +574,9 @@ fn seed_session_rate(state: &AppState) {
     // never opened (the setting then degrades to unpersisted
     // and the default below resolves).
     let stored = {
-        let mut store_guard = match state.bookmark_store.lock() {
-            Ok(guard) => guard,
-            Err(_) => {
-                tracing::warn!("rate seed skipped: the store lock is poisoned");
-                return;
-            }
+        let Ok(mut store_guard) = state.bookmark_store.lock() else {
+            tracing::warn!("rate seed skipped: the store lock is poisoned");
+            return;
         };
         match store_guard.as_mut() {
             Some(store) => match store.get_last_rate() {
@@ -593,21 +596,18 @@ fn seed_session_rate(state: &AppState) {
     // The minimum move from the live rung to the stored one,
     // read under the session lock and released before the
     // presses run (one lock at a time, never two together).
-    let Some((step, moves)) = (match state.session.lock() {
-        Ok(session) => rate_seed_moves(session.snapshot().rate, target),
-        Err(_) => {
+    let Some((step, moves)) = ({
+        let Ok(session) = state.session.lock() else {
             tracing::warn!("rate seed skipped: the session lock is poisoned");
             return;
-        }
+        };
+        rate_seed_moves(session.snapshot().rate, target)
     }) else {
         return; // already at the stored rung — nothing to drive
     };
-    let mut session = match state.session.lock() {
-        Ok(session) => session,
-        Err(_) => {
-            tracing::warn!("rate seed stopped: the session lock is poisoned");
-            return;
-        }
+    let Ok(mut session) = state.session.lock() else {
+        tracing::warn!("rate seed stopped: the session lock is poisoned");
+        return;
     };
     for _ in 0..moves {
         let verb = match step {
@@ -755,12 +755,12 @@ fn after_skip(state: &AppState, snapshot: &SessionSnapshot) {
 /// Lock discipline: the snapshot guard is released before
 /// [`persist_bookmark`] takes the store last.
 fn after_background(state: &AppState) {
-    let snapshot = match state.session.lock() {
-        Ok(guard) => guard.snapshot(),
-        Err(_) => {
+    let snapshot = {
+        let Ok(guard) = state.session.lock() else {
             tracing::warn!("app-background bookmark skipped: the session lock is poisoned");
             return;
-        }
+        };
+        guard.snapshot()
     };
     if let Some(end_kind) = event_end_kind(snapshot.transport) {
         persist_bookmark(state, snapshot.position_secs, end_kind);
@@ -832,12 +832,9 @@ pub(crate) fn route_offer(state: &AppState, end_kind: SessionEnd) -> OfferRoute 
         first_yield_ms: current_first_yield_ms(state),
         end_kind,
     };
-    let mut machine = match state.offer.lock() {
-        Ok(guard) => guard,
-        Err(_) => {
-            tracing::warn!("offer route unresolved: the offer lock is poisoned");
-            return OfferRoute::NoRoute;
-        }
+    let Ok(mut machine) = state.offer.lock() else {
+        tracing::warn!("offer route unresolved: the offer lock is poisoned");
+        return OfferRoute::NoRoute;
     };
     if machine.on_session_end(fingerprint, Some(probe)).is_some() {
         // The machine opened the continue offer: the
@@ -861,7 +858,7 @@ pub(crate) fn route_offer(state: &AppState, end_kind: SessionEnd) -> OfferRoute 
 /// definition of the route names can drift (Principle II /
 /// FR-044). A route that opens no dialog carries no window.
 #[must_use]
-pub(crate) fn offer_route_wire(route: OfferRoute) -> (&'static str, Option<u64>) {
+pub(crate) const fn offer_route_wire(route: OfferRoute) -> (&'static str, Option<u64>) {
     match route {
         OfferRoute::InAppDialog => ("in_app_dialog", Some(OFFER_WINDOW_MS)),
         OfferRoute::LockScreenResume => ("lockscreen_resume", None),
@@ -889,12 +886,12 @@ pub(crate) fn offer_route_wire(route: OfferRoute) -> (&'static str, Option<u64>)
 /// together — the heartbeat sits off both sides of
 /// every IPC path's lock order.
 fn heartbeat_once(state: &AppState) {
-    let snapshot = match state.session.lock() {
-        Ok(guard) => guard.snapshot(),
-        Err(_) => {
+    let snapshot = {
+        let Ok(guard) = state.session.lock() else {
             tracing::warn!("heartbeat tick skipped: the session lock is poisoned");
             return;
-        }
+        };
+        guard.snapshot()
     };
     if snapshot.transport != TransportState::Playing {
         return;
@@ -943,12 +940,12 @@ struct PlaybackWatch {
 /// lock is taken alone and released before the next, so the
 /// watch sits off both sides of every IPC path's lock order.
 fn playback_watch_tick(state: &AppState, watch: &mut PlaybackWatch) {
-    let transport = match state.session.lock() {
-        Ok(guard) => guard.snapshot().transport,
-        Err(_) => {
+    let transport = {
+        let Ok(guard) = state.session.lock() else {
             tracing::warn!("playback watch skipped: the session lock is poisoned");
             return;
-        }
+        };
+        guard.snapshot().transport
     };
     match transport {
         TransportState::Playing => {}
@@ -964,18 +961,16 @@ fn playback_watch_tick(state: &AppState, watch: &mut PlaybackWatch) {
         TransportState::Paused | TransportState::Interrupted => return,
     }
 
-    let (drained, position_secs) = match state.backend.lock() {
-        Ok(guard) => match guard.as_ref() {
-            Some(backend) => (backend.is_drained(), backend.position_secs()),
-            None => {
-                tracing::warn!("playback watch skipped: a playing session has no backend");
-                return;
-            }
-        },
-        Err(_) => {
+    let (drained, position_secs) = {
+        let Ok(guard) = state.backend.lock() else {
             tracing::warn!("playback watch skipped: the backend lock is poisoned");
             return;
-        }
+        };
+        let Some(backend) = guard.as_ref() else {
+            tracing::warn!("playback watch skipped: a playing session has no backend");
+            return;
+        };
+        (backend.is_drained(), backend.position_secs())
     };
 
     feed_audible_progress(state, position_secs, watch);
@@ -1027,24 +1022,23 @@ fn feed_audible_progress(state: &AppState, position_secs: f64, watch: &mut Playb
 /// until the next boundary.
 fn maybe_republish_progress(state: &AppState, watch: &mut PlaybackWatch) -> bool {
     let units = {
-        let position_secs = match state.session.lock() {
-            Ok(guard) => guard.snapshot().position_secs,
-            Err(_) => {
+        let position_secs = {
+            let Ok(guard) = state.session.lock() else {
                 tracing::warn!("progress republish skipped: the session lock is poisoned");
                 return false;
-            }
+            };
+            guard.snapshot().position_secs
         };
-        let resolver_guard = match state.surface_resolver.lock() {
-            Ok(guard) => guard,
-            Err(_) => {
-                tracing::warn!("progress republish skipped: the resolver lock is poisoned");
-                return false;
-            }
+        let Ok(resolver_guard) = state.surface_resolver.lock() else {
+            tracing::warn!("progress republish skipped: the resolver lock is poisoned");
+            return false;
         };
         let Some(resolver) = resolver_guard.as_ref() else {
             return false; // no document loaded
         };
-        resolver.consumed_units_at(position_secs)
+        let units = resolver.consumed_units_at(position_secs);
+        drop(resolver_guard);
+        units
     };
     if watch.units == Some(units) {
         return false;
@@ -1104,13 +1098,13 @@ pub fn run() {
             current_fingerprint: Mutex::new(None),
             first_yield_ms: Mutex::new(None),
         })
-        .setup(|_app| {
+        .setup(|app| {
             // Voice assets ship inside the APK: extract them to a
             // real filesystem path before the first synthesis. Hosts
             // use the manifest tree; nothing to do there.
             #[cfg(target_os = "android")]
             {
-                if let Ok(data) = _app.path().app_data_dir() {
+                if let Ok(data) = app.path().app_data_dir() {
                     if let Ok(voice) = adapter_synthesis::android_assets::extract_voices(&data) {
                         adapter_synthesis::synth::set_asset_dir(voice);
                     }
@@ -1118,11 +1112,11 @@ pub fn run() {
             }
 
             // Get the AppState for bookmark store initialization and permission gate
-            let app_state = _app.state::<AppState>();
+            let app_state = app.state::<AppState>();
             // Initialize the 20 s durable heartbeat (T011): open the
             // BookmarkStore in the app data directory and start the
             // periodic timer that calls `put` while Playing.
-            let data_dir = _app
+            let data_dir = app
                 .path()
                 .app_data_dir()
                 .unwrap_or_else(|_| std::env::current_dir().unwrap_or_default());
@@ -1152,8 +1146,8 @@ pub fn run() {
             // together here, so the heartbeat cannot form a cycle with
             // the IPC paths. The task holds the owned app handle (never a
             // borrowed `State`), so it outlives the setup closure.
-            let app_handle = _app.app_handle().clone();
-            let _ = tauri::async_runtime::spawn(async move {
+            let app_handle = app.app_handle().clone();
+            let _heartbeat_task = tauri::async_runtime::spawn(async move {
                 let mut ticker = time::interval(Duration::from_secs(HEARTBEAT_PERIOD_SECS));
                 loop {
                     // The tick instant goes unread: the tick
@@ -1175,8 +1169,8 @@ pub fn run() {
             // `State`), so it outlives the setup closure; each tick
             // takes every state lock alone — no two are ever held
             // together, exactly like the heartbeat above.
-            let watch_handle = _app.app_handle().clone();
-            let _ = tauri::async_runtime::spawn(async move {
+            let watch_handle = app.app_handle().clone();
+            let _watch_task = tauri::async_runtime::spawn(async move {
                 let mut ticker = time::interval(Duration::from_millis(PLAYBACK_WATCH_PERIOD_MS));
                 let mut watch = PlaybackWatch::default();
                 loop {
@@ -1195,7 +1189,7 @@ pub fn run() {
             // spawn failure is recorded inside `install`; the
             // sender stays installed, so later posts drop loudly
             // instead of vanishing.
-            shell_jni::install(_app.app_handle().clone());
+            shell_jni::install(app.app_handle().clone());
             // Permission-state gate (T030b, FR-008/FR-010): the
             // startup check runs once at boot against the snapshot
             // the Kotlin shell pushes through `update_permissions`
@@ -1203,7 +1197,7 @@ pub fn run() {
             // outcome is recorded as a tracing event; a refusal
             // carries the stated reason, and no playing state may
             // ever follow it.
-            let app_state = _app.state::<AppState>();
+            let app_state = app.state::<AppState>();
             let permissions = app_state.permissions.lock().map_err(|e| e.to_string())?;
             match permissions::check_startup(&permissions) {
                 Ok(()) => tracing::info!("permission gate: startup check passed"),
@@ -1261,7 +1255,7 @@ pub mod commands {
     /// Self-bootstrap (T111): the platform creates the
     /// service from the Application/Activity entry points
     /// declared in the manifest (a structural requirement —
-    /// ActivityManager reflection forces the service class
+    /// `ActivityManager` reflection forces the service class
     /// into Kotlin), so no construction call from Rust or
     /// the frontend precedes it. On creation the service
     /// runs `ShellHost.init`, which builds the four mirrors
@@ -1290,13 +1284,24 @@ pub mod commands {
     /// the gates in `permissions` (`check_startup`,
     /// `check_pre_play`) consume the snapshot (FR-008,
     /// FR-010, FR-021).
+    ///
+    /// # Errors
+    ///
+    /// Returns the lock's error string when the shared
+    /// permission mutex is poisoned — a refusal, never a
+    /// playing state.
     #[command]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "Tauri's CommandArg extractor is implemented for State by value; &State is not a supported command parameter"
+    )]
     pub fn update_permissions(
         state: State<'_, AppState>,
         snapshot: PermissionSnapshot,
     ) -> Result<(), String> {
         let mut permissions = state.permissions.lock().map_err(|e| e.to_string())?;
         *permissions = snapshot;
+        drop(permissions);
         Ok(())
     }
 
@@ -1352,6 +1357,10 @@ pub mod commands {
     /// produces no payload — a refusal, never a playing state
     /// (FR-005).
     #[command]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "Tauri's CommandArg extractor is implemented for State by value; &State is not a supported command parameter"
+    )]
     pub fn open_document(
         bytes: Vec<u8>,
         state: State<'_, AppState>,
@@ -1406,27 +1415,29 @@ pub mod commands {
             let store = store_guard.as_mut().ok_or_else(|| OpenError::Store {
                 reason: "the session store never opened".to_string(),
             })?;
-            session::store::lookup_on_open(store, document.as_bytes()).map_err(|error| {
-                OpenError::Store {
-                    reason: error.to_string(),
-                }
-            })
-        }?;
+            let lookup =
+                session::store::lookup_on_open(store, document.as_bytes()).map_err(|error| {
+                    OpenError::Store {
+                        reason: error.to_string(),
+                    }
+                })?;
+            drop(store_guard);
+            lookup
+        };
 
         // The offer route (T037): the stored end kind resolves
         // to the surface that renders the resume decision, and
         // driving the held machine at this open is the
         // lifecycle point that opens the FR-032c continue
         // offer the in-app dialog renders — never mid-window.
-        let route = match lookup.stored {
-            Some(stored) => route_offer(state, stored.end_kind),
-            None => OfferRoute::NoRoute,
-        };
+        let route = lookup.stored.map_or(OfferRoute::NoRoute, |stored| {
+            route_offer(state, stored.end_kind)
+        });
 
         // The one synthesis path (Principle II): split,
         // synthesize, enqueue, start — with the totals fixed
         // at open and the rate seeded from the store.
-        let mut payload = play(document, state)?;
+        let mut payload = play(&document, state)?;
 
         // The open facts the resume decision renders: the
         // content fingerprint, the stored row, and the offer
@@ -1458,10 +1469,13 @@ pub mod commands {
         Ok(payload)
     }
 
-    /// The classified bridge action (T110): every closed
-    /// shell-IPC wire string (`contracts/shell-ipc.md`)
-    /// parses to exactly one variant — a session verb, a
-    /// platform intent, or the read-only query. No
+    /// The classified bridge action (T110).
+    ///
+    /// Every closed shell-IPC wire string parses to exactly one
+    /// variant — a session verb, a platform intent, or the
+    /// read-only query.
+    ///
+    /// The wire vocabulary is `contracts/shell-ipc.md`. No
     /// `PartialEq` is derived: the contract test pins the
     /// seam with `matches!` only.
     #[derive(Debug, Clone, Copy)]
@@ -1609,6 +1623,10 @@ pub mod commands {
     /// current transport state — a rejection, never a
     /// playing state.
     #[command]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "Tauri command parameters must be owned Deserialize/CommandArg types: &str cannot be extracted from the IPC payload, and AppHandle/State have by-value CommandArg impls only"
+    )]
     pub fn run_mobile_plugin(
         action: String,
         document: Option<String>,
@@ -1617,7 +1635,7 @@ pub mod commands {
         state: State<'_, AppState>,
     ) -> Result<serde_json::Value, String> {
         match parse_action(action.as_str()) {
-            Ok(BridgeAction::Verb(verb)) => dispatch_verb(verb, document, payload, &state),
+            Ok(BridgeAction::Verb(verb)) => dispatch_verb(verb, document, payload.as_ref(), &state),
             Ok(BridgeAction::Intent(intent)) => dispatch_intent(intent, &state),
             Ok(BridgeAction::Diagnose) => Ok(diagnose(&app)),
             Err(reason) => Err(reason),
@@ -1649,7 +1667,7 @@ pub mod commands {
     fn dispatch_verb(
         verb: ShellVerb,
         document: Option<String>,
-        payload: Option<String>,
+        payload: Option<&String>,
         state: &State<'_, AppState>,
     ) -> Result<serde_json::Value, String> {
         match verb {
@@ -1672,7 +1690,7 @@ pub mod commands {
                         "error": failure.reason(),
                     }));
                 }
-                play(document.unwrap_or_default(), state).map_err(|error| error.to_string())
+                play(&document.unwrap_or_default(), state).map_err(|error| error.to_string())
             }
             ShellVerb::ResumeAtStored | ShellVerb::StartOver | ShellVerb::ExternalStart => {
                 // The same pre-play gate as `Play`: these are
@@ -1702,10 +1720,10 @@ pub mod commands {
                 }))
             }
             ShellVerb::Pause => {
-                if let Ok(backend) = state.backend.lock() {
-                    if let Some(backend) = backend.as_ref() {
-                        backend.pause();
-                    }
+                if let Ok(backend) = state.backend.lock()
+                    && let Some(backend) = backend.as_ref()
+                {
+                    backend.pause();
                 }
                 let snap = {
                     let mut session = state.session.lock().map_err(|e| e.to_string())?;
@@ -1727,10 +1745,10 @@ pub mod commands {
                 }))
             }
             ShellVerb::Stop => {
-                if let Ok(backend) = state.backend.lock() {
-                    if let Some(backend) = backend.as_ref() {
-                        backend.stop();
-                    }
+                if let Ok(backend) = state.backend.lock()
+                    && let Some(backend) = backend.as_ref()
+                {
+                    backend.stop();
                 }
                 let snap = {
                     let mut session = state.session.lock().map_err(|e| e.to_string())?;
@@ -1777,13 +1795,15 @@ pub mod commands {
                 let snap = session
                     .execute(ShellVerb::ChooseEngine)
                     .map_err(|e| e.to_string())?;
-                Ok(serde_json::json!({
+                let wire = serde_json::json!({
                     "status": snap.transport.to_string(),
                     "position_secs": snap.position_secs,
                     "transport": snap.transport.to_string(),
                     "engine_id": snap.engine_id,
                     "requested_engine_id": payload,
-                }))
+                });
+                drop(session);
+                Ok(wire)
             }
             ShellVerb::Complete | ShellVerb::Interrupt => {
                 // Session-internal terminals with no bridge
@@ -1829,6 +1849,7 @@ pub mod commands {
             let mut session = state.session.lock().map_err(|e| e.to_string())?;
             let previous_rate = session.snapshot().rate;
             let snapshot = session.execute(verb).map_err(|e| e.to_string())?;
+            drop(session);
             (snapshot, previous_rate)
         };
         publish_current_state(state, None);
@@ -1846,10 +1867,10 @@ pub mod commands {
         // persists, and only when it moved the rung — the
         // stepper's `None` (a saturating press) writes
         // nothing new.
-        if let Some(step) = rate_press_of(verb) {
-            if let Some(rung) = RateStepper::open(Some(previous_rate)).step(step) {
-                persist_last_rate(state, rung);
-            }
+        if let Some(step) = rate_press_of(verb)
+            && let Some(rung) = RateStepper::open(Some(previous_rate)).step(step)
+        {
+            persist_last_rate(state, rung);
         }
         Ok(serde_json::json!({
             "status": snapshot.transport.to_string(),
@@ -1907,14 +1928,13 @@ pub mod commands {
                 // the transient resume owed. Restores full
                 // gain (FULL_GAIN) on the backend.
                 let decision = apply_focus(state, FocusIntent::FocusRegained)?;
-                let mut restore_ok = false;
-                if let Ok(backend_guard) = state.backend.lock() {
-                    if let Some(backend) = backend_guard.as_ref() {
-                        if backend.set_gain(player::focus::FULL_GAIN).is_ok() {
-                            restore_ok = true;
-                        }
-                    }
-                }
+                let restore_ok = if let Ok(backend_guard) = state.backend.lock()
+                    && let Some(backend) = backend_guard.as_ref()
+                {
+                    backend.set_gain(player::focus::FULL_GAIN).is_ok()
+                } else {
+                    false
+                };
                 publish_current_state(state, None);
                 let snapshot = snapshot_of(state)?;
                 Ok(serde_json::json!({
@@ -2007,14 +2027,14 @@ pub mod commands {
     /// pause/stop arms (a missing or poisoned backend
     /// lock pauses nothing; the session verb below
     /// still runs, so silence is never skipped).
-    /// Also restores full gain (FULL_GAIN) so that a
+    /// Also restores full gain (`FULL_GAIN`) so that a
     /// paused session never resumes at a ducked level.
     fn pause_backend(state: &State<'_, AppState>) {
-        if let Ok(backend) = state.backend.lock() {
-            if let Some(backend) = backend.as_ref() {
-                let _ = backend.set_gain(player::focus::FULL_GAIN);
-                backend.pause();
-            }
+        if let Ok(backend) = state.backend.lock()
+            && let Some(backend) = backend.as_ref()
+        {
+            let _ = backend.set_gain(player::focus::FULL_GAIN);
+            backend.pause();
         }
     }
 
@@ -2022,13 +2042,13 @@ pub mod commands {
     /// completion: mirrors the stop arm. It runs only
     /// after [`ShellVerb::Complete`] moves the session,
     /// never ahead of it, so a retained pause keeps its
-    /// queued audio. Restores full gain (FULL_GAIN).
+    /// queued audio. Restores full gain (`FULL_GAIN`).
     fn stop_backend(state: &AppState) {
-        if let Ok(backend) = state.backend.lock() {
-            if let Some(backend) = backend.as_ref() {
-                let _ = backend.set_gain(player::focus::FULL_GAIN);
-                backend.stop();
-            }
+        if let Ok(backend) = state.backend.lock()
+            && let Some(backend) = backend.as_ref()
+        {
+            let _ = backend.set_gain(player::focus::FULL_GAIN);
+            backend.stop();
         }
     }
 
@@ -2137,22 +2157,21 @@ pub mod commands {
     /// Reply for the duckable transient (T110, FR-013):
     /// ducking never changes the transport, so no
     /// session verb runs in any state. The ~20% gain
-    /// is applied to the backend (CpalBackend exposes
-    /// set_gain/gain since T123). Driven through the
+    /// is applied to the backend (`CpalBackend` exposes
+    /// `set_gain`/`gain` since T123). Driven through the
     /// held tracker (T125, FR-014), so the ducked flag
     /// and duck-restore flag persist for the silence
     /// escalation that may follow. Publishes the mirror
     /// state with the ducked gain (T133).
     fn ack_duck(state: &State<'_, AppState>) -> Result<serde_json::Value, String> {
         let decision = apply_focus(state, FocusIntent::DuckableTransient)?;
-        let mut applied = false;
-        if let Ok(backend_guard) = state.backend.lock() {
-            if let Some(backend) = backend_guard.as_ref() {
-                if backend.set_gain(decision.gain).is_ok() {
-                    applied = true;
-                }
-            }
-        }
+        let applied = if let Ok(backend_guard) = state.backend.lock()
+            && let Some(backend) = backend_guard.as_ref()
+        {
+            backend.set_gain(decision.gain).is_ok()
+        } else {
+            false
+        };
         let snapshot = snapshot_of(state)?;
         publish_current_state(state, None);
         Ok(serde_json::json!({
@@ -2219,21 +2238,21 @@ pub mod commands {
     ///
     /// Called after every transport/position/focus event that
     /// changes the session state. Reads the surface resolver
-    /// and headings from AppState and emits a `MirrorState`
+    /// and headings from `AppState` and emits a `MirrorState`
     /// snapshot via the `tauri::ipc::Channel`.
     pub(crate) fn publish_current_state(state: &AppState, transient_reason: Option<String>) {
-        let resolver_guard = match state.surface_resolver.lock() {
-            Ok(g) => g,
-            Err(_) => return,
+        let Ok(resolver_guard) = state.surface_resolver.lock() else {
+            return;
         };
         let Some(resolver) = resolver_guard.as_ref() else {
             return; // no document loaded
         };
-        let headings_guard = match state.headings.lock() {
-            Ok(g) => g,
-            Err(_) => return,
+        let Ok(headings_guard) = state.headings.lock() else {
+            return;
         };
         crate::publish::publish_from_session(state, resolver, &headings_guard, transient_reason);
+        drop(headings_guard);
+        drop(resolver_guard);
     }
 
     /// Route the noisy signal (T110, FR-016): the routing
@@ -2325,6 +2344,135 @@ pub mod commands {
         }))
     }
 
+    /// Extract the document headings from the parsed segments
+    /// (T019 / FR-028a): every `Heading`-boundary segment becomes
+    /// a heading whose `position_secs` is estimated from its
+    /// segment index over the total spoken duration. The list is
+    /// the one feeding of the session-start section count, so it
+    /// is computed once at open and never re-estimated.
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "segment indices and counts are always small (≤ millions), well within f64's 52-bit mantissa"
+    )]
+    fn parse_headings(
+        segments: &[adapter_synthesis::chunk::DocumentSegment],
+        duration_secs: f64,
+    ) -> Vec<player::surface::Heading> {
+        segments
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| s.boundary_kind == adapter_synthesis::chunk::BoundaryKind::Heading)
+            .map(|(idx, segment)| {
+                let estimated_position = (idx as f64 / segments.len() as f64) * duration_secs;
+                let heading_title = segment
+                    .content
+                    .lines()
+                    .next()
+                    .unwrap_or("")
+                    .trim_start_matches('#')
+                    .trim()
+                    .to_string();
+                player::surface::Heading {
+                    position_secs: estimated_position,
+                    title: heading_title,
+                }
+            })
+            .filter(|heading| !heading.title.is_empty())
+            .collect()
+    }
+
+    /// Synthesize every bounded segment into one PCM buffer and
+    /// return it with the spoken duration at the declared handoff
+    /// rate (T019 / FR-003): the first segment synthesizes first
+    /// so its PCM can start while the rest synthesize (the SC-002
+    /// ≤3 s ordering). A chunk the bound offline engine refuses is
+    /// the named [`OpenError::Synthesis`].
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "PCM sample counts are always small (≤ millions), well within f64's 52-bit mantissa"
+    )]
+    fn synthesize_segments(
+        segments: &[adapter_synthesis::chunk::DocumentSegment],
+    ) -> Result<(Vec<f32>, f64), OpenError> {
+        let mut pcm = Vec::new();
+        if let Some(first) = segments.first() {
+            let first_buf = adapter_synthesis::synth::synthesize(first).map_err(|failure| {
+                OpenError::Synthesis {
+                    reason: format!("{failure:?}"),
+                }
+            })?;
+            pcm.extend_from_slice(&first_buf);
+            // First chunk enqueued before remaining synthesis — meets ≤3 s.
+        }
+        for segment in segments.iter().skip(1) {
+            let buffer = adapter_synthesis::synth::synthesize(segment).map_err(|failure| {
+                OpenError::Synthesis {
+                    reason: format!("{failure:?}"),
+                }
+            })?;
+            pcm.extend_from_slice(&buffer);
+        }
+        let duration_secs = pcm.len() as f64 / DECLARED_RATE_HZ;
+        Ok((pcm, duration_secs))
+    }
+
+    /// Install the session-start structure (T019 / FR-028a): write
+    /// the surface resolver, the heading list, and the spoken
+    /// duration into the shared state — the one feeding the
+    /// publish path and the session read, written once and never
+    /// re-estimated. Each lock is taken alone and released before
+    /// the next, so no two state locks are ever held together.
+    fn install_session_structure(
+        state: &AppState,
+        resolver: player::surface::SurfaceResolver,
+        headings: Vec<player::surface::Heading>,
+        duration_secs: f64,
+    ) -> Result<(), OpenError> {
+        let mut resolver_guard = state
+            .surface_resolver
+            .lock()
+            .map_err(|e| OpenError::NoStart {
+                reason: e.to_string(),
+            })?;
+        *resolver_guard = Some(resolver);
+        drop(resolver_guard);
+        let mut headings_guard = state.headings.lock().map_err(|e| OpenError::NoStart {
+            reason: e.to_string(),
+        })?;
+        headings_guard.clone_from(&headings);
+        drop(headings_guard);
+        let mut session = state.session.lock().map_err(|e| OpenError::NoStart {
+            reason: e.to_string(),
+        })?;
+        session.set_document_structure(duration_secs, headings);
+        drop(session);
+        Ok(())
+    }
+
+    /// Open (or reuse) the audio backend and start the handed PCM
+    /// (T019 / FR-005): the declared handoff shape or the named
+    /// [`OpenError::Backend`] refusal, never a silent start.
+    fn start_playback(state: &AppState, pcm: Vec<f32>) -> Result<(), OpenError> {
+        let mut backend = state.backend.lock().map_err(|error| OpenError::Backend {
+            reason: error.to_string(),
+        })?;
+        if backend.is_none() {
+            let opened = CpalBackend::new().map_err(|error| OpenError::Backend {
+                reason: error.to_string(),
+            })?;
+            *backend = Some(opened);
+        }
+        let device = backend.as_ref().ok_or_else(|| OpenError::Backend {
+            reason: "no audio backend".to_string(),
+        })?;
+        device.enqueue_pcm(pcm);
+        device.play().map_err(|error| OpenError::Backend {
+            reason: error.to_string(),
+        })?;
+        drop(backend);
+        Ok(())
+    }
+
     /// Split, synthesize, enqueue, and start one document —
     /// the single synthesis path every surface routes through
     /// (Principle II: the `play` wire action, the T019
@@ -2369,7 +2517,7 @@ pub mod commands {
     /// * [`OpenError::NoStart`] when the closed transition
     ///   table rejects the press (a torn-down session takes no
     ///   play).
-    fn play(document: String, state: &AppState) -> Result<serde_json::Value, OpenError> {
+    fn play(document: &str, state: &AppState) -> Result<serde_json::Value, OpenError> {
         if document.trim().is_empty() {
             return Err(OpenError::EmptyDocument);
         }
@@ -2381,7 +2529,7 @@ pub mod commands {
         // Same code path as the adapter CLI (Principle II): the
         // adapter owns the chunk boundary; the engine receives
         // bounded chunks only.
-        let segments = adapter_synthesis::chunk::split_document(&document, "");
+        let segments = adapter_synthesis::chunk::split_document(document, "");
         if segments.is_empty() {
             return Err(OpenError::NoSegments);
         }
@@ -2402,54 +2550,15 @@ pub mod commands {
             .filter(|t| !t.is_empty())
             .unwrap_or_else(|| "Document".to_string());
 
-        // T056 first-segment ordering (FR-003 ≤3 s): synthesize first
-        // segment immediately, enqueue while rest synthesize.
-        let mut pcm = Vec::new();
-        if let Some(first) = segments.first() {
-            let first_buf = adapter_synthesis::synth::synthesize(first).map_err(|failure| {
-                OpenError::Synthesis {
-                    reason: format!("{failure:?}"),
-                }
-            })?;
-            pcm.extend_from_slice(&first_buf);
-            // First chunk enqueued before remaining synthesis — meets ≤3 s.
-        }
-        for segment in segments.iter().skip(1) {
-            let buffer = adapter_synthesis::synth::synthesize(segment).map_err(|failure| {
-                OpenError::Synthesis {
-                    reason: format!("{failure:?}"),
-                }
-            })?;
-            pcm.extend_from_slice(&buffer);
-        }
+        // T056 first-segment ordering (FR-003 ≤3 s): synthesize the
+        // first segment first, so its PCM starts while the rest
+        // synthesize.
+        let (pcm, duration_secs) = synthesize_segments(&segments)?;
         let pcm_samples = pcm.len();
-        let duration_secs = pcm_samples as f64 / DECLARED_RATE_HZ;
 
-        // Extract headings from segments with Heading boundary_kind.
-        // Estimate position_secs based on segment order and total duration.
-        let heading_segments: Vec<_> = segments
-            .iter()
-            .enumerate()
-            .filter(|(_, s)| s.boundary_kind == adapter_synthesis::chunk::BoundaryKind::Heading)
-            .collect();
-        let mut headings = Vec::new();
-        for (idx, segment) in heading_segments {
-            let estimated_position = (idx as f64 / segments.len() as f64) * duration_secs;
-            let heading_title = segment
-                .content
-                .lines()
-                .next()
-                .unwrap_or("")
-                .trim_start_matches('#')
-                .trim()
-                .to_string();
-            if !heading_title.is_empty() {
-                headings.push(player::surface::Heading {
-                    position_secs: estimated_position,
-                    title: heading_title,
-                });
-            }
-        }
+        let headings = parse_headings(&segments, duration_secs);
+        let total_units = segments.len() as u64;
+        let has_headings = !headings.is_empty();
 
         // Create surface resolver with the parsed-content totals fixed
         // at session start (FR-013 / FR-028a): the unit total is the
@@ -2460,11 +2569,11 @@ pub mod commands {
         // section count), so a heading-less session stays
         // indeterminate for the whole session (FR-013).
         let resolver = player::surface::SurfaceResolver::new(
-            Some(title.clone()),
+            Some(title),
             "document.md".to_string(),
-            segments.len() as u64,
+            total_units,
             duration_secs,
-            !segments.is_empty() && !headings.is_empty(),
+            has_headings,
         );
 
         // Store resolver and headings in AppState for publish path:
@@ -2472,48 +2581,14 @@ pub mod commands {
         // resolver holds the parsed-content unit total and its
         // projection basis, written here, once, and never
         // re-estimated mid-session (FR-028a / FR-013).
-        {
-            let mut resolver_guard =
-                state
-                    .surface_resolver
-                    .lock()
-                    .map_err(|e| OpenError::NoStart {
-                        reason: e.to_string(),
-                    })?;
-            *resolver_guard = Some(resolver);
-            let mut headings_guard = state.headings.lock().map_err(|e| OpenError::NoStart {
-                reason: e.to_string(),
-            })?;
-            *headings_guard = headings.clone();
-            let mut session = state.session.lock().map_err(|e| OpenError::NoStart {
-                reason: e.to_string(),
-            })?;
-            session.set_document_structure(duration_secs, headings);
-        }
+        install_session_structure(state, resolver, headings, duration_secs)?;
 
         // Compute and store the document's blake3 fingerprint (FR-036 / T059)
         // for the 20 s heartbeat bookmark persistence (T011) — the same
         // call site `open_document` routes through.
         set_document_fingerprint(state, document.as_bytes());
 
-        {
-            let mut backend = state.backend.lock().map_err(|error| OpenError::Backend {
-                reason: error.to_string(),
-            })?;
-            if backend.is_none() {
-                let opened = CpalBackend::new().map_err(|error| OpenError::Backend {
-                    reason: error.to_string(),
-                })?;
-                *backend = Some(opened);
-            }
-            let backend = backend.as_ref().ok_or_else(|| OpenError::Backend {
-                reason: "no audio backend".to_string(),
-            })?;
-            backend.enqueue_pcm(pcm);
-            backend.play().map_err(|error| OpenError::Backend {
-                reason: error.to_string(),
-            })?;
-        }
+        start_playback(state, pcm)?;
 
         let snapshot = {
             let mut session = state.session.lock().map_err(|e| OpenError::NoStart {
@@ -2548,11 +2623,10 @@ pub mod commands {
     /// dir and whether each required file is present. Read-only;
     /// never touches playback.
     fn diagnose(app: &AppHandle) -> serde_json::Value {
-        let resource_dir = app
-            .path()
-            .resource_dir()
-            .map(|path| path.to_string_lossy().into_owned())
-            .unwrap_or_else(|e| format!("unresolvable: {e}"));
+        let resource_dir = app.path().resource_dir().map_or_else(
+            |e| format!("unresolvable: {e}"),
+            |path| path.to_string_lossy().into_owned(),
+        );
         let voice = app
             .path()
             .resource_dir()
@@ -2586,9 +2660,8 @@ pub mod commands {
         let mut total = 0;
         let mut stack = vec![voice.to_path_buf()];
         while let Some(dir) = stack.pop() {
-            let entries = match std::fs::read_dir(&dir) {
-                Ok(entries) => entries,
-                Err(_) => continue,
+            let Ok(entries) = std::fs::read_dir(&dir) else {
+                continue;
             };
             for entry in entries.flatten().take(2000) {
                 total += 1;
@@ -2602,46 +2675,52 @@ pub mod commands {
         }
         let espeak = voice.join("espeak-ng-data");
         let espeak_is_dir = espeak.is_dir();
-        let espeak_files = std::fs::read_dir(&espeak)
-            .map(|entries| entries.count())
-            .unwrap_or(0);
-        let onnx_bytes = std::fs::metadata(voice.join("pt_BR-faber-medium.onnx"))
-            .map(|meta| meta.len())
-            .unwrap_or(0);
+        let espeak_files = std::fs::read_dir(&espeak).map_or(0, std::iter::Iterator::count);
+        let onnx_bytes =
+            std::fs::metadata(voice.join("pt_BR-faber-medium.onnx")).map_or(0, |meta| meta.len());
         (total, espeak_is_dir, espeak_files, onnx_bytes)
     }
 
-    /// Get the current in-app status view (T065b): the read-only
-    /// mirror of the session's authoritative state plus the
-    /// stored last_rate. The view owns no state and computes no
-    /// position, rate, or transport — it renders what the
-    /// session already states (SC-035, FR-042).
+    /// Get the current in-app status view (T065b).
+    ///
+    /// The read-only mirror of the session's authoritative state
+    /// plus the stored `last_rate`. The view owns no state and
+    /// computes no position, rate, or transport — it renders what
+    /// the session already states (SC-035, FR-042).
     ///
     /// Returns the rendered `StatusView` with rate, transport,
-    /// position, reason, and reason_expiry.
+    /// position, reason, and `reason_expiry`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string when a state lock is poisoned or no
+    /// document is loaded (no surface resolver).
     #[command]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "Tauri's CommandArg extractor is implemented for State by value; &State is not a supported command parameter"
+    )]
     pub fn get_status_view(
         state: State<'_, AppState>,
     ) -> Result<crate::status_view::StatusView, String> {
-        let session = state.session.lock().map_err(|e| e.to_string())?;
-        let snap = session.snapshot();
+        let snap = state.session.lock().map_err(|e| e.to_string())?.snapshot();
         let resolver_guard = state.surface_resolver.lock().map_err(|e| e.to_string())?;
-        let headings_guard = state.headings.lock().map_err(|e| e.to_string())?;
-
         let resolver = resolver_guard
             .as_ref()
             .ok_or_else(|| "no document loaded".to_string())?;
-
+        let headings_guard = state.headings.lock().map_err(|e| e.to_string())?;
         let surface = resolver.resolve(
             snap.position_secs,
             resolver.consumed_units_at(snap.position_secs),
             &headings_guard,
         );
-        let fingerprint_guard = state
+        drop(headings_guard);
+        drop(resolver_guard);
+
+        let fingerprint = *state
             .current_fingerprint
             .lock()
             .map_err(|e| e.to_string())?;
-        let fingerprint = *fingerprint_guard;
         // Get stored last_rate from bookmark store. The
         // fingerprint gates the read: with no document
         // loaded there is no key to read beside, and the
@@ -2649,11 +2728,11 @@ pub mod commands {
         let last_rate = if fingerprint.is_some() {
             let mut bookmark_store_guard =
                 state.bookmark_store.lock().map_err(|e| e.to_string())?;
-            if let Some(store) = bookmark_store_guard.as_mut() {
-                store.get_last_rate().ok().flatten()
-            } else {
-                None
-            }
+            let rate = bookmark_store_guard
+                .as_mut()
+                .and_then(|store| store.get_last_rate().ok().flatten());
+            drop(bookmark_store_guard);
+            rate
         } else {
             None
         };
@@ -2664,15 +2743,13 @@ pub mod commands {
         // don't have a transient reason.
         let reason: Option<(crate::surface::FullReason, crate::surface::ReasonExpiry)> = None;
 
-        let document_title = surface.title.clone();
-        let section_title = surface.section_title.clone();
         let fingerprint = fingerprint.unwrap_or([0u8; 32]);
         Ok(crate::status_view::render_status_view(
             last_rate,
             snap.transport,
             snap.position_secs,
-            &document_title,
-            section_title,
+            &surface.title,
+            surface.section_title,
             reason,
             fingerprint,
         ))
@@ -2683,12 +2760,22 @@ pub mod commands {
     /// with no resume offer (FR-032f, storage-schema.md).
     ///
     /// Called when the user presses the dedicated Stop button in-app.
+    ///
+    /// # Errors
+    ///
+    /// Returns the store's error string when the bookmark store lock
+    /// is poisoned or the delete fails.
     #[command]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "Tauri's CommandArg extractor is implemented for State by value; &State is not a supported command parameter"
+    )]
     pub fn session_delete(fingerprint: [u8; 32], state: State<'_, AppState>) -> Result<(), String> {
         let mut bookmark_store_guard = state.bookmark_store.lock().map_err(|e| e.to_string())?;
         if let Some(store) = bookmark_store_guard.as_mut() {
             store.delete(&fingerprint).map_err(|e| e.to_string())?;
         }
+        drop(bookmark_store_guard);
         Ok(())
     }
 
@@ -2715,6 +2802,10 @@ pub mod commands {
     /// Returns the store's error string when the stored row cannot
     /// be read.
     #[command]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "Tauri's CommandArg extractor is implemented for State by value; &State is not a supported command parameter"
+    )]
     pub fn offer_route(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
         let Some(fingerprint) = current_fingerprint(&state) else {
             return Ok(serde_json::json!({ "offer_route": "none" }));
@@ -2733,13 +2824,15 @@ pub mod commands {
         // cold-start open payload — never a second definition
         // of the route vocabulary.
         let (offer_route, window_ms) = offer_route_wire(route_offer(&state, stored.end_kind));
-        Ok(match window_ms {
-            Some(window_ms) => serde_json::json!({
-                "offer_route": offer_route,
-                "window_ms": window_ms,
-            }),
-            None => serde_json::json!({ "offer_route": offer_route }),
-        })
+        Ok(window_ms.map_or_else(
+            || serde_json::json!({ "offer_route": offer_route }),
+            |window_ms| {
+                serde_json::json!({
+                    "offer_route": offer_route,
+                    "window_ms": window_ms,
+                })
+            },
+        ))
     }
 }
 
@@ -2754,7 +2847,7 @@ pub mod commands {
 /// * verbs `play|pause|stop|skip_forward5s|skip_back5s|rate_up|rate_down|
 ///   cycle_voice_next|cycle_voice_prev|control_unmapped` — `MediaMirror.kt`
 ///   `VERB_*` consts; `resume_at_stored|start_over|choose_engine` — the
-///   contract's closed verb set via the normative snake_case case-mapping
+///   contract's closed verb set via the normative `snake_case` case-mapping
 ///   (no Kotlin `VERB_*` const exists for these three yet — gap noted).
 /// * intents `duckable_transient|silence_demanding|permanent_loss|regained`
 ///   (`FocusMirror.kt` `INTENT_*`; `FocusRegained` wires as `regained`, per
@@ -3124,12 +3217,13 @@ mod latch_persistence_tests {
     }
 }
 
-/// The Rust→shell publish path (T133): streams mirror
-/// snapshots over `tauri::ipc::Channel` on every
-/// transport/position/focus event (FR-003, FR-028).
-/// The Kotlin surface consumes these via `@Command`
-/// setters on `MediaMirror` and `Residency` — zero
-/// playback logic in Kotlin (SC-035).
+/// The Rust→shell publish path (T133).
+///
+/// Streams mirror snapshots over `tauri::ipc::Channel` on every
+/// transport/position/focus event (FR-003, FR-028). The Kotlin
+/// surface consumes these via `@Command` setters on
+/// `MediaMirror` and `Residency` — zero playback logic in
+/// Kotlin (SC-035).
 pub mod publish {
     use super::AppState;
     use player::cli::SessionSnapshot;
@@ -3156,6 +3250,10 @@ pub mod publish {
     /// Returns an error string if the channel cannot be created
     /// (should not happen on a healthy Tauri setup).
     #[tauri::command]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "Tauri's CommandArg extractor is implemented for State by value; &State is not a supported command parameter"
+    )]
     pub fn register_publish_listener(
         _app: AppHandle,
         state: State<'_, AppState>,
@@ -3166,6 +3264,7 @@ pub mod publish {
 
         let mut guard = state.publish_channel.lock().map_err(|e| e.to_string())?;
         *guard = Some(channel);
+        drop(guard);
 
         tracing::info!("publish channel registered: {CHANNEL_NAME}");
         Ok(())
@@ -3213,9 +3312,8 @@ pub mod publish {
             );
         }
 
-        let channel_guard = match state.publish_channel.lock() {
-            Ok(g) => g,
-            Err(_) => return, // poisoned lock, drop silently
+        let Ok(channel_guard) = state.publish_channel.lock() else {
+            return; // poisoned lock, drop silently
         };
 
         let Some(channel) = channel_guard.as_ref() else {
@@ -3235,9 +3333,11 @@ pub mod publish {
         }
     }
 
-    /// Build the Rust-to-frontend mirror projection from the authoritative
-    /// session state and resolved surface snapshot. This view-only label is
-    /// not included by [`build_kotlin_mirror_json`] for the lock-screen.
+    /// Build the Rust-to-frontend mirror projection from the
+    /// authoritative session state and resolved surface snapshot.
+    ///
+    /// This view-only label is not included by
+    /// [`build_kotlin_mirror_json`] for the lock-screen.
     #[must_use]
     pub fn frontend_mirror(
         transport: TransportState,
@@ -3268,6 +3368,7 @@ pub mod publish {
 
     /// Translate the closed player progress label into the application's
     /// required pt-BR user-facing string (FR-011, FR-013).
+    #[must_use]
     pub fn pt_br_progress_label(progress: &Progress) -> Option<String> {
         player::surface::progress_label(progress)
             .map(|label| label.replace("Section ", "Seção ").replace(" of ", " de "))
@@ -3378,9 +3479,8 @@ pub mod publish {
         headings: &[Heading],
         transient_reason: Option<String>,
     ) {
-        let session_guard = match state.session.lock() {
-            Ok(g) => g,
-            Err(_) => return,
+        let Ok(session_guard) = state.session.lock() else {
+            return;
         };
         let snapshot = session_guard.snapshot();
         // The publish path already holds the session position; the
@@ -3401,10 +3501,16 @@ pub mod publish {
         publish_mirror_to_channel(state, &snapshot, &surface, transient_reason, &dismissal);
     }
 
-    /// Test-compatible publish_mirror function (T132 contract).
+    /// Test-compatible `publish_mirror` function (T132 contract).
     ///
     /// Returns the JSON payload that would be sent over the channel.
     /// Used by the contract test to verify the wire form.
+    #[must_use]
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test-only helper: position_secs is a non-negative whole-second count; truncation is the intended unit conversion"
+    )]
     pub fn publish_mirror(
         transport: &str,
         position_secs: f64,
@@ -3417,10 +3523,7 @@ pub mod publish {
             "transport".to_string(),
             Value::String(transport.to_string()),
         );
-        let _ = obj.insert(
-            "position_secs".to_string(),
-            serde_json::to_value(position_secs).unwrap(),
-        );
+        let _ = obj.insert("position_secs".to_string(), Value::from(position_secs));
         if let Some(section) = section_title {
             let _ = obj.insert("section_title".to_string(), Value::String(section));
         }
@@ -3429,14 +3532,11 @@ pub mod publish {
                 let mut m = Map::new();
                 let _ = m.insert(
                     "consumed_units".to_string(),
-                    serde_json::to_value(position_secs as u64).unwrap(),
+                    Value::from(position_secs as u64),
                 );
-                let _ = m.insert(
-                    "total_units".to_string(),
-                    serde_json::to_value(120.0 as u64).unwrap(),
-                );
-                let _ = m.insert("k".to_string(), serde_json::to_value(1u32).unwrap());
-                let _ = m.insert("n".to_string(), serde_json::to_value(1u32).unwrap());
+                let _ = m.insert("total_units".to_string(), Value::from(120.0 as u64));
+                let _ = m.insert("k".to_string(), Value::from(1u32));
+                let _ = m.insert("n".to_string(), Value::from(1u32));
                 let mut outer = Map::new();
                 let _ = outer.insert("determinate".to_string(), Value::Object(m));
                 outer
@@ -3487,9 +3587,14 @@ mod heartbeat_bookmark_tests {
         state: &AppState,
         fingerprint: [u8; 32],
     ) -> Result<Option<StoredPosition>, String> {
-        let mut guard = state.bookmark_store.lock().map_err(|e| e.to_string())?;
-        let store = guard.as_mut().ok_or("no bookmark store")?;
-        store.get(&fingerprint).map_err(|e| e.to_string())
+        state
+            .bookmark_store
+            .lock()
+            .map_err(|e| e.to_string())?
+            .as_mut()
+            .ok_or("no bookmark store")?
+            .get(&fingerprint)
+            .map_err(|e| e.to_string())
     }
 
     /// Drive the held session to `Playing` through the
@@ -3527,7 +3632,7 @@ mod heartbeat_bookmark_tests {
 
         let fingerprint = fingerprint::fingerprint(DOC);
         let row = stored_row(&state, fingerprint)?.ok_or("no row after the deliberate pause")?;
-        assert_eq!(row.offset_secs, paused.position_secs);
+        assert!((row.offset_secs - paused.position_secs).abs() < 1e-9);
         assert_eq!(row.end_kind, SessionEnd::Paused);
         assert!(
             row.first_yield_ms > 0,
@@ -3569,7 +3674,7 @@ mod heartbeat_bookmark_tests {
         let row =
             stored_row(&state, fingerprint)?.ok_or("no row after the focus-loss interruption")?;
         assert_eq!(row.end_kind, SessionEnd::Interrupted);
-        assert_eq!(row.offset_secs, interrupted.position_secs);
+        assert!((row.offset_secs - interrupted.position_secs).abs() < 1e-9);
         Ok(())
     }
 
@@ -3591,7 +3696,7 @@ mod heartbeat_bookmark_tests {
             SessionEnd::Interrupted,
             "a crash point must record the unexpected-end kind"
         );
-        assert_eq!(row.offset_secs, 0.0);
+        assert!(row.offset_secs.abs() < 1e-9);
 
         let stopped = {
             let mut session = state.session.lock().map_err(|e| e.to_string())?;
@@ -3676,9 +3781,14 @@ mod event_durable_tests {
         state: &AppState,
         fingerprint: [u8; 32],
     ) -> Result<Option<StoredPosition>, String> {
-        let mut guard = state.bookmark_store.lock().map_err(|e| e.to_string())?;
-        let store = guard.as_mut().ok_or("no bookmark store")?;
-        store.get(&fingerprint).map_err(|e| e.to_string())
+        state
+            .bookmark_store
+            .lock()
+            .map_err(|e| e.to_string())?
+            .as_mut()
+            .ok_or("no bookmark store")?
+            .get(&fingerprint)
+            .map_err(|e| e.to_string())
     }
 
     /// Drive the held session to `Playing` through the real
@@ -3815,7 +3925,7 @@ mod event_durable_tests {
             SessionEnd::Interrupted,
             "a backgrounded playing session did not record the crash-point kind"
         );
-        assert_eq!(row.offset_secs, 0.0);
+        assert!(row.offset_secs.abs() < 1e-9);
         assert!(
             row.first_yield_ms > 0,
             "the pre-suspend write did not stamp the FR-015 clock"
@@ -3879,8 +3989,8 @@ mod event_durable_tests {
             SessionEnd::Interrupted,
             "a section change while playing did not record the crash-point kind"
         );
-        assert_eq!(
-            row.offset_secs, SKIP_STEP_SECS,
+        assert!(
+            (row.offset_secs - SKIP_STEP_SECS).abs() < 1e-9,
             "the section change did not persist the skipped position"
         );
         Ok(())
@@ -4017,9 +4127,12 @@ mod open_document_tests {
         offset_secs: f64,
         end_kind: engine_core::closed::SessionEnd,
     ) -> Result<(), String> {
-        let mut guard = state.bookmark_store.lock().map_err(|e| e.to_string())?;
-        let store = guard.as_mut().ok_or("no bookmark store")?;
-        store
+        state
+            .bookmark_store
+            .lock()
+            .map_err(|e| e.to_string())?
+            .as_mut()
+            .ok_or("no bookmark store")?
             .put(
                 &fingerprint(),
                 StoredPosition {
@@ -4067,9 +4180,12 @@ mod open_document_tests {
             );
             // The synthesis ran before the audio tail failed: the
             // surface resolver and headings are already fed.
-            let resolver = state.surface_resolver.lock().map_err(|e| e.to_string())?;
             assert!(
-                resolver.is_some(),
+                state
+                    .surface_resolver
+                    .lock()
+                    .map_err(|e| e.to_string())?
+                    .is_some(),
                 "the open failed before the resolver was fed at session start"
             );
         }
@@ -4084,7 +4200,7 @@ mod open_document_tests {
     #[test]
     fn open_document_records_the_fingerprint_and_fixes_the_totals_at_open() -> Result<(), String> {
         let (_dir, state) = state_with_store()?;
-        let _opened = open_document_bytes(&state, DOC.to_vec());
+        let opened = open_document_bytes(&state, DOC.to_vec());
         assert_eq!(
             current_fingerprint(&state),
             Some(fingerprint()),
@@ -4092,7 +4208,7 @@ mod open_document_tests {
         );
         assert!(
             !matches!(
-                _opened,
+                opened,
                 Err(OpenError::EmptyDocument | OpenError::InvalidUtf8)
             ),
             "valid bytes must not be refused as empty or non-text"
@@ -4114,6 +4230,8 @@ mod open_document_tests {
         );
         let at_start = resolver.resolve(0.0, resolver.consumed_units_at(0.0), &headings_guard);
         let later = resolver.resolve(600.0, resolver.consumed_units_at(600.0), &headings_guard);
+        drop(headings_guard);
+        drop(resolver_guard);
         let (start_total, start_sections) = totals_of(&at_start)?;
         let (later_total, later_sections) = totals_of(&later)?;
         assert_eq!(
@@ -4144,9 +4262,12 @@ mod open_document_tests {
             ),
             "empty bytes must be refused with the named empty-document error"
         );
-        let resolver = state.surface_resolver.lock().map_err(|e| e.to_string())?;
         assert!(
-            resolver.is_none(),
+            state
+                .surface_resolver
+                .lock()
+                .map_err(|e| e.to_string())?
+                .is_none(),
             "a refused open loaded a document — the stdout half is not empty"
         );
         assert_eq!(
@@ -4339,17 +4460,27 @@ mod rate_persistence_tests {
     /// The stored `last_rate` rung, read through the store's own
     /// getter.
     fn stored_rate(state: &AppState) -> Result<Option<PlaybackRate>, String> {
-        let mut guard = state.bookmark_store.lock().map_err(|e| e.to_string())?;
-        let store = guard.as_mut().ok_or("no bookmark store")?;
-        store.get_last_rate().map_err(|e| e.to_string())
+        state
+            .bookmark_store
+            .lock()
+            .map_err(|e| e.to_string())?
+            .as_mut()
+            .ok_or("no bookmark store")?
+            .get_last_rate()
+            .map_err(|e| e.to_string())
     }
 
     /// Store a `last_rate` rung, as an earlier session's dispatch
     /// would have written it.
     fn put_stored_rate(state: &AppState, rate: PlaybackRate) -> Result<(), String> {
-        let mut guard = state.bookmark_store.lock().map_err(|e| e.to_string())?;
-        let store = guard.as_mut().ok_or("no bookmark store")?;
-        store.put_last_rate(rate).map_err(|e| e.to_string())
+        state
+            .bookmark_store
+            .lock()
+            .map_err(|e| e.to_string())?
+            .as_mut()
+            .ok_or("no bookmark store")?
+            .put_last_rate(rate)
+            .map_err(|e| e.to_string())
     }
 
     /// The live rung the held session states.
@@ -4403,8 +4534,7 @@ mod rate_persistence_tests {
     #[test]
     fn a_rate_dispatch_persists_the_new_rung() -> Result<(), String> {
         let (_dir, state) = state_with_store()?;
-        let payload =
-            execute_live_control(&state, ShellVerb::RateUp).map_err(|error| error.to_string())?;
+        let payload = execute_live_control(&state, ShellVerb::RateUp)?;
         assert_eq!(
             payload["transport"], "paused",
             "a rate press holds the transport it was pressed from"
@@ -4441,10 +4571,7 @@ mod rate_persistence_tests {
         let dir = tempfile::tempdir().map_err(|e| e.to_string())?;
         let fresh =
             BookmarkStore::open(&dir.path().join("bookmarks.redb")).map_err(|e| e.to_string())?;
-        {
-            let mut guard = state.bookmark_store.lock().map_err(|e| e.to_string())?;
-            *guard = Some(fresh);
-        }
+        *state.bookmark_store.lock().map_err(|e| e.to_string())? = Some(fresh);
         let _pressed = execute_live_control(&state, ShellVerb::RateUp)?;
         assert_eq!(
             session_rate(&state)?,
@@ -4508,29 +4635,33 @@ mod rate_persistence_tests {
     fn a_rate_press_writes_no_stored_position_without_a_loaded_document() -> Result<(), String> {
         let (_dir, state) = state_with_store()?;
         let key = fingerprint::fingerprint(DOC);
-        {
-            let mut guard = state.bookmark_store.lock().map_err(|e| e.to_string())?;
-            let store = guard.as_mut().ok_or("no bookmark store")?;
-            store
-                .put(
-                    &key,
-                    StoredPosition {
-                        offset_secs: 12.5,
-                        first_yield_ms: 700,
-                        end_kind: engine_core::closed::SessionEnd::Paused,
-                    },
-                )
-                .map_err(|e| e.to_string())?;
-        }
+        state
+            .bookmark_store
+            .lock()
+            .map_err(|e| e.to_string())?
+            .as_mut()
+            .ok_or("no bookmark store")?
+            .put(
+                &key,
+                StoredPosition {
+                    offset_secs: 12.5,
+                    first_yield_ms: 700,
+                    end_kind: engine_core::closed::SessionEnd::Paused,
+                },
+            )
+            .map_err(|e| e.to_string())?;
         let _pressed = execute_live_control(&state, ShellVerb::RateUp)?;
-        let stored = {
-            let mut guard = state.bookmark_store.lock().map_err(|e| e.to_string())?;
-            let store = guard.as_mut().ok_or("no bookmark store")?;
-            store.get(&key).map_err(|e| e.to_string())?
-        };
+        let stored = state
+            .bookmark_store
+            .lock()
+            .map_err(|e| e.to_string())?
+            .as_mut()
+            .ok_or("no bookmark store")?
+            .get(&key)
+            .map_err(|e| e.to_string())?;
         let stored = stored.ok_or("the rate press disturbed the stored position")?;
-        assert_eq!(
-            stored.offset_secs, 12.5,
+        assert!(
+            (stored.offset_secs - 12.5).abs() < 1e-9,
             "a rate change rewrote a stored position"
         );
         assert_eq!(
@@ -4552,6 +4683,7 @@ mod playback_watch_tests {
         let _ = session
             .execute(ShellVerb::Play)
             .map_err(|e| e.to_string())?;
+        drop(session);
         Ok(())
     }
 
@@ -4578,8 +4710,11 @@ mod playback_watch_tests {
             .map_err(|e| e.to_string())?
             .snapshot()
             .position_secs;
-        assert_eq!(position, 3.0, "the first delta is credited whole");
-        assert_eq!(watch.fed_secs, 3.0);
+        assert!(
+            (position - 3.0).abs() < 1e-9,
+            "the first delta is credited whole"
+        );
+        assert!((watch.fed_secs - 3.0).abs() < 1e-9);
 
         feed_audible_progress(&state, 3.0, &mut watch);
         let position = state
@@ -4588,7 +4723,10 @@ mod playback_watch_tests {
             .map_err(|e| e.to_string())?
             .snapshot()
             .position_secs;
-        assert_eq!(position, 3.0, "a repeated reading credits nothing");
+        assert!(
+            (position - 3.0).abs() < 1e-9,
+            "a repeated reading credits nothing"
+        );
 
         feed_audible_progress(&state, 3.5, &mut watch);
         let position = state
@@ -4597,7 +4735,10 @@ mod playback_watch_tests {
             .map_err(|e| e.to_string())?
             .snapshot()
             .position_secs;
-        assert_eq!(position, 3.5, "only the step since the last credit lands");
+        assert!(
+            (position - 3.5).abs() < 1e-9,
+            "only the step since the last credit lands"
+        );
         Ok(())
     }
 
@@ -4616,7 +4757,7 @@ mod playback_watch_tests {
             units: Some(1),
         };
         playback_watch_tick(&state, &mut watch);
-        assert_eq!(watch.fed_secs, 0.0);
+        assert!(watch.fed_secs.abs() < 1e-9);
         assert_eq!(watch.units, None);
         Ok(())
     }
@@ -4625,10 +4766,7 @@ mod playback_watch_tests {
     fn progress_republishes_once_per_new_consumed_unit() -> Result<(), String> {
         let state = AppState::test_state();
         start_playing(&state)?;
-        {
-            let mut resolver = state.surface_resolver.lock().map_err(|e| e.to_string())?;
-            *resolver = Some(two_unit_resolver());
-        }
+        *state.surface_resolver.lock().map_err(|e| e.to_string())? = Some(two_unit_resolver());
         let mut watch = PlaybackWatch::default();
 
         assert!(

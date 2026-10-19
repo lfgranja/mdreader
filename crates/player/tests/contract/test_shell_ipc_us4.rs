@@ -14,7 +14,7 @@
 //!   Playing, the resume/start-over/external-start
 //!   offers exist only from Paused and Interrupted,
 //!   live-session controls need a live session, and
-//!   ChooseEngine is a selection that changes nothing
+//!   `ChooseEngine` is a selection that changes nothing
 //!   (T020 / FR-005 / FR-018 / FR-019 / FR-018b /
 //!   FR-032 / FR-032f);
 //! - C3 the mirror payload carries the session's
@@ -24,7 +24,7 @@
 //! - C4 the mirror position reflects the Rust module
 //!   and never moves while silent (FR-002 / FR-005);
 //! - C5 the snapshot and the mirror serialize to the
-//!   contract's snake_case wire keys — exactly the
+//!   contract's `snake_case` wire keys — exactly the
 //!   enumerated key sets, nothing added (contracts/
 //!   shell-ipc.md case-mapping table).
 //!
@@ -65,7 +65,6 @@ use std::error::Error;
 
 use engine_core::closed::{PlaybackRate, TransportState};
 use player::cli::{PlaybackSession, PlayerError, SessionSnapshot, ShellVerb};
-use player::position::SKIP_STEP_SECS;
 use player::rate::{LADDER, step_down, step_up};
 use player::surface::{MirrorState, Progress};
 
@@ -87,6 +86,14 @@ const DURATION_SECS: f64 = 120.0;
 /// real value, not only against 0.0 (FR-032 /
 /// FR-032a).
 const STORED_POSITION_SECS: f64 = 30.0;
+
+/// The FR-002 zero-sections skip fallback, in seconds:
+/// a document with no headings has no boundary to land
+/// on, so the skip displaces the position by exactly
+/// ±10.0 s (`player::skip::skip_section`). The trial
+/// document is sectionless, so this is the shell verb's
+/// skip step.
+const SECTIONLESS_SKIP_SECS: f64 = 10.0;
 
 /// The expected outcome of one (transport, verb) cell
 /// of the closed transition table — the contract the
@@ -164,7 +171,7 @@ const ALL_VERBS: [ShellVerb; 15] = [
 
 /// The contract wire name of every closed verb
 /// (`contracts/shell-ipc.md` case-mapping table: Rust
-/// PascalCase → wire snake_case).
+/// `PascalCase` → wire `snake_case`).
 const WIRE_VERBS: [(ShellVerb, &str); 15] = [
     (ShellVerb::Play, "play"),
     (ShellVerb::Pause, "pause"),
@@ -185,7 +192,7 @@ const WIRE_VERBS: [(ShellVerb, &str); 15] = [
 
 /// The closed transition function's contract (FR-020):
 /// the expected outcome of every verb press from every
-/// transport state, as one exhaustive match over the
+/// transport state, as an exhaustive dispatch over the
 /// closed (state, verb) product — five states ×
 /// fifteen verbs, no catch-all arm (Principle VII /
 /// FR-044 / gate 7).
@@ -196,146 +203,103 @@ const WIRE_VERBS: [(ShellVerb, &str); 15] = [
 /// does not move — the T019 double-press convention
 /// (a driver may press a verb twice; the second press
 /// is discarded).
-#[expect(
-    clippy::match_same_arms,
-    reason = "Principle VII / FR-044: the closed 5x15 transition table's illegal cells all construct the same rejection and its live-session control cells share one effect shape by design; enumerating every cell explicitly (rather than a catch-all arm) is what makes an added state or verb a compile error"
-)]
-fn expected(transport: TransportState, verb: ShellVerb) -> Expected {
-    match (transport, verb) {
-        // Playing: exactly {Paused, Interrupted,
-        // Stopped, Completed} is reachable (tasks.md
-        // T020) — a second Play is the T019 double
-        // press, and no resume or start-over offer
-        // exists while playing.
-        (TransportState::Playing, ShellVerb::Play) => Expected::Rejected,
-        (TransportState::Playing, ShellVerb::Pause) => Expected::Land {
+const fn expected(transport: TransportState, verb: ShellVerb) -> Expected {
+    match transport {
+        TransportState::Playing => expected_playing(verb),
+        TransportState::Paused | TransportState::Interrupted => expected_silent(verb),
+        TransportState::Stopped | TransportState::Completed => expected_terminal(verb),
+    }
+}
+
+/// Playing: exactly {Paused, Interrupted, Stopped,
+/// Completed} is reachable (tasks.md T020) — a
+/// second Play is the T019 double press, and no
+/// resume or start-over offer exists while playing.
+///
+/// Every verb of the closed set is named explicitly,
+/// grouped only by identical effect, so an added verb
+/// is a compile error (FR-044 / gate 7).
+const fn expected_playing(verb: ShellVerb) -> Expected {
+    match verb {
+        ShellVerb::Pause => Expected::Land {
             transport: TransportState::Paused,
         },
-        (TransportState::Playing, ShellVerb::Stop) => Expected::LandDiscarding {
-            transport: TransportState::Stopped,
-        },
-        (TransportState::Playing, ShellVerb::Complete) => Expected::LandDiscarding {
-            transport: TransportState::Completed,
-        },
-        (TransportState::Playing, ShellVerb::Interrupt) => Expected::Land {
+        ShellVerb::Interrupt => Expected::Land {
             transport: TransportState::Interrupted,
         },
-        (TransportState::Playing, ShellVerb::RateUp) => Expected::Control,
-        (TransportState::Playing, ShellVerb::RateDown) => Expected::Control,
-        (TransportState::Playing, ShellVerb::SkipForward) => Expected::Control,
-        (TransportState::Playing, ShellVerb::SkipBackward) => Expected::Control,
-        (TransportState::Playing, ShellVerb::ResumeAtStored) => Expected::Rejected,
-        (TransportState::Playing, ShellVerb::StartOver) => Expected::Rejected,
-        (TransportState::Playing, ShellVerb::ChooseEngine) => Expected::NoOp,
-        (TransportState::Playing, ShellVerb::ExternalStart) => Expected::Rejected,
-        (TransportState::Playing, ShellVerb::CycleVoiceNext) => Expected::Control,
-        (TransportState::Playing, ShellVerb::CycleVoicePrev) => Expected::Control,
-        // Paused: resume (Play, ResumeAtStored,
-        // ExternalStart) and the universal Stop. A
-        // document ends from playback, not from a
-        // pause, and an already-silent session cannot
-        // be interrupted into a new state.
-        (TransportState::Paused, ShellVerb::Play) => Expected::Land {
-            transport: TransportState::Playing,
-        },
-        (TransportState::Paused, ShellVerb::Pause) => Expected::Rejected,
-        (TransportState::Paused, ShellVerb::Stop) => Expected::LandDiscarding {
+        ShellVerb::Stop => Expected::LandDiscarding {
             transport: TransportState::Stopped,
         },
-        (TransportState::Paused, ShellVerb::Complete) => Expected::Rejected,
-        (TransportState::Paused, ShellVerb::Interrupt) => Expected::Rejected,
-        (TransportState::Paused, ShellVerb::RateUp) => Expected::Control,
-        (TransportState::Paused, ShellVerb::RateDown) => Expected::Control,
-        (TransportState::Paused, ShellVerb::SkipForward) => Expected::Control,
-        (TransportState::Paused, ShellVerb::SkipBackward) => Expected::Control,
-        (TransportState::Paused, ShellVerb::ResumeAtStored) => Expected::Land {
+        ShellVerb::Complete => Expected::LandDiscarding {
+            transport: TransportState::Completed,
+        },
+        ShellVerb::RateUp
+        | ShellVerb::RateDown
+        | ShellVerb::SkipForward
+        | ShellVerb::SkipBackward
+        | ShellVerb::CycleVoiceNext
+        | ShellVerb::CycleVoicePrev => Expected::Control,
+        ShellVerb::ChooseEngine => Expected::NoOp,
+        ShellVerb::Play
+        | ShellVerb::ResumeAtStored
+        | ShellVerb::StartOver
+        | ShellVerb::ExternalStart => Expected::Rejected,
+    }
+}
+
+/// Paused and Interrupted share one legality: the
+/// explicit-action resume (`Play`, `ResumeAtStored`,
+/// `ExternalStart`) and the universal Stop. A document
+/// ends from playback, not from a silence state, and an
+/// already-silent session cannot be interrupted into a
+/// new state — the FR-023a / FR-032c expiries are the
+/// only automatic paths and are not session verbs.
+const fn expected_silent(verb: ShellVerb) -> Expected {
+    match verb {
+        ShellVerb::Play | ShellVerb::ResumeAtStored | ShellVerb::ExternalStart => Expected::Land {
             transport: TransportState::Playing,
         },
-        (TransportState::Paused, ShellVerb::StartOver) => Expected::LandDiscarding {
+        ShellVerb::StartOver => Expected::LandDiscarding {
             transport: TransportState::Playing,
         },
-        (TransportState::Paused, ShellVerb::ChooseEngine) => Expected::NoOp,
-        (TransportState::Paused, ShellVerb::ExternalStart) => Expected::Land {
-            transport: TransportState::Playing,
-        },
-        (TransportState::Paused, ShellVerb::CycleVoiceNext) => Expected::Control,
-        (TransportState::Paused, ShellVerb::CycleVoicePrev) => Expected::Control,
-        // Interrupted: the same legality as Paused —
-        // the explicit-action resume (Play,
-        // ResumeAtStored, ExternalStart) and the
-        // universal Stop; the FR-023a / FR-032c
-        // expiries are the only automatic paths and
-        // are not session verbs.
-        (TransportState::Interrupted, ShellVerb::Play) => Expected::Land {
-            transport: TransportState::Playing,
-        },
-        (TransportState::Interrupted, ShellVerb::Pause) => Expected::Rejected,
-        (TransportState::Interrupted, ShellVerb::Stop) => Expected::LandDiscarding {
+        ShellVerb::Stop => Expected::LandDiscarding {
             transport: TransportState::Stopped,
         },
-        (TransportState::Interrupted, ShellVerb::Complete) => Expected::Rejected,
-        (TransportState::Interrupted, ShellVerb::Interrupt) => Expected::Rejected,
-        (TransportState::Interrupted, ShellVerb::RateUp) => Expected::Control,
-        (TransportState::Interrupted, ShellVerb::RateDown) => Expected::Control,
-        (TransportState::Interrupted, ShellVerb::SkipForward) => Expected::Control,
-        (TransportState::Interrupted, ShellVerb::SkipBackward) => Expected::Control,
-        (TransportState::Interrupted, ShellVerb::ResumeAtStored) => Expected::Land {
-            transport: TransportState::Playing,
-        },
-        (TransportState::Interrupted, ShellVerb::StartOver) => Expected::LandDiscarding {
-            transport: TransportState::Playing,
-        },
-        (TransportState::Interrupted, ShellVerb::ChooseEngine) => Expected::NoOp,
-        (TransportState::Interrupted, ShellVerb::ExternalStart) => Expected::Land {
-            transport: TransportState::Playing,
-        },
-        (TransportState::Interrupted, ShellVerb::CycleVoiceNext) => Expected::Control,
-        (TransportState::Interrupted, ShellVerb::CycleVoicePrev) => Expected::Control,
-        // Stopped is terminal: only the idempotent
-        // Stop press (T019) and the engine selection
-        // are legal — the session is torn down
-        // (FR-032f), so rate moves, lock-screen
-        // skips, voice cycles, and every resume form
-        // are rejected.
-        (TransportState::Stopped, ShellVerb::Play) => Expected::Rejected,
-        (TransportState::Stopped, ShellVerb::Pause) => Expected::Rejected,
-        (TransportState::Stopped, ShellVerb::Stop) => Expected::LandDiscarding {
+        ShellVerb::RateUp
+        | ShellVerb::RateDown
+        | ShellVerb::SkipForward
+        | ShellVerb::SkipBackward
+        | ShellVerb::CycleVoiceNext
+        | ShellVerb::CycleVoicePrev => Expected::Control,
+        ShellVerb::ChooseEngine => Expected::NoOp,
+        ShellVerb::Pause | ShellVerb::Complete | ShellVerb::Interrupt => Expected::Rejected,
+    }
+}
+
+/// Stopped and Completed are terminal (tasks.md T020):
+/// the session is torn down (FR-032f), so every verb but
+/// the idempotent Stop press (T019, re-entering Stopped
+/// and discarding the position a second time) and the
+/// engine selection is rejected.
+const fn expected_terminal(verb: ShellVerb) -> Expected {
+    match verb {
+        ShellVerb::Stop => Expected::LandDiscarding {
             transport: TransportState::Stopped,
         },
-        (TransportState::Stopped, ShellVerb::Complete) => Expected::Rejected,
-        (TransportState::Stopped, ShellVerb::Interrupt) => Expected::Rejected,
-        (TransportState::Stopped, ShellVerb::RateUp) => Expected::Rejected,
-        (TransportState::Stopped, ShellVerb::RateDown) => Expected::Rejected,
-        (TransportState::Stopped, ShellVerb::SkipForward) => Expected::Rejected,
-        (TransportState::Stopped, ShellVerb::SkipBackward) => Expected::Rejected,
-        (TransportState::Stopped, ShellVerb::ResumeAtStored) => Expected::Rejected,
-        (TransportState::Stopped, ShellVerb::StartOver) => Expected::Rejected,
-        (TransportState::Stopped, ShellVerb::ChooseEngine) => Expected::NoOp,
-        (TransportState::Stopped, ShellVerb::ExternalStart) => Expected::Rejected,
-        (TransportState::Stopped, ShellVerb::CycleVoiceNext) => Expected::Rejected,
-        (TransportState::Stopped, ShellVerb::CycleVoicePrev) => Expected::Rejected,
-        // Completed is terminal except Stop (tasks.md
-        // T020): the same torn-down legality as
-        // Stopped, and the Stop press re-enters
-        // Stopped, discarding the position a second
-        // time.
-        (TransportState::Completed, ShellVerb::Play) => Expected::Rejected,
-        (TransportState::Completed, ShellVerb::Pause) => Expected::Rejected,
-        (TransportState::Completed, ShellVerb::Stop) => Expected::LandDiscarding {
-            transport: TransportState::Stopped,
-        },
-        (TransportState::Completed, ShellVerb::Complete) => Expected::Rejected,
-        (TransportState::Completed, ShellVerb::Interrupt) => Expected::Rejected,
-        (TransportState::Completed, ShellVerb::RateUp) => Expected::Rejected,
-        (TransportState::Completed, ShellVerb::RateDown) => Expected::Rejected,
-        (TransportState::Completed, ShellVerb::SkipForward) => Expected::Rejected,
-        (TransportState::Completed, ShellVerb::SkipBackward) => Expected::Rejected,
-        (TransportState::Completed, ShellVerb::ResumeAtStored) => Expected::Rejected,
-        (TransportState::Completed, ShellVerb::StartOver) => Expected::Rejected,
-        (TransportState::Completed, ShellVerb::ChooseEngine) => Expected::NoOp,
-        (TransportState::Completed, ShellVerb::ExternalStart) => Expected::Rejected,
-        (TransportState::Completed, ShellVerb::CycleVoiceNext) => Expected::Rejected,
-        (TransportState::Completed, ShellVerb::CycleVoicePrev) => Expected::Rejected,
+        ShellVerb::ChooseEngine => Expected::NoOp,
+        ShellVerb::Play
+        | ShellVerb::Pause
+        | ShellVerb::Complete
+        | ShellVerb::Interrupt
+        | ShellVerb::RateUp
+        | ShellVerb::RateDown
+        | ShellVerb::SkipForward
+        | ShellVerb::SkipBackward
+        | ShellVerb::ResumeAtStored
+        | ShellVerb::StartOver
+        | ShellVerb::ExternalStart
+        | ShellVerb::CycleVoiceNext
+        | ShellVerb::CycleVoicePrev => Expected::Rejected,
     }
 }
 
@@ -350,8 +314,8 @@ fn expected(transport: TransportState, verb: ShellVerb) -> Expected {
 )]
 fn expected_position_after(verb: ShellVerb, before: f64) -> f64 {
     match verb {
-        ShellVerb::SkipForward => before + SKIP_STEP_SECS,
-        ShellVerb::SkipBackward => (before - SKIP_STEP_SECS).max(0.0),
+        ShellVerb::SkipForward => before + SECTIONLESS_SKIP_SECS,
+        ShellVerb::SkipBackward => (before - SECTIONLESS_SKIP_SECS).max(0.0),
         ShellVerb::Play => before,
         ShellVerb::Pause => before,
         ShellVerb::Stop => before,
@@ -378,7 +342,7 @@ fn expected_position_after(verb: ShellVerb, before: f64) -> f64 {
     clippy::match_same_arms,
     reason = "Principle VII / FR-044: every verb that is not a rate press changes no rate — the identical arms ARE the contract; enumerating every verb explicitly (rather than a catch-all arm) is what makes an added verb a compile error"
 )]
-fn expected_rate_after(verb: ShellVerb, before: PlaybackRate) -> Option<PlaybackRate> {
+const fn expected_rate_after(verb: ShellVerb, before: PlaybackRate) -> Option<PlaybackRate> {
     match verb {
         ShellVerb::RateUp => Some(step_up(before)),
         ShellVerb::RateDown => Some(step_down(before)),
@@ -437,6 +401,23 @@ fn session_in(transport: TransportState) -> PlaybackSession {
     session
 }
 
+/// Whole-second content units of a non-negative seconds
+/// value — the test-side projection of the shell-IPC
+/// seconds→units conversion (T051).
+///
+/// `f64` has no `TryFrom<f64> for u64`, so the
+/// truncating cast is the only infallible conversion;
+/// every value passed here is a non-negative
+/// whole-second content-unit count.
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "f64 has no `TryFrom<f64> for u64`, so the cast is the only infallible seconds-to-units conversion; every value here is a non-negative whole-second content-unit count (T051)"
+)]
+const fn secs_to_units(secs: f64) -> u64 {
+    secs as u64
+}
+
 /// Build the shell-IPC mirror of a session snapshot
 /// (the mirror seam the Kotlin service consumes,
 /// `contracts/shell-ipc.md`).
@@ -447,11 +428,11 @@ fn session_in(transport: TransportState) -> PlaybackSession {
 /// session start (T051) — determinate progress when
 /// the duration was known, indeterminate otherwise —
 /// and never computes a position of its own (SC-035).
-fn mirror_of(snapshot: &SessionSnapshot, duration_secs: Option<f64>) -> MirrorState {
+const fn mirror_of(snapshot: &SessionSnapshot, duration_secs: Option<f64>) -> MirrorState {
     let progress = match duration_secs {
         Some(duration) => Progress::Determinate {
-            consumed_units: snapshot.position_secs as u64,
-            total_units: duration as u64,
+            consumed_units: secs_to_units(snapshot.position_secs),
+            total_units: secs_to_units(duration),
             k: 0,
             n: 0,
         },
@@ -461,6 +442,7 @@ fn mirror_of(snapshot: &SessionSnapshot, duration_secs: Option<f64>) -> MirrorSt
         transport: snapshot.transport,
         position_secs: snapshot.position_secs,
         progress,
+        progress_label: None,
     }
 }
 
@@ -603,6 +585,22 @@ fn every_cell_of_the_closed_verb_table_is_honoured_or_rejected() {
 /// (FR-044 / gate 7).
 #[test]
 fn transition_table_shape_follows_the_shell_ipc_contract() -> Result<(), Box<dyn Error>> {
+    closed_sets_are_the_contract_sets();
+    every_verb_carries_its_contract_wire_name();
+    stop_is_the_universal_teardown_press()?;
+    complete_is_legal_only_from_playing()?;
+    resume_offers_exist_only_from_the_live_states()?;
+    controls_are_legal_only_while_the_session_is_live()?;
+    choose_engine_changes_nothing()?;
+    the_rate_ladder_walks_and_saturates()?;
+    the_voice_cycle_changes_nothing()?;
+    Ok(())
+}
+
+/// The closed verb and transport sets hold exactly the
+/// contract counts — fifteen verbs (FR-044) and five
+/// transports (FR-020).
+fn closed_sets_are_the_contract_sets() {
     // The closed verb set: exactly the fifteen
     // variants the shell-ipc contract enumerates —
     // the thirteen pre-existing verbs plus the two
@@ -617,10 +615,12 @@ fn transition_table_shape_follows_the_shell_ipc_contract() -> Result<(), Box<dyn
         5,
         "the closed transport set holds exactly the 5 states (FR-020)"
     );
+}
 
-    // Every verb carries its contract wire name
-    // (`contracts/shell-ipc.md` case-mapping table:
-    // Rust PascalCase → wire snake_case).
+/// Every verb carries its contract wire name
+/// (`contracts/shell-ipc.md` case-mapping table: Rust
+/// `PascalCase` → wire `snake_case`).
+fn every_verb_carries_its_contract_wire_name() {
     for (verb, wire) in WIRE_VERBS {
         assert_eq!(
             verb.to_string(),
@@ -628,10 +628,12 @@ fn transition_table_shape_follows_the_shell_ipc_contract() -> Result<(), Box<dyn
             "the verb must carry its contract wire name"
         );
     }
+}
 
-    // Stop is the universal teardown press: legal
-    // from every transport, landing on Stopped and
-    // discarding the stored position (FR-032f).
+/// Stop is the universal teardown press: legal from
+/// every transport, landing on Stopped and discarding
+/// the stored position (FR-032f).
+fn stop_is_the_universal_teardown_press() -> Result<(), Box<dyn Error>> {
     for transport in ALL_TRANSPORTS {
         let mut session = session_in(transport);
         let _stopped = session.execute(ShellVerb::Stop)?;
@@ -646,10 +648,12 @@ fn transition_table_shape_follows_the_shell_ipc_contract() -> Result<(), Box<dyn
             "a Stop press discards the stored position (FR-032)"
         );
     }
+    Ok(())
+}
 
-    // Complete is legal only from Playing — a
-    // document ends from playback, never from a
-    // silence state (T020).
+/// Complete is legal only from Playing — a document ends
+/// from playback, never from a silence state (T020).
+fn complete_is_legal_only_from_playing() -> Result<(), Box<dyn Error>> {
     for transport in ALL_TRANSPORTS {
         let mut session = session_in(transport);
         let result = session.execute(ShellVerb::Complete);
@@ -671,12 +675,14 @@ fn transition_table_shape_follows_the_shell_ipc_contract() -> Result<(), Box<dyn
             );
         }
     }
+    Ok(())
+}
 
-    // The resume, start-over, and external-start
-    // offers exist only where an offer exists
-    // (Paused, Interrupted) and share the Play
-    // legality; from the other states they are
-    // rejected (FR-032 / FR-032f).
+/// The resume, start-over, and external-start offers
+/// exist only where an offer exists (Paused,
+/// Interrupted) and share the Play legality; from the
+/// other states they are rejected (FR-032 / FR-032f).
+fn resume_offers_exist_only_from_the_live_states() -> Result<(), Box<dyn Error>> {
     for transport in ALL_TRANSPORTS {
         for verb in [
             ShellVerb::Play,
@@ -705,12 +711,14 @@ fn transition_table_shape_follows_the_shell_ipc_contract() -> Result<(), Box<dyn
             }
         }
     }
+    Ok(())
+}
 
-    // Live-session controls — the rate moves, the
-    // lock-screen skips, and the voice cycle — are
-    // legal from the live states and rejected once
-    // the session is torn down (FR-018 / FR-019 /
-    // FR-018b / FR-032f).
+/// Live-session controls — the rate moves, the
+/// lock-screen skips, and the voice cycle — are legal
+/// from the live states and rejected once the session is
+/// torn down (FR-018 / FR-019 / FR-018b / FR-032f).
+fn controls_are_legal_only_while_the_session_is_live() -> Result<(), Box<dyn Error>> {
     for transport in ALL_TRANSPORTS {
         for verb in [
             ShellVerb::RateUp,
@@ -739,10 +747,12 @@ fn transition_table_shape_follows_the_shell_ipc_contract() -> Result<(), Box<dyn
             }
         }
     }
+    Ok(())
+}
 
-    // ChooseEngine is a selection, not a transition:
-    // legal from every state, changing nothing
-    // (FR-005).
+/// `ChooseEngine` is a selection, not a transition: legal
+/// from every state, changing nothing (FR-005).
+fn choose_engine_changes_nothing() -> Result<(), Box<dyn Error>> {
     for transport in ALL_TRANSPORTS {
         let mut session = session_in(transport);
         let before = session.snapshot();
@@ -753,12 +763,15 @@ fn transition_table_shape_follows_the_shell_ipc_contract() -> Result<(), Box<dyn
             "a ChooseEngine press changes no transport, no position, and no rate (FR-005)"
         );
     }
+    Ok(())
+}
 
-    // The rate ladder: every rung of the closed
-    // 7-rung ladder in order, saturating at both
-    // ends (FR-019). The default rung is LADDER[1],
-    // so the up-walk covers LADDER[2..] — the
-    // first rate-up press lands on LADDER[2] (R1_25).
+/// The rate ladder: every rung of the closed 7-rung
+/// ladder in order, saturating at both ends (FR-019).
+/// The default rung is `LADDER[1]`, so the up-walk
+/// covers `LADDER[2..]` — the first rate-up press lands
+/// on `LADDER[2]` (`R1_25`).
+fn the_rate_ladder_walks_and_saturates() -> Result<(), Box<dyn Error>> {
     let mut session = PlaybackSession::new();
     let _played = session.execute(ShellVerb::Play)?;
     for &rung in LADDER.iter().skip(2) {
@@ -789,12 +802,14 @@ fn transition_table_shape_follows_the_shell_ipc_contract() -> Result<(), Box<dyn
         PlaybackRate::R0_75,
         "a rate-down press at the slowest rung saturates (FR-019)"
     );
+    Ok(())
+}
 
-    // The voice cycle is a live-session control that
-    // changes no transport, no rate, and no position
-    // at the player level (FR-018b) — the
-    // one-voice-per-press walk is the integration
-    // trial's (T053).
+/// The voice cycle is a live-session control that
+/// changes no transport, no rate, and no position at the
+/// player level (FR-018b) — the one-voice-per-press walk
+/// is the integration trial's (T053).
+fn the_voice_cycle_changes_nothing() -> Result<(), Box<dyn Error>> {
     let mut session = PlaybackSession::new();
     let _played = session.execute(ShellVerb::Play)?;
     session.on_audible_progress(STORED_POSITION_SECS);
@@ -859,11 +874,13 @@ fn mirror_payload_carries_the_sessions_authoritative_position_only() -> Result<(
         );
     };
     assert_eq!(
-        consumed_units, snapshot.position_secs as u64,
+        consumed_units,
+        secs_to_units(snapshot.position_secs),
         "the determinate progress carries the session's position as the consumed content offset (FR-003)"
     );
     assert_eq!(
-        total_units, DURATION_SECS as u64,
+        total_units,
+        secs_to_units(DURATION_SECS),
         "the determinate progress carries the session's total content units (T051)"
     );
 
@@ -941,13 +958,16 @@ fn mirror_position_reflects_the_rust_module_and_never_moves_while_silent()
     );
 
     // A skip press is a live-session control
-    // (FR-018): it moves the stored position and the
-    // mirror reflects the Rust module's position,
-    // never its own.
+    // (FR-018 / FR-002): it displaces the stored
+    // position by the zero-sections ±10 s step from
+    // where the session was — the 5.0 s of audible
+    // progress plus the skip — and the mirror reflects
+    // the Rust module's position, never its own.
     let _skipped = session.execute(ShellVerb::SkipForward)?;
+    let after_skip_secs = playing.position_secs + SECTIONLESS_SKIP_SECS;
     let skipped = mirror_of(&session.snapshot(), Some(DURATION_SECS));
     assert!(
-        (skipped.position_secs - 10.0).abs() <= POS_EPS_SECS,
+        (skipped.position_secs - after_skip_secs).abs() <= POS_EPS_SECS,
         "a skip-forward press must advance the position the mirror reflects (FR-018)"
     );
 
@@ -958,7 +978,7 @@ fn mirror_position_reflects_the_rust_module_and_never_moves_while_silent()
     session.on_audible_progress(5.0);
     let paused = mirror_of(&session.snapshot(), Some(DURATION_SECS));
     assert!(
-        (paused.position_secs - 10.0).abs() <= POS_EPS_SECS,
+        (paused.position_secs - after_skip_secs).abs() <= POS_EPS_SECS,
         "a pause retains the stored position the mirror reflects (FR-032a)"
     );
     assert_eq!(
@@ -977,14 +997,14 @@ fn mirror_position_reflects_the_rust_module_and_never_moves_while_silent()
     );
     let unchanged = mirror_of(&session.snapshot(), Some(DURATION_SECS));
     assert!(
-        (unchanged.position_secs - 10.0).abs() <= POS_EPS_SECS,
+        (unchanged.position_secs - after_skip_secs).abs() <= POS_EPS_SECS,
         "a rejected press leaves the position the mirror reflects unchanged (T019)"
     );
     Ok(())
 }
 
 /// C5 — the snapshot and the mirror serialize to the
-/// contract's snake_case wire keys (contracts/
+/// contract's `snake_case` wire keys (contracts/
 /// shell-ipc.md case-mapping table): exactly the
 /// enumerated key sets, nothing added, nothing
 /// renamed.
@@ -1030,8 +1050,9 @@ fn snapshot_and_mirror_serialize_to_snake_case_wire_keys() -> Result<(), Box<dyn
         "the snapshot wire form carries the engine identifier under its contract key"
     );
 
-    // The mirror's wire form: exactly the three
-    // contract keys.
+    // The lock-screen mirror's wire form: exactly the three
+    // contract keys. Progress text is an in-app display field
+    // and is intentionally not part of this lock-screen payload.
     let mirror = mirror_of(&snapshot, Some(DURATION_SECS));
     let mirror_wire = serde_json::to_string(&mirror)?;
     let mirror_value: serde_json::Value = serde_json::from_str(&mirror_wire)?;
@@ -1041,7 +1062,7 @@ fn snapshot_and_mirror_serialize_to_snake_case_wire_keys() -> Result<(), Box<dyn
     assert_eq!(
         mirror_object.len(),
         3,
-        "the mirror wire form carries exactly the three contract keys (contracts/shell-ipc.md)"
+        "the lock-screen mirror carries exactly its three contract fields"
     );
     assert_eq!(
         mirror_object.get("transport"),
@@ -1060,8 +1081,8 @@ fn snapshot_and_mirror_serialize_to_snake_case_wire_keys() -> Result<(), Box<dyn
         progress,
         &serde_json::json!({
             "determinate": {
-                "consumed_units": STORED_POSITION_SECS as u64,
-                "total_units": DURATION_SECS as u64,
+                "consumed_units": secs_to_units(STORED_POSITION_SECS),
+                "total_units": secs_to_units(DURATION_SECS),
                 "k": 0,
                 "n": 0,
             }

@@ -97,7 +97,7 @@ use serde::Deserialize;
 const POS_EPS_SECS: f64 = 0.001;
 
 /// The trial document's duration, in seconds — a known
-/// duration, so skips clamp at [0.0, DURATION_SECS]
+/// duration, so skips clamp at [0.0, `DURATION_SECS`]
 /// (FR-018) and the surface progress is determinate for
 /// the whole session (determinacy is fixed at session
 /// start, T051).
@@ -172,6 +172,10 @@ enum FixtureAction {
 /// names the state effect this trial asserts (SC-004).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[expect(
+    clippy::enum_variant_names,
+    reason = "the shared `ConfirmedAudibly` prefix mirrors the device fixture's wire strings (lockscreen_blind.jsonl carries `confirmed_audibly_*`), which `rename_all = \"snake_case\"` keeps the variant names in sync with; renaming the variants would silently decouple the Rust name from the FR-018a wire contract"
+)]
 enum FixtureResult {
     /// The skip advanced the position audibly (FR-018).
     ConfirmedAudiblyPositionAdvanced,
@@ -261,7 +265,7 @@ const VOICE_POOL_SIZE: usize = 3;
 impl VoicePool {
     /// The pool in selection order, starting at the first
     /// voice.
-    fn new() -> Self {
+    const fn new() -> Self {
         Self {
             voices: ["voice-a", "voice-b", "voice-c"],
             index: 0,
@@ -270,7 +274,7 @@ impl VoicePool {
 
     /// One next-voice press: exactly one voice forward,
     /// wrapping at the pool boundary (FR-018b).
-    fn next(self) -> Self {
+    const fn next(self) -> Self {
         Self {
             voices: self.voices,
             index: (self.index + 1) % VOICE_POOL_SIZE,
@@ -279,7 +283,7 @@ impl VoicePool {
 
     /// One previous-voice press: exactly one voice back,
     /// wrapping at the pool boundary (FR-018b).
-    fn prev(self) -> Self {
+    const fn prev(self) -> Self {
         Self {
             voices: self.voices,
             index: (self.index + VOICE_POOL_SIZE - 1) % VOICE_POOL_SIZE,
@@ -287,7 +291,7 @@ impl VoicePool {
     }
 
     /// The current voice.
-    fn current(&self) -> &'static str {
+    const fn current(&self) -> &'static str {
         self.voices[self.index]
     }
 }
@@ -824,7 +828,7 @@ fn completion_tears_down_residency_and_leaves_no_resume_offer() -> Result<(), Bo
 /// (T030b), modelled here as a host-side gate over the
 /// closed precondition set — the same seam T022b models.
 #[test]
-fn cold_start_refusal_states_a_named_reason_and_never_plays() -> Result<(), Box<dyn Error>> {
+fn cold_start_refusal_states_a_named_reason_and_never_plays() {
     // Control: a present precondition is the only
     // permitted start (FR-008) — the gate is a closed
     // two-member set.
@@ -859,7 +863,6 @@ fn cold_start_refusal_states_a_named_reason_and_never_plays() -> Result<(), Box<
         session.snapshot().position_secs.abs() <= POS_EPS_SECS,
         "a refused cold start never advances position (FR-005)"
     );
-    Ok(())
 }
 
 /// L7 — the denied-permission (FR-021 / SC-028) and
@@ -1035,8 +1038,7 @@ fn status_view_rate_equals_the_lock_screen_rate_source() -> Result<(), Box<dyn E
         Some("First Section".to_string()),
         "the section title is the most-recent-passed heading, never forward-looking (T051)"
     );
-    let mut determinate = false;
-    if let Progress::Determinate {
+    let determinate = if let Progress::Determinate {
         consumed_units,
         total_units,
         ..
@@ -1051,8 +1053,10 @@ fn status_view_rate_equals_the_lock_screen_rate_source() -> Result<(), Box<dyn E
             total_units, 12,
             "the determinate total is the session-start parsed-content unit count — the chunk split's segment count, never an estimate (FR-013)"
         );
-        determinate = true;
-    }
+        true
+    } else {
+        false
+    };
     assert!(
         determinate,
         "a with-duration session must resolve a determinate progress, never an indeterminate one (T051)"

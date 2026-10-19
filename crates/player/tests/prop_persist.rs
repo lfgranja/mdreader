@@ -67,32 +67,32 @@ const REPLAY_KILL_CAP_SECS: f64 = 60.0;
 /// Generated playback progress amounts — positive only,
 /// so the clock advances monotonically while Playing.
 fn progress_strategy() -> impl Strategy<Value = f64> {
-    (1u64..=2000).prop_map(|c| c as f64 * 0.01) // 0.01 .. 20.00 s
+    (1u16..=2000).prop_map(|c| f64::from(c) * 0.01) // 0.01 .. 20.00 s
 }
 
 /// Generated interruption replay amounts, constrained to
 /// the ≤30 s interruption cap (FR-004).
 fn replay_strategy() -> impl Strategy<Value = f64> {
-    (0u64..=3000).prop_map(|hundredths| hundredths as f64 * 0.01)
+    (0u16..=3000).prop_map(|hundredths| f64::from(hundredths) * 0.01)
 }
 
 /// Generated hard-kill replay amounts, constrained to the
 /// ≤60 s kill cap (FR-004).
 fn kill_replay_strategy() -> impl Strategy<Value = f64> {
-    (0u64..=6000).prop_map(|hundredths| hundredths as f64 * 0.01)
+    (0u16..=6000).prop_map(|hundredths| f64::from(hundredths) * 0.01)
 }
 
 /// Generated elapsed session durations on a quarter-second
 /// grid, bounded at 3600 s (~1 h commute document).
 fn duration_strategy() -> impl Strategy<Value = f64> {
-    (0u64..=14_400).prop_map(|q| q as f64 * 0.25)
+    (0u16..=14_400).prop_map(|q| f64::from(q) * 0.25)
 }
 
 /// Generated persistence intervals on the 20 s fixed-point
 /// grid, constrained to stay within the 15–30 s envelope and
 /// inside the half-width tolerance around the fixed 20 s point.
 fn interval_strategy() -> impl Strategy<Value = f64> {
-    (1500u64..=2750).prop_map(|hundredths| hundredths as f64 * 0.01)
+    (1500u16..=2750).prop_map(|hundredths| f64::from(hundredths) * 0.01)
 }
 
 /// The persistence events that trigger a durable write
@@ -164,7 +164,7 @@ proptest! {
     ) {
         let _interval_rounded = (interval / PERSIST_INTERVAL_SECS).abs();
         prop_assert!(
-            interval >= PERSIST_INTERVAL_MIN_SECS && interval <= PERSIST_INTERVAL_MAX_SECS,
+            (PERSIST_INTERVAL_MIN_SECS..=PERSIST_INTERVAL_MAX_SECS).contains(&interval),
             "durable interval {} s is outside the 15-30 s envelope (FR-007 fixed ~20 s)",
             interval
         );
@@ -193,18 +193,18 @@ proptest! {
         // Before any audible tick: stored_basis equals the
         // initial position (the start is the only spoken point).
         prop_assert_eq!(
-            clock.stored_basis(),
-            clock.position_secs(),
+            clock.stored_basis().to_bits(),
+            clock.position_secs().to_bits(),
             "at start: cursor (stored_basis) {} must equal current position {}, never ahead",
             clock.stored_basis(), clock.position_secs()
         );
 
         // After audible progress: cursor moves to the new
         // position (last-spoken = current), never ahead.
-        let new_pos = clock.on_audible_progress(progress).expect("positive progress must advance");
+        let new_pos = clock.on_audible_progress(progress)?;
         prop_assert_eq!(
-            clock.stored_basis(),
-            new_pos,
+            clock.stored_basis().to_bits(),
+            new_pos.to_bits(),
             "after audible tick: cursor {} must equal last-spoken position {}, never buffered ahead",
             clock.stored_basis(), new_pos
         );
@@ -325,15 +325,15 @@ proptest! {
 
         // Before audible tick: cursor equals start.
         prop_assert_eq!(
-            clock.stored_basis(), clock.position_secs(),
+            clock.stored_basis().to_bits(), clock.position_secs().to_bits(),
             "composite: initial cursor {} must equal position {} (not buffered ahead)",
             clock.stored_basis(), clock.position_secs()
         );
 
         // Advance by audible progress: cursor tracks exactly.
-        let after = clock.on_audible_progress(progress).expect("positive progress");
+        let after = clock.on_audible_progress(progress)?;
         prop_assert_eq!(
-            clock.stored_basis(), after,
+            clock.stored_basis().to_bits(), after.to_bits(),
             "composite: after audible tick cursor {} must equal last-spoken {}, never ahead",
             clock.stored_basis(), after
         );
@@ -345,7 +345,7 @@ proptest! {
 
         // Interval within envelope.
         prop_assert!(
-            interval >= PERSIST_INTERVAL_MIN_SECS && interval <= PERSIST_INTERVAL_MAX_SECS,
+            (PERSIST_INTERVAL_MIN_SECS..=PERSIST_INTERVAL_MAX_SECS).contains(&interval),
             "composite: interval {} s outside 15-30 s envelope",
             interval
         );
@@ -382,20 +382,24 @@ proptest! {
 fn prop_persist_cadence_replay_cap_at_interval_boundary() {
     // The maximum allowed interval equals the replay cap.
     assert_eq!(
-        REPLAY_INTERRUPTION_CAP_SECS, 30.0,
+        REPLAY_INTERRUPTION_CAP_SECS.to_bits(),
+        30.0_f64.to_bits(),
         "the replay interruption cap must equal the contract REWIND_CAP_SECS (30.0 s, FR-004)"
     );
     assert_eq!(
-        REPLAY_KILL_CAP_SECS, 60.0,
+        REPLAY_KILL_CAP_SECS.to_bits(),
+        60.0_f64.to_bits(),
         "the kill replay cap must be 60.0 s (FR-004)"
     );
     // When the durable interval reaches the 30 s upper
     // envelope bound, the worst-case replay equals the cap —
     // the contract asserts equality at this boundary.
-    assert!(
-        PERSIST_INTERVAL_MAX_SECS <= REPLAY_INTERRUPTION_CAP_SECS,
-        "the 30 s envelope upper bound must not exceed the 30 s replay cap"
-    );
+    const {
+        assert!(
+            PERSIST_INTERVAL_MAX_SECS <= REPLAY_INTERRUPTION_CAP_SECS,
+            "the 30 s envelope upper bound must not exceed the 30 s replay cap"
+        );
+    }
 }
 
 // Note on compilation / interface exposure:

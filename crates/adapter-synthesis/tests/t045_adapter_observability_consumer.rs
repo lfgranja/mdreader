@@ -10,8 +10,8 @@
 //! - adapter-capabilities.md §4.1 / §6.1 (declaration consumption)
 //! - adapter-handoff.md §6.1 (registration observable to selector)
 //! - spec.md:97 / data-model.md E5:120-121 / contracts/adapter-capabilities.md:119-122
-//! - SC-051 (test_double never selectable; `closed.rs` 398-406)
-//! - Principle VI (degradation observable — `None` never inferred as FullSsml)
+//! - SC-051 (`test_double` never selectable; `closed.rs` 398-406)
+//! - Principle VI (degradation observable — `None` never inferred as `FullSsml`)
 
 use adapter_synthesis::consume::{ResumeAnchor, SsmlDelivery, plan_for};
 use adapter_synthesis::{

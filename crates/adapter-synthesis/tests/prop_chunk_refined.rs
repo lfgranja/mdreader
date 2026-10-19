@@ -501,7 +501,6 @@ proptest! {
 // `4..=MAX_CHUNK_BYTES` — the floor is the maximum UTF-8
 // character width, the smallest budget at which every
 // character fits whole (see the property above).
-#[must_use]
 fn document_strategy() -> impl Strategy<Value = (String, usize)> {
     let line = prop_oneof![
         (1..=6usize, "[a-z]{1,16}")
@@ -530,7 +529,6 @@ fn document_strategy() -> impl Strategy<Value = (String, usize)> {
 /// generated block well under `MAX_CHUNK_BYTES`, so no
 /// block is ever hard-split and the property observes the
 /// segment-close path alone.
-#[must_use]
 fn whitespace_padded_document_strategy() -> impl Strategy<Value = String> {
     let line = prop_oneof![
         "[ \\t]{0,3}[a-zãçé]{1,20}[ \\t]{0,3}",

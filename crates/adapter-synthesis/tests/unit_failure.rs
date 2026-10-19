@@ -41,7 +41,7 @@
 //! the player is the sole playback authority,
 //! `constitution.md:486-490`).
 //!
-//! Contract anchors: API_CONTRACT.md §3 (`failure.rs` — the
+//! Contract anchors: `API_CONTRACT.md` §3 (`failure.rs` — the
 //! condition→variant table, `EngineFailure::report`,
 //! `MAX_OFFER_MS`, `MAX_CONDITION_DETAIL_CHARS`), §4 (`reg.rs` —
 //! registration and selectability, the SC-051 selector invariant),
@@ -54,7 +54,7 @@
 //! single `#[expect]` is the data-model E2 duration derivation
 //! (`buffer.len() as f64`) in §7 — the identical, sanctioned
 //! computation the delivery-unit tests freeze
-//! (`tests/audio_chunk.rs`; API_CONTRACT.md §0.1 entry 4).
+//! (`tests/audio_chunk.rs`; `API_CONTRACT.md` §0.1 entry 4).
 //! Every closed-set enum below is consumed by a wildcard-free
 //! exhaustive `match` (no `_ =>`): an added or removed variant
 //! breaks this test target's build instead of passing silently
@@ -89,7 +89,7 @@ use engine_core::closed::EngineTier;
 /// The closed condition set as ordinals 1..=10. The 10-arm match
 /// has no `_ =>`: an eleventh `FailureCondition` member fails to
 /// compile here.
-fn condition_ordinal(condition: FailureCondition) -> u8 {
+const fn condition_ordinal(condition: FailureCondition) -> u8 {
     match condition {
         FailureCondition::RateDeviation => 1,
         FailureCondition::WidthDeviation => 2,
@@ -110,7 +110,7 @@ fn condition_ordinal(condition: FailureCondition) -> u8 {
 /// the forbidden names `format_mismatch`, `engine_crash`,
 /// `refusal` and `deferred_grant` have no variant to be spelled
 /// as and can never be reported.
-fn engine_error_ordinal(variant: EngineError) -> u8 {
+const fn engine_error_ordinal(variant: EngineError) -> u8 {
     match variant {
         EngineError::Unreachable => 1,
         EngineError::InitFailed => 2,
@@ -125,7 +125,7 @@ fn engine_error_ordinal(variant: EngineError) -> u8 {
 /// The closed tier set as its declared wire name. The 5-arm match
 /// has no `_ =>`: a sixth `EngineTier` member fails to compile
 /// here.
-fn engine_tier_wire_of(tier: EngineTier) -> &'static str {
+const fn engine_tier_wire_of(tier: EngineTier) -> &'static str {
     match tier {
         EngineTier::OfflineDefault => "offline_default",
         EngineTier::CloudDefault => "cloud_default",
@@ -138,7 +138,7 @@ fn engine_tier_wire_of(tier: EngineTier) -> &'static str {
 /// The closed report-refusal set as ordinals 1..=2. The 2-arm
 /// match has no `_ =>`: a third `FailureReportError` member fails
 /// to compile here.
-fn failure_report_error_marker(error: FailureReportError) -> u8 {
+const fn failure_report_error_marker(error: FailureReportError) -> u8 {
     match error {
         FailureReportError::DetailTooLong { .. } => 1,
         FailureReportError::OfferTooLong { .. } => 2,

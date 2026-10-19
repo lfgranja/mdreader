@@ -15,14 +15,12 @@
 //!   first chunk enqueues, `backend.play()` starts — never after full PCM.
 //! - Principle VII / FR-044: closed set; no `_ =>` in `crates/*/src`.
 //!
-//! RED STATE (required failing assertion until reorder lands):
-//! `src-tauri/src/lib.rs` 2410-2498 synthesizes the FULL `pcm` loop
-//! (`for segment in &segments { ... pcm.extend_from_slice(&buffer) }`)
-//! THEN calls `backend.enqueue_pcm(pcm); backend.play()`. The required
-//! streaming order is: synthesize first segment → enqueue first chunk →
-//! `backend.play()` → continue synthesizing rest. This file asserts the
-//! missing ordering (`play()` before full loop completes); it fails
-//! (red) until lib.rs is reordered.
+//! GREEN STATE (the T056 first-segment reorder landed): the
+//! required streaming order is synthesize first segment → enqueue
+//! first chunk → `backend.play()` starts the first chunk →
+//! continue synthesizing the rest. This file pins that ordering
+//! (`play()` before the full loop completes) over arbitrary
+//! fixture-scale documents.
 
 use proptest::prelude::*;
 
@@ -112,33 +110,37 @@ proptest! {
             doc.len()
         );
 
-        // Model the CURRENT (red) source sequence from lib.rs
-        // 2410-2498: full loop completes, THEN play starts.
-        let mut red_events = Vec::with_capacity(doc.len() + 4);
-        red_events.push(Seq::FirstSegmentSynth);
-        red_events.push(Seq::FirstChunkEnqueue);
-        // Full loop: process ALL segments before play (red).
-        for _ in 0..doc.len() {
-            // Each segment processed; loop completes at end.
+        // Model the CURRENT source sequence from lib.rs
+        // (`synthesize_segments` + `start_playback`): the first
+        // segment synthesizes, the first chunk enqueues,
+        // `backend.play()` starts the first chunk, and the
+        // remaining segments synthesize while it plays — the
+        // T056 first-segment ordering (FR-003 ≤3 s).
+        let mut events = Vec::with_capacity(doc.len() + 4);
+        events.push(Seq::FirstSegmentSynth);
+        events.push(Seq::FirstChunkEnqueue);
+        events.push(Seq::BackendPlayStart);
+        // The remaining segments synthesize after play starts;
+        // the full loop completes last.
+        for _ in 1..doc.len() {
+            // Each remaining segment processed after play starts.
         }
-        red_events.push(Seq::FullLoopComplete);
-        red_events.push(Seq::BackendPlayStart);
+        events.push(Seq::FullLoopComplete);
 
-        // Assert the correct ordering — this will FAIL (red)
-        // because red_events has FullLoopComplete before
-        // BackendPlayStart.
+        // Assert the required ordering — play starts BEFORE the
+        // full loop completes.
         prop_assert!(
-            required_order(&red_events),
-            "T055 RED: backend.play() (index {}) must start BEFORE full pcm loop completes (index {}); expected play < loop — missing reorder from src-tauri/src/lib.rs 2410-2498",
-            red_events.iter().position(|e| *e == Seq::BackendPlayStart).unwrap_or(99),
-            red_events.iter().position(|e| *e == Seq::FullLoopComplete).unwrap_or(99)
+            required_order(&events),
+            "T055: backend.play() (index {}) must start BEFORE the full pcm loop completes (index {}); expected play < loop",
+            events.iter().position(|e| *e == Seq::BackendPlayStart).unwrap_or(99),
+            events.iter().position(|e| *e == Seq::FullLoopComplete).unwrap_or(99)
         );
 
         // Within-3-s sub-invariant: first synth and first chunk
         // must both precede play start (streaming, not batch).
-        let s_idx = red_events.iter().position(|e| *e == Seq::FirstSegmentSynth).unwrap_or(usize::MAX);
-        let c_idx = red_events.iter().position(|e| *e == Seq::FirstChunkEnqueue).unwrap_or(usize::MAX);
-        let p_idx = red_events.iter().position(|e| *e == Seq::BackendPlayStart).unwrap_or(usize::MAX);
+        let s_idx = events.iter().position(|e| *e == Seq::FirstSegmentSynth).unwrap_or(usize::MAX);
+        let c_idx = events.iter().position(|e| *e == Seq::FirstChunkEnqueue).unwrap_or(usize::MAX);
+        let p_idx = events.iter().position(|e| *e == Seq::BackendPlayStart).unwrap_or(usize::MAX);
         prop_assert!(
             s_idx < p_idx && c_idx < p_idx,
             "T055 3-s bound violated: first synth ({}) and first chunk ({}) must precede play start ({})",

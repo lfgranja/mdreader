@@ -44,20 +44,30 @@ enum Seq {
 }
 
 /// Fixture-scale arbitrary document: `1..=FIXTURE_MAX_SEGMENTS`
-/// segments, each 25..=1000 bytes, yielding totals mostly in
-/// [`FIXTURE_MIN_BYTES`, `FIXTURE_MAX_BYTES`]; test asserts bound.
+/// segments whose per-segment length is bounded so the TOTAL stays
+/// inside [`FIXTURE_MIN_BYTES`, `FIXTURE_MAX_BYTES`] for every
+/// segment count — the test's fixture-scale guard is then satisfied
+/// by construction rather than merely "mostly".
 fn fixture_scale_doc() -> impl Strategy<Value = Vec<Vec<u8>>> {
-    proptest::collection::vec(
-        (25usize..=1000usize).prop_map(|len| {
-            let mut s = vec![b'x'; len];
-            if len > 30 {
-                s[0] = b'#';
-                s[1] = b' ';
-            }
-            s
-        }),
-        1usize..=FIXTURE_MAX_SEGMENTS,
-    )
+    (1usize..=FIXTURE_MAX_SEGMENTS).prop_flat_map(|segments| {
+        // The total is `segments * len`, so the per-segment length
+        // range is the fixture band divided by the segment count
+        // (lower rounded up, upper rounded down). This keeps every
+        // generated total within the band for any segment count.
+        let min_len = FIXTURE_MIN_BYTES.div_ceil(segments);
+        let max_len = FIXTURE_MAX_BYTES / segments;
+        proptest::collection::vec(
+            (min_len..=max_len).prop_map(|len| {
+                let mut s = vec![b'x'; len];
+                if len > 30 {
+                    s[0] = b'#';
+                    s[1] = b' ';
+                }
+                s
+            }),
+            segments,
+        )
+    })
 }
 
 /// Reference verdict: `BackendPlayStart` must precede

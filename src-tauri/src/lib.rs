@@ -3970,6 +3970,25 @@ mod event_durable_tests {
     fn section_change_persists_the_playing_position() -> Result<(), String> {
         let (_dir, state) = state_with_store()?;
         set_document_fingerprint(&state, DOC);
+        // The production open installs the session-start
+        // structure (`install_session_structure` inside `play`)
+        // before playback — the document's spoken duration and
+        // its section boundaries — so a skip is a section
+        // change: the next boundary strictly ahead lands the
+        // position at exactly SKIP_STEP_SECS while the
+        // transport holds Playing (FR-002 / FR-018). Without
+        // the structure the skip is the ±10.0 s zero-sections
+        // fallback, which lands past the asserted position.
+        {
+            let mut session = state.session.lock().map_err(|e| e.to_string())?;
+            session.set_document_structure(
+                3600.0,
+                vec![player::surface::Heading {
+                    position_secs: SKIP_STEP_SECS,
+                    title: String::from("Seção"),
+                }],
+            );
+        }
         let _playing = start_playing(&state)?;
 
         let skipped = {

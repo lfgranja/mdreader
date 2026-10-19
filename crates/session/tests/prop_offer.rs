@@ -107,7 +107,7 @@
 //! start-over result — reading beginning at the first
 //! spoken position — is carried by
 //! `AutoStart { offset_secs: 0.0 }`; the parenthetical "or
-//! a dedicated StartOver outcome" in the T060 brief is
+//! a dedicated `StartOver` outcome" in the T060 brief is
 //! resolved here in favor of the enumerated three-variant
 //! surface, because O5 requires the post-start-over offset
 //! `0.0` to be observable in the returned outcome.

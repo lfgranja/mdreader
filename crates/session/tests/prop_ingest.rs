@@ -38,7 +38,7 @@ proptest! {
 
         // Invariant 2: edited byte ⇒ different hash.
         // Flip one bit in a copy.
-        let mut edited = bytes.clone();
+        let mut edited = bytes;
         if !edited.is_empty() {
             edited[0] ^= 0x01; // flip LSB of first byte
             let fp_edited = fingerprint(&edited);

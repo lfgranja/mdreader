@@ -763,7 +763,7 @@ fn the_offer_verbs_resolve_the_same_forms_over_the_wire() -> Result<(), Box<dyn 
 fn the_deliberate_offer_window_is_a_named_three_second_constant() {
     /// The recorded window value: the FR-032c
     /// deliberate-pause offer window is 3 seconds
-    /// (spec.md:957), the same 3_000 ms the
+    /// (spec.md:957), the same `3_000` ms the
     /// adapter-side `MAX_OFFER_MS` carries.
     const RECORDED_OFFER_WINDOW_MS: u32 = 3_000;
 

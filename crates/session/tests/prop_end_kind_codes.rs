@@ -215,8 +215,7 @@ fn all_four_end_kinds_carry_distinct_discriminants() -> Result<(), Box<dyn std::
         assert_eq!(
             found.map(|position| position.end_kind),
             Some(end_kind),
-            "the end kind {:?} did not survive alongside the other three variants (FR-044)",
-            end_kind
+            "the end kind {end_kind:?} did not survive alongside the other three variants (FR-044)"
         );
     }
     Ok(())
@@ -229,7 +228,7 @@ fn all_four_end_kinds_carry_distinct_discriminants() -> Result<(), Box<dyn std::
 /// Together with the terminal-no-offer guard above, this pins
 /// the full four-way offer table of storage-schema.md.
 #[test]
-fn retained_end_kinds_keep_their_canonical_offer_forms() -> Result<(), Box<dyn std::error::Error>> {
+fn retained_end_kinds_keep_their_canonical_offer_forms() {
     let fingerprint = [9; 32];
 
     // A deliberate pause opens the 3-second continue offer
@@ -266,7 +265,6 @@ fn retained_end_kinds_keep_their_canonical_offer_forms() -> Result<(), Box<dyn s
         ExpiryOutcome::ExplicitResume,
         "an unexpected-end recovery auto-started audio (FR-032d, FR-031)"
     );
-    Ok(())
 }
 
 // T113 removed the legacy `session::resume_offer` surface together

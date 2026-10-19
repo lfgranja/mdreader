@@ -143,7 +143,7 @@ fn document_strategy() -> impl Strategy<Value = Vec<u8>> {
 /// (FR-036a).
 fn edited_document_strategy() -> impl Strategy<Value = (Vec<u8>, Vec<u8>)> {
     document_strategy().prop_flat_map(|document| {
-        let original = document.clone();
+        let original = document;
         (0u8..=255).prop_map(move |appended| {
             let mut edited = original.clone();
             edited.push(appended);
@@ -694,14 +694,11 @@ fn the_put_verb_refuses_a_terminal_end_kind_with_a_named_error() -> Result<(), B
             ],
         );
 
-        let error = match outcome {
-            Err(error) => error,
-            Ok(()) => {
-                return Err(format!(
-                    "the put verb accepted the terminal end kind {wire} — the terminal ends delete the entry instead of storing one (FR-032, FR-032b)"
-                )
-                .into());
-            }
+        let Err(error) = outcome else {
+            return Err(format!(
+                "the put verb accepted the terminal end kind {wire} — the terminal ends delete the entry instead of storing one (FR-032, FR-032b)"
+            )
+            .into());
         };
         match error {
             CliError::TerminalEndKind { wire: refused } => assert_eq!(

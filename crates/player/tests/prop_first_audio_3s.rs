@@ -43,9 +43,9 @@ enum Seq {
     FullLoopComplete,
 }
 
-/// Fixture-scale arbitrary document: 1..=FIXTURE_MAX_SEGMENTS
+/// Fixture-scale arbitrary document: `1..=FIXTURE_MAX_SEGMENTS`
 /// segments, each 25..=1000 bytes, yielding totals mostly in
-/// [FIXTURE_MIN_BYTES, FIXTURE_MAX_BYTES]; test asserts bound.
+/// [`FIXTURE_MIN_BYTES`, `FIXTURE_MAX_BYTES`]; test asserts bound.
 fn fixture_scale_doc() -> impl Strategy<Value = Vec<Vec<u8>>> {
     proptest::collection::vec(
         (25usize..=1000usize).prop_map(|len| {
@@ -88,10 +88,9 @@ proptest! {
         doc in fixture_scale_doc(),
     ) {
         // Fixture-scale guard: total bytes within bound.
-        let total_bytes: usize = doc.iter().map(|s| s.len()).sum();
+        let total_bytes: usize = doc.iter().map(std::vec::Vec::len).sum();
         prop_assert!(
-            total_bytes >= FIXTURE_MIN_BYTES
-                && total_bytes <= FIXTURE_MAX_BYTES,
+            (FIXTURE_MIN_BYTES..=FIXTURE_MAX_BYTES).contains(&total_bytes),
             "fixture-scale violated: total_bytes={} outside [{}..{}]",
             total_bytes,
             FIXTURE_MIN_BYTES,
@@ -127,9 +126,9 @@ proptest! {
 
         // Within-3-s sub-invariant: first synth and first chunk
         // must both precede play start (streaming, not batch).
-        let s_idx = red_events.iter().position(|e| *e == Seq::FirstSegmentSynth).unwrap();
-        let c_idx = red_events.iter().position(|e| *e == Seq::FirstChunkEnqueue).unwrap();
-        let p_idx = red_events.iter().position(|e| *e == Seq::BackendPlayStart).unwrap();
+        let s_idx = red_events.iter().position(|e| *e == Seq::FirstSegmentSynth).unwrap_or(usize::MAX);
+        let c_idx = red_events.iter().position(|e| *e == Seq::FirstChunkEnqueue).unwrap_or(usize::MAX);
+        let p_idx = red_events.iter().position(|e| *e == Seq::BackendPlayStart).unwrap_or(usize::MAX);
         prop_assert!(
             s_idx < p_idx && c_idx < p_idx,
             "T055 3-s bound violated: first synth ({}) and first chunk ({}) must precede play start ({})",

@@ -11,12 +11,12 @@
 //!
 //! Trial legs (from `specs/001-android-media-shell/tasks.md`
 //! T043, verbatim): "wired pull via `BECOMING_NOISY` ≤1 s;
-//! BT loss via `onAudioDevicesRemoved`-only ≤1 s; reconnect
-//! + explicit resume via reconnected device; coincide
-//! unplug-wired/connect-BT pauses first; replay against
-//! `tests/device/fixtures/routing_noisy_removal.jsonl` +
-//! `headphone_disconnect.jsonl`; FAIL before
-//! implementation".
+//! BT loss via `onAudioDevicesRemoved`-only ≤1 s;
+//! reconnect + explicit resume via reconnected device;
+//! coincident unplug-wired/connect-BT pauses first; replay
+//! against `tests/device/fixtures/routing_noisy_removal.jsonl`
+//! + `headphone_disconnect.jsonl`; FAIL before
+//!   implementation".
 //!
 //! - Wired pull (`BECOMING_NOISY`, the primary mechanism,
 //!   FR-016a): a `Playing` session pauses within the
@@ -350,10 +350,6 @@ fn a_reconnected_device_never_auto_resumes_and_the_explicit_play_resumes_through
 /// disappearance takes precedence — the pause lands
 /// within the bound first, and the public car-Bluetooth
 /// appearance is never followed.
-#[expect(
-    clippy::float_cmp,
-    reason = "the retained position 10.0 is an exact binary fraction and the assertion pins the pause-preserves-position contract (FR-016); == is exact and a tolerance would admit a position drift"
-)]
 #[test]
 fn a_coincident_wired_pull_and_car_bt_appearance_pauses_first_and_never_follows_the_public_output()
 {
@@ -441,7 +437,7 @@ fn a_coincident_wired_pull_and_car_bt_appearance_pauses_first_and_never_follows_
 /// forbids.
 #[test]
 fn a_public_appearance_is_never_followed_while_playing_on_a_private_output() {
-    let mut session = playing_session();
+    let session = playing_session();
     let mut tracker = tracker_on(WIRED_DEVICE_ID);
     let transport = session.snapshot().transport;
     let speaker = tracker.apply(
@@ -487,6 +483,10 @@ fn a_public_appearance_is_never_followed_while_playing_on_a_private_output() {
 #[expect(
     clippy::float_cmp,
     reason = "the retained position 10.0 is an exact binary fraction and the assertions pin the pause-preserves-position and resume-at-same-position contracts (FR-016, FR-017); == is exact and a tolerance would admit a position drift"
+)]
+#[expect(
+    clippy::too_many_lines,
+    reason = "the replay drives every recorded fixture step through the session and the routing tracker with its contract asserts; the length is the fixture's three legs, not control flow"
 )]
 #[test]
 fn the_routing_noisy_removal_fixture_replays_every_recorded_result() {
@@ -677,6 +677,10 @@ fn the_routing_noisy_removal_fixture_replays_every_recorded_result() {
 #[expect(
     clippy::float_cmp,
     reason = "the retained position 10.0 is an exact binary fraction and the assertions pin the pause-preserves-position and resume-at-same-position contracts (FR-016, FR-017); == is exact and a tolerance would admit a position drift"
+)]
+#[expect(
+    clippy::too_many_lines,
+    reason = "the replay drives every recorded fixture step through the session and the routing tracker with its contract asserts; the length is the fixture's two legs, not control flow"
 )]
 #[test]
 fn the_headphone_disconnect_fixture_replays_every_recorded_result() {

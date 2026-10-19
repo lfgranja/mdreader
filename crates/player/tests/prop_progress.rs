@@ -35,7 +35,7 @@ use player::surface::{Heading, Progress, SurfaceResolver};
 /// A generated position on the quarter-second grid — the
 /// same grid the surface resolver uses.
 fn position_strategy() -> impl Strategy<Value = f64> {
-    (0u64..=14_400).prop_map(|quarters| quarters as f64 * 0.25)
+    (0u16..=14_400).prop_map(|quarters| f64::from(quarters) * 0.25)
 }
 
 /// A heading list: ordered ascending, possibly empty, on the
@@ -43,7 +43,7 @@ fn position_strategy() -> impl Strategy<Value = f64> {
 fn headings_strategy() -> impl Strategy<Value = Vec<Heading>> {
     proptest::collection::vec(
         (
-            0u64..=14_400,
+            0u16..=14_400,
             prop_oneof![
                 Just("alpha".to_string()),
                 Just("bravo".to_string()),
@@ -58,7 +58,7 @@ fn headings_strategy() -> impl Strategy<Value = Vec<Heading>> {
         entries
             .into_iter()
             .map(|(quarters, title)| Heading {
-                position_secs: quarters as f64 * 0.25,
+                position_secs: f64::from(quarters) * 0.25,
                 title,
             })
             .collect()
@@ -103,13 +103,17 @@ proptest! {
         // total is the chunk split's segment count: the
         // fixture derives it from the seed so a document's
         // total is a content fact, never an estimate.
-        let total_units = 4 + u64::from(seed % 61);
+        let unit_count = seed % 61 + 4; // 4..=64 segments — exact in f64
+        let total_units = u64::from(unit_count);
         let unit_secs = 0.25; // the quarter-second grid the fixture uses
+        // The session-start total in seconds, from the small
+        // (≤64) segment count so the conversion is exact.
+        let total_secs = f64::from(unit_count) * unit_secs;
         let resolver = SurfaceResolver::new(
             Some("Test Document".to_string()),
             "test-file.wav".to_string(),
             total_units,
-            total_units as f64 * unit_secs,
+            total_secs,
             duration_known,
         );
 
@@ -226,14 +230,9 @@ proptest! {
             empty_snapshot.section_title.is_none(),
             "zero sections implies no section title (FR-028c)"
         );
-        if !duration_known {
+        if duration_known {
             prop_assert!(
-                matches!(empty_snapshot.progress, Progress::Indeterminate),
-                "zero sections with unknown duration must be indeterminate (FR-028a)"
-            );
-        } else {
-            prop_assert!(
-                matches!(empty_snapshot.progress, Progress::Determinate { total_units: _, .. }),
+                matches!(empty_snapshot.progress, Progress::Determinate { .. }),
                 "zero sections with known duration must stay determinate (freeze-then-drop): expected determinate, got {:?}",
                 empty_snapshot.progress
             );
@@ -250,6 +249,11 @@ proptest! {
                 );
                 prop_assert_eq!(empty_snapshot.section_title, None);
             }
+        } else {
+            prop_assert!(
+                matches!(empty_snapshot.progress, Progress::Indeterminate),
+                "zero sections with unknown duration must be indeterminate (FR-028a)"
+            );
         }
 
         // --- Invariant 4: re-parse never moves backward.

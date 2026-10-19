@@ -135,7 +135,7 @@ fn heading_title_strategy() -> impl Strategy<Value = String> {
         Just("echo"),
         Just("foxtrot"),
     ]
-    .prop_map(|title| title.to_string())
+    .prop_map(std::string::ToString::to_string)
 }
 
 /// Filenames — a closed vocabulary disjoint from every
@@ -148,7 +148,7 @@ fn filename_strategy() -> impl Strategy<Value = String> {
         Just("broadcast-0003.ogg"),
         Just("lecture-0004.m4a"),
     ]
-    .prop_map(|filename| filename.to_string())
+    .prop_map(std::string::ToString::to_string)
 }
 
 /// Document metadata titles — `None` (undeclared) or
@@ -166,14 +166,14 @@ fn metadata_title_strategy() -> impl Strategy<Value = Option<String>> {
 /// shape the T061b headings provider supplies at
 /// runtime.
 fn headings_strategy() -> impl Strategy<Value = Vec<Heading>> {
-    proptest::collection::vec((0u64..=14_400, heading_title_strategy()), 0..=12).prop_map(
+    proptest::collection::vec((0u32..=14_400, heading_title_strategy()), 0..=12).prop_map(
         |mut entries| {
             entries.sort_by_key(|(quarters, _)| *quarters);
             entries.dedup_by_key(|(quarters, _)| *quarters);
             entries
                 .into_iter()
                 .map(|(quarters, title)| Heading {
-                    position_secs: quarters as f64 * 0.25,
+                    position_secs: f64::from(quarters) * 0.25,
                     title,
                 })
                 .collect()
@@ -184,7 +184,7 @@ fn headings_strategy() -> impl Strategy<Value = Vec<Heading>> {
 /// Resolve positions on the exact quarter-second grid
 /// `k × 0.25` ∈ [0, 3600].
 fn position_strategy() -> impl Strategy<Value = f64> {
-    (0u64..=14_400).prop_map(|quarters| quarters as f64 * 0.25)
+    (0u32..=14_400).prop_map(|quarters| f64::from(quarters) * 0.25)
 }
 
 /// The keys the notification surface MUST NEVER carry
@@ -197,10 +197,6 @@ const FORBIDDEN_SURFACE_KEYS: [&str; 5] = ["body", "elapsed", "remaining", "rate
 /// `position_secs` at or before `position_secs`, else
 /// `None` — never a heading beyond the position (never
 /// forward-looking), never document body.
-#[expect(
-    clippy::float_cmp,
-    reason = "heading positions and resolve positions are exact binary fractions on the quarter-second grid; <= is the at-or-before test and a tolerance would admit a forward-looking section"
-)]
 fn most_recent_passed_section(headings: &[Heading], position_secs: f64) -> Option<String> {
     headings
         .iter()
@@ -214,7 +210,7 @@ fn most_recent_passed_section(headings: &[Heading], position_secs: f64) -> Optio
 /// with, fixed for the whole session — never the greatest
 /// heading position the caller-supplied list marks, and
 /// never an estimate.
-const fn total_units_oracle() -> u64 {
+const fn total_units_oracle() -> u32 {
     24
 }
 
@@ -229,11 +225,19 @@ const fn unit_secs_oracle() -> f64 {
 /// the position onto (FR-013): the whole units the
 /// position has entered, clamped to the session-start
 /// total.
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "the guard above bounds `units` to [0, 24) — whole seconds on the position grid, so the cast is exact"
+)]
+#[expect(
+    clippy::cast_sign_loss,
+    reason = "positions are non-negative by strategy, so `units` is non-negative and the sign cast is exact"
+)]
 fn consumed_units_oracle(position_secs: f64) -> u64 {
     let units = (position_secs / unit_secs_oracle()).floor();
-    let total = total_units_oracle() as f64;
+    let total = f64::from(total_units_oracle());
     if units >= total {
-        return total_units_oracle();
+        return u64::from(total_units_oracle());
     }
     units as u64
 }
@@ -249,8 +253,8 @@ fn resolver_for(
     SurfaceResolver::new(
         metadata_title,
         filename,
-        total_units_oracle(),
-        total_units_oracle() as f64 * unit_secs_oracle(),
+        u64::from(total_units_oracle()),
+        f64::from(total_units_oracle()) * unit_secs_oracle(),
         duration_known_at_start,
     )
 }
@@ -290,10 +294,7 @@ proptest! {
         // body/elapsed/remaining/rate/voice.
         let resolver = resolver_for(metadata_title, filename, duration_known_at_start);
         let snapshot = resolver.resolve(position, resolver.consumed_units_at(position), &headings);
-        let value = match serde_json::to_value(&snapshot) {
-            Ok(value) => value,
-            Err(_) => serde_json::Value::Null,
-        };
+        let value = serde_json::to_value(&snapshot).unwrap_or(serde_json::Value::Null);
         let keys = serialized_keys(&value);
         let mut expected_keys = vec!["progress", "title"];
         if snapshot.section_title.is_some() {
@@ -396,7 +397,7 @@ proptest! {
                     );
                     prop_assert_eq!(
                         total_units,
-                        total_units_oracle(),
+                        u64::from(total_units_oracle()),
                         "the determinate progress at {} did not carry the session-start unit total as content units (FR-013: the segment count, never the heading extent)",
                         position
                     );
@@ -445,42 +446,39 @@ proptest! {
         // present; else a stable filename-derived
         // placeholder — never the first sentence, never
         // any heading title.
-        let resolver = resolver_for(metadata_title.clone(), filename.clone(), true);
+        let resolver = resolver_for(metadata_title.clone(), filename, true);
         let snapshot = resolver.resolve(position, resolver.consumed_units_at(position), &headings);
-        match &metadata_title {
-            Some(declared) => {
-                prop_assert_eq!(
-                    snapshot.title.as_str(),
-                    declared.as_str(),
-                    "the metadata title did not win over the placeholder (FR-029)"
-                );
-            }
-            None => {
-                let again =
-                    resolver.resolve(position, resolver.consumed_units_at(position), &headings);
-                prop_assert_eq!(
-                    snapshot.title.as_str(),
-                    again.title.as_str(),
-                    "the filename-derived placeholder was not stable across calls for the same filename (FR-029)"
-                );
-                prop_assert!(
-                    !snapshot.title.is_empty(),
-                    "the filename-derived placeholder was empty (FR-029)"
-                );
-                let first_heading_title =
-                    headings.first().map(|heading| heading.title.as_str());
-                prop_assert!(
-                    first_heading_title.is_none_or(|first| first != snapshot.title.as_str()),
-                    "the title was the first heading's title — the first-sentence defect (FR-029)"
-                );
-                let any_heading_title = headings
-                    .iter()
-                    .any(|heading| heading.title == snapshot.title);
-                prop_assert!(
-                    !any_heading_title,
-                    "the title was a heading title — the placeholder must be filename-derived (FR-029)"
-                );
-            }
+        if let Some(declared) = &metadata_title {
+            prop_assert_eq!(
+                snapshot.title.as_str(),
+                declared.as_str(),
+                "the metadata title did not win over the placeholder (FR-029)"
+            );
+        } else {
+            let again =
+                resolver.resolve(position, resolver.consumed_units_at(position), &headings);
+            prop_assert_eq!(
+                snapshot.title.as_str(),
+                again.title.as_str(),
+                "the filename-derived placeholder was not stable across calls for the same filename (FR-029)"
+            );
+            prop_assert!(
+                !snapshot.title.is_empty(),
+                "the filename-derived placeholder was empty (FR-029)"
+            );
+            let first_heading_title =
+                headings.first().map(|heading| heading.title.as_str());
+            prop_assert!(
+                first_heading_title.is_none_or(|first| first != snapshot.title.as_str()),
+                "the title was the first heading's title — the first-sentence defect (FR-029)"
+            );
+            let any_heading_title = headings
+                .iter()
+                .any(|heading| heading.title == snapshot.title);
+            prop_assert!(
+                !any_heading_title,
+                "the title was a heading title — the placeholder must be filename-derived (FR-029)"
+            );
         }
     }
 
@@ -655,8 +653,8 @@ fn the_metadata_title_wins_and_the_placeholder_is_stable() {
     );
 }
 
-/// The serialized surface shape (S1): exactly `title`
-/// + `progress` when the section is absent, `title` +
+/// The serialized surface shape (S1): exactly `title` +
+/// `progress` when the section is absent, `title` +
 /// `section_title` + `progress` when present — never
 /// body/elapsed/remaining/rate/voice.
 #[test]
@@ -671,20 +669,14 @@ fn the_serialized_surface_shape_carries_exactly_the_declared_keys() {
         title: "alpha".to_string(),
     }];
     let with_section = resolver.resolve(15.0, resolver.consumed_units_at(15.0), &headings);
-    let value = match serde_json::to_value(&with_section) {
-        Ok(value) => value,
-        Err(_) => serde_json::Value::Null,
-    };
+    let value = serde_json::to_value(&with_section).unwrap_or(serde_json::Value::Null);
     assert_eq!(
         serialized_keys(&value),
         vec!["progress", "section_title", "title"],
         "a snapshot with a section must serialize to exactly title + section_title + progress (FR-028 series)"
     );
     let without_section = resolver.resolve(5.0, resolver.consumed_units_at(5.0), &headings);
-    let value = match serde_json::to_value(&without_section) {
-        Ok(value) => value,
-        Err(_) => serde_json::Value::Null,
-    };
+    let value = serde_json::to_value(&without_section).unwrap_or(serde_json::Value::Null);
     assert_eq!(
         serialized_keys(&value),
         vec!["progress", "title"],

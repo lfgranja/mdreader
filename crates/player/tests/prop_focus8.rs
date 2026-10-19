@@ -18,9 +18,9 @@
 //! - FR-005 (`spec.md`): pause within 1 s on a silence-demanding
 //!   interruption (call, alarm) or a permanent audio loss, state the
 //!   reason for 3 seconds, never resume audio on its own; the reason
-//!   set is closed and has exactly eight members (FocusDenied,
-//!   FocusDelayed, PermanentLoss, TransientPaused, DeviceRemoved,
-//!   VoiceUnavailable, FormatUndeliverable, DecodeFailed — no
+//!   set is closed and has exactly eight members (`FocusDenied`,
+//!   `FocusDelayed`, `PermanentLoss`, `TransientPaused`, `DeviceRemoved`,
+//!   `VoiceUnavailable`, `FormatUndeliverable`, `DecodeFailed` — no
 //!   `Other`/`Unknown`); `FocusDelayed` and a duckable `TransientPaused`
 //!   state no line and no earcon.
 //! - FR-014: latest-event-wins — a permanent loss supersedes a
@@ -74,7 +74,7 @@
 //!    the pause clears no flag and `resume_due` survives the pause — the
 //!    tracker holds
 //!    a standing pause and an owed resume at once, which is the
-//!    auto-resume FR-005 forbids ("any AUDIOFOCUS_GAIN arriving after a
+//!    auto-resume FR-005 forbids ("any `AUDIOFOCUS_GAIN` arriving after a
 //!    pause MUST wait for explicit Play and MUST never auto-resume").
 //!    The same gap holds for `[FocusRegained, SilenceDemanding]` and
 //!    `[FocusRegained, PermanentLoss]`. Fix owner: the focus-tracker
@@ -174,7 +174,7 @@ fn intent_strategy() -> impl Strategy<Value = FocusIntent> {
 }
 
 /// Generated intent sequences: overlapping interruption streams as any
-/// surface (notification, lock screen, MediaSession) might deliver
+/// surface (notification, lock screen, `MediaSession`) might deliver
 /// them — a duckable navigation prompt landing inside a call, a call
 /// ending into a headset pull, a background latch between losses.
 fn intent_vec_strategy() -> impl Strategy<Value = Vec<FocusIntent>> {
@@ -199,6 +199,10 @@ struct ReferenceDecision {
 
 /// The reference tracker state.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "the reference machine mirrors FocusTracker's four independent, individually contracted latching flags (FR-014 duck/resume/duck-restore, FR-032c foreground latch) so its decisions can be compared field-by-field; legal combinations such as ducked + resume_due coexist, so an enum or bitfield would only restate the same product with less readable field names"
+)]
 struct ReferenceTracker {
     /// The standing outcome.
     current: Option<FocusOutcome>,
@@ -351,7 +355,7 @@ impl ReferenceTracker {
 /// The FR-005 outcome→reason mapping restated independently: a duck
 /// states no reason (playback continues, so there is no pause to
 /// state); the two pause-demanding outcomes map 1:1.
-fn reference_reason(outcome: FocusOutcome) -> Option<InterruptionReason> {
+const fn reference_reason(outcome: FocusOutcome) -> Option<InterruptionReason> {
     match outcome {
         FocusOutcome::DuckableTransient => None,
         FocusOutcome::SilenceDemanding => Some(InterruptionReason::TransientPaused),
@@ -360,7 +364,7 @@ fn reference_reason(outcome: FocusOutcome) -> Option<InterruptionReason> {
 }
 
 /// The FR-013b grant→reason mapping restated independently.
-fn reference_grant_reason(grant: FocusGrant) -> Option<InterruptionReason> {
+const fn reference_grant_reason(grant: FocusGrant) -> Option<InterruptionReason> {
     match grant {
         FocusGrant::Granted => None,
         FocusGrant::Deferred => Some(InterruptionReason::FocusDelayed),
@@ -381,7 +385,7 @@ enum DecisionKind {
 }
 
 /// The decision kind — three explicit arms, no catch-all.
-fn decision_kind(decision: &RoutingDecision) -> DecisionKind {
+const fn decision_kind(decision: &RoutingDecision) -> DecisionKind {
     match decision {
         RoutingDecision::Pause { .. } => DecisionKind::Pause,
         RoutingDecision::Follow { .. } => DecisionKind::Follow,
@@ -416,8 +420,8 @@ proptest! {
                 intent
             );
             prop_assert_eq!(
-                decision.gain,
-                expected.gain,
+                decision.gain.to_bits(),
+                expected.gain.to_bits(),
                 "intent {:?} resolved a different gain than the reference machine",
                 intent
             );
@@ -610,8 +614,9 @@ proptest! {
 }
 
 /// The closed eight-reason set is exhaustive and carries its FR-005
-/// shape — eight explicit match arms, no catch-all: a ninth reason
-/// cannot compile.
+/// shape — every one of the eight reasons named explicitly (grouped
+/// only by identical effect), no catch-all: a ninth reason cannot
+/// compile.
 #[test]
 fn the_closed_eight_reason_set_is_exhaustive_with_no_catch_all() {
     for reason in EIGHT_REASONS {
@@ -621,54 +626,46 @@ fn the_closed_eight_reason_set_is_exhaustive_with_no_catch_all() {
         // `TransientPaused` state no line — the empty line is the
         // only empty one in the closed set.
         let (expected_persistent, states_a_line) = match reason {
-            InterruptionReason::FocusDenied => (false, true),
             InterruptionReason::FocusDelayed => (false, false),
-            InterruptionReason::PermanentLoss => (false, true),
-            InterruptionReason::TransientPaused => (false, true),
-            InterruptionReason::DeviceRemoved => (false, true),
-            InterruptionReason::VoiceUnavailable => (true, true),
-            InterruptionReason::FormatUndeliverable => (true, true),
-            InterruptionReason::DecodeFailed => (true, true),
+            InterruptionReason::FocusDenied
+            | InterruptionReason::PermanentLoss
+            | InterruptionReason::TransientPaused
+            | InterruptionReason::DeviceRemoved => (false, true),
+            InterruptionReason::VoiceUnavailable
+            | InterruptionReason::FormatUndeliverable
+            | InterruptionReason::DecodeFailed => (true, true),
         };
         let line = reason_line(&reason);
         assert_eq!(
             line,
             reason.reason_line(),
-            "the free-function wrapper drifted from the method for {:?}",
-            reason
+            "the free-function wrapper drifted from the method for {reason:?}"
         );
         assert_eq!(
             line.is_empty(),
             !states_a_line,
-            "the {:?} reason stated a line when FR-005 requires none (or none when one is required)",
-            reason
+            "the {reason:?} reason stated a line when FR-005 requires none (or none when one is required)"
         );
         assert!(
             line.split_whitespace().count() <= REASON_LINE_MAX_WORDS,
-            "the {:?} reason line {:?} exceeded the {} -word FR-005 budget",
-            reason,
-            line,
-            REASON_LINE_MAX_WORDS
+            "the {reason:?} reason line {line:?} exceeded the {REASON_LINE_MAX_WORDS} -word FR-005 budget"
         );
         assert_eq!(
             reason.is_persistent(),
             expected_persistent,
-            "the {:?} reason carried the wrong persistence",
-            reason
+            "the {reason:?} reason carried the wrong persistence"
         );
         if expected_persistent {
             assert_eq!(
                 reason.reason_ttl_ms(),
                 None,
-                "the persistent {:?} reason stated a TTL instead of null",
-                reason
+                "the persistent {reason:?} reason stated a TTL instead of null"
             );
         } else {
             assert_eq!(
                 reason.reason_ttl_ms(),
                 Some(REASON_TTL_MS),
-                "the transient {:?} reason drifted from the 3 s FR-005 lifetime",
-                reason
+                "the transient {reason:?} reason drifted from the 3 s FR-005 lifetime"
             );
         }
     }
@@ -681,8 +678,7 @@ fn the_closed_eight_reason_set_is_exhaustive_with_no_catch_all() {
     for (index, line) in lines.iter().enumerate() {
         assert!(
             !lines[..index].contains(line),
-            "two reasons of the closed set state the same line {:?}",
-            line
+            "two reasons of the closed set state the same line {line:?}"
         );
     }
 }
@@ -700,14 +696,12 @@ fn every_focus_outcome_maps_to_one_reason_or_to_none() {
         assert_eq!(
             from_focus_outcome(outcome),
             expected,
-            "the {:?} outcome did not map to its own interruption reason",
-            outcome
+            "the {outcome:?} outcome did not map to its own interruption reason"
         );
         if let Some(reason) = expected {
             assert!(
                 !reason.reason_line().is_empty(),
-                "a pause-demanding outcome stated an empty reason line for {:?}",
-                reason
+                "a pause-demanding outcome stated an empty reason line for {reason:?}"
             );
         }
     }
@@ -726,8 +720,7 @@ fn every_focus_grant_maps_to_one_reason_or_to_none() {
         assert_eq!(
             from_focus_grant(grant),
             expected,
-            "the {:?} grant did not map to its own interruption reason",
-            grant
+            "the {grant:?} grant did not map to its own interruption reason"
         );
     }
 }
@@ -784,8 +777,7 @@ fn every_routing_decision_maps_to_its_reason_through_from_routing_pause() {
     for (kind, actual, expected) in mapped {
         assert_eq!(
             actual, expected,
-            "the {:?} routing decision mapped to the wrong interruption reason",
-            kind
+            "the {kind:?} routing decision mapped to the wrong interruption reason"
         );
     }
 }
@@ -906,10 +898,10 @@ fn permanent_loss_followed_by_transient_is_a_no_op() {
 /// A focus gain immediately followed by a pause-demanding outcome
 /// clears the transient resume the gain owed (FR-005).
 ///
-/// FR-005: "Duck-gain restore after a duckable transient (MAY_DUCK) is
-/// automatic; every other paused outcome (DeviceRemoved, non-duckable
-/// TransientPaused, PermanentLoss, FocusDenied, and any
-/// AUDIOFOCUS_GAIN arriving after a pause) MUST wait for explicit Play
+/// FR-005: "Duck-gain restore after a duckable transient (`MAY_DUCK`) is
+/// automatic; every other paused outcome (`DeviceRemoved`, non-duckable
+/// `TransientPaused`, `PermanentLoss`, `FocusDenied`, and any
+/// `AUDIOFOCUS_GAIN` arriving after a pause) MUST wait for explicit Play
 /// and MUST never auto-resume".
 ///
 /// RECORDED RED FINDING — not an unimplemented feature, and NOT fixed
@@ -946,18 +938,15 @@ fn a_focus_gain_immediately_followed_by_a_pause_clears_the_owed_resume() {
         assert_eq!(
             pause.transport,
             Some(TransportState::Paused),
-            "the {:?} outcome must pause",
-            intent
+            "the {intent:?} outcome must pause"
         );
         assert!(
             !tracker.resume_due,
-            "the {:?} pause did not clear the resume the gain owed — FR-005: a gain followed by a pause waits for explicit Play and never auto-resumes",
-            intent
+            "the {intent:?} pause did not clear the resume the gain owed — FR-005: a gain followed by a pause waits for explicit Play and never auto-resumes"
         );
         assert!(
             !tracker.ducked,
-            "the {:?} pause left playback ducked instead of paused at full gain",
-            intent
+            "the {intent:?} pause left playback ducked instead of paused at full gain"
         );
     }
 }
@@ -1103,10 +1092,8 @@ fn duck_keeps_playing_at_duck_gain_and_restores_without_losing_place() {
 #[test]
 fn call_and_alarm_pauses_land_within_the_one_second_bound() {
     assert!(
-        FOCUS_MAPPING_LATENCY_MS <= CALL_PAUSE_BOUND_MS,
-        "the focus mapping latency {} left the {} ms FR-005 bound",
-        FOCUS_MAPPING_LATENCY_MS,
-        CALL_PAUSE_BOUND_MS
+        (0..=CALL_PAUSE_BOUND_MS).contains(&FOCUS_MAPPING_LATENCY_MS),
+        "the focus mapping latency {FOCUS_MAPPING_LATENCY_MS} left the {CALL_PAUSE_BOUND_MS} ms FR-005 bound"
     );
     let mut silence_tracker = FocusTracker::new();
     let mut loss_tracker = FocusTracker::new();
@@ -1124,13 +1111,11 @@ fn call_and_alarm_pauses_land_within_the_one_second_bound() {
         assert_eq!(
             decision.transport,
             Some(TransportState::Paused),
-            "the {:?} interruption must pause (FR-005)",
-            intent
+            "the {intent:?} interruption must pause (FR-005)"
         );
         assert_eq!(
             decision.gain, FULL_GAIN,
-            "the {:?} pause must hold full gain (FR-005)",
-            intent
+            "the {intent:?} pause must hold full gain (FR-005)"
         );
     }
     assert!(

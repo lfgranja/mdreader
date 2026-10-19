@@ -77,10 +77,14 @@ proptest! {
 
         // Invariant 4: three perceptual dimensions present.
         // The fingerprint is a plain enum triple (not Option) —
-        // every kind must have a concrete classification.
-        let _fp_timbre: TimbreClass = descriptor.perceptual_fingerprint.timbre;
-        let _fp_rhythm: RhythmClass = descriptor.perceptual_fingerprint.rhythm;
-        let _fp_contour: ContourClass = descriptor.perceptual_fingerprint.contour;
+        // every kind must have a concrete classification. The
+        // explicit tuple type pins all three field classes at
+        // compile time.
+        let _: (TimbreClass, RhythmClass, ContourClass) = (
+            descriptor.perceptual_fingerprint.timbre,
+            descriptor.perceptual_fingerprint.rhythm,
+            descriptor.perceptual_fingerprint.contour,
+        );
     }
 
     /// Pairwise distinctness: for any two distinct kinds,

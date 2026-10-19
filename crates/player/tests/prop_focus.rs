@@ -133,8 +133,8 @@ proptest! {
                 intent
             );
             prop_assert_eq!(
-                decision.gain,
-                FULL_GAIN,
+                decision.gain.to_bits(),
+                FULL_GAIN.to_bits(),
                 "loss intent {:?} did not restore full gain",
                 intent
             );
@@ -288,11 +288,12 @@ fn focus_names_classify_to_their_own_outcomes() {
         Ok(FocusOutcome::PermanentLoss),
         "the permanent-loss name must classify to its outcome"
     );
-    assert!(
-        DUCK_GAIN >= DUCK_GAIN_MIN && DUCK_GAIN <= DUCK_GAIN_MAX,
-        "the nominal duck gain {} left the [0.15, 0.25] band",
-        DUCK_GAIN
-    );
+    const {
+        assert!(
+            DUCK_GAIN >= DUCK_GAIN_MIN && DUCK_GAIN <= DUCK_GAIN_MAX,
+            "the nominal duck gain left the [0.15, 0.25] band"
+        );
+    }
 }
 
 /// The gain constants match the FR-013 figure verbatim: the 15–25%
@@ -423,7 +424,8 @@ fn duck_then_silence_clears_duck_restore_and_holds_paused_at_full_gain() {
         "escalation duck→silence must pause"
     );
     assert_eq!(
-        decision.gain, FULL_GAIN,
+        decision.gain.to_bits(),
+        FULL_GAIN.to_bits(),
         "escalation duck→silence must hold full gain"
     );
     assert!(

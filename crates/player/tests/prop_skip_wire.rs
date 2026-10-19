@@ -2,7 +2,7 @@
 //! (Feature 004-ressoa-dogfood-build / task T063).
 //!
 //! Invariants under test (tasks.md T063, verbatim):
-//! "drive session.execute(ShellVerb::SkipForward/Backward) over
+//! "drive `session.execute(ShellVerb::SkipForward/Backward)` over
 //! arbitrary documents/positions and assert the landing is the
 //! next/previous section boundary (zero sections ⇒ exactly ±10 s;
 //! clamp at doc ends) — NOT ±5.0 s"
@@ -23,10 +23,7 @@ fn position_strategy() -> impl Strategy<Value = f64> {
 fn document_strategy() -> impl Strategy<Value = (f64, Vec<Heading>)> {
     (
         10u16..=3600,
-        proptest::collection::vec(
-            (0u16..=3600, "[a-z]{1,8}"),
-            0..=12,
-        ),
+        proptest::collection::vec((0u16..=3600, "[a-z]{1,8}"), 0..=12),
     )
         .prop_map(|(duration, entries)| {
             let duration = f64::from(duration);
@@ -38,10 +35,9 @@ fn document_strategy() -> impl Strategy<Value = (f64, Vec<Heading>)> {
                     title,
                 })
                 .collect::<Vec<_>>();
-            headings.sort_by(|left, right| {
-                left.position_secs.total_cmp(&right.position_secs)
-            });
-            headings.dedup_by(|left, right| left.position_secs == right.position_secs);
+            headings.sort_by(|left, right| left.position_secs.total_cmp(&right.position_secs));
+            headings
+                .dedup_by(|left, right| left.position_secs.total_cmp(&right.position_secs).is_eq());
             (duration, headings)
         })
 }
@@ -56,7 +52,7 @@ proptest! {
     fn prop_skip_forward_zero_sections_exact_ten_seconds(duration in 10.0..=1000.0_f64) {
         let mut session = PlaybackSession::with_duration(duration);
         let _ = session.execute(ShellVerb::Play);
-        let snapshot = session.execute(ShellVerb::SkipForward).unwrap();
+        let snapshot = session.execute(ShellVerb::SkipForward)?;
         let expected = 10.0_f64.min(duration);
         prop_assert!(
             (snapshot.position_secs - expected).abs() < 1e-9,
@@ -71,7 +67,7 @@ proptest! {
     fn prop_skip_backward_zero_sections_clamps_at_zero(duration in 10.0..=1000.0_f64) {
         let mut session = PlaybackSession::with_duration(duration);
         let _ = session.execute(ShellVerb::Play);
-        let snapshot = session.execute(ShellVerb::SkipBackward).unwrap();
+        let snapshot = session.execute(ShellVerb::SkipBackward)?;
         prop_assert!(
             snapshot.position_secs.abs() < 1e-9,
             "zero-section backward skip from 0.0 must clamp at 0.0: got {}",
@@ -85,7 +81,7 @@ proptest! {
         let mut session = PlaybackSession::with_duration(duration);
         let _ = session.execute(ShellVerb::Play);
         for verb in [ShellVerb::SkipForward, ShellVerb::SkipBackward] {
-            let snapshot = session.execute(verb).unwrap();
+            let snapshot = session.execute(verb)?;
             prop_assert!(
                 snapshot.position_secs.is_finite(),
                 "skip landing must be finite, got {}",
@@ -119,20 +115,8 @@ proptest! {
         session.set_document_structure(duration, headings.clone());
         let _ = session.execute(ShellVerb::Play);
         session.on_audible_progress(position);
-        let snapshot = session.execute(ShellVerb::SkipForward).unwrap();
-        let expected = headings
-            .iter()
-            .find(|heading| heading.position_secs > position)
-            .map_or_else(
-                || {
-                    if headings.is_empty() {
-                        (position + 10.0).min(duration)
-                    } else {
-                        duration
-                    }
-                },
-                |heading| heading.position_secs,
-            );
+        let snapshot = session.execute(ShellVerb::SkipForward)?;
+        let expected = expected_forward(position, &headings, duration);
         prop_assert!(
             (snapshot.position_secs - expected).abs() < 1e-9,
             "forward skip from {} with headings {:?} must land at {}, got {}",
@@ -156,21 +140,8 @@ proptest! {
         session.set_document_structure(duration, headings.clone());
         let _ = session.execute(ShellVerb::Play);
         session.on_audible_progress(position);
-        let snapshot = session.execute(ShellVerb::SkipBackward).unwrap();
-        let expected = headings
-            .iter()
-            .filter(|heading| heading.position_secs < position)
-            .next_back()
-            .map_or_else(
-                || {
-                    if headings.is_empty() {
-                        (position - 10.0).max(0.0)
-                    } else {
-                        0.0
-                    }
-                },
-                |heading| heading.position_secs,
-            );
+        let snapshot = session.execute(ShellVerb::SkipBackward)?;
+        let expected = expected_backward(position, &headings, duration);
         prop_assert!(
             (snapshot.position_secs - expected).abs() < 1e-9,
             "backward skip from {} with headings {:?} must land at {}, got {}",
@@ -180,4 +151,25 @@ proptest! {
             snapshot.position_secs,
         );
     }
+}
+
+fn expected_forward(position: f64, headings: &[Heading], duration: f64) -> f64 {
+    if headings.is_empty() {
+        return (position + 10.0).min(duration);
+    }
+    headings
+        .iter()
+        .find(|heading| heading.position_secs > position)
+        .map_or(duration, |heading| heading.position_secs)
+}
+
+fn expected_backward(position: f64, headings: &[Heading], _duration: f64) -> f64 {
+    if headings.is_empty() {
+        return (position - 10.0).max(0.0);
+    }
+    headings
+        .iter()
+        .rev()
+        .find(|heading| heading.position_secs < position)
+        .map_or(0.0, |heading| heading.position_secs)
 }

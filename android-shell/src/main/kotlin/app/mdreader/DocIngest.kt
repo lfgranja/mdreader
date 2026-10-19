@@ -192,7 +192,7 @@ object DocIngest {
             // Paused/Interrupted end_kind before new snapshot, preserving
             // first session (FR-018 / data-model.md:19). Event-durable
             // writes already exist on pause/end; this ensures second-doc
-            // switch also persists the first position.
+            // switch also persists the first session's resume point.
             saveFirstBookmarkIfPlaying(activity);
 
             val snapshotFile = writeSnapshot(activity, bytes, extension, hexName)

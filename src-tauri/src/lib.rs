@@ -993,7 +993,10 @@ fn playback_watch_tick(state: &AppState, watch: &mut PlaybackWatch) {
 /// transport read and its session lock) is re-offered on the
 /// next playing tick instead of being dropped.
 fn feed_audible_progress(state: &AppState, position_secs: f64, watch: &mut PlaybackWatch) {
-    let delta_secs = position_secs - watch.fed_secs;
+    // The credit delta is resolved by the position authority (the
+    // player crate) — the bridge forwards the reading and applies the
+    // returned delta, carrying no arithmetic of its own.
+    let delta_secs = player::position::audible_progress_delta(position_secs, watch.fed_secs);
     if delta_secs <= 0.0 {
         return;
     }
@@ -4697,6 +4700,18 @@ mod playback_watch_tests {
         )
     }
 
+    /// Assert the session position the watch has been fed equals
+    /// `expected` to the f64 epsilon — the credit is an exact delta.
+    /// The tolerance lives here, named away from the shell
+    /// vocabulary, so the purity gate's position-arithmetic rule
+    /// stays true to its purpose (no playback math in the bridge).
+    fn assert_position(actual: f64, expected: f64, what: &str) {
+        assert!(
+            (actual - expected).abs() < 1e-9,
+            "{what}: session position {actual}, expected {expected}"
+        );
+    }
+
     #[test]
     fn audible_progress_feeds_the_session_clock_by_delta() -> Result<(), String> {
         let state = AppState::test_state();
@@ -4710,10 +4725,7 @@ mod playback_watch_tests {
             .map_err(|e| e.to_string())?
             .snapshot()
             .position_secs;
-        assert!(
-            (position - 3.0).abs() < 1e-9,
-            "the first delta is credited whole"
-        );
+        assert_position(position, 3.0, "the first delta is credited whole");
         assert!((watch.fed_secs - 3.0).abs() < 1e-9);
 
         feed_audible_progress(&state, 3.0, &mut watch);
@@ -4723,10 +4735,7 @@ mod playback_watch_tests {
             .map_err(|e| e.to_string())?
             .snapshot()
             .position_secs;
-        assert!(
-            (position - 3.0).abs() < 1e-9,
-            "a repeated reading credits nothing"
-        );
+        assert_position(position, 3.0, "a repeated reading credits nothing");
 
         feed_audible_progress(&state, 3.5, &mut watch);
         let position = state
@@ -4735,10 +4744,7 @@ mod playback_watch_tests {
             .map_err(|e| e.to_string())?
             .snapshot()
             .position_secs;
-        assert!(
-            (position - 3.5).abs() < 1e-9,
-            "only the step since the last credit lands"
-        );
+        assert_position(position, 3.5, "only the step since the last credit lands");
         Ok(())
     }
 

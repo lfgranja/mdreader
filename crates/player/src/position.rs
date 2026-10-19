@@ -170,6 +170,19 @@ impl PositionClock {
     }
 }
 
+/// The audible-progress delta to credit for one backend reading
+/// (FR-002): how far the backend clock has advanced since the last
+/// credited reading. Negative when the reading trails the credited
+/// baseline (a run reset); the caller drops non-positive deltas.
+///
+/// The credit math lives here, in the position authority — never in
+/// the app-shell bridge, which only forwards the reading and applies
+/// the returned delta.
+#[must_use]
+pub fn audible_progress_delta(reading_secs: f64, credited_secs: f64) -> f64 {
+    reading_secs - credited_secs
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

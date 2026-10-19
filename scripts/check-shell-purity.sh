@@ -233,6 +233,12 @@ ALLOWLIST=(
   # `consumedUnits`) to pin it — the mention IS the assertion, the
   # same delegation-position shape the purity tests above carry.
   "$SRC_TAURI/tests/test_kotlin_mirror_payload.rs"
+  # 004 progress-label contract (T094): the test pins the Rust→frontend
+  # and Kotlin lock-screen mirror builders, carrying `TransportState`
+  # only in type/delegation positions (the argument type it passes to
+  # the builders) — the same shape the purity tests above carry; it
+  # asserts no playback logic.
+  "$SRC_TAURI/tests/test_progress_label.rs"
 )
 
 is_allowlisted() {

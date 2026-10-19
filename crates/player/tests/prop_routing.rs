@@ -172,7 +172,7 @@ fn routing_signal_strategy() -> impl Strategy<Value = RoutingSignal> {
     ]
 }
 
-/// An audible-progress tick (mirroring prop_lifecycle's
+/// An audible-progress tick (mirroring `prop_lifecycle`'s
 /// `on_audible_progress`): an exact binary fraction, so
 /// every position comparison in this file is bit-exact.
 fn audible_step_strategy() -> impl Strategy<Value = f64> {
@@ -251,7 +251,7 @@ enum DecisionKind {
 }
 
 /// The decision kind, for kind-level assertions.
-fn decision_kind(decision: &RoutingDecision) -> DecisionKind {
+const fn decision_kind(decision: &RoutingDecision) -> DecisionKind {
     match decision {
         RoutingDecision::Pause { .. } => DecisionKind::Pause,
         RoutingDecision::Follow { .. } => DecisionKind::Follow,
@@ -312,7 +312,7 @@ impl SimSession {
     }
 
     /// Audible progress: advances the position only while
-    /// playing (mirroring prop_lifecycle's
+    /// playing (mirroring `prop_lifecycle`'s
     /// `on_audible_progress`).
     fn tick_audible(&mut self, secs: f64) {
         if self.transport == TransportState::Playing {
@@ -323,7 +323,7 @@ impl SimSession {
     /// Apply a routing decision (R4): a pause lands the
     /// transport on `Paused`, a follow keeps playing, a
     /// no-op changes nothing. The position never moves.
-    fn apply_decision(&mut self, decision: &RoutingDecision) {
+    const fn apply_decision(&mut self, decision: &RoutingDecision) {
         match decision {
             RoutingDecision::Pause { .. } => {
                 self.transport = TransportState::Paused;
@@ -430,10 +430,6 @@ fn reference_latch_after(
             device_id: device_id.clone(),
             privacy: *privacy,
         }),
-        // A privacy-precedence pause leaves the latch where
-        // it was: the private output remains the current
-        // output until the reader resumes (FR-016).
-        (RoutingSignal::DeviceAppeared { .. }, ReferenceDecision::Pause { .. }) => previous,
         // An appearance while not playing (R3): the decision
         // is a no-op, but the reconnected device is latched
         // so the explicit resume happens through it (FR-017).
@@ -445,8 +441,15 @@ fn reference_latch_after(
                 privacy: *privacy,
             })
         }
-        // Every other no-op leaves the latch where it was.
-        (_, ReferenceDecision::NoChange) => previous,
+        // A privacy-precedence pause leaves the latch where
+        // it was: the private output remains the current
+        // output until the reader resumes (FR-016); and every
+        // other no-op leaves the latch where it was too.
+        (
+            RoutingSignal::DeviceAppeared { .. },
+            ReferenceDecision::Pause { .. },
+        )
+        | (_, ReferenceDecision::NoChange) => previous,
         // The route went noisy: no device remains latched.
         (RoutingSignal::BecomingNoisy, ReferenceDecision::Pause { .. }) => None,
         // A removal unlatches only the removed device, and
@@ -574,8 +577,8 @@ proptest! {
             session.apply_decision(&decision);
             session.current = latched;
             prop_assert_eq!(
-                session.position_secs,
-                position_before,
+                session.position_secs.to_bits(),
+                position_before.to_bits(),
                 "a routing decision moved the position (R4)"
             );
         }
@@ -612,8 +615,8 @@ proptest! {
             session.apply_decision(&decision);
             session.current = latched;
             prop_assert_eq!(
-                session.position_secs,
-                position_before,
+                session.position_secs.to_bits(),
+                position_before.to_bits(),
                 "a routing decision moved the position (R4)"
             );
         }
@@ -650,8 +653,8 @@ proptest! {
             session.apply_decision(&decision);
             session.current = latched;
             prop_assert_eq!(
-                session.position_secs,
-                position_before,
+                session.position_secs.to_bits(),
+                position_before.to_bits(),
                 "a routing decision moved the position (R4)"
             );
         }
@@ -694,14 +697,14 @@ proptest! {
                     session.tick_audible(secs);
                     if session.transport == TransportState::Playing {
                         prop_assert_eq!(
-                            session.position_secs,
-                            position_before + secs,
+                            session.position_secs.to_bits(),
+                            (position_before + secs).to_bits(),
                             "an audible tick while playing must advance the position"
                         );
                     } else {
                         prop_assert_eq!(
-                            session.position_secs,
-                            position_before,
+                            session.position_secs.to_bits(),
+                            position_before.to_bits(),
                             "an audible tick while silent must not advance the position (FR-005)"
                         );
                     }
@@ -724,8 +727,8 @@ proptest! {
                     session.apply_decision(&decision);
                     session.current = latched;
                     prop_assert_eq!(
-                        session.position_secs,
-                        position_before,
+                        session.position_secs.to_bits(),
+                        position_before.to_bits(),
                         "a routing decision moved the position (R4)"
                     );
                     match &decision {
@@ -811,8 +814,8 @@ proptest! {
             session.apply_decision(&decision);
             session.current = latched;
             prop_assert_eq!(
-                session.position_secs,
-                position_before,
+                session.position_secs.to_bits(),
+                position_before.to_bits(),
                 "a routing decision moved the position (R4)"
             );
         }
@@ -876,8 +879,8 @@ proptest! {
             "a signal while not playing must not move the transport (FR-017)"
         );
         prop_assert_eq!(
-            session.position_secs,
-            position_before,
+            session.position_secs.to_bits(),
+            position_before.to_bits(),
             "a signal while not playing must not move the position (R4)"
         );
         prop_assert_eq!(
@@ -911,8 +914,7 @@ fn wired_pull_pauses_within_the_bound_and_preserves_position() {
     assert_eq!(
         decision_kind(&decision),
         DecisionKind::Pause,
-        "a wired pull must pause (FR-016): the decision was {:?}",
-        decision
+        "a wired pull must pause (FR-016): the decision was {decision:?}"
     );
     if let RoutingDecision::Pause { latency_ms, device } = &decision {
         assert!(
@@ -973,8 +975,7 @@ fn bt_headset_loss_reported_only_through_the_device_callback_pauses_within_the_b
     assert_eq!(
         decision_kind(&decision),
         DecisionKind::Pause,
-        "a Bluetooth loss reported only through the device callback must pause (FR-016a): the decision was {:?}",
-        decision
+        "a Bluetooth loss reported only through the device callback must pause (FR-016a): the decision was {decision:?}"
     );
     if let RoutingDecision::Pause { latency_ms, device } = &decision {
         assert!(
@@ -1033,8 +1034,7 @@ fn coincidence_with_disappearance_first_pauses_before_the_appearance() {
     assert_eq!(
         decision_kind(&removal),
         DecisionKind::Pause,
-        "the disappearance must pause first (FR-016): the decision was {:?}",
-        removal
+        "the disappearance must pause first (FR-016): the decision was {removal:?}"
     );
     if let RoutingDecision::Pause { latency_ms, .. } = &removal {
         assert!(
@@ -1053,8 +1053,7 @@ fn coincidence_with_disappearance_first_pauses_before_the_appearance() {
     assert_eq!(
         decision_kind(&appearance),
         DecisionKind::NoChange,
-        "the appearance must not resume playback after the disappearance paused it (FR-017): the decision was {:?}",
-        appearance
+        "the appearance must not resume playback after the disappearance paused it (FR-017): the decision was {appearance:?}"
     );
     session.apply_decision(&appearance);
     assert_eq!(
@@ -1094,8 +1093,7 @@ fn coincidence_with_appearance_first_pauses_by_privacy_precedence() {
     assert_eq!(
         decision_kind(&appearance),
         DecisionKind::Pause,
-        "a private→public appearance must pause first by privacy precedence (FR-016, FR-017a): the decision was {:?}",
-        appearance
+        "a private→public appearance must pause first by privacy precedence (FR-016, FR-017a): the decision was {appearance:?}"
     );
     if let RoutingDecision::Pause { latency_ms, .. } = &appearance {
         assert!(
@@ -1114,8 +1112,7 @@ fn coincidence_with_appearance_first_pauses_by_privacy_precedence() {
     assert_eq!(
         decision_kind(&removal),
         DecisionKind::NoChange,
-        "the removal must change nothing once privacy precedence paused the session (FR-017): the decision was {:?}",
-        removal
+        "the removal must change nothing once privacy precedence paused the session (FR-017): the decision was {removal:?}"
     );
     session.apply_decision(&removal);
     assert_eq!(
@@ -1172,8 +1169,7 @@ fn public_to_public_appearance_follows_at_the_unchanged_position() {
     assert_eq!(
         decision_kind(&decision),
         DecisionKind::Follow,
-        "a public→public appearance must follow (FR-017a): the decision was {:?}",
-        decision
+        "a public→public appearance must follow (FR-017a): the decision was {decision:?}"
     );
     if let RoutingDecision::Follow { device } = &decision {
         assert_eq!(
@@ -1226,8 +1222,7 @@ fn an_appearance_while_paused_changes_nothing() {
     assert_eq!(
         decision_kind(&removal),
         DecisionKind::Pause,
-        "the removal must pause (FR-016): the decision was {:?}",
-        removal
+        "the removal must pause (FR-016): the decision was {removal:?}"
     );
     session.apply_decision(&removal);
     let decision = tracker.apply(
@@ -1240,8 +1235,7 @@ fn an_appearance_while_paused_changes_nothing() {
     assert_eq!(
         decision_kind(&decision),
         DecisionKind::NoChange,
-        "an appearance while paused must not auto-resume (FR-017): the decision was {:?}",
-        decision
+        "an appearance while paused must not auto-resume (FR-017): the decision was {decision:?}"
     );
     session.apply_decision(&decision);
     assert_eq!(

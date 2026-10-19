@@ -21,20 +21,24 @@
 //! matches, and any new match fails the build — the same
 //! discipline as the shell-purity gate.
 
+use std::error::Error;
 use std::path::{Path, PathBuf};
 
 /// The repository root: the WORKSPACE Cargo.toml's parent — the
 /// ancestor whose manifest declares `[workspace]`, not merely any
 /// `Cargo.toml` (this crate's own manifest would otherwise match
 /// first and resolve the root to `src-tauri/`).
+#[expect(
+    clippy::expect_used,
+    reason = "test harness: the guard cannot run without the workspace root; a missing root must fail the test loudly rather than silently scan nothing"
+)]
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .find(|candidate| {
             candidate.join("Cargo.toml").is_file()
                 && std::fs::read_to_string(candidate.join("Cargo.toml"))
-                    .map(|text| text.contains("[workspace]"))
-                    .unwrap_or(false)
+                    .is_ok_and(|text| text.contains("[workspace]"))
         })
         .map(Path::to_path_buf)
         .expect("the workspace root carries the Cargo.toml with [workspace]")
@@ -96,7 +100,7 @@ fn references_crate(text: &str, pattern: &str) -> bool {
 /// Whether `byte` can appear inside a crate/identifier name
 /// (ASCII alphanumeric or `_`), the complement of a word
 /// boundary.
-fn is_ident_char(byte: u8) -> bool {
+const fn is_ident_char(byte: u8) -> bool {
     byte.is_ascii_alphanumeric() || byte == b'_'
 }
 
@@ -132,10 +136,10 @@ fn source_files(dir: &Path) -> Vec<PathBuf> {
                     continue;
                 }
                 stack.push(path);
-            } else if let Some(ext) = path.extension() {
-                if ext == "rs" || ext == "kt" {
-                    files.push(path);
-                }
+            } else if let Some(ext) = path.extension()
+                && (ext == "rs" || ext == "kt")
+            {
+                files.push(path);
             }
         }
     }
@@ -179,12 +183,12 @@ fn no_network_call_sites_app_wide() {
 fn exactly_one_bundled_voice_directory() {
     let root = repo_root();
     let voices = root.join("crates/adapter-synthesis/assets/voices");
-    let entries = match std::fs::read_dir(&voices) {
-        Ok(entries) => entries.flatten().map(|e| e.path()).collect::<Vec<_>>(),
-        // An absent voice tree is itself a scope violation — the
-        // sole voice is the offline path's source.
-        Err(_) => Vec::new(),
-    };
+    // An absent voice tree is itself a scope violation — the
+    // sole voice is the offline path's source.
+    let entries = std::fs::read_dir(&voices).map_or_else(
+        |_| Vec::new(),
+        |entries| entries.flatten().map(|e| e.path()).collect::<Vec<_>>(),
+    );
     let voice_dirs: Vec<PathBuf> = entries.into_iter().filter(|path| path.is_dir()).collect();
     assert_eq!(
         voice_dirs.len(),
@@ -205,7 +209,7 @@ fn exactly_one_bundled_voice_directory() {
 }
 
 #[test]
-fn lock_screen_carries_no_stop_control() {
+fn lock_screen_carries_no_stop_control() -> Result<(), Box<dyn Error>> {
     // FR-002/FR-019: the Stop CONTROL exists only on the single
     // in-app screen; the lock-screen surface may carry the
     // `stopped` STATE but never a Stop control. The mirror
@@ -214,7 +218,7 @@ fn lock_screen_carries_no_stop_control() {
     // Kotlin mirror.
     let root = repo_root();
     let lib_rs = root.join("src-tauri/src/lib.rs");
-    let text = std::fs::read_to_string(&lib_rs).expect("lib.rs is readable");
+    let text = std::fs::read_to_string(&lib_rs)?;
     assert!(
         !text.contains("\"stop_control\""),
         "the mirror payload must not carry a stop control key (Stop is in-app only, FR-002/FR-019)"
@@ -226,13 +230,14 @@ fn lock_screen_carries_no_stop_control() {
             "the Kotlin MediaSession mirror must not handle the Stop verb on the lock screen (Stop is in-app only)"
         );
     }
+    Ok(())
 }
 
 #[test]
-fn no_library_view_no_auto_service_no_diag_surface() {
+fn no_library_view_no_auto_service_no_diag_surface() -> Result<(), Box<dyn Error>> {
     let root = repo_root();
     let frontend = root.join("src-tauri/src/status_view.html");
-    let text = std::fs::read_to_string(&frontend).expect("status_view.html is readable");
+    let text = std::fs::read_to_string(&frontend)?;
     // No library view: the single in-app screen renders one
     // document's session — no document list/grid/library.
     for forbidden in ["library", "Library", "biblioteca", " Biblioteca"] {
@@ -251,20 +256,21 @@ fn no_library_view_no_auto_service_no_diag_surface() {
         if file == guard {
             continue;
         }
-        if let Ok(file_text) = std::fs::read_to_string(&file) {
-            if file_text.contains("DiagnosticWriter") && file_text.contains("publish") {
-                diag_surface_hits.push(format!(
-                    "{}",
-                    file.strip_prefix(&root).unwrap_or(&file).display()
-                ));
-            }
+        if let Ok(file_text) = std::fs::read_to_string(&file)
+            && file_text.contains("DiagnosticWriter")
+            && file_text.contains("publish")
+        {
+            diag_surface_hits.push(format!(
+                "{}",
+                file.strip_prefix(&root).unwrap_or(&file).display()
+            ));
         }
     }
     assert!(
         diag_surface_hits.is_empty(),
-        "no in-app diagnostics surface (FR-017: adb-pull only): {:?}",
-        diag_surface_hits
+        "no in-app diagnostics surface (FR-017: adb-pull only): {diag_surface_hits:?}"
     );
+    Ok(())
 }
 
 #[test]
@@ -288,7 +294,7 @@ fn no_distribution_artifacts_in_tree() {
 }
 
 #[test]
-fn no_mdreader_in_user_visible_strings() {
+fn no_mdreader_in_user_visible_strings() -> Result<(), Box<dyn Error>> {
     // The naming boundary: the internal technical name never
     // reaches a user-visible surface (Ressoa-external naming) —
     // `.specify/assessments/ressoa-mobile-app/concept.md`: "the
@@ -325,7 +331,7 @@ fn no_mdreader_in_user_visible_strings() {
     // Android `app_name`/`main_activity_title` and the desktop
     // window title.
     let config = root.join("src-tauri/tauri.conf.json");
-    let config_text = std::fs::read_to_string(&config).expect("tauri.conf.json is readable");
+    let config_text = std::fs::read_to_string(&config)?;
     for line in config_text.lines() {
         if line.contains("\"productName\"") || line.contains("\"title\"") {
             assert!(
@@ -350,4 +356,5 @@ fn no_mdreader_in_user_visible_strings() {
             );
         }
     }
+    Ok(())
 }

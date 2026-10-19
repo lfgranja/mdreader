@@ -5,7 +5,7 @@
 //! `src-tauri/tests/test_purity.rs` (lock-screen + in-app snapshots across
 //! playing/paused/section-change/rate-change/interruption ⇒ display-projection
 //! keys ⊆ `{title, section_title, progress}` (full payload additionally
-//! carries transport ∈ `{playing,paused,stopped}` + reason/reason_ttl_ms/
+//! carries transport ∈ `{playing,paused,stopped}` + `reason/reason_ttl_ms`/
 //! dismissal per contracts/surface.md Display-vs-payload; prohibited
 //! anywhere: prose/time/rate-VALUE/voice); zero prose/time/rate-VALUE/voice
 //! leaks — rate-step action permitted, no value display;
@@ -68,15 +68,15 @@ use src_tauri::publish::publish_mirror;
 use src_tauri::status_view::{StatusView, render_status_view};
 use src_tauri::surface::{FullReason, ReasonExpiry, full_reason};
 
-/// The display projection: the ONLY keys either surface may show
-/// (contracts/surface.md Display-vs-payload — "display projection keys
-/// ⊆ {title, section_title, progress}").
-const DISPLAY_KEYS: [&str; 3] = ["title", "section_title", "progress"];
+/// The display projection keys. `progress_label` is app-only;
+/// the Kotlin notification remains limited to the contract's
+/// `{title, section_title, progress}` subset.
+const DISPLAY_KEYS: [&str; 4] = ["title", "section_title", "progress", "progress_label"];
 
 /// The permitted full-payload keys beyond the display projection —
 /// state and behavior, never display leaks (contracts/surface.md
 /// Display-vs-payload: the payload additionally carries transport,
-/// reason/reason_ttl_ms and dismissal). The established mirror set
+/// `reason/reason_ttl_ms` and dismissal). The established mirror set
 /// (T015 `test_surface_us1.rs`) plus the contract's `reason_ttl_ms`
 /// name and the publish channel's `transient_reason` carrier.
 const PERMITTED_PAYLOAD_KEYS: [&str; 9] = [
@@ -183,7 +183,7 @@ fn headings() -> Vec<Heading> {
 /// split emits (FR-013: one unit is one sentence-level segment),
 /// fixed at session start — the denominator the surface
 /// fraction uses, never re-derived mid-session.
-const TOTAL_UNITS: u64 = 12;
+const TOTAL_UNITS: u32 = 12;
 
 /// The spoken seconds per parsed-content unit — the projection
 /// basis the position maps onto the content offset with
@@ -193,7 +193,12 @@ const TOTAL_UNITS: u64 = 12;
 const UNIT_SECS: f64 = 15.0;
 
 /// The fixture's total spoken length: `TOTAL_UNITS × UNIT_SECS`.
-const TOTAL_SECS: f64 = TOTAL_UNITS as f64 * UNIT_SECS;
+///
+/// The unit count is spelled as the exact `f64` literal `12.0`
+/// rather than `TOTAL_UNITS as f64` — the `u64 → f64` cast trips
+/// `clippy::cast_precision_loss`, and 12 is exactly representable,
+/// so the literal is the same number.
+const TOTAL_SECS: f64 = 12.0 * UNIT_SECS;
 
 /// One modeled session state of the five the requirement names.
 struct StateCase {
@@ -276,7 +281,7 @@ fn state_cases() -> Vec<StateCase> {
 /// `Interrupted`/`Completed` are end-kinds, never transport values
 /// (contracts/surface.md), and the lock screen shows an interruption
 /// as the paused state.
-fn mirror_transport_wire(transport: TransportState) -> &'static str {
+const fn mirror_transport_wire(transport: TransportState) -> &'static str {
     match transport {
         TransportState::Playing => "playing",
         TransportState::Paused | TransportState::Interrupted => "paused",
@@ -285,7 +290,7 @@ fn mirror_transport_wire(transport: TransportState) -> &'static str {
 }
 
 /// Assert one payload object's keys are pure: every key is either a
-/// display-projection key (⊆ {title, section_title, progress}) or a
+/// display-projection key (⊆ {title, `section_title`, progress}) or a
 /// permitted full-payload state key, and no key carries a forbidden
 /// fragment (prose/time/rate-value/voice identity).
 fn assert_key_purity(label: &str, object: &Map<String, Value>) {
@@ -302,6 +307,16 @@ fn assert_key_purity(label: &str, object: &Map<String, Value>) {
                 "{label}: payload key {key:?} carries forbidden fragment {fragment:?} — prose/time/rate-value/voice prohibited anywhere"
             );
         }
+    }
+}
+
+fn assert_lock_screen_key_purity(label: &str, object: &Map<String, Value>) {
+    for key in object.keys() {
+        assert!(
+            ["title", "section_title", "progress"].contains(&key.as_str())
+                || PERMITTED_PAYLOAD_KEYS.contains(&key.as_str()),
+            "{label}: lock-screen payload key {key:?} is not permitted"
+        );
     }
 }
 
@@ -359,9 +374,9 @@ fn surface_snapshot_object(
 }
 
 /// The full mirror payload for one state through the publish seam.
-fn publish_payload_object(state: &StateCase) -> Result<Value, Box<dyn std::error::Error>> {
+fn publish_payload_object(state: &StateCase) -> Value {
     let section_title = snapshot_section_title(state.position_secs);
-    let payload = publish_mirror(
+    publish_mirror(
         mirror_transport_wire(state.transport),
         state.position_secs,
         section_title,
@@ -369,8 +384,7 @@ fn publish_payload_object(state: &StateCase) -> Result<Value, Box<dyn std::error
         state
             .reason
             .map(|(reason, _)| full_reason(&reason, DOCUMENT_TITLE)),
-    );
-    Ok(payload)
+    )
 }
 
 /// The most-recent-passed section title at `position_secs` over the
@@ -389,7 +403,7 @@ fn the_five_states_keep_the_display_projection_and_payload_pure()
     let resolver = SurfaceResolver::new(
         Some(DOCUMENT_TITLE.to_string()),
         FILENAME_PLACEHOLDER.to_string(),
-        TOTAL_UNITS,
+        u64::from(TOTAL_UNITS),
         TOTAL_SECS,
         true,
     );
@@ -442,11 +456,11 @@ fn the_five_states_keep_the_display_projection_and_payload_pure()
         assert_no_leaked_values(label, &serde_json::to_string(&surface_value)?);
 
         // --- the full mirror payload (publish channel) ---
-        let payload_value = publish_payload_object(&state)?;
+        let payload_value = publish_payload_object(&state);
         let payload_object = payload_value
             .as_object()
             .ok_or("the mirror payload is not a JSON object")?;
-        assert_key_purity(label, payload_object);
+        assert_lock_screen_key_purity(label, payload_object);
         assert_no_leaked_values(label, &serde_json::to_string(&payload_value)?);
         // The payload's transport is a STATE from the closed
         // {playing, paused, stopped} set — never an end-kind, never
@@ -539,7 +553,7 @@ fn the_section_title_is_the_most_recent_passed_heading_never_forward_looking()
     let resolver = SurfaceResolver::new(
         Some(DOCUMENT_TITLE.to_string()),
         FILENAME_PLACEHOLDER.to_string(),
-        TOTAL_UNITS,
+        u64::from(TOTAL_UNITS),
         TOTAL_SECS,
         true,
     );
@@ -580,14 +594,14 @@ fn determinacy_is_fixed_at_session_start_and_never_flips() -> Result<(), Box<dyn
     let known = SurfaceResolver::new(
         Some(DOCUMENT_TITLE.to_string()),
         FILENAME_PLACEHOLDER.to_string(),
-        TOTAL_UNITS,
+        u64::from(TOTAL_UNITS),
         TOTAL_SECS,
         true,
     );
     let unknown = SurfaceResolver::new(
         Some(DOCUMENT_TITLE.to_string()),
         FILENAME_PLACEHOLDER.to_string(),
-        TOTAL_UNITS,
+        u64::from(TOTAL_UNITS),
         TOTAL_SECS,
         false,
     );
@@ -628,7 +642,8 @@ fn determinacy_is_fixed_at_session_start_and_never_flips() -> Result<(), Box<dyn
             return Err("a duration-known session produced no determinate progress".into());
         };
         assert_eq!(
-            total_units, TOTAL_UNITS,
+            total_units,
+            u64::from(TOTAL_UNITS),
             "the determinate total is the parsed-content unit count fixed at session start (FR-013)"
         );
         assert_eq!(n, 3, "the heading list marks three sections");
@@ -649,7 +664,7 @@ fn expected_section_index(position_secs: f64) -> u32 {
     headings
         .iter()
         .rposition(|heading| heading.position_secs <= position_secs)
-        .map_or(0, |index| (index + 1) as u32)
+        .map_or(0, |index| u32::try_from(index + 1).unwrap_or(0))
 }
 
 #[test]
@@ -657,7 +672,7 @@ fn dismissal_is_refused_while_playing_and_the_closed_truth_table_holds() {
     let resolver = SurfaceResolver::new(
         Some(DOCUMENT_TITLE.to_string()),
         FILENAME_PLACEHOLDER.to_string(),
-        TOTAL_UNITS,
+        u64::from(TOTAL_UNITS),
         TOTAL_SECS,
         true,
     );
@@ -712,7 +727,7 @@ fn zero_sections_resolve_no_section_title_and_indeterminate_progress()
     let resolver = SurfaceResolver::new(
         Some(DOCUMENT_TITLE.to_string()),
         FILENAME_PLACEHOLDER.to_string(),
-        TOTAL_UNITS,
+        u64::from(TOTAL_UNITS),
         TOTAL_SECS,
         false,
     );
@@ -778,7 +793,7 @@ fn the_rate_step_is_value_blind_on_both_surfaces() -> Result<(), Box<dyn std::er
         let resolver = SurfaceResolver::new(
             Some(DOCUMENT_TITLE.to_string()),
             FILENAME_PLACEHOLDER.to_string(),
-            TOTAL_UNITS,
+            u64::from(TOTAL_UNITS),
             TOTAL_SECS,
             true,
         );

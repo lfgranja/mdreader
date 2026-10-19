@@ -1,12 +1,15 @@
-//! T132 — Phase 14 BLOCKING TEST (RED): publish-payload contract
-//! (contracts/shell-ipc.md State mirror — Rust→shell streaming).
+//! T132 / T079 — Phase 14 BLOCKING TEST (RED): publish-payload
+//! contract (contracts/shell-ipc.md State mirror — Rust→shell
+//! streaming) AND the T079 lock-screen payload invariant:
+//! the public Kotlin/lock-screen payload helper MUST omit
+//! `progress_label` and obey the exact contract key set.
 //!
 //! Pins EXACTLY the mirror wire form the sanctioned
 //! `tauri::ipc::Channel` publish path MUST emit on every
 //! transport/position/focus event (FR-003, FR-028 series).
 //!
 //! The wire form is a JSON object with exactly these keys
-//! (snake_case, per the case-mapping table in
+//! (`snake_case`, per the case-mapping table in
 //! `contracts/shell-ipc.md`):
 //!
 //! - `transport` — externally-tagged closed enum:
@@ -22,13 +25,16 @@
 //!   carries a stated transient reason (focus-loss pause under
 //!   FR-041 or failure reason under FR-037); absent otherwise
 //!
-//! Never: body text, elapsed/remaining time, rate, voice, or
-//! any key outside the enumerated set (FR-028 series).
+//! Never: `progress_label`, body text, elapsed/remaining time,
+//! rate, voice, or any key outside the enumerated set
+//! (FR-028 series, T079).
 //!
-//! This test FAILS before T133 because the publish path
-//! (`tauri::ipc::Channel` streaming from Rust to shell) does
-//! not exist yet — no `Channel` creation, no `emit` call sites,
-//! no Kotlin `@Command` listeners in `src-tauri/`.
+//! T079 (RED): the public Kotlin/lock-screen payload helper
+//! (`publish_mirror`) currently emits a `progress_label` key
+//! when progress is determinate — a 5th key outside the
+//! contract set. This test asserts the exact contract keys
+//! and the absence of `progress_label`, so it FAILS until
+//! the implementation removes that key.
 
 use serde_json::Value;
 
@@ -36,8 +42,48 @@ use serde_json::Value;
 /// This import will fail until T133 creates the publish module.
 use src_tauri::publish::publish_mirror;
 
+/// The exact contract key set for a publish payload with
+/// a section title present (transport, `position_secs`,
+/// `section_title`, progress).
+const CONTRACT_KEYS_WITH_SECTION: [&str; 4] =
+    ["transport", "position_secs", "section_title", "progress"];
+
+/// The exact contract key set for a publish payload with
+/// no section title (transport, `position_secs`, progress).
+const CONTRACT_KEYS_NO_SECTION: [&str; 3] = ["transport", "position_secs", "progress"];
+
+/// Assert that the payload obeys the exact contract key set:
+/// every expected key is present, no unexpected key exists,
+/// and `progress_label` is always omitted (T079).
+fn assert_contract_keys(
+    payload: &Value,
+    expected_keys: &[&str],
+) -> Result<(), Box<dyn std::error::Error>> {
+    let obj = payload.as_object().ok_or("payload must be a JSON object")?;
+
+    // T079: progress_label MUST be omitted from the public
+    // Kotlin/lock-screen payload — it is an app-only field
+    // that never crosses the wire.
+    assert!(
+        obj.get("progress_label").is_none(),
+        "progress_label MUST be omitted from the publish payload (T079)"
+    );
+
+    // Exact key set: no more, no fewer.
+    let mut actual_keys: Vec<&str> = obj.keys().map(std::string::String::as_str).collect();
+    actual_keys.sort_unstable();
+    let mut expected_sorted: Vec<&str> = expected_keys.to_vec();
+    expected_sorted.sort_unstable();
+    assert_eq!(
+        actual_keys, expected_sorted,
+        "publish payload must carry exactly the contract keys"
+    );
+    Ok(())
+}
+
 #[test]
-fn publish_payload_carries_exactly_the_five_contract_keys_for_each_transport() {
+fn publish_payload_carries_exactly_the_contract_keys_for_each_transport()
+-> Result<(), Box<dyn std::error::Error>> {
     // Test every transport state with a known position and section.
     let transports = ["playing", "paused", "stopped", "completed", "interrupted"];
 
@@ -54,13 +100,11 @@ fn publish_payload_carries_exactly_the_five_contract_keys_for_each_transport() {
             None, // no transient reason
         );
 
-        // Assert the wire form has exactly the 4 keys (section_title present).
-        let obj = payload.as_object().expect("payload must be a JSON object");
-        assert_eq!(
-            obj.len(),
-            4,
-            "publish payload for {transport} must have exactly 4 keys (transport, position_secs, section_title, progress)"
-        );
+        // T079: assert exact contract keys + progress_label omission.
+        assert_contract_keys(&payload, &CONTRACT_KEYS_WITH_SECTION)?;
+
+        // Verify each key and its shape.
+        let obj = payload.as_object().ok_or("payload must be a JSON object")?;
         assert_eq!(
             obj.get("transport"),
             Some(&Value::String(transport.to_string())),
@@ -69,7 +113,8 @@ fn publish_payload_carries_exactly_the_five_contract_keys_for_each_transport() {
         assert_eq!(
             obj.get("position_secs"),
             Some(&Value::Number(
-                serde_json::Number::from_f64(position_secs).unwrap()
+                serde_json::Number::from_f64(position_secs)
+                    .ok_or("position_secs must be a finite f64")?
             )),
             "position_secs key must be the authoritative position"
         );
@@ -83,12 +128,14 @@ fn publish_payload_carries_exactly_the_five_contract_keys_for_each_transport() {
         );
 
         // Verify progress is externally tagged determinate.
-        let progress = obj.get("progress").unwrap();
+        let progress = obj.get("progress").ok_or("progress key must be present")?;
         assert!(
             progress.get("determinate").is_some(),
             "progress must be determinate for known-duration session"
         );
-        let det = progress.get("determinate").unwrap();
+        let det = progress
+            .get("determinate")
+            .ok_or("determinate progress must be a JSON object")?;
         // 004 content-offset shape (contracts/surface.md / T005):
         // the determinate payload carries parsed-content units and the
         // section counts — never the time-based position/duration the
@@ -113,24 +160,14 @@ fn publish_payload_carries_exactly_the_five_contract_keys_for_each_transport() {
             det.get("position_secs").is_none() && det.get("duration_secs").is_none(),
             "the 001 time-based progress fields must not survive the 004 content-offset shape (T005)"
         );
-
-        // Verify no extra keys (especially no body text, rate, voice, etc.)
-        for key in obj.keys() {
-            assert!(
-                matches!(
-                    key.as_str(),
-                    "transport" | "position_secs" | "section_title" | "progress"
-                ),
-                "unexpected key in publish payload: {key}"
-            );
-        }
     }
+    Ok(())
 }
 
 #[test]
-fn publish_payload_section_title_absent_before_first_heading() {
+fn publish_payload_section_title_absent_before_first_heading()
+-> Result<(), Box<dyn std::error::Error>> {
     let position_secs = 5.0;
-    let _duration_secs = 120.0;
 
     // This call will fail until T133 implements publish_mirror.
     let payload = publish_mirror(
@@ -141,20 +178,20 @@ fn publish_payload_section_title_absent_before_first_heading() {
         None, // no transient reason
     );
 
-    let obj = payload.as_object().expect("payload must be a JSON object");
-    assert_eq!(
-        obj.len(),
-        3,
-        "publish payload before first heading must have exactly 3 keys (transport, position_secs, progress)"
-    );
+    // T079: exact contract keys + progress_label omission.
+    assert_contract_keys(&payload, &CONTRACT_KEYS_NO_SECTION)?;
+
+    let obj = payload.as_object().ok_or("payload must be a JSON object")?;
     assert!(
         obj.get("section_title").is_none(),
         "section_title must be absent (not null) before first heading"
     );
+    Ok(())
 }
 
 #[test]
-fn publish_payload_indeterminate_progress_when_duration_unknown() {
+fn publish_payload_indeterminate_progress_when_duration_unknown()
+-> Result<(), Box<dyn std::error::Error>> {
     let position_secs = 30.0;
 
     // This call will fail until T133 implements publish_mirror.
@@ -166,19 +203,23 @@ fn publish_payload_indeterminate_progress_when_duration_unknown() {
         None,  // no transient reason
     );
 
-    let obj = payload.as_object().expect("payload must be a JSON object");
-    let progress = obj.get("progress").unwrap();
+    // T079: exact contract keys + progress_label omission.
+    assert_contract_keys(&payload, &CONTRACT_KEYS_WITH_SECTION)?;
+
+    let obj = payload.as_object().ok_or("payload must be a JSON object")?;
+    let progress = obj.get("progress").ok_or("progress key must be present")?;
     assert_eq!(
         progress,
         &Value::String("indeterminate".to_string()),
         "indeterminate progress must serialize as bare wire string"
     );
+    Ok(())
 }
 
 #[test]
-fn publish_payload_transient_reason_present_only_for_transient_pause() {
+fn publish_payload_transient_reason_present_only_for_transient_pause()
+-> Result<(), Box<dyn std::error::Error>> {
     let position_secs = 30.0;
-    let _duration_secs = 120.0;
 
     // With transient reason (focus loss, FR-041).
     let with_reason = publish_mirror(
@@ -186,13 +227,32 @@ fn publish_payload_transient_reason_present_only_for_transient_pause() {
         position_secs,
         Some("Chapter 1".to_string()),
         true, // determinate
-        Some("outro app usando o áudio".to_string()),
+        Some("outro app usando o audio".to_string()),
     );
-    let obj = with_reason.as_object().unwrap();
+
+    // T079: with transient reason, the contract keys are
+    // transport, position_secs, section_title, progress,
+    // transient_reason — 5 keys, no progress_label.
+    let obj = with_reason
+        .as_object()
+        .ok_or("payload must be a JSON object")?;
+    assert!(
+        obj.get("progress_label").is_none(),
+        "progress_label MUST be omitted from the publish payload (T079)"
+    );
+    let mut actual_keys: Vec<&str> = obj.keys().map(std::string::String::as_str).collect();
+    actual_keys.sort_unstable();
+    let mut expected_sorted = [
+        "transport",
+        "position_secs",
+        "section_title",
+        "progress",
+        "transient_reason",
+    ];
+    expected_sorted.sort_unstable();
     assert_eq!(
-        obj.len(),
-        5,
-        "payload with transient reason must have 5 keys"
+        actual_keys, expected_sorted,
+        "payload with transient reason must have exactly 5 contract keys"
     );
     assert!(
         obj.get("transient_reason").is_some(),
@@ -200,7 +260,7 @@ fn publish_payload_transient_reason_present_only_for_transient_pause() {
     );
     assert_eq!(
         obj.get("transient_reason"),
-        Some(&Value::String("outro app usando o áudio".to_string()))
+        Some(&Value::String("outro app usando o audio".to_string()))
     );
 
     // Without transient reason (deliberate pause, resident).
@@ -212,20 +272,14 @@ fn publish_payload_transient_reason_present_only_for_transient_pause() {
         None,
     );
 
-    let obj = without_reason.as_object().unwrap();
-    assert_eq!(
-        obj.len(),
-        4,
-        "resident pause payload must have 4 keys (no transient_reason)"
-    );
-    assert!(
-        obj.get("transient_reason").is_none(),
-        "transient_reason must be absent for resident pause"
-    );
+    // T079: without transient reason, back to the 4-key contract.
+    assert_contract_keys(&without_reason, &CONTRACT_KEYS_WITH_SECTION)?;
+    Ok(())
 }
 
 #[test]
-fn publish_payload_never_carries_body_text_or_extra_fields() {
+fn publish_payload_never_carries_body_text_or_extra_fields()
+-> Result<(), Box<dyn std::error::Error>> {
     let position_secs = 30.0;
 
     // This call will fail until T133 implements publish_mirror.
@@ -237,10 +291,17 @@ fn publish_payload_never_carries_body_text_or_extra_fields() {
         None, // no transient reason
     );
 
-    let obj = payload.as_object().unwrap();
+    let obj = payload.as_object().ok_or("payload must be a JSON object")?;
+
+    // T079: progress_label is explicitly forbidden.
+    assert!(
+        obj.get("progress_label").is_none(),
+        "publish payload must never carry progress_label (T079)"
+    );
 
     // Ensure no body text, no elapsed/remaining, no rate, no voice.
     let forbidden_keys = [
+        "progress_label",
         "body",
         "text",
         "sentence",
@@ -263,10 +324,12 @@ fn publish_payload_never_carries_body_text_or_extra_fields() {
             "publish payload must never carry forbidden key: {key}"
         );
     }
+    Ok(())
 }
 
 #[test]
-fn publish_payload_transport_enum_matches_contract_case_mapping() {
+fn publish_payload_transport_enum_matches_contract_case_mapping()
+-> Result<(), Box<dyn std::error::Error>> {
     let transports = [
         ("playing", "playing"),
         ("paused", "paused"),
@@ -279,16 +342,17 @@ fn publish_payload_transport_enum_matches_contract_case_mapping() {
         // This call will fail until T133 implements publish_mirror.
         let payload = publish_mirror(input_transport, 30.0, None, true, None);
 
-        assert!(
-            payload.get("progress_label").is_none(),
-            "progress_label is forbidden in the Kotlin lock-screen contract payload"
-        );
+        // T079: exact contract keys + progress_label omission.
+        assert_contract_keys(&payload, &CONTRACT_KEYS_NO_SECTION)?;
 
-        let transport_value = payload.get("transport").unwrap();
+        let transport_value = payload
+            .get("transport")
+            .ok_or("payload must carry a transport key")?;
         assert_eq!(
             transport_value,
             &Value::String(expected_wire.to_string()),
             "transport {input_transport} must serialize to {expected_wire} (contracts/shell-ipc.md case-mapping)"
         );
     }
+    Ok(())
 }

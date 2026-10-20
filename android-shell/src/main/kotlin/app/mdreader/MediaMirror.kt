@@ -84,8 +84,11 @@ import android.util.Log
  * Control routing: the MediaSession callback forwards each
  * platform control event to Rust through [forwardVerb] as
  * the closed verb wire string (onPlay to play, onPause to
- * pause, onSkipToNext to skip_forward5s, onSkipToPrevious to
- * skip_back5s), never honoured locally. The Stop control has
+ * pause, onSkipToNext to the legacy `skip_forward5s` wire
+ * identifier, onSkipToPrevious to `skip_back5s`). Rust now
+ * resolves both skip actions to section boundaries, with a
+ * ten-second fallback for sectionless documents (FR-002).
+ * Neither is honoured locally. The Stop control has
  * no platform route — the session's action mask never
  * advertises it and no callback forwards it — because the
  * lock-screen control set is play, pause and skip: the Stop
@@ -330,12 +333,14 @@ class MediaMirror(
          * distinct from the `stopped` transport STATE). */
         const val VERB_STOP = "stop"
 
-        /** Wire verb for the skip-forward control (the
-         * session's onSkipToNext route). */
+        /** Legacy wire identifier for the skip-forward control;
+         * Rust resolves it to the next section boundary or the
+         * sectionless ten-second fallback (FR-002). */
         const val VERB_SKIP_FORWARD_5S = "skip_forward5s"
 
-        /** Wire verb for the skip-back control (the
-         * session's onSkipToPrevious route). */
+        /** Legacy wire identifier for the skip-back control;
+         * Rust resolves it to the previous section boundary or
+         * the sectionless ten-second fallback (FR-002). */
         const val VERB_SKIP_BACK_5S = "skip_back5s"
 
         /** Wire verb for the rate-up control (a notification

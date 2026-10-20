@@ -43,11 +43,13 @@
 //!
 //! Bindings (all public surfaces; `src-tauri/src/lib.rs` is read-only
 //! reference here — the `pub mod publish` seam's `publish_mirror` is the
-//! T132 test-compatible payload builder):
+//! T132 state-mirror payload builder):
 //! - `src_tauri::status_view::render_status_view` — the in-app status
 //!   view renderer (T065b), a pure function over its inputs;
-//! - `src_tauri::publish::publish_mirror` — the full mirror payload the
-//!   frontend channel carries;
+//! - `src_tauri::publish::publish_mirror` — the STATE MIRROR payload the
+//!   shell channel carries (T099: not the lock-screen payload — that
+//!   one is `build_kotlin_mirror_json`, and it carries the pt-BR
+//!   `progressLabel`);
 //! - `player::surface::{SurfaceResolver, SurfaceSnapshot, Progress,
 //!   Dismissal}` — the lock-screen surface projection (T061);
 //! - `src_tauri::surface::{FullReason, ReasonExpiry, full_reason}` — the
@@ -68,9 +70,11 @@ use src_tauri::publish::publish_mirror;
 use src_tauri::status_view::{StatusView, render_status_view};
 use src_tauri::surface::{FullReason, ReasonExpiry, full_reason};
 
-/// The display projection keys. `progress_label` is app-only;
-/// the Kotlin notification remains limited to the contract's
-/// `{title, section_title, progress}` subset.
+/// The display projection keys. `progress_label` is the in-app
+/// display projection's label; the Kotlin lock-screen payload
+/// carries the same label under its own camelCase name
+/// (`progressLabel`, T090/T094) — the state mirror carries neither
+/// (T099).
 const DISPLAY_KEYS: [&str; 4] = ["title", "section_title", "progress", "progress_label"];
 
 /// The permitted full-payload keys beyond the display projection —
@@ -455,7 +459,7 @@ fn the_five_states_keep_the_display_projection_and_payload_pure()
         }
         assert_no_leaked_values(label, &serde_json::to_string(&surface_value)?);
 
-        // --- the full mirror payload (publish channel) ---
+        // --- the state mirror payload (publish channel) ---
         let payload_value = publish_payload_object(&state);
         let payload_object = payload_value
             .as_object()

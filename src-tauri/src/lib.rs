@@ -4416,7 +4416,23 @@ pub mod publish {
         publish_mirror_to_channel(state, &snapshot, &surface, transient_reason, &dismissal);
     }
 
-    /// Test-compatible `publish_mirror` function (T132 contract).
+    /// The STATE MIRROR payload builder (T132; the 001 shell-ipc
+    /// wire form).
+    ///
+    /// This is the Rust→shell STATE mirror the 001 contract names
+    /// (`specs/001-android-media-shell/contracts/shell-ipc.md`):
+    /// `transport`, `position_secs`, `section_title`, `progress` and
+    /// the optional `transient_reason`. It is NOT the lock-screen
+    /// payload: that one is [`build_kotlin_mirror_json`], the
+    /// camelCase wire form the Kotlin surface parses, and it carries
+    /// the pt-BR `progressLabel` for determinate progress (FR-011 /
+    /// FR-013; T089 / T090 / T094).
+    ///
+    /// T099 reconciled the two definitions: the state mirror carries
+    /// no label — the label is a display projection, and the state
+    /// mirror carries state — while the lock-screen payload carries
+    /// it. The contract test (`tests/test_publish_payload.rs`) pins
+    /// BOTH halves.
     ///
     /// Returns the JSON payload that would be sent over the channel.
     /// Used by the contract test to verify the wire form.

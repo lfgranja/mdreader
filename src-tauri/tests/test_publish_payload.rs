@@ -1,72 +1,61 @@
-//! T132 / T079 — Phase 14 BLOCKING TEST (RED): publish-payload
-//! contract (contracts/shell-ipc.md State mirror — Rust→shell
-//! streaming) AND the T079 lock-screen payload invariant:
-//! the public Kotlin/lock-screen payload helper MUST omit
-//! `progress_label` and obey the exact contract key set.
+//! T132 / T079 / T099 — the publish-payload contract: the Rust→shell
+//! STATE MIRROR and the Rust→Kotlin LOCK-SCREEN payload.
 //!
-//! Pins EXACTLY the mirror wire form the sanctioned
-//! `tauri::ipc::Channel` publish path MUST emit on every
-//! transport/position/focus event (FR-003, FR-028 series).
+//! TWO payloads leave the Rust bridge, and this file pins BOTH:
 //!
-//! The wire form is a JSON object with exactly these keys
-//! (`snake_case`, per the case-mapping table in
-//! `contracts/shell-ipc.md`):
+//! 1. the STATE MIRROR ([`publish_mirror`]) — the 001 shell-ipc wire
+//!    form (`specs/001-android-media-shell/contracts/shell-ipc.md`):
+//!    `transport`, `position_secs`, `section_title`, `progress` and
+//!    the optional `transient_reason`. It carries NO label: the
+//!    progress label is a display projection, and the state mirror
+//!    carries state.
 //!
-//! - `transport` — externally-tagged closed enum:
-//!   `playing` | `paused` | `stopped` | `completed` | `interrupted`
-//! - `position_secs` — f64, the session's authoritative position
-//! - `section_title` — string, present iff a heading has been
-//!   passed (absent, not null, when before first heading or
-//!   heading-less document)
-//! - `progress` — externally-tagged closed enum:
-//!   `{"determinate": {"consumed_units": u64, "total_units": u64,
-//!   "k": u32, "n": u32}}` | `"indeterminate"`
-//! - `transient_reason` — string, present ONLY when the pause
-//!   carries a stated transient reason (focus-loss pause under
-//!   FR-041 or failure reason under FR-037); absent otherwise
+//! 2. the LOCK-SCREEN payload ([`build_kotlin_mirror_json`]) — the
+//!    camelCase wire form the Kotlin surface parses: it carries the
+//!    pt-BR `progressLabel` for determinate progress and omits it for
+//!    an indeterminate one (FR-011 / FR-013; T083 / T089 / T090 /
+//!    T094 — `contracts/surface.md`).
 //!
-//! Never: `progress_label`, body text, elapsed/remaining time,
-//! rate, voice, or any key outside the enumerated set
-//! (FR-028 series, T079).
-//!
-//! T079 (RED): the public Kotlin/lock-screen payload helper
-//! (`publish_mirror`) currently emits a `progress_label` key
-//! when progress is determinate — a 5th key outside the
-//! contract set. This test asserts the exact contract keys
-//! and the absence of `progress_label`, so it FAILS until
-//! the implementation removes that key.
+//! T099 RECONCILES the two definitions. The earlier Phase 11/12
+//! fixture (T079) asserted a LABEL-FREE LOCK-SCREEN payload, which
+//! contradicted the T090/T094 contract the production Kotlin payload
+//! implements. One definition now names the lock-screen payload —
+//! [`build_kotlin_mirror_json`], the one the Kotlin surface parses —
+//! and the state mirror keeps the wire form it always had.
 
+use std::error::Error;
+
+use player::surface::{Dismissal, Progress, SurfaceSnapshot};
+use player::transport::TransportState;
 use serde_json::Value;
+use src_tauri::publish::{build_kotlin_mirror_json, publish_mirror};
 
-/// The publish function that T133 will implement.
-/// This import will fail until T133 creates the publish module.
-use src_tauri::publish::publish_mirror;
-
-/// The exact contract key set for a publish payload with
-/// a section title present (transport, `position_secs`,
-/// `section_title`, progress).
+/// The exact contract key set for the state mirror with a section
+/// title present (transport, `position_secs`, `section_title`,
+/// progress).
 const CONTRACT_KEYS_WITH_SECTION: [&str; 4] =
     ["transport", "position_secs", "section_title", "progress"];
 
-/// The exact contract key set for a publish payload with
-/// no section title (transport, `position_secs`, progress).
+/// The exact contract key set for the state mirror with no section
+/// title (transport, `position_secs`, progress).
 const CONTRACT_KEYS_NO_SECTION: [&str; 3] = ["transport", "position_secs", "progress"];
 
-/// Assert that the payload obeys the exact contract key set:
-/// every expected key is present, no unexpected key exists,
-/// and `progress_label` is always omitted (T079).
+/// Assert that the state mirror obeys the exact contract key set:
+/// every expected key is present, no unexpected key exists, and the
+/// progress label is always omitted — the label rides the lock-screen
+/// payload, never the state mirror (T099).
 fn assert_contract_keys(
     payload: &Value,
     expected_keys: &[&str],
 ) -> Result<(), Box<dyn std::error::Error>> {
     let obj = payload.as_object().ok_or("payload must be a JSON object")?;
 
-    // T079: progress_label MUST be omitted from the public
-    // Kotlin/lock-screen payload — it is an app-only field
-    // that never crosses the wire.
+    // T079/T099: the progress label MUST be omitted from the state
+    // mirror — it is a display projection, and the state mirror is
+    // state.
     assert!(
         obj.get("progress_label").is_none(),
-        "progress_label MUST be omitted from the publish payload (T079)"
+        "progress_label MUST be omitted from the state mirror (T079/T099)"
     );
 
     // Exact key set: no more, no fewer.
@@ -76,11 +65,52 @@ fn assert_contract_keys(
     expected_sorted.sort_unstable();
     assert_eq!(
         actual_keys, expected_sorted,
-        "publish payload must carry exactly the contract keys"
+        "the state mirror must carry exactly the contract keys"
     );
     Ok(())
 }
 
+/// A determinate surface snapshot: the totals are known at session
+/// start, so the progress carries the section indices and the
+/// content-offset units.
+fn determinate(k: u32, n: u32, consumed_units: u64, total_units: u64) -> SurfaceSnapshot {
+    SurfaceSnapshot {
+        title: String::from("Falando com estranhos"),
+        section_title: Some(String::from("Capítulo 2 — A chegada")),
+        progress: Progress::Determinate {
+            consumed_units,
+            total_units,
+            k,
+            n,
+        },
+    }
+}
+
+/// An indeterminate surface snapshot: the totals were unknown at
+/// session start, so the whole session stays indeterminate.
+fn indeterminate() -> SurfaceSnapshot {
+    SurfaceSnapshot {
+        title: String::from("notas.md"),
+        section_title: None,
+        progress: Progress::Indeterminate,
+    }
+}
+
+/// The lock-screen payload for one surface, parsed to a JSON value.
+fn lock_screen_payload(surface: &SurfaceSnapshot) -> Result<Value, Box<dyn Error>> {
+    let json = build_kotlin_mirror_json(
+        TransportState::Playing,
+        12.0,
+        surface,
+        None,
+        None,
+        &Dismissal::NonDismissable,
+    );
+    Ok(serde_json::from_str::<Value>(&json)?)
+}
+
+/// T132 / T079: the state mirror carries exactly the shell-ipc
+/// contract keys for every transport state.
 #[test]
 fn publish_payload_carries_exactly_the_contract_keys_for_each_transport()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -91,7 +121,6 @@ fn publish_payload_carries_exactly_the_contract_keys_for_each_transport()
         let position_secs = 30.0;
         let section_title = Some("Chapter 1".to_string());
 
-        // This call will fail until T133 implements publish_mirror.
         let payload = publish_mirror(
             transport,
             position_secs,
@@ -169,7 +198,6 @@ fn publish_payload_section_title_absent_before_first_heading()
 -> Result<(), Box<dyn std::error::Error>> {
     let position_secs = 5.0;
 
-    // This call will fail until T133 implements publish_mirror.
     let payload = publish_mirror(
         "playing",
         position_secs,
@@ -194,7 +222,6 @@ fn publish_payload_indeterminate_progress_when_duration_unknown()
 -> Result<(), Box<dyn std::error::Error>> {
     let position_secs = 30.0;
 
-    // This call will fail until T133 implements publish_mirror.
     let payload = publish_mirror(
         "playing",
         position_secs,
@@ -238,7 +265,7 @@ fn publish_payload_transient_reason_present_only_for_transient_pause()
         .ok_or("payload must be a JSON object")?;
     assert!(
         obj.get("progress_label").is_none(),
-        "progress_label MUST be omitted from the publish payload (T079)"
+        "progress_label MUST be omitted from the state mirror (T079/T099)"
     );
     let mut actual_keys: Vec<&str> = obj.keys().map(std::string::String::as_str).collect();
     actual_keys.sort_unstable();
@@ -268,7 +295,7 @@ fn publish_payload_transient_reason_present_only_for_transient_pause()
         "paused",
         position_secs,
         Some("Chapter 1".to_string()),
-        true, // determinate
+        true,
         None,
     );
 
@@ -282,13 +309,12 @@ fn publish_payload_never_carries_body_text_or_extra_fields()
 -> Result<(), Box<dyn std::error::Error>> {
     let position_secs = 30.0;
 
-    // This call will fail until T133 implements publish_mirror.
     let payload = publish_mirror(
         "playing",
         position_secs,
         Some("Chapter 1".to_string()),
-        true, // determinate
-        None, // no transient reason
+        true,
+        None,
     );
 
     let obj = payload.as_object().ok_or("payload must be a JSON object")?;
@@ -296,7 +322,7 @@ fn publish_payload_never_carries_body_text_or_extra_fields()
     // T079: progress_label is explicitly forbidden.
     assert!(
         obj.get("progress_label").is_none(),
-        "publish payload must never carry progress_label (T079)"
+        "the state mirror must never carry progress_label (T079/T099)"
     );
 
     // Ensure no body text, no elapsed/remaining, no rate, no voice.
@@ -321,7 +347,7 @@ fn publish_payload_never_carries_body_text_or_extra_fields()
     for key in forbidden_keys {
         assert!(
             obj.get(key).is_none(),
-            "publish payload must never carry forbidden key: {key}"
+            "the state mirror must never carry forbidden key: {key}"
         );
     }
     Ok(())
@@ -339,7 +365,6 @@ fn publish_payload_transport_enum_matches_contract_case_mapping()
     ];
 
     for (input_transport, expected_wire) in transports {
-        // This call will fail until T133 implements publish_mirror.
         let payload = publish_mirror(input_transport, 30.0, None, true, None);
 
         // T079: exact contract keys + progress_label omission.
@@ -352,6 +377,73 @@ fn publish_payload_transport_enum_matches_contract_case_mapping()
             transport_value,
             &Value::String(expected_wire.to_string()),
             "transport {input_transport} must serialize to {expected_wire} (contracts/shell-ipc.md case-mapping)"
+        );
+    }
+    Ok(())
+}
+
+/// T099 (RED→GREEN): the LOCK-SCREEN payload — the one the Kotlin
+/// surface parses — carries the pt-BR progress label for determinate
+/// progress and omits it for an indeterminate one (FR-011 / FR-013;
+/// T089 / T090 / T094; `contracts/surface.md`).
+///
+/// The earlier Phase 11/12 fixture asserted a LABEL-FREE lock-screen
+/// payload, which contradicted this contract: with the production
+/// payload builder, the label-free claim FAILS (the RED run). The
+/// reconciliation keeps the production builder's contract and drops
+/// the stale claim.
+#[test]
+fn the_lock_screen_payload_carries_the_pt_br_label_only_when_determinate()
+-> Result<(), Box<dyn std::error::Error>> {
+    for k in 1..=3 {
+        for n in (k + 1)..=5 {
+            let surface = determinate(k, n, u64::from(100 * k / n), 100);
+            let payload = lock_screen_payload(&surface)?;
+            let label = payload.get("progressLabel").ok_or(
+                "T099: the lock-screen payload must carry progressLabel for determinate progress",
+            )?;
+            let text = label.as_str().ok_or("progressLabel is a string")?;
+            assert!(
+                text.contains("Seção") && text.contains(" de ") && text.contains('%'),
+                "T099: the determinate lock-screen label is the pt-BR identifier: {text}"
+            );
+        }
+    }
+    let payload = lock_screen_payload(&indeterminate())?;
+    assert!(
+        payload.get("progressLabel").is_none(),
+        "T099: an indeterminate lock-screen payload must not carry progressLabel"
+    );
+    Ok(())
+}
+
+/// T099: the lock-screen payload carries no document prose, no
+/// elapsed or remaining time, no rate value and no voice identity —
+/// the lock screen's own purity rule (contracts/surface.md).
+#[test]
+fn the_lock_screen_payload_carries_no_prose_time_rate_or_voice()
+-> Result<(), Box<dyn std::error::Error>> {
+    let payload = lock_screen_payload(&determinate(2, 5, 40, 100))?;
+    let rendered = serde_json::to_string(&payload)?;
+    for forbidden in [
+        "Chapter",
+        "paragraph",
+        "sentence",
+        "elapsed",
+        "remaining",
+        "0.75x",
+        "1.0x",
+        "1.25x",
+        "1.5x",
+        "1.75x",
+        "2.0x",
+        "4.0x",
+        "voice",
+        "engine",
+    ] {
+        assert!(
+            !rendered.contains(forbidden),
+            "the lock-screen payload leaks {forbidden:?}: {rendered}"
         );
     }
     Ok(())

@@ -4950,8 +4950,12 @@ pub mod publish {
     /// Build the Rust-to-frontend mirror projection from the
     /// authoritative session state and resolved surface snapshot.
     ///
-    /// This view-only label is not included by
-    /// [`build_kotlin_mirror_json`] for the lock-screen.
+    /// The pt-BR progress label this projection carries is ALSO
+    /// carried by [`build_kotlin_mirror_json`] for the lock-screen:
+    /// the two projections differ in their wire form — the in-app
+    /// [`MirrorState`] against the Kotlin payload — never in what
+    /// they show (FR-011 / FR-013). The label rides only the
+    /// determinate form; an indeterminate progress carries none.
     #[must_use]
     pub fn frontend_mirror(
         transport: TransportState,

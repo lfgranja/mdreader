@@ -578,6 +578,16 @@ class MediaMirror(
         /** Label of the resume control. */
         private const val RESUME_LABEL = "Resume"
 
+        /**
+         * The title a payload without one falls back to (FR-011):
+         * the pt-BR name of what the surface shows. The name of
+         * the document itself is Rust's to publish (the metadata
+         * title, or the filename placeholder — T103); this
+         * constant is the malformed-payload fallback only, and it
+         * is never an English word and never document prose.
+         */
+        private const val TITLE_FALLBACK = "Documento"
+
         /** Label of the rate-up control. */
         private const val RATE_UP_LABEL = "Rate +"
 
@@ -863,7 +873,13 @@ class MediaMirror(
             val json = org.json.JSONObject(mirrorJson)
             val transport = json.getString("transport")
             val positionSecs = json.getDouble("positionSecs")
-            val title = json.optString("title", "Document")
+            // FR-011: the title is the document's own name — the
+            // metadata title or the filename placeholder, published
+            // by Rust. A payload without one is a malformed payload,
+            // and the fallback is the pt-BR name of what the
+            // surface shows: never an English word, never document
+            // prose.
+            val title = json.optString("title", TITLE_FALLBACK)
             val sectionTitle =
                 if (json.has("sectionTitle") && !json.isNull("sectionTitle")) {
                     json.getString("sectionTitle")

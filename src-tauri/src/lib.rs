@@ -933,6 +933,80 @@ fn after_background(state: &AppState) {
 }
 
 // =============================================================================
+// The surface title (FR-011 / FR-029 / T103).
+// =============================================================================
+
+/// The document name the open path uses when the caller knows no
+/// name (the frontend command carries the snapshot BYTES only): the
+/// stable placeholder the resolver also carries as its fallback
+/// (FR-029).
+const DEFAULT_DOCUMENT_FILENAME: &str = "document.md";
+
+/// The surface title's source (FR-011): the first Markdown H1
+/// heading's text for a `.md` document, the filename without its
+/// extension for a `.txt` document, and `None` — the resolver's own
+/// filename placeholder — when a Markdown document carries no H1 at
+/// all.
+///
+/// The title is a DISPLAY projection: the heading's own text (the
+/// document's proper noun, exempt from pt-BR) or the file's name.
+/// NEVER a sentence of the body, never the literal "Document"
+/// (FR-011 / FR-029).
+fn document_title(
+    segments: &[adapter_synthesis::chunk::DocumentSegment],
+    filename: &str,
+) -> Option<String> {
+    if is_markdown_document(filename) {
+        return first_h1_text(segments);
+    }
+    Some(filename_without_extension(filename))
+}
+
+/// Whether the document is a Markdown one, by the name's extension
+/// (FR-011): `.md` is the Markdown format of the closed set
+/// (contracts/ingest.md).
+fn is_markdown_document(filename: &str) -> bool {
+    filename
+        .rsplit_once('.')
+        .is_some_and(|(_, extension)| extension.eq_ignore_ascii_case("md"))
+}
+
+/// The first Markdown H1 heading's text (FR-011): the heading's own
+/// line, without its `#` marker. A heading of ANY OTHER LEVEL never
+/// wins — an H2 before the H1 does not (FR-011: "first Markdown H1
+/// heading").
+///
+/// `None` when the document carries no H1 at all.
+fn first_h1_text(segments: &[adapter_synthesis::chunk::DocumentSegment]) -> Option<String> {
+    segments
+        .iter()
+        .filter(|segment| segment.boundary_kind == adapter_synthesis::chunk::BoundaryKind::Heading)
+        .filter_map(|segment| segment.content.lines().next())
+        .find_map(|line| {
+            let trimmed = line.trim_start();
+            let hashes = trimmed.chars().take_while(|mark| *mark == '#').count();
+            if hashes != 1 {
+                return None; // not an H1 — another level never wins
+            }
+            let text = trimmed.trim_start_matches('#').trim();
+            if text.is_empty() {
+                None
+            } else {
+                Some(text.to_string())
+            }
+        })
+}
+
+/// The filename without its extension (FR-011): the `.txt` title
+/// source, and the name's stem for a name with no extension at all.
+fn filename_without_extension(filename: &str) -> String {
+    match filename.rsplit_once('.') {
+        Some((stem, extension)) if !extension.is_empty() && !stem.is_empty() => stem.to_string(),
+        _ => filename.to_string(),
+    }
+}
+
+// =============================================================================
 // The diagnostic record (FR-017 / T097).
 //
 // The private, on-device JSONL trace: the session lifecycle's
@@ -1943,12 +2017,13 @@ pub mod commands {
     use super::permissions::{self, PermissionSnapshot};
     use super::{AppState, CpalBackend, OpenError};
     use crate::{
-        OfferRoute, after_background, after_execute, after_skip, current_fingerprint,
-        delete_bookmark, diag_focus_name, diag_focus_value, diag_section_index, note_play_request,
-        note_removal_request, note_resume_origin, offer_route_wire, persist_last_rate,
-        rate_press_of, record_buffer_state, record_focus_transition, record_named_refusal,
-        record_output_device, record_rate_change, record_refusal, record_section_progress,
-        route_offer, seed_session_rate, switch_to_document,
+        DEFAULT_DOCUMENT_FILENAME, OfferRoute, after_background, after_execute, after_skip,
+        current_fingerprint, delete_bookmark, diag_focus_name, diag_focus_value,
+        diag_section_index, document_title, note_play_request, note_removal_request,
+        note_resume_origin, offer_route_wire, persist_last_rate, rate_press_of,
+        record_buffer_state, record_focus_transition, record_named_refusal, record_output_device,
+        record_rate_change, record_refusal, record_section_progress, route_offer,
+        seed_session_rate, switch_to_document,
     };
     use diag::writer::{DeviceDirection, DeviceEvent, ErrorValue, FocusValue};
 
@@ -2100,6 +2175,23 @@ pub mod commands {
         state: &AppState,
         bytes: Vec<u8>,
     ) -> Result<serde_json::Value, OpenError> {
+        open_document_bytes_named(state, bytes, DEFAULT_DOCUMENT_FILENAME)
+    }
+
+    /// The cold-start open core with the picked document's NAME
+    /// (T103 / FR-011): the name decides the surface title's source
+    /// — the first Markdown H1 for a `.md` document, the name
+    /// without its extension for a `.txt` document — and the
+    /// fallback the resolver carries as its filename placeholder.
+    ///
+    /// The name is a DISPLAY input only: the bytes remain the sole
+    /// synthesis input (FR-018), and the name never enters the
+    /// fingerprint or the synthesis.
+    pub(crate) fn open_document_bytes_named(
+        state: &AppState,
+        bytes: Vec<u8>,
+        filename: &str,
+    ) -> Result<serde_json::Value, OpenError> {
         if bytes.is_empty() {
             return Err(refuse(state, OpenError::EmptyDocument));
         }
@@ -2180,7 +2272,8 @@ pub mod commands {
         // The one synthesis path (Principle II): split,
         // synthesize, enqueue, start — with the totals fixed
         // at open and the rate seeded from the store.
-        let mut payload = play_document(&document, state).map_err(|error| refuse(state, error))?;
+        let mut payload =
+            play_document(&document, state, filename).map_err(|error| refuse(state, error))?;
 
         // The open facts the resume decision renders: the
         // content fingerprint, the stored row, and the offer
@@ -3379,7 +3472,7 @@ pub mod commands {
         // session is torn down, and only then does the incoming
         // document take the session over.
         switch_to_document(state, document.as_bytes());
-        play_document(document, state)
+        play_document(document, state, DEFAULT_DOCUMENT_FILENAME)
     }
 
     /// The synthesis half of the one synthesis path (Principle II):
@@ -3424,7 +3517,11 @@ pub mod commands {
     /// * [`OpenError::NoStart`] when the closed transition
     ///   table rejects the press (a torn-down session takes no
     ///   play).
-    fn play_document(document: &str, state: &AppState) -> Result<serde_json::Value, OpenError> {
+    fn play_document(
+        document: &str,
+        state: &AppState,
+        filename: &str,
+    ) -> Result<serde_json::Value, OpenError> {
         // The FR-017 diagnostic record (T097): the play-to-audio
         // clock opens here — the request instant — and the first
         // audible audio of this request closes it.
@@ -3442,21 +3539,12 @@ pub mod commands {
             return Err(OpenError::NoSegments);
         }
 
-        // Extract title from first heading segment, or use fallback.
-        let title = segments
-            .iter()
-            .find(|s| s.boundary_kind == adapter_synthesis::chunk::BoundaryKind::Heading)
-            .map(|s| {
-                s.content
-                    .lines()
-                    .next()
-                    .unwrap_or("")
-                    .trim_start_matches('#')
-                    .trim()
-                    .to_string()
-            })
-            .filter(|t| !t.is_empty())
-            .unwrap_or_else(|| "Document".to_string());
+        // The surface title (FR-011 / T103): the first Markdown H1
+        // heading's text, the filename without its extension for a
+        // plain-text document, or `None` — the resolver's filename
+        // placeholder — as the fallback. NEVER the literal
+        // "Document", never a sentence of the body.
+        let title = document_title(&segments, filename);
 
         // T056 first-segment ordering (FR-003 ≤3 s): synthesize the
         // first segment first, so its PCM starts while the rest
@@ -3477,8 +3565,8 @@ pub mod commands {
         // section count), so a heading-less session stays
         // indeterminate for the whole session (FR-013).
         let resolver = player::surface::SurfaceResolver::new(
-            Some(title),
-            "document.md".to_string(),
+            title,
+            filename.to_string(),
             total_units,
             duration_secs,
             has_headings,
@@ -5836,6 +5924,73 @@ mod diag_record_tests {
             "the refusal names no cause: {detail}"
         );
         Ok(())
+    }
+}
+
+/// T103 (FR-011) — the surface title's source.
+///
+/// RED-first contract: the title is the first Markdown H1 heading —
+/// an H2 before an H1 must NOT win — the filename without its
+/// extension for a plain-text document, and the filename itself as
+/// the fallback (never the literal "Document"). The title is a
+/// DISPLAY projection: a heading's own text or the file's name,
+/// never a sentence of the body (FR-011 / FR-029).
+#[cfg(test)]
+mod title_tests {
+    use super::*;
+
+    /// The title the open path derives for a document with the given
+    /// name.
+    fn title_of(document: &str, filename: &str) -> Option<String> {
+        let segments = adapter_synthesis::chunk::split_document(document, "");
+        document_title(&segments, filename)
+    }
+
+    /// T103: the first H1 wins — an earlier H2 does not.
+    #[test]
+    fn the_first_h1_heading_is_the_title() {
+        let document = "## Capítulo 2\n\nA chegada.\n\n# Rota da Manhã\n\nO onibus sai as seis.";
+        assert_eq!(
+            title_of(document, "rota.md"),
+            Some(String::from("Rota da Manhã")),
+            "an H2 before the H1 must not win (FR-011)"
+        );
+    }
+
+    /// T103: a plain-text document is titled by its filename, with
+    /// the extension dropped.
+    #[test]
+    fn a_plain_text_document_is_titled_by_its_filename() {
+        assert_eq!(
+            title_of("apenas texto\n", "notas.txt"),
+            Some(String::from("notas")),
+            "a .txt document is titled by the filename without its extension (FR-011)"
+        );
+    }
+
+    /// T103: a Markdown document without an H1 falls back to the
+    /// filename — the resolver's own placeholder, never the literal
+    /// "Document".
+    #[test]
+    fn a_markdown_document_without_an_h1_falls_back_to_the_filename() {
+        assert_eq!(
+            title_of("## Só um H2\n", "notas.md"),
+            None,
+            "a Markdown document without an H1 falls back to the filename (FR-011)"
+        );
+        let segments = adapter_synthesis::chunk::split_document("## Só um H2\n", "");
+        let resolver = player::surface::SurfaceResolver::new(
+            document_title(&segments, "notas.md"),
+            String::from("notas.md"),
+            1,
+            1.0,
+            true,
+        );
+        let surface = resolver.resolve(0.0, 0, &[]);
+        assert_eq!(
+            surface.title, "notas.md",
+            "the resolver's filename placeholder must be reachable (FR-029)"
+        );
     }
 }
 

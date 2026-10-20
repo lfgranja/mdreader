@@ -435,9 +435,37 @@ fn drain_loop(app: &AppHandle, rx: &Receiver<u32>) {
 #[cfg(test)]
 mod tests {
     use super::code_to_action;
-    use super::{IngestError, IngestSnapshot, open_ingested_document};
+    use super::{IngestError, IngestSnapshot, open_ingested_document, picked_document_name};
     use crate::AppState;
     use crate::commands::parse_action;
+
+    /// T103 (FR-011): the picked document's name is the file name
+    /// the picker addressed — percent-decoded — carrying the
+    /// snapshot's extension as the format's authority.
+    #[test]
+    fn the_picked_document_name_is_the_addressed_file_name() {
+        assert_eq!(
+            picked_document_name(
+                "content://provider/document/primary%3ADownload%2FRota%20da%20Manh%C3%A3.md",
+                "/data/snapshots/abc123.md",
+            ),
+            "Rota da Manhã.md",
+            "the picked name must be the decoded file name (FR-011)"
+        );
+        assert_eq!(
+            picked_document_name(
+                "content://provider/document/1234",
+                "/data/snapshots/abc123.txt",
+            ),
+            "1234.txt",
+            "a name without an extension takes the snapshot's (FR-011)"
+        );
+        assert_eq!(
+            picked_document_name("", "/data/snapshots/abc123.md"),
+            crate::DEFAULT_DOCUMENT_FILENAME,
+            "an unreadable name leaves the stable placeholder (FR-029)"
+        );
+    }
 
     /// Every defined code resolves to a wire the bridge accepts.
     #[test]
@@ -939,9 +967,16 @@ pub(crate) fn open_ingested_document(
     snapshot: &IngestSnapshot,
 ) -> Result<(), IngestError> {
     let bytes = read_snapshot_bytes(&snapshot.path)?;
+    // The picked document's NAME (T103 / FR-011): the file name the
+    // picker addressed, with the snapshot's extension as the
+    // format's authority. The name is a DISPLAY input only — the
+    // bytes remain the sole synthesis input (FR-018).
+    let filename = picked_document_name(&snapshot.original_uri, &snapshot.path);
     let opened =
-        crate::commands::open_document_bytes(state, bytes).map_err(|error| IngestError::Open {
-            reason: error.to_string(),
+        crate::commands::open_document_bytes_named(state, bytes, &filename).map_err(|error| {
+            IngestError::Open {
+                reason: error.to_string(),
+            }
         })?;
     tracing::info!(
         snapshot_path = %snapshot.path,
@@ -951,6 +986,85 @@ pub(crate) fn open_ingested_document(
         "document ingest forwarded to the cold-start open path"
     );
     Ok(())
+}
+
+/// The picked document's file name (T103 / FR-011): the last path
+/// segment of the picked URI, percent-decoded, carrying the
+/// snapshot's extension — the app's own file for the document, and
+/// the format's authority (contracts/ingest.md).
+///
+/// The URI is the picker's own address — never an audio input and
+/// never a synthesis input (FR-018). Only its last segment is read,
+/// and only as the surface title's source (FR-011: the filename).
+/// A URI that yields no readable name leaves the stable placeholder
+/// in place.
+fn picked_document_name(original_uri: &str, snapshot_path: &str) -> String {
+    let without_query = original_uri
+        .split(['?', '#'])
+        .next()
+        .unwrap_or(original_uri);
+    let last = without_query.rsplit('/').next().unwrap_or(without_query);
+    let decoded = percent_decode(last);
+    // The decoded segment may carry a path prefix of its own
+    // (`primary:Download/…`): the file name is its last component.
+    let component = decoded
+        .rsplit(['/', '\\'])
+        .next()
+        .unwrap_or(decoded.as_str())
+        .trim()
+        .to_string();
+    let name = if component.is_empty() {
+        crate::DEFAULT_DOCUMENT_FILENAME.to_string()
+    } else {
+        component
+    };
+    match snapshot_extension(snapshot_path) {
+        Some(extension)
+            if !name
+                .to_ascii_lowercase()
+                .ends_with(&extension.to_ascii_lowercase()) =>
+        {
+            format!("{name}.{extension}")
+        }
+        _ => name,
+    }
+}
+
+/// The snapshot's extension (T103 / FR-011): the deliverable
+/// format the picker resolved, as the app's own file names it.
+fn snapshot_extension(snapshot_path: &str) -> Option<String> {
+    let last = snapshot_path.rsplit('/').next().unwrap_or(snapshot_path);
+    let (_, extension) = last.rsplit_once('.')?;
+    if extension.is_empty() {
+        return None;
+    }
+    Some(extension.to_ascii_lowercase())
+}
+
+/// The percent-decoded form of a URI segment (T103 / FR-011): the
+/// `%XX` escapes the picker's address carries, decoded as UTF-8. A
+/// malformed escape is kept verbatim — the name is a display
+/// fallback, never a correctness input.
+fn percent_decode(segment: &str) -> String {
+    let bytes = segment.as_bytes();
+    let mut decoded: Vec<u8> = Vec::with_capacity(bytes.len());
+    let mut index = 0_usize;
+    while index < bytes.len() {
+        let escape = bytes[index] == b'%'
+            && index + 2 < bytes.len()
+            && char::from(bytes[index + 1]).is_ascii_hexdigit()
+            && char::from(bytes[index + 2]).is_ascii_hexdigit();
+        if escape {
+            let high = char::from(bytes[index + 1]).to_digit(16).unwrap_or(0);
+            let low = char::from(bytes[index + 2]).to_digit(16).unwrap_or(0);
+            decoded.push(u8::try_from(high * 16 + low).unwrap_or(b'%'));
+            index += 3;
+            continue;
+        }
+        decoded.push(bytes[index]);
+        index += 1;
+    }
+    String::from_utf8(decoded).unwrap_or_else(|_| segment.to_string())
 }
 
 /// The installed application handle, set once by [`install`]:

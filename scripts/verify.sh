@@ -219,6 +219,41 @@ done < <(
       gsub(/[[:space:]]/, "", key)
       gsub(/[[:space:]]/, "", value)
       gsub(/"/, "", value)
+      # Cargo inline-table lint values (T109): a lint entry may be
+      # written as `cargo = { level = "warn", priority = -1 }` so a
+      # lint group can carry its own priority. The gate compares the
+      # LEVEL, so the inline table is normalized to its `level=`
+      # entry before the comparison — the raw table text would
+      # otherwise read as `{level=warn,priority=-1}` and fail the
+      # pinned set even though the level is unchanged.
+      #
+      # The normalization never weakens the gate: an inline table
+      # WITHOUT a `level=` entry keeps its raw text (so the
+      # comparison fails closed), and a genuinely weakened level
+      # (`all = "warn"`) still compares unequal to the pinned
+      # `deny`.
+      if (substr(value, 1, 1) == "{") {
+        inner = substr(value, 2, length(value) - 2)
+        entries = split(inner, fields, ",")
+        level = ""
+        for (i = 1; i <= entries; i++) {
+          field = fields[i]
+          field_eq = index(field, "=")
+          if (field_eq > 0) {
+            field_key = substr(field, 1, field_eq - 1)
+            field_value = substr(field, field_eq + 1)
+            gsub(/[[:space:]]/, "", field_key)
+            gsub(/[[:space:]]/, "", field_value)
+            gsub(/"/, "", field_value)
+            if (field_key == "level") {
+              level = field_value
+            }
+          }
+        }
+        if (level != "") {
+          value = level
+        }
+      }
       print section "|" key "|" value
     }
   ' "$ROOT_MANIFEST"

@@ -6,3 +6,4 @@
 # everyone who runs the test benefits from these saved cases.
 cc be916a8b923462c2d84c5dffd7c006d50eb1e00bd36cdfa05367f0409f769dff # shrinks to rung = R1_0
 cc 67d48db8b2fe259ef32d90c9b7bf98ece0f8879dc1e43e3f5470d9dc2a400233 # shrinks to actions = [Play, AudibleProgress(0.01), SkipBack]
+cc 5098cf937b357cd7289cea5966ddb7b075d796e65bd8db5701ff125128ac2467 # shrinks to (duration, press) = (5.25, 5.25), forward = false

@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc ce4835a00e3add56589264310b4e74768d0ebcadfdd25b1471ffb1076c317e4f # shrinks to first_fp = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], second_fp = [0, 0, 0, 24, 67, 106, 206, 109, 101, 146, 141, 150, 233, 4, 36, 149, 76, 241, 127, 115, 164, 67, 211, 254, 205, 132, 214, 248, 103, 47, 254, 229], state = Paused, sequence = [2, 2, 2]
+cc 063f1abb2a84531db1cd08e7ff3f581098c29032b1b8368a3ca805454bfd01eb # shrinks to first_fp = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], second_fp = [0, 0, 0, 0, 14, 206, 216, 46, 201, 5, 59, 166, 105, 118, 181, 38, 95, 239, 213, 151, 134, 225, 78, 235, 127, 239, 252, 232, 38, 19, 79, 80], state = Paused, sequence = [PickSecond, PickSecond]

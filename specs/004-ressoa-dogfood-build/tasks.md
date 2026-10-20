@@ -684,3 +684,21 @@ Subagent E: "T032 rewind.rs + resume.rs sentence-snap (independent)"
 ### Phase 16 Addendum 4 Tasks (append-only; zero renumber of T001–T131)
 
 - [ ] T132 [P] Pair the T131 contract amendment with the spec per `spec.md:146` ("updates must be coordinated"): in `specs/004-ressoa-dogfood-build/spec.md`, replace FR-002 with the wording the T131 adjudication recorded — "The system MUST expose play, pause, and skip-forward/back controls on the lock-screen surface during playback; each skip MUST jump to the next/previous section boundary, falling back to ±10 seconds when the document has no sections. The **media playback** lock-screen surface MUST NOT expose a Stop control. The always-resident service's paused notification (the resident-paused surface, `contracts/surface.md` §Resident-paused notification surface) is a distinct surface outside that prohibition: it exposes the resident-stop action, which ends residency while PRESERVING the stored position and never clears it. The Stop CONTROL — the transport Stop that clears the stored position — remains in-app only (FR-010, FR-019), so a document ended by the resident-stop is still offered for resume, and a document ended by the Stop CONTROL is not." — make no other spec change (FR-010/FR-019/Key Entities stay accurate); verify `bash scripts/check-shell-purity.sh` still exits 0 (the spec→test traceability gate reads the spec) (`contradicts`)
+
+---
+
+## Phase 16 Addendum 5: Convergence
+
+> Source: the T132 implementation report (agent `ses_ea5080067ffetgbtlHiWqDkYPy`), which paired `spec.md` FR-002 with the T131 contract amendment and reported the two remaining 004 artifacts that still carry the old unqualified shorthand. Appended as a new traceable task; no existing task rewritten or renumbered.
+
+### Convergence Findings (in-session, before append)
+
+| ID | Gap Type | Severity | Source | Evidence | Remediation (tasks below) |
+|----|----------|----------|--------|----------|---------------------------|
+| F1 | partial | LOW | FR-002 · `data-model.md:47,51` | `specs/004-ressoa-dogfood-build/data-model.md:51` still reads "Stop control exists **only** on the single in-app screen; lock-screen has no Stop (FR-002/FR-019)" and `:47` "Stop is an in-app CONTROL only, never a lock-screen control" — technically true under the effect-based reading (the resident-stop is not the Stop CONTROL) but ambiguous now that a "Parar"-labelled action exists on a lock screen; the checklist `checklists/requirements-traceability.md:18,71` carries the same unqualified shorthand (reviewer-owned — read-only, report only) | T133 |
+
+**Metrics:** 1 finding — 1 partial. 1 LOW. Docs-only coordination; `checklists/contract-consistency.md:48` quotes FR-002's substring "MUST NOT expose a Stop control", which still appears verbatim in the amended FR-002, so that citation is not broken.
+
+### Phase 16 Addendum 5 Tasks (append-only; zero renumber of T001–T132)
+
+- [ ] T133 [P] Pair the T131/T132 resident carve-out with the remaining 004 artifact per `spec.md:146`: in `specs/004-ressoa-dogfood-build/data-model.md`, scope the two unqualified clauses (`:47` "Stop is an in-app CONTROL only, never a lock-screen control" and `:51` "Stop control exists only on the single in-app screen; lock-screen has no Stop (FR-002/FR-019)") to the media lock-screen surface and add the resident carve-out — e.g. "The Stop CONTROL (position-clearing) exists only on the single in-app screen; the media lock-screen surface has no Stop CONTROL; the resident-paused surface carries the resident-stop, which preserves the stored position (FR-002)" — make no other data-model change; do NOT edit `checklists/requirements-traceability.md` (reviewer-owned, read-only): report its two unqualified shorthand lines (`:18`, `:71`) for the reviewer instead (`partial`)

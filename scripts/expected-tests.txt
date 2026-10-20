@@ -79,6 +79,7 @@ session::test_offer3s
 src-tauri
 src-tauri::test_kotlin_mirror_payload
 src-tauri::test_noscope
+src-tauri::test_offer_dialog
 src-tauri::test_publish_payload
 src-tauri::test_purity
 src-tauri::test_progress_label

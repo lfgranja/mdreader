@@ -11,7 +11,12 @@
          resolves T044)": title #F2F0E6, section #A9B8CE,
          progress white / #55688F, warning #FFD400 banner-only,
          failure #FF4D63 banner-only; the contract's green is
-         prohibited and appears nowhere on this surface. */
+         prohibited and appears nowhere on this surface. The
+         Stop CONTROL carries the neutral progress tone #55688F
+         (hover #475569 — the same neutral the secondary hover
+         already uses), NOT the reserved failure red: a red Stop
+         button paints a failure state the control never means
+         (T104, contracts/surface.md "red #FF4D63 failure-only"). */
       --bg: #0f172a;
       --surface: #1e293b;
       --title: #F2F0E6;
@@ -26,8 +31,8 @@
       --btn-primary: #2563eb;
       --btn-primary-hover: #1d4ed8;
       --btn-secondary: #334155;
-      --btn-stop: #FF4D63;
-      --btn-stop-hover: #e03e55;
+      --btn-stop: #55688F;
+      --btn-stop-hover: #475569;
     }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
     body {

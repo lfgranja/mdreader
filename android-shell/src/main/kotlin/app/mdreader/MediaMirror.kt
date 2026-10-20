@@ -425,8 +425,15 @@ class MediaMirror(
          * instead of joining it as a second surface. */
         const val CHANNEL_ID = "mdreader_media"
 
-        /** Notification channel display name. */
-        private const val CHANNEL_NAME = "Media"
+        /**
+         * Notification channel display name — pt-BR (FR-011):
+         * the platform renders this name verbatim in the
+         * system's notification-channel settings, so it is a
+         * user-visible string like every other one this class
+         * publishes — not a diagnostic identifier, and never
+         * an English word the reader sees.
+         */
+        private const val CHANNEL_NAME = "Mídia"
 
         /** Log tag of the mirror. */
         private const val TAG = "MediaMirror"
@@ -575,8 +582,14 @@ class MediaMirror(
          * once: a confirmation, never a looping alert. */
         private const val HAPTIC_NO_REPEAT = -1
 
-        /** Label of the resume control. */
-        private const val RESUME_LABEL = "Resume"
+        /**
+         * Label of the resume control — pt-BR (FR-011): every
+         * user-visible string the lock-screen surface renders is
+         * pt-BR, and this one names the affordance alone — the
+         * verb that continues the reading, never a state, never
+         * a value, never document text.
+         */
+        private const val RESUME_LABEL = "Retomar"
 
         /**
          * The title a payload without one falls back to (FR-011):
@@ -588,17 +601,43 @@ class MediaMirror(
          */
         private const val TITLE_FALLBACK = "Documento"
 
-        /** Label of the rate-up control. */
-        private const val RATE_UP_LABEL = "Rate +"
+        /**
+         * Label of the rate-up control — pt-BR (FR-011), and
+         * VALUE-BLIND (FR-012): the label names the speed
+         * control and its direction, never the rung, never a
+         * percentage, never a multiplier. The stepper orients
+         * by its place in the ladder plus its earcon and
+         * haptic, so the reader never needs the number to know
+         * the control worked.
+         */
+        private const val RATE_UP_LABEL = "Velocidade +"
 
-        /** Label of the rate-down control. */
-        private const val RATE_DOWN_LABEL = "Rate -"
+        /**
+         * Label of the rate-down control — pt-BR (FR-011), and
+         * VALUE-BLIND (FR-012) for the same reason as
+         * [RATE_UP_LABEL]: the label names the control and its
+         * direction, and nothing else. The minus sign is the
+         * typographic one (U+2212), the same glyph the in-app
+         * stepper paints, so the two surfaces speak the same
+         * vocabulary.
+         */
+        private const val RATE_DOWN_LABEL = "Velocidade −"
 
-        /** Label of the cycle-voice-next control. */
-        private const val VOICE_NEXT_LABEL = "Voice next"
+        /**
+         * Label of the cycle-voice-next control — pt-BR
+         * (FR-011): the label names the control's direction
+         * only. The voice IDENTITY is never rendered on the
+         * surface (FR-011) — the reader hears the new voice,
+         * the surface names no voice.
+         */
+        private const val VOICE_NEXT_LABEL = "Voz seguinte"
 
-        /** Label of the cycle-voice-prev control. */
-        private const val VOICE_PREV_LABEL = "Voice prev"
+        /**
+         * Label of the cycle-voice-prev control — pt-BR
+         * (FR-011), the counterpart of [VOICE_NEXT_LABEL]: the
+         * control's direction, never the voice identity.
+         */
+        private const val VOICE_PREV_LABEL = "Voz anterior"
 
         /**
          * The session's action mask — the closed lock-screen

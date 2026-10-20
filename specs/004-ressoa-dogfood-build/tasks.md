@@ -702,3 +702,21 @@ Subagent E: "T032 rewind.rs + resume.rs sentence-snap (independent)"
 ### Phase 16 Addendum 5 Tasks (append-only; zero renumber of T001–T132)
 
 - [ ] T133 [P] Pair the T131/T132 resident carve-out with the remaining 004 artifact per `spec.md:146`: in `specs/004-ressoa-dogfood-build/data-model.md`, scope the two unqualified clauses (`:47` "Stop is an in-app CONTROL only, never a lock-screen control" and `:51` "Stop control exists only on the single in-app screen; lock-screen has no Stop (FR-002/FR-019)") to the media lock-screen surface and add the resident carve-out — e.g. "The Stop CONTROL (position-clearing) exists only on the single in-app screen; the media lock-screen surface has no Stop CONTROL; the resident-paused surface carries the resident-stop, which preserves the stored position (FR-002)" — make no other data-model change; do NOT edit `checklists/requirements-traceability.md` (reviewer-owned, read-only): report its two unqualified shorthand lines (`:18`, `:71`) for the reviewer instead (`partial`)
+
+---
+
+## Phase 16 Addendum 6: Convergence
+
+> Source: the T133 implementation report (agent `ses_ea5048e8effeV3ne2YZzykEQdE`), which paired the resident carve-out with `data-model.md` and reported the last two 004 artifacts still carrying the unqualified shorthand. Appended as a new traceable task; no existing task rewritten or renumbered.
+
+### Convergence Findings (in-session, before append)
+
+| ID | Gap Type | Severity | Source | Evidence | Remediation (tasks below) |
+|----|----------|----------|--------|----------|---------------------------|
+| F1 | partial | LOW | FR-002 · `plan.md:27` · `spec.md:182` | `specs/004-ressoa-dogfood-build/plan.md:27` and `specs/004-ressoa-dogfood-build/spec.md:182` (Key Entities) both read "Stop is an in-app CONTROL only, per contracts/surface.md" — technically accurate under the effect-based reading (the resident-stop is not the Stop CONTROL) but ambiguous now that a "Parar"-labelled action exists on a lock screen, and inconsistent with the already-paired FR-002 / `contracts/surface.md` / `data-model.md` | T134 |
+
+**Metrics:** 1 finding — 1 partial. 1 LOW. Docs-only coordination to complete the T131→T132→T133→T134 chain; the reviewer-owned `checklists/requirements-traceability.md:18,71` stays read-only and was already reported for the reviewer.
+
+### Phase 16 Addendum 6 Tasks (append-only; zero renumber of T001–T133)
+
+- [ ] T134 [P] Complete the resident carve-out coordination in the last two 004 artifacts: in `specs/004-ressoa-dogfood-build/plan.md` (line ~27) and `specs/004-ressoa-dogfood-build/spec.md` (Key Entities, line ~182), scope the "Stop is an in-app CONTROL only, per contracts/surface.md" clause to the media lock-screen surface and name the resident carve-out — e.g. "The Stop CONTROL (position-clearing) is in-app only; the media lock-screen surface has no Stop CONTROL; the resident-paused surface carries the resident-stop, which ends residency and preserves the stored position (`contracts/surface.md` §Resident-paused notification surface, FR-002)"; make no other change to either file; verify `bash scripts/check-shell-purity.sh` still exits 0 and that the Rust doc-comment line anchors into `data-model.md` (`crates/adapter-synthesis/src/audio_chunk.rs` and its tests) still resolve to the same sections (`partial`)

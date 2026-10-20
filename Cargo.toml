@@ -25,8 +25,8 @@ unused_results = "deny"
 [workspace.lints.clippy]
 all = "deny"
 pedantic = "deny"
-nursery = "warn"
-cargo = "warn"
+nursery = { level = "warn", priority = -1 }
+cargo = { level = "warn", priority = -1 }
 unwrap_used = "deny"
 expect_used = "deny"
 panic = "deny"

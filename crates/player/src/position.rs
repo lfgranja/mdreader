@@ -171,9 +171,11 @@ impl PositionClock {
 }
 
 /// The audible-progress delta to credit for one backend reading
-/// (FR-002): how far the backend clock has advanced since the last
-/// credited reading. Negative when the reading trails the credited
-/// baseline (a run reset); the caller drops non-positive deltas.
+/// (FR-002).
+///
+/// How far the backend clock has advanced since the last credited
+/// reading. Negative when the reading trails the credited baseline
+/// (a run reset); the caller drops non-positive deltas.
 ///
 /// The credit math lives here, in the position authority — never in
 /// the app-shell bridge, which only forwards the reading and applies

@@ -612,3 +612,21 @@ Subagent E: "T032 rewind.rs + resume.rs sentence-snap (independent)"
 - [ ] T128 Add the INTERNET-absence assertion to `scripts/check-manifest.sh` so the gate matches the T106 claim: require that the manifest does NOT declare `android.permission.INTERNET` for the pure-offline build, alongside the existing `require_pattern` calls for the permissions that must be present; the behavioural guard in `src-tauri/tests/test_noscope.rs:335-350` stays (`partial`)
 
 **Dependencies / order:** T112→T113 (first-audible) · T114→T115 (explicit-resume latch) · T116→T117 (in-app dialog) · T118→T119 (lock-screen resume) · T120/T121/T122/T123/T126/T127/T128 independent · T124 (tasks.md text) independent of code but must not race the code tasks' markers · T125 independent. T113/T115/T117/T119 are the behavioural repairs; T120–T122 and T124–T128 are contract/closure items. All [P] tasks may run in parallel on disjoint files; shared tooling (cargo) is serialized per the user rule — one agent uses the cargo queue at a time, the others wait in the queue and never interrupt another agent's process.
+
+---
+
+## Phase 16 Addendum: Convergence
+
+> Source: `spec.md` FR-011 ("All user-visible strings on the lock-screen surface (reason lines, state labels) MUST be pt-BR; English identifiers stay diag-only and are never rendered"), the T117/T119/T120/T127 implementation report (agent `ses_ea5858a44ffeUiZUCQ0XsS17dq`), which surfaced the gap while implementing the lock-screen resume control and the progress label. Appended as a new traceable task; no existing task rewritten or renumbered.
+
+### Convergence Findings (in-session, before append)
+
+| ID | Gap Type | Severity | Source | Evidence | Remediation (tasks below) |
+|----|----------|----------|--------|----------|---------------------------|
+| F1 | partial | MEDIUM | FR-011 | `android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt:579,592,595,598,601` — the lock-screen ACTION labels are English: `RESUME_LABEL = "Resume"`, `RATE_UP_LABEL = "Rate +"`, `RATE_DOWN_LABEL = "Rate -"`, `VOICE_NEXT_LABEL = "Voice next"`, `VOICE_PREV_LABEL = "Voice prev"`; FR-011 requires every user-visible lock-screen string to be pt-BR, and the T127 report explicitly left these untouched ("only the title fallback was assigned to T127") | T129 |
+
+**Metrics:** 1 finding — 1 partial. 1 MEDIUM. Scoped to the lock-screen action labels only; the reason-line table (`crates/player/src/interruption.rs`) is already pt-BR per T101, and the T127 title fallback is already pt-BR.
+
+### Phase 16 Addendum Tasks (append-only; zero renumber of T001–T128)
+
+- [ ] T129 [P] Translate the lock-screen action labels to pt-BR per FR-011 in `android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt`: `RESUME_LABEL` ("Resume" → "Retomar"), `RATE_UP_LABEL` ("Rate +"), `RATE_DOWN_LABEL` ("Rate -"), `VOICE_NEXT_LABEL` ("Voice next"), `VOICE_PREV_LABEL` ("Voice prev") — the labels stay value-blind (no numeric rate value may appear, per FR-012/FR-011 purity); also check the remaining lock-screen user-visible strings in the same file (any state label or content-text fallback) for the same defect; covered by the lock-screen purity suite (`src-tauri/tests/test_purity.rs` + `src-tauri/tests/test_lockscreen_resume_control.rs`) (`partial`)

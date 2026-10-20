@@ -73,8 +73,8 @@
 //! session-start progress, serializing to exactly the
 //! contract's `snake_case` wire keys.
 
-use engine_core::closed::TransportState;
 pub use doc_structure::Heading;
+use engine_core::closed::TransportState;
 
 /// The transient auto-dismiss window (FR-028e):
 /// exactly 3 s.
@@ -269,11 +269,9 @@ pub struct SurfaceSnapshot {
 /// The mirror is derived, never a second clock
 /// (SC-035 / FR-003): it carries the position the
 /// Rust module reports and nothing the module does
-/// not. The wire form is exactly the `snake_case` keys
-/// `transport`, `position_secs`, `progress_label` (when
-/// determinate), and `progress`, with
-/// the progress externally tagged
-/// (`{"determinate": {…}}` / `"indeterminate"`).
+/// not. Its Rust frontend form adds optional `progress_label`
+/// for the in-app display; the separate Kotlin lock-screen
+/// payload remains unchanged.
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct MirrorState {
     /// The session's authoritative transport state
@@ -286,8 +284,8 @@ pub struct MirrorState {
     /// The progress indication (FR-028a), determinate
     /// iff the duration was known at session start.
     pub progress: Progress,
-    /// The pt-BR content-offset label, absent when progress
-    /// is indeterminate.
+    /// The pt-BR progress label for the in-app surface,
+    /// absent when progress is indeterminate.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub progress_label: Option<String>,
 }

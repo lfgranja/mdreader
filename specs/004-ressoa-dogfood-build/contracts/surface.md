@@ -12,12 +12,12 @@ FR-002 + FR-009 + FR-011 + FR-012 + FR-013 + FR-014 + FR-019. DESIGN-SONA appear
 | Reason | Lock-screen line (pt-BR) |
 |---|---|
 | `FocusDenied` | `Foco de áudio negado — pausado` |
-| `TransientPaused` (pause outcome) | `Pausado por interrupção — retome para continuar` |
+| `TransientPaused` (pause outcome) | `Pausado por interrupção — retome` |
 | `PermanentLoss` | `Áudio perdido — pausado` |
 | `DeviceRemoved` | `Fones removidos — pausado` |
-| `VoiceUnavailable` | `Voz indisponível — leitura não pode iniciar` |
+| `VoiceUnavailable` | `Voz indisponível — leitura não inicia` |
 | `FormatUndeliverable` | `Formato do documento não pode ser lido` |
-| `DecodeFailed` | `Falha ao decodificar áudio — leitura parada` |
+| `DecodeFailed` | `Falha ao decodificar — leitura parada` |
 - Dismissal: refused while playing; pause is the route to dismissal. Obeys platform lock-screen privacy (no workaround).
 - After kill/power-loss: wait paused + explicit resume control on this surface (no visual dialog).
 

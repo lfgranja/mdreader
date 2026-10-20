@@ -10,8 +10,9 @@
          "DESIGN-SONA palette tokens (single source of truth,
          resolves T044)": title #F2F0E6, section #A9B8CE,
          progress white / #55688F, warning #FFD400 banner-only,
-         failure #FF4D63 banner-only; the contract's green is
-         prohibited and appears nowhere on this surface. The
+         failure #FF4D63 banner-only; the green reserved by
+         the contract is prohibited and appears nowhere on this
+         surface. The
          Stop CONTROL carries the neutral progress tone #55688F
          (hover #475569 — the same neutral the secondary hover
          already uses), NOT the reserved failure red: a red Stop
@@ -39,8 +40,8 @@
       /* FR-015 / Principle IX (pure-offline): the surface names
          NO external font. A remote webfont is a network fetch at
          render time — an egress the crate-level guard cannot
-         see. The stack is the platform's own UI face, so the
-         surface renders identically with the radio off. */
+         see. The stack is the platform UI face, so the surface
+         renders identically with the radio off. */
       font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
       background: var(--bg);
       color: var(--title);
@@ -177,6 +178,47 @@
     .reason-banner.visible { display: block; }
     .reason-banner.warning { background: rgba(255, 212, 0, 0.15); border: 1px solid var(--warning); color: var(--warning); }
     .reason-banner.failure { background: rgba(255, 77, 99, 0.15); border: 1px solid var(--failure); color: var(--failure); }
+    /* FR-009: the resume offer — the visual dialog of the in-app
+       route. The DESIGN-SONA tokens are the ones the card paints
+       (title #F2F0E6, section #A9B8CE, the neutral progress tone
+       #55688F) — no new token, no reserved green, no red (the
+       reserved failure red paints a failure state this dialog
+       never means). */
+    dialog#offerDialog {
+      width: min(420px, calc(100vw - 2rem));
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: var(--radius);
+      background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+      color: var(--title);
+      padding: 2rem;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    }
+    dialog#offerDialog::backdrop { background: rgba(0,0,0,0.65); }
+    dialog#offerDialog h2 {
+      font-weight: 700;
+      font-size: 1.15rem;
+      letter-spacing: -0.02em;
+      margin: 0 0 .35rem;
+      color: var(--title);
+    }
+    #offerQuestion {
+      color: var(--section);
+      font-size: .9rem;
+      margin: 0 0 1rem;
+    }
+    #offerContext {
+      border-top: 1px solid rgba(255,255,255,0.08);
+      padding-top: .9rem;
+      margin-bottom: 1.25rem;
+    }
+    #offerTitle { font-size: 1rem; font-weight: 600; }
+    #offerSection { color: var(--section); font-size: .85rem; margin-top: .25rem; min-height: 1.2em; }
+    #offerProgress { color: var(--section); font-size: .8rem; margin-top: .25rem; min-height: 1.2em; }
+    .offer-actions {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: .6rem;
+    }
     @keyframes slideIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
     .version-footer {
       font-size: .7rem;
@@ -212,6 +254,26 @@
   <div class="version-footer" id="versionFooter"></div>
 </div>
 
+<!-- FR-009: the resume offer — the deliberate-pause reopen. The
+     dialog is HIDDEN until the shell publishes the in-app route:
+     the shell owns the route, the window and the silence rule,
+     and the surface renders what the shell publishes and
+     dispatches the choice of the reader (contracts/surface.md
+     "Resume:"). The lock-screen route opens NO in-app dialog. -->
+<dialog id="offerDialog" aria-modal="true" aria-labelledby="offerHeading">
+  <h2 id="offerHeading">Retomar a leitura</h2>
+  <p id="offerQuestion">Continuar de onde parou ou começar do início?</p>
+  <div id="offerContext">
+    <div id="offerTitle"></div>
+    <div id="offerSection"></div>
+    <div id="offerProgress"></div>
+  </div>
+  <div class="offer-actions">
+    <button class="primary" id="btnOfferContinue">Continuar de onde parei</button>
+    <button class="secondary" id="btnOfferStartOver">Começar do início</button>
+  </div>
+</dialog>
+
 <script type="module">
   // Svelte 5 Runes-inspired reactive state (vanilla JS implementation)
   // The frontend receives MirrorState updates via Tauri IPC channel
@@ -234,6 +296,25 @@
   let rateIndex = 1; // default rung
   let fingerprint = null; // blake3 content fingerprint for Stop to clear bookmark
 
+  // FR-009: the resume offer — the deliberate-pause reopen opens
+  // the continue-vs-start-over dialog of the shell. The shell owns
+  // the decision, the route and the window (the surface never
+  // invents a bound and never decides the offer); the surface
+  // renders what the shell publishes and dispatches the choice of
+  // the reader.
+  const offer = {
+    route: null,
+    windowMs: null,
+    timer: null,
+    shown: false,
+  };
+
+  // The offer poll period, in milliseconds: the cadence of the
+  // surface for reading the route published by the shell — the
+  // same 250 ms the shell polls its own offer window on.
+  const OFFER_POLL_MS = 250;
+  let offerPollBusy = false;
+
   // DOM elements
   const els = {
     documentTitle: document.querySelector('h1'),
@@ -248,6 +329,12 @@
     progressFill: document.getElementById('progressFill'),
     progressLabel: document.getElementById('progressLabel'),
     reasonBanner: document.getElementById('reasonBanner'),
+    offerDialog: document.getElementById('offerDialog'),
+    offerTitle: document.getElementById('offerTitle'),
+    offerSection: document.getElementById('offerSection'),
+    offerProgress: document.getElementById('offerProgress'),
+    btnOfferContinue: document.getElementById('btnOfferContinue'),
+    btnOfferStartOver: document.getElementById('btnOfferStartOver'),
   };
 
   // Transport icons
@@ -369,6 +456,115 @@
     renderReason();
   }
 
+  // FR-009 — the resume offer, read from the shape published by
+  // the shell: the route key `offer_route` and the window the
+  // shell published with it (`window_ms` in the reply of the route
+  // command, `offer_window_ms` on the cold-start open payload). The
+  // shape is read as published; the surface never re-derives the
+  // route and never invents a window.
+  function offerShapeOf(payload) {
+    if (!payload) {
+      return null;
+    }
+    const route = payload.offer_route || null;
+    const windowMs = payload.window_ms ?? payload.offer_window_ms ?? null;
+    return { route: route, windowMs: windowMs };
+  }
+
+  // The context of the offer: the title, the section title and the
+  // progress already on screen — and nothing else (FR-011/FR-019):
+  // no document prose, no rate value, no voice identity, no
+  // elapsed or remaining time.
+  function renderOffer() {
+    els.offerTitle.textContent = state.title || '';
+    els.offerSection.textContent = state.sectionTitle || '';
+    els.offerProgress.textContent = state.progressLabel || '';
+  }
+
+  // Opens the offer dialog for the in-app route, with the window
+  // the shell published. Any other route — the lock-screen route
+  // and the no-route case — opens NO in-app dialog.
+  function openOffer(windowMs) {
+    if (els.offerDialog.open) {
+      return;
+    }
+    renderOffer();
+    els.offerDialog.showModal();
+    offer.route = 'in_app_dialog';
+    offer.windowMs = windowMs;
+    offer.shown = true;
+    // The elapsing of the window is the rule of the SHELL: the
+    // surface only closes the dialog — the silence rule (continue
+    // from the stored position) is a decision of the shell.
+    offer.timer = setTimeout(closeOffer, windowMs);
+  }
+
+  // Closes the offer dialog. The offer episode ends here: the
+  // dialog does not reopen for the same route, and a later route
+  // opens it again.
+  function closeOffer() {
+    if (offer.timer !== null) {
+      clearTimeout(offer.timer);
+      offer.timer = null;
+    }
+    offer.route = null;
+    offer.windowMs = null;
+    if (els.offerDialog.open) {
+      els.offerDialog.close();
+    }
+  }
+
+  // Branches on the route the shell published: the in-app route
+  // opens the dialog, every other route closes it.
+  function applyOffer(route, windowMs) {
+    if (route !== 'in_app_dialog') {
+      // The route left the in-app one: a later offer may open the
+      // dialog again.
+      offer.shown = false;
+      closeOffer();
+      return;
+    }
+    if (offer.shown) {
+      return; // this offer episode is already on screen
+    }
+    if (typeof windowMs !== 'number' || !(windowMs > 0)) {
+      // The shell published no window: the surface never invents
+      // a bound of its own (FR-032c).
+      closeOffer();
+      return;
+    }
+    openOffer(windowMs);
+  }
+
+  // Reads the offer route published by the shell. The route command
+  // is the window of the surface on the offer: the cold start opens
+  // the document behind the offer, and the route published by the
+  // shell is what it says about that offer.
+  async function refreshOffer() {
+    if (offerPollBusy) {
+      return;
+    }
+    // A reading in progress holds no open offer — the offer is a
+    // cold-start event — so the poll skips the round trip.
+    if (state.transport === 'playing' && !els.offerDialog.open) {
+      return;
+    }
+    offerPollBusy = true;
+    try {
+      const reply = await invoke('offer_route');
+      const shape = offerShapeOf(reply);
+      if (shape === null) {
+        return;
+      }
+      applyOffer(shape.route, shape.windowMs);
+    } catch (e) {
+      // The route is unreadable: no offer is shown, and the next
+      // poll asks again.
+    } finally {
+      offerPollBusy = false;
+    }
+  }
+
   // Tauri invoke wrapper
   async function invoke(cmd, args = {}) {
     try {
@@ -428,6 +624,21 @@
     }
   });
 
+  // FR-009: the two closed offer choices — continue from the
+  // stored position, or start over from the first spoken
+  // position. Both dispatch the wire verbs of the shell through
+  // the same `sendAction` path the transport controls use; the
+  // offer has no third choice.
+  els.btnOfferContinue.addEventListener('click', async () => {
+    closeOffer();
+    await sendAction('resume_at_stored');
+  });
+
+  els.btnOfferStartOver.addEventListener('click', async () => {
+    closeOffer();
+    await sendAction('start_over');
+  });
+
   // Register for mirror publish channel
   async function registerPublishListener() {
     try {
@@ -455,6 +666,7 @@
       if (rateIdx >= 0) rateIndex = rateIdx;
 
       renderAll();
+      refreshOffer();
     });
   }
 
@@ -473,6 +685,13 @@
         state.reasonExpiry = initial.reason_expiry;
         rateIndex = LADDER.findIndex(r => Math.abs(r - state.rate) < 0.01);
         if (rateIndex < 0) rateIndex = 1;
+        // The cold-start open payload carries the route of the
+        // offer and the window with it — the same shape the route
+        // command publishes.
+        const shape = offerShapeOf(initial);
+        if (shape !== null) {
+          applyOffer(shape.route, shape.windowMs);
+        }
       }
     } catch (e) {
       console.log('No initial status view, using defaults');
@@ -480,6 +699,12 @@
 
     await registerPublishListener();
     renderAll();
+    // The route of the offer is polled on the cadence of the
+    // shell: the cold start opens the document behind the offer,
+    // and the route published by the shell is what decides whether
+    // the in-app dialog opens.
+    setInterval(refreshOffer, OFFER_POLL_MS);
+    refreshOffer();
   }
 
   // Add indeterminate animation keyframes

@@ -23,6 +23,8 @@
 //! Prohibited anywhere: document prose, elapsed/remaining
 //! time, numeric rate value, voice identity.
 
+use std::error::Error;
+
 use serde_json::Value;
 
 use player::transport::{PlaybackRate, TransportState};
@@ -70,7 +72,7 @@ const PERMITTED_STATE_KEYS: [&str; 6] = [
 
 /// Renders the in-app status view for a transport state and
 /// returns its JSON object form.
-fn status_view_object(transport: TransportState) -> Value {
+fn status_view_object(transport: TransportState) -> Result<Value, Box<dyn Error>> {
     let view = render_status_view(
         Some(PlaybackRate::R1_0),
         transport,
@@ -80,19 +82,19 @@ fn status_view_object(transport: TransportState) -> Value {
         None,
         [0u8; 32],
     );
-    serde_json::to_value(&view).expect("status view serializes")
+    Ok(serde_json::to_value(&view)?)
 }
 
 #[test]
-fn status_payload_carries_title_section_and_progress_only() {
+fn status_payload_carries_title_section_and_progress_only() -> Result<(), Box<dyn Error>> {
     // FR-011 / contracts/surface.md: the display projection
     // keys are a subset of {title, section_title, progress}.
     // The full payload additionally carries transport,
     // reason/reason_expiry, dismissal — state and behavior,
     // never display leaks.
     for transport in MIRROR_TRANSPORTS {
-        let obj = status_view_object(transport);
-        let object = obj.as_object().expect("status payload is a JSON object");
+        let obj = status_view_object(transport)?;
+        let object = obj.as_object().ok_or("status payload is a JSON object")?;
         for key in object.keys() {
             let permitted = PERMITTED_STATE_KEYS.contains(&key.as_str())
                 || key == "title"
@@ -105,16 +107,17 @@ fn status_payload_carries_title_section_and_progress_only() {
             );
         }
     }
+    Ok(())
 }
 
 #[test]
-fn no_forbidden_key_fragment_appears_in_any_payload() {
+fn no_forbidden_key_fragment_appears_in_any_payload() -> Result<(), Box<dyn Error>> {
     // Prohibited anywhere: document prose, elapsed/remaining
     // time, numeric rate value, voice identity — checked as
     // key fragments across the whole payload object.
     for transport in MIRROR_TRANSPORTS {
-        let obj = status_view_object(transport);
-        let object = obj.as_object().expect("status payload is a JSON object");
+        let obj = status_view_object(transport)?;
+        let object = obj.as_object().ok_or("status payload is a JSON object")?;
         for key in object.keys() {
             for fragment in FORBIDDEN_KEY_FRAGMENTS {
                 assert!(
@@ -124,10 +127,11 @@ fn no_forbidden_key_fragment_appears_in_any_payload() {
             }
         }
     }
+    Ok(())
 }
 
 #[test]
-fn transport_state_set_is_closed_at_three_with_stopped_permitted() {
+fn transport_state_set_is_closed_at_three_with_stopped_permitted() -> Result<(), Box<dyn Error>> {
     // FR-002 / contracts/surface.md: transport is a STATE in
     // {playing, paused, stopped} — `stopped` is permitted as
     // a state, while the Stop CONTROL exists only in-app.
@@ -135,9 +139,8 @@ fn transport_state_set_is_closed_at_three_with_stopped_permitted() {
     // taxonomy; this test pins the mirror's rendering of
     // each state without leaking a control verb.
     for transport in MIRROR_TRANSPORTS {
-        let obj = status_view_object(transport);
-        let wire = serde_json::to_string(&obj.get("transport").expect("transport present"))
-            .expect("transport renders");
+        let obj = status_view_object(transport)?;
+        let wire = serde_json::to_string(&obj.get("transport").ok_or("transport present")?)?;
         let permitted =
             wire.contains("playing") || wire.contains("paused") || wire.contains("stopped");
         assert!(
@@ -147,16 +150,17 @@ fn transport_state_set_is_closed_at_three_with_stopped_permitted() {
         // A control verb must never appear as a payload key:
         // the mirror carries the state, the in-app screen
         // owns the Stop CONTROL.
-        let object = obj.as_object().expect("object");
+        let object = obj.as_object().ok_or("object")?;
         assert!(
             !object.contains_key("stop"),
             "the mirror payload must not carry a stop control key (Stop is in-app only, FR-002/FR-019)"
         );
     }
+    Ok(())
 }
 
 #[test]
-fn rate_mirror_is_the_stored_rung_not_a_display_value() {
+fn rate_mirror_is_the_stored_rung_not_a_display_value() -> Result<(), Box<dyn Error>> {
     // FR-012: the lock-screen and in-app surfaces never show
     // the numeric rate value. The stored `last_rate` rung is
     // mirrored so the stepper orients by position, but no
@@ -187,10 +191,11 @@ fn rate_mirror_is_the_stored_rung_not_a_display_value() {
             "the stored last_rate rung must mirror through the status view unchanged"
         );
         // No rate VALUE string is produced by the view.
-        let rendered = serde_json::to_string(&view).expect("render");
+        let rendered = serde_json::to_string(&view)?;
         assert!(
             !rendered.contains("0.75x") && !rendered.contains("1.0x") && !rendered.contains("4.0x"),
             "the view must not render a numeric rate value (FR-012 value-blind)"
         );
     }
+    Ok(())
 }

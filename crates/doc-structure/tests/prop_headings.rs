@@ -238,7 +238,7 @@ enum ReanchorEvent {
 /// catch-all) would fail to compile right here, and that
 /// compile failure is the assertion (Principle VII;
 /// `mechanism-gate.md` CHK031).
-fn event_discriminant(event: ReanchorEvent) -> u8 {
+const fn event_discriminant(event: ReanchorEvent) -> u8 {
     match event {
         ReanchorEvent::BoundaryCross => 0,
         ReanchorEvent::Resume => 1,
@@ -297,7 +297,7 @@ struct SectionResolver {
 impl SectionResolver {
     /// A resolver over `document`, holding `fingerprint` as the
     /// current content fingerprint, with nothing resolved yet.
-    fn new(document: Document, fingerprint: [u8; 32]) -> Self {
+    const fn new(document: Document, fingerprint: [u8; 32]) -> Self {
         Self {
             document,
             fingerprint,

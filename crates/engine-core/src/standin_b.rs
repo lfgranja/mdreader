@@ -401,6 +401,10 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::panic,
+        reason = "test-only: refusal is a contract violation, not a reachable path"
+    )]
     fn a_mid_document_stream_starts_at_the_requested_position() {
         let mut engine = StandinB;
         let Ok(chunk) = Engine::stream(&mut engine, 12.5, 1.0) else {

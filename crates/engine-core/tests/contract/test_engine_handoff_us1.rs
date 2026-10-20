@@ -109,7 +109,7 @@ const TRANSPORT_LIFECYCLE: [TransportState; 5] = [
 
 /// The planted mid-document failure of the SC-051 drill: a
 /// delivered rate deviating from the declared 22050 Hz (the
-/// common 44_100 Hz device default). FR-035: the deviation
+/// common `44_100` Hz device default). FR-035: the deviation
 /// surfaces as a named `EngineError::RateMismatch` — never a
 /// silent resample.
 const PLANTED_DEVIATION_RATE_HZ: u32 = 44_100;
@@ -242,7 +242,7 @@ fn a_planted_width_deviation_surfaces_as_a_named_error_never_ok() {
         );
         let named = matches!(
             result,
-            Err(EngineError::RateMismatch) | Err(EngineError::ChannelMismatch)
+            Err(EngineError::RateMismatch | EngineError::ChannelMismatch)
         );
         assert!(
             named,

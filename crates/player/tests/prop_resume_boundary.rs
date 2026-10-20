@@ -404,7 +404,7 @@ fn delivery_strategy() -> impl Strategy<Value = (DocumentSegment, AudioChunk)> {
                         segment_index: 0,
                     },
                     AudioChunk {
-                        duration_ms: pcm_data.len() as f64 / rate_hz as f64 * 1000.0,
+                        duration_ms: pcm_data.len() as f64 / f64::from(rate_hz) * 1000.0,
                         pcm_data,
                         rate_hz,
                         channels: DeclaredFormat::CHANNELS,

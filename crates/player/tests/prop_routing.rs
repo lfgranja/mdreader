@@ -445,10 +445,7 @@ fn reference_latch_after(
         // it was: the private output remains the current
         // output until the reader resumes (FR-016); and every
         // other no-op leaves the latch where it was too.
-        (
-            RoutingSignal::DeviceAppeared { .. },
-            ReferenceDecision::Pause { .. },
-        )
+        (RoutingSignal::DeviceAppeared { .. }, ReferenceDecision::Pause { .. })
         | (_, ReferenceDecision::NoChange) => previous,
         // The route went noisy: no device remains latched.
         (RoutingSignal::BecomingNoisy, ReferenceDecision::Pause { .. }) => None,

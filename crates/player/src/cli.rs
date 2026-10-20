@@ -7,8 +7,8 @@
 use crate::position::PositionClock;
 use crate::rate::{step_down, step_up};
 use crate::skip::skip_section;
-use crate::transport::{PlaybackRate, SkipDirection, TransportState};
 use crate::surface::Heading;
+use crate::transport::{PlaybackRate, SkipDirection, TransportState};
 use thiserror::Error;
 use tracing::{debug, instrument};
 

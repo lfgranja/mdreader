@@ -54,23 +54,23 @@ use player::rewind::{ResumeInput, cursor, resolve_resume};
 
 /// Yield positions on the exact quarter-second grid `k × 0.25` ∈ [0, 3600].
 fn yield_position_strategy() -> impl Strategy<Value = f64> {
-    (0u64..=14_400).prop_map(|quarters| quarters as f64 * 0.25)
+    (0u32..=14_400).prop_map(|quarters| f64::from(quarters) * 0.25)
 }
 
 /// Paused durations `d` ∈ [0, 7200] s as exact centisecond multiples.
 fn paused_duration_strategy() -> impl Strategy<Value = f64> {
-    (0u64..=720_000).prop_map(|centis| centis as f64 / 100.0)
+    (0u32..=720_000).prop_map(|centis| f64::from(centis) / 100.0)
 }
 
 /// Ascending sentence-start boundaries on the quarter-second grid, always
 /// including the document start `0.0` (every document has a first
 /// boundary).
 fn boundaries_strategy() -> impl Strategy<Value = Vec<f64>> {
-    proptest::collection::vec(0u64..=14_400, 0..=16).prop_map(|mut quarters| {
+    proptest::collection::vec(0u32..=14_400, 0..=16).prop_map(|mut quarters| {
         quarters.push(0);
-        quarters.sort();
+        quarters.sort_unstable();
         quarters.dedup();
-        quarters.into_iter().map(|q| q as f64 * 0.25).collect()
+        quarters.into_iter().map(|q| f64::from(q) * 0.25).collect()
     })
 }
 
@@ -88,7 +88,7 @@ fn snapping_granularity_strategy() -> impl Strategy<Value = AlignmentGranularity
 /// `k ∈ [1, 6000]` — the open-lower interval (0, 60] seconds, bounded by
 /// the 60 s pre-roll cap.
 fn pre_roll_secs_strategy() -> impl Strategy<Value = f64> {
-    (1u64..=6_000).prop_map(|centis| centis as f64 / 100.0)
+    (1u32..=6_000).prop_map(|centis| f64::from(centis) / 100.0)
 }
 
 /// The raw cursor oracle (FR-015): the yield moved back by exactly the
@@ -128,8 +128,12 @@ fn union_positions(first: &[f64], second: &[f64]) -> Vec<f64> {
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the yield, cursor, cap, and boundary positions are exact binary fractions on the quarter- and centisecond grids, so == is the correct oracle assertion"
+    )]
     #[test]
-    fn canonical_resolve_resume_snaps_to_containing_sentence_within_the_cap(
+    fn canonical_resume_resume_snaps_to_containing_sentence_within_the_cap(
         (yield_secs, paused_duration_secs, boundaries, granularity) in (
             yield_position_strategy(),
             paused_duration_strategy(),
@@ -191,6 +195,10 @@ proptest! {
         );
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "the delivery is an exact centisecond-grid fraction below the 60 s cap, so held == delivered is the correct assertion"
+    )]
     #[test]
     fn canonical_buffer_stays_empty_while_idle_and_drains_for_idle(
         delivered_secs in pre_roll_secs_strategy()

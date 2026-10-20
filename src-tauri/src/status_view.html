@@ -158,6 +158,13 @@
       border-radius: 3px;
       transition: width .3s ease;
     }
+    #progressLabel {
+      min-height: 1.3rem;
+      margin-top: .45rem;
+      color: var(--section);
+      font-size: .8rem;
+      text-align: right;
+    }
     .reason-banner {
       margin-top: 1rem;
       padding: .75rem 1rem;
@@ -198,6 +205,7 @@
   </div>
 
   <div id="progress"><div id="progressFill"></div></div>
+  <div id="progressLabel" aria-live="off"></div>
 
   <div class="reason-banner" id="reasonBanner" role="alert" aria-live="polite"></div>
 
@@ -215,6 +223,7 @@
     transport: 'stopped',
     positionSecs: 0,
     progress: { kind: 'indeterminate' },
+    progressLabel: null,
     rate: 1.0,
     reason: null,
     reasonExpiry: null,
@@ -237,6 +246,7 @@
     btnRateUp: document.getElementById('btnRateUp'),
     speedDots: document.getElementById('speedDots'),
     progressFill: document.getElementById('progressFill'),
+    progressLabel: document.getElementById('progressLabel'),
     reasonBanner: document.getElementById('reasonBanner'),
   };
 
@@ -303,11 +313,13 @@
       els.progressFill.style.background = 'linear-gradient(90deg, transparent, var(--progress-fill), transparent)';
       els.progressFill.style.backgroundSize = '200% 100%';
       els.progressFill.style.animation = 'indeterminate 1.5s infinite';
+      els.progressLabel.textContent = '';
       return;
     }
     els.progressFill.style.width = `${pct}%`;
     els.progressFill.style.background = 'var(--progress-fill)';
     els.progressFill.style.animation = 'none';
+    els.progressLabel.textContent = state.progressLabel || '';
   }
 
   function renderSpeed() {
@@ -435,6 +447,7 @@
       state.transport = mirror.transport;
       state.positionSecs = mirror.position_secs;
       state.progress = mirror.progress;
+      state.progressLabel = mirror.progress_label || null;
       state.sectionTitle = mirror.section_title || null;
 
       // Update rate index from current rate if it changed

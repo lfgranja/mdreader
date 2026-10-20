@@ -2165,15 +2165,25 @@ fn feed_audible_progress(state: &AppState, position_secs: f64, watch: &mut Playb
 /// play-path publish races this task, and a duplicate mirror is
 /// cheap while a swallowed section flip would not self-correct
 /// until the next boundary.
+///
+/// The crossing is also where the FR-017 diagnostic record's
+/// per-section progress entry is emitted (T121): the section the
+/// session reached, with the document's content hash as its only
+/// document reference (FR-036 / FR-017). The entry is written at
+/// every consumed-unit crossing — not only in the explicit-skip
+/// branch — so the record carries the reading's progress through
+/// the document's sections (`contracts/diagnostic-trace.md:9`).
+/// The section index is the one the publish path resolves, so the
+/// entry and the published surface can never disagree.
 fn maybe_republish_progress(state: &AppState, watch: &mut PlaybackWatch) -> bool {
-    let units = {
-        let position_secs = {
-            let Ok(guard) = state.session.lock() else {
-                tracing::warn!("progress republish skipped: the session lock is poisoned");
-                return false;
-            };
-            guard.snapshot().position_secs
+    let snapshot = {
+        let Ok(guard) = state.session.lock() else {
+            tracing::warn!("progress republish skipped: the session lock is poisoned");
+            return false;
         };
+        guard.snapshot()
+    };
+    let units = {
         let Ok(resolver_guard) = state.surface_resolver.lock() else {
             tracing::warn!("progress republish skipped: the resolver lock is poisoned");
             return false;
@@ -2181,7 +2191,7 @@ fn maybe_republish_progress(state: &AppState, watch: &mut PlaybackWatch) -> bool
         let Some(resolver) = resolver_guard.as_ref() else {
             return false; // no document loaded
         };
-        let units = resolver.consumed_units_at(position_secs);
+        let units = resolver.consumed_units_at(snapshot.position_secs);
         drop(resolver_guard);
         units
     };
@@ -2189,6 +2199,7 @@ fn maybe_republish_progress(state: &AppState, watch: &mut PlaybackWatch) -> bool
         return false;
     }
     watch.units = Some(units);
+    record_section_progress(state, &snapshot, diag_section_index(state, &snapshot));
     commands::publish_current_state(state, None);
     true
 }
@@ -6935,6 +6946,32 @@ mod diag_record_tests {
             .ok_or_else(|| format!("the record carries no {kind} entry"))
     }
 
+    /// The session's structure — the resolver and the heading list the
+    /// open path installs at session start (FR-028a) — written the
+    /// way the open path writes it, so the consumed-unit crossing
+    /// resolves a section index (T121).
+    fn install_session_structure(state: &AppState) -> Result<(), String> {
+        let resolver = player::surface::SurfaceResolver::new(
+            Some(String::from("Diagnostico")),
+            String::from("diagnostico.md"),
+            3,
+            30.0,
+            true,
+        );
+        {
+            let mut resolver_guard = state.surface_resolver.lock().map_err(|e| e.to_string())?;
+            *resolver_guard = Some(resolver);
+        }
+        let mut headings_guard = state.headings.lock().map_err(|e| e.to_string())?;
+        headings_guard.clear();
+        headings_guard.push(player::surface::Heading {
+            position_secs: 0.0,
+            title: String::from("Diagnostico"),
+        });
+        drop(headings_guard);
+        Ok(())
+    }
+
     /// T097: the open path writes the record — the session start
     /// on a device host, the named failure on a device-less one —
     /// and the record the app leaves behind passes the contract's
@@ -7027,6 +7064,40 @@ mod diag_record_tests {
         assert!(
             section_detail.contains("section="),
             "the section entry names no section index: {section_detail}"
+        );
+        Ok(())
+    }
+
+    /// T121: the per-section progress entry reaches the record at the
+    /// CONSUMED-UNIT CROSSING — the playback watch's crossing, not
+    /// only the explicit-skip branch (FR-017;
+    /// `contracts/diagnostic-trace.md:9`).
+    ///
+    /// The entry carries the section the session reached and the
+    /// document's content hash as its only document reference.
+    #[test]
+    fn the_section_progress_reaches_the_record_at_the_consumed_unit_crossing() -> Result<(), String>
+    {
+        let (_dir, path, state) = state_with_record()?;
+        install_session_structure(&state)?;
+        let mut watch = PlaybackWatch::default();
+        assert!(
+            maybe_republish_progress(&state, &mut watch),
+            "the consumed-unit crossing published no mirror (F3)"
+        );
+        let entries = record_entries(&path)?;
+        let section = entry_with_detail(&entries, "action=section ")?;
+        let detail = section
+            .get("detail")
+            .and_then(Value::as_str)
+            .ok_or("the section entry carries no detail")?;
+        assert!(
+            detail.contains("section="),
+            "the section entry names no section index: {detail}"
+        );
+        assert!(
+            detail.contains("doc="),
+            "the section entry carries no content-hash reference: {detail}"
         );
         Ok(())
     }

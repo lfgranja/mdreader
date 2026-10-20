@@ -4283,10 +4283,23 @@ pub mod publish {
 
     /// Translate the closed player progress label into the application's
     /// required pt-BR user-facing string (FR-011, FR-013).
+    ///
+    /// The player crate owns the label's SHAPE — the frozen template
+    /// `Section {k} of {n} — {p}% (content-offset)`
+    /// (`contracts/surface.md:9`), which is the English identifier the
+    /// CLI's `--format json` output carries. This is the separate
+    /// rendering step that turns it into the USER-VISIBLE pt-BR
+    /// string, `"Seção {k} de {N} — {p}% (deslocamento de conteúdo)"`
+    /// — every fragment translated, so no English identifier ever
+    /// reaches a surface (T100, FR-011).
     #[must_use]
     pub fn pt_br_progress_label(progress: &Progress) -> Option<String> {
-        player::surface::progress_label(progress)
-            .map(|label| label.replace("Section ", "Seção ").replace(" of ", " de "))
+        player::surface::progress_label(progress).map(|label| {
+            label
+                .replace("Section ", "Seção ")
+                .replace(" of ", " de ")
+                .replace("(content-offset)", "(deslocamento de conteúdo)")
+        })
     }
 
     /// Builds the Kotlin-facing mirror payload (T133): the wire form

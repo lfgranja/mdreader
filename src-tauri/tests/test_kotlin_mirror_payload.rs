@@ -172,8 +172,10 @@ fn determinate_lock_screen_publishes_localized_progress_label() {
     ));
     assert_eq!(
         payload.get("progressLabel"),
-        Some(&Value::from("Seção 2 de 5 — 20% (content-offset)")),
-        "T089 RED: determinante progress label is pt-BR identifier per surface.md FR-011/FR-013; includes (content-offset) not rendered prose"
+        Some(&Value::from(
+            "Seção 2 de 5 — 20% (deslocamento de conteúdo)"
+        )),
+        "T100: the determinate progress label is the fully translated pt-BR string per contracts/surface.md:9 (FR-011/FR-013); no English identifier renders user-visible"
     );
 }
 
@@ -198,9 +200,10 @@ fn indeterminate_lock_screen_omits_localized_progress_label() {
     );
 }
 
-/// T089 property: for every determinate (k, n, p) triple the Kotlin
-/// payload must carry the frozen pt-BR identifier label with
-/// (content-offset), and never for indeterminate.
+/// T089/T100 property: for every determinate (k, n, p) triple the
+/// Kotlin payload must carry the frozen pt-BR label with the
+/// translated content-offset fragment, and never a label for an
+/// indeterminate session.
 #[test]
 #[expect(
     clippy::expect_used,
@@ -239,8 +242,8 @@ fn prop_kotlin_mirror_progress_label_invariant() {
                     && s.contains("de")
                     && s.contains("—")
                     && s.contains('%')
-                    && s.contains("(content-offset)"),
-                "T089 RED: determinate label format broken: {s} (expected pt-BR identifier with (content-offset))"
+                    && s.contains("(deslocamento de conteúdo)"),
+                "T100: determinate label format broken: {s} (expected the fully translated pt-BR label)"
             );
         }
     }

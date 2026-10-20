@@ -104,6 +104,51 @@ fn frontend_mirror_carries_progress_label_only_when_determinate() -> Result<(), 
     Ok(())
 }
 
+/// T100 RED-FIRST: the pt-BR label is the FULL translated string —
+/// the `(content-offset)` fragment is translated too
+/// (`contracts/surface.md:9`: `"Seção {k} de {N} — {p}% (deslocamento
+/// de conteúdo)"`). An English identifier must never render
+/// user-visible (FR-011), and the label IS user-visible: the
+/// lock-screen projection and the in-app status view render it
+/// verbatim.
+#[test]
+fn the_pt_br_progress_label_translates_the_content_offset_fragment() -> Result<(), Box<dyn Error>> {
+    let surface = determinate(2, 5, 40, 100);
+    let mirror = frontend_mirror(TransportState::Playing, 12.0, &surface);
+    let encoded = serde_json::to_value(mirror)?;
+    let label = encoded
+        .get("progress_label")
+        .ok_or("T100: the frontend mirror must carry progress_label for determinate")?;
+    let text = label.as_str().ok_or("progress_label is a string")?;
+    assert_eq!(
+        text, "Seção 2 de 5 — 40% (deslocamento de conteúdo)",
+        "T100: the pt-BR label must be the fully translated string (contracts/surface.md:9)"
+    );
+    assert!(
+        !text.contains("content-offset"),
+        "T100: the English `(content-offset)` fragment must never render user-visible (FR-011)"
+    );
+    Ok(())
+}
+
+/// T100: the Kotlin lock-screen payload carries the same fully
+/// translated label — the two payloads never disagree about the
+/// user-visible string (T090 / T094).
+#[test]
+fn the_kotlin_lock_screen_label_translates_the_content_offset_fragment()
+-> Result<(), Box<dyn Error>> {
+    let payload = kotlin_payload(&determinate(2, 5, 40, 100))?;
+    let label = payload
+        .get("progressLabel")
+        .ok_or("T100: the Kotlin lock-screen payload must carry progressLabel")?;
+    let text = label.as_str().ok_or("progressLabel is a string")?;
+    assert_eq!(
+        text, "Seção 2 de 5 — 40% (deslocamento de conteúdo)",
+        "T100: the pt-BR label must be the fully translated string (contracts/surface.md:9)"
+    );
+    Ok(())
+}
+
 /// T094 GREEN: the production Kotlin lock-screen payload carries the
 /// same pt-BR `progressLabel` as the frontend mirror for every
 /// determinate surface and omits it for an indeterminate one

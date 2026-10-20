@@ -413,8 +413,13 @@ fn exactly_the_three_undeliverables_are_persistent() -> Result<(), Box<dyn Error
                     "{reason:?} expires at 3 s"
                 );
             }
-            Some(EarconKind::Play | EarconKind::Pause | EarconKind::SkipFwd |
-                EarconKind::SkipBack | EarconKind::RateStep) => {
+            Some(
+                EarconKind::Play
+                | EarconKind::Pause
+                | EarconKind::SkipFwd
+                | EarconKind::SkipBack
+                | EarconKind::RateStep,
+            ) => {
                 return Err(format!(
                     "{reason:?} must not select a transport-confirmation earcon — \
                      a reason only ever selects Warning, Failure, or nothing"
@@ -650,7 +655,7 @@ fn pause_demanding_trigger_publishes_the_mirror_state() -> Result<(), Box<dyn Er
     // pause-demanding interruption shows beside the glyph and progress.
     assert_eq!(
         reason_line(&InterruptionReason::TransientPaused),
-        "Pausado por interrupção — retome para continuar",
+        "Pausado por interrupção — retome",
         "the pause-demanding reason carries its fixed pt-BR line"
     );
     assert_eq!(

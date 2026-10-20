@@ -41,17 +41,30 @@ impl InterruptionReason {
     /// Returns the ≤8-word pt-BR line per contracts/surface.md reason-line table.
     /// `FocusDelayed` returns empty string (Deferred = zero-audio hold, no line).
     /// Undeliverables (`VoiceUnavailable`, `FormatUndeliverable`, `DecodeFailed`) are persistent (`reason_ttl_ms` = null).
+    ///
+    /// Every line also fits the ≤40-char hard limit of the same contract
+    /// (the Android notification content-text limit), which wins over the
+    /// ≤8-word soft target whenever the two conflict.
+    ///
+    /// The conflict is resolved, not merely recorded: the three lines
+    /// that once stood at 47 / 43 / 43 chars were shortened rather than
+    /// the bound relaxed (T101), so every line now satisfies BOTH bounds
+    /// at once — 30 / 23 / 32 / 25 / 37 / 38 / 37 chars and 6 / 4 / 5 /
+    /// 4 / 6 / 7 / 6 words — and the tie-break rule is needed for no
+    /// line at all. The contract table (`contracts/surface.md`, "Fixed
+    /// reason lines") is the normative source of these strings — the
+    /// code states them once, and the table restates them once.
     #[must_use]
     pub const fn reason_line(&self) -> &'static str {
         match self {
             Self::FocusDenied => "Foco de áudio negado — pausado",
             Self::FocusDelayed => "",
             Self::PermanentLoss => "Áudio perdido — pausado",
-            Self::TransientPaused => "Pausado por interrupção — retome para continuar",
+            Self::TransientPaused => "Pausado por interrupção — retome",
             Self::DeviceRemoved => "Fones removidos — pausado",
-            Self::VoiceUnavailable => "Voz indisponível — leitura não pode iniciar",
+            Self::VoiceUnavailable => "Voz indisponível — leitura não inicia",
             Self::FormatUndeliverable => "Formato do documento não pode ser lido",
-            Self::DecodeFailed => "Falha ao decodificar áudio — leitura parada",
+            Self::DecodeFailed => "Falha ao decodificar — leitura parada",
         }
     }
 

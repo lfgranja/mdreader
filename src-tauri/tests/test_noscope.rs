@@ -20,6 +20,17 @@
 //! absence guard fails closed: the expectation is zero
 //! matches, and any new match fails the build — the same
 //! discipline as the shell-purity gate.
+//!
+//! T098 (F3, unrequested — HIGH) extends the guard past the
+//! crate level: a served HTML surface is fetched by the
+//! renderer, so a remote font, a CDN script, or a tracking
+//! pixel is a network egress at RENDER time that the crate
+//! scan above cannot see — the request never passes through
+//! a Rust call site. The guard therefore scans every served
+//! surface for an external `http://` / `https://` resource.
+//! T106 (F11) extends it to the platform capability itself:
+//! the built Android manifest must not even HOLD the
+//! `INTERNET` permission.
 
 use std::error::Error;
 use std::path::{Path, PathBuf};
@@ -146,6 +157,101 @@ fn source_files(dir: &Path) -> Vec<PathBuf> {
     files
 }
 
+/// Every `.html` file under `dir`, recursively — the served
+/// surfaces. Unlike the code scan, this one DOES descend into
+/// `assets/` (a served webview frontend lives there); it still
+/// never enters build output, the vendored voice tree, or
+/// `node_modules`.
+fn html_files(dir: &Path) -> Vec<PathBuf> {
+    let mut files = Vec::new();
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(current) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&current) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                // Never scan build output, vendored assets, or
+                // dependency trees — only hand-authored surfaces.
+                let name = entry.file_name();
+                let name = name.to_string_lossy();
+                if name == "target"
+                    || name == "gen"
+                    || name == "build"
+                    || name == "voices"
+                    || name == "node_modules"
+                {
+                    continue;
+                }
+                stack.push(path);
+            } else if let Some(ext) = path.extension()
+                && ext == "html"
+            {
+                files.push(path);
+            }
+        }
+    }
+    files
+}
+
+/// The served HTML surfaces: the in-app screen and the webview
+/// frontends. The tree scan finds the ones inside the scanned
+/// source roots; the explicit list adds the two that live
+/// OUTSIDE them — the declared `frontendDist` bundle
+/// (`tauri.conf.json` → `../dist`) and the Android asset copy
+/// that ships inside the APK.
+fn served_html_surfaces(root: &Path) -> Vec<PathBuf> {
+    let mut surfaces = Vec::new();
+    for source_root in source_roots(root) {
+        surfaces.extend(html_files(&source_root));
+    }
+    for relative in ["dist", "src-tauri/gen/android/app/src/main/assets"] {
+        surfaces.extend(html_files(&root.join(relative)));
+    }
+    surfaces.sort();
+    surfaces.dedup();
+    surfaces
+}
+
+/// The URL schemes a served surface may never name: an absolute
+/// `http://` / `https://` reference in a served document is a
+/// network fetch at render time — a remote font, a CDN script, a
+/// tracking pixel. FR-015 (pure-offline) and Principle IX make
+/// that an egress, and the crate-level scan above cannot see it:
+/// the egress lives in a stylesheet the renderer resolves.
+const REMOTE_URL_PREFIXES: [&str; 2] = ["http://", "https://"];
+
+/// An XML namespace URI is an identifier, not a resource: a
+/// renderer never fetches `http://www.w3.org/2000/svg`. That
+/// prefix is the ONLY allow-listed form, and it is allow-listed
+/// precisely because no request is ever issued for it.
+const NON_FETCHED_NAMESPACE_PREFIX: &str = "http://www.w3.org/";
+
+/// The remote URLs `text` names, in order of appearance. A W3C
+/// namespace declaration is skipped — it identifies a
+/// vocabulary, it does not name a resource to fetch.
+fn remote_urls(text: &str) -> Vec<String> {
+    let mut urls = Vec::new();
+    for prefix in REMOTE_URL_PREFIXES {
+        for (offset, _) in text.match_indices(prefix) {
+            let tail = &text[offset..];
+            if tail.starts_with(NON_FETCHED_NAMESPACE_PREFIX) {
+                continue;
+            }
+            let url: String = tail
+                .chars()
+                .take_while(|c| {
+                    !c.is_whitespace()
+                        && !matches!(c, '\'' | '"' | '`' | ')' | '<' | '>' | '}' | '|' | '\\')
+                })
+                .collect();
+            urls.push(url);
+        }
+    }
+    urls
+}
+
 #[test]
 fn no_network_call_sites_app_wide() {
     let root = repo_root();
@@ -175,6 +281,34 @@ fn no_network_call_sites_app_wide() {
     assert!(
         offenders.is_empty(),
         "zero network call sites app-wide (FR-015 voice ban + diag no-egress):\n{}",
+        offenders.join("\n")
+    );
+}
+
+/// T098: no served surface may name an external `http://` /
+/// `https://` resource. A remote font, a CDN script, or a
+/// tracking pixel is a network egress at RENDER time — invisible
+/// to the crate-level scan above, because the egress lives in a
+/// stylesheet the renderer resolves, not in a Rust call site.
+/// FR-015 (pure-offline) and Principle IX forbid it outright.
+#[test]
+fn no_external_urls_in_served_html_surfaces() {
+    let root = repo_root();
+    let mut offenders: Vec<String> = Vec::new();
+    for surface in served_html_surfaces(&root) {
+        let Ok(text) = std::fs::read_to_string(&surface) else {
+            continue;
+        };
+        for url in remote_urls(&text) {
+            offenders.push(format!(
+                "{} references the external resource {url}",
+                surface.strip_prefix(&root).unwrap_or(&surface).display()
+            ));
+        }
+    }
+    assert!(
+        offenders.is_empty(),
+        "zero external http(s) resources in a served surface (FR-015 pure-offline, Principle IX):\n{}",
         offenders.join("\n")
     );
 }

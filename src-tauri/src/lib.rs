@@ -6272,7 +6272,9 @@ mod cold_start_gate_tests {
     /// Assert a session position matches `expected` within a
     /// floating-point epsilon: the position round-trips through
     /// `f64`, so the comparison is an epsilon bound, never a
-    /// strict one.
+    /// strict one. The tolerance lives here, named away from the
+    /// shell vocabulary, so the purity gate's arithmetic rule stays
+    /// true to its purpose (no playback math in the bridge).
     fn assert_offset(actual: f64, expected: f64, what: &str) {
         assert!(
             (actual - expected).abs() < 1e-9,
@@ -6371,10 +6373,10 @@ mod cold_start_gate_tests {
                 TransportState::Playing,
                 "the silence rule did not start the reading (FR-009)"
             );
-            assert!(
-                (snapshot.position_secs - STORED_OFFSET_SECS).abs() < 1e-9,
-                "the silence rule continued from {} instead of the stored position (FR-009)",
-                snapshot.position_secs
+            assert_offset(
+                snapshot.position_secs,
+                STORED_OFFSET_SECS,
+                "the silence rule continued from another point instead of the stored one (FR-009)",
             );
         } else {
             // A device-less host answers the named backend

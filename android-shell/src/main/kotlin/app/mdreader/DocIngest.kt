@@ -188,12 +188,15 @@ object DocIngest {
         return try {
             val fingerprint = blake3_256(bytes)
             val hexName = bytesToHex(fingerprint)
-            // T058 wire save/stop verb: durable bookmark put with
-            // Paused/Interrupted end_kind before new snapshot, preserving
-            // first session (FR-018 / data-model.md:19). Event-durable
-            // writes already exist on pause/end; this ensures second-doc
-            // switch also persists the first session's resume point.
-            saveFirstBookmarkIfPlaying(activity);
+            // T096: the FR-018 second-document durable save lives in
+            // RUST, not here — the outgoing session's last-spoken
+            // point is persisted by the cold-start open path (the
+            // single playback authority, SC-035) before the outgoing
+            // session is torn down and the incoming document takes
+            // over. The reflective `saveSessionBookmark` call that
+            // used to live here resolved to a method that exists
+            // nowhere, so it was a dead no-op; the durable put it
+            // claimed to perform is the Rust-side one.
 
             val snapshotFile = writeSnapshot(activity, bytes, extension, hexName)
             currentSnapshot = snapshotFile
@@ -305,19 +308,6 @@ object DocIngest {
      * Extension is the resolved deliverable format of the pick; the bytes
      * are the single read, handed to the stream in one call.
      */
-    private fun saveFirstBookmarkIfPlaying(activity: Activity) {
-        // T058: durable put of current first-session bookmark
-        // (Paused / Interrupted end_kind) before teardown.
-        // Delegated to Rust session store via JNI; mechanism
-        // present per T058. No computation — Kotlin renders
-        // pattern-id verbatim (SC-035 / contract mirror).
-        try {
-            javaClass.getMethod("saveSessionBookmark").invoke(this)
-        } catch (e: Exception) {
-            Log.d(TAG, "First-bookmark save best-effort (T058): ${e.message}")
-        }
-    }
-
     private fun writeSnapshot(
         context: Context,
         bytes: ByteArray,

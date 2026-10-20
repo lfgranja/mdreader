@@ -452,6 +452,123 @@ fn delete_bookmark(state: &AppState) {
     drop(store_guard);
 }
 
+/// The end kind the OUTGOING document's durable save records
+/// (FR-018 / FR-044).
+///
+/// A session the reader deliberately paused keeps the `paused`
+/// kind — the FR-032c continue offer, the deliberate form. A
+/// session already `Interrupted` (a focus loss, a removed
+/// device) keeps the `interrupted` kind — the FR-032d explicit
+/// resume, the unexpected form. A session still PLAYING when
+/// the reader picks another document is a deliberate reader
+/// action (the switch is not a failure of the audio), so it
+/// records the deliberate `paused` kind too.
+///
+/// A terminal session owes NO put: its end already DELETED the
+/// row (FR-032f), and a terminal end is never re-recorded by a
+/// later switch.
+const fn outgoing_end_kind(transport: TransportState) -> Option<SessionEnd> {
+    match transport {
+        TransportState::Playing | TransportState::Paused => Some(SessionEnd::Paused),
+        TransportState::Interrupted => Some(SessionEnd::Interrupted),
+        TransportState::Stopped | TransportState::Completed => None,
+    }
+}
+
+/// The FR-018 durable save of the OUTGOING document: the
+/// last-spoken position under the OUTGOING document's OWN
+/// content fingerprint, with the end kind the outgoing session's
+/// own state names.
+///
+/// The write happens BEFORE the incoming document's fingerprint
+/// is recorded, so the row lands under the outgoing document's
+/// key — the first bookmark is never deleted and never
+/// overwritten by the incoming one. The first bookmark is NEVER
+/// deleted by the switch: only the two terminal ends delete
+/// (FR-032 / FR-032b / FR-032f), and a document switch is
+/// neither.
+///
+/// The write reuses [`persist_bookmark`], which keys the row
+/// under the CURRENT fingerprint — the outgoing document's, at
+/// this point in the switch. Best-effort by construction: a
+/// missing document, an unopened store, or a poisoned lock skips
+/// the write with a tracing record, never a panic.
+fn save_outgoing_bookmark(state: &AppState) {
+    let snapshot = {
+        let Ok(guard) = state.session.lock() else {
+            tracing::warn!("outgoing bookmark skipped: the session lock is poisoned");
+            return;
+        };
+        guard.snapshot()
+    };
+    let Some(end_kind) = outgoing_end_kind(snapshot.transport) else {
+        return; // a terminal session owes no put — its end deleted the row
+    };
+    persist_bookmark(state, snapshot.position_secs, end_kind);
+}
+
+/// Tear the OUTGOING session down before the incoming document
+/// takes over (FR-018: "stop current audio", then the new
+/// snapshot).
+///
+/// Three things happen, in this order:
+///
+/// * the queued speech is dropped and the backend's position
+///   clock resets — the incoming document's audio is the only
+///   audio (the outgoing document stops, never overlaps);
+/// * the session is replaced by a fresh one, so the incoming
+///   document starts at `0.0` and never inherits the outgoing
+///   document's position (the closed transition table's `Play`
+///   landing RETAINS the position, so a bare session carry-over
+///   would start the new document at the old one's place);
+/// * the FR-015 supersede clock closes — the outgoing interval
+///   ended with the outgoing session, and the incoming one opens
+///   its own clock when it starts playing.
+///
+/// Each lock is taken alone and released before the next, so no
+/// two state locks are ever held together.
+fn teardown_outgoing_session(state: &AppState) {
+    // The outgoing audio stops: the queue is dropped and the
+    // backend's position clock resets (the full gain is restored
+    // so a ducked session never resumes ducked).
+    if let Ok(backend_guard) = state.backend.lock()
+        && let Some(backend) = backend_guard.as_ref()
+    {
+        let _ = backend.set_gain(player::focus::FULL_GAIN);
+        backend.stop();
+    }
+    // The session is replaced: the incoming document starts from
+    // zero, in the initial (paused) transport, with the rate the
+    // store's rung seeds (read-at-start, T042).
+    if let Ok(mut session) = state.session.lock() {
+        *session = PlaybackSession::new();
+    } else {
+        tracing::warn!("outgoing session not torn down: the session lock is poisoned");
+    }
+    // The FR-015 clock closes with the outgoing session.
+    if let Ok(mut clock) = state.first_yield_ms.lock() {
+        *clock = None;
+    } else {
+        tracing::warn!("the FR-015 clock was not closed: the state lock is poisoned");
+    }
+}
+
+/// Hand the session over to a new document (FR-018): the ONE
+/// place a document takes the session over.
+///
+/// The order is the contract's: the OUTGOING document's
+/// last-spoken position is saved durably under its OWN
+/// fingerprint FIRST, then the outgoing session is torn down
+/// (the audio stops), and only THEN is the incoming document's
+/// fingerprint recorded. A second document therefore never
+/// inherits the first one's position, and the first one's
+/// bookmark is never deleted nor overwritten.
+fn switch_to_document(state: &AppState, bytes: &[u8]) {
+    save_outgoing_bookmark(state);
+    teardown_outgoing_session(state);
+    set_document_fingerprint(state, bytes);
+}
+
 /// Persist the last playback rate (T042, write-on-change /
 /// FR-019b): the store half every rate dispatch calls with
 /// the rung the press moved to. The rung is written exactly
@@ -1236,7 +1353,7 @@ pub mod commands {
     use crate::{
         OfferRoute, after_background, after_execute, after_skip, current_fingerprint,
         delete_bookmark, offer_route_wire, persist_last_rate, rate_press_of, route_offer,
-        seed_session_rate, set_document_fingerprint,
+        seed_session_rate, switch_to_document,
     };
     use player::cli::{SessionSnapshot, ShellVerb};
     use player::focus::{FocusClassification, FocusIntent, FocusOutcome};
@@ -1398,7 +1515,6 @@ pub mod commands {
         // recorded through the one call site every
         // document-opening path shares (T011 / T035).
         let fingerprint_hex = hex::encode(fingerprint::fingerprint(document.as_bytes()));
-        set_document_fingerprint(state, document.as_bytes());
 
         // The open lookup (T036): bytes → fingerprint → the
         // stored row → the offer form, through the library fn
@@ -1428,6 +1544,15 @@ pub mod commands {
             lookup
         };
 
+        // The FR-018 document switch: the OUTGOING document's
+        // last-spoken position is saved durably under its OWN
+        // fingerprint, the outgoing session is torn down (the
+        // audio stops), and only THEN is the incoming document's
+        // fingerprint recorded. The first bookmark is never
+        // deleted by the switch, and the incoming document never
+        // inherits the outgoing one's position.
+        switch_to_document(state, document.as_bytes());
+
         // The offer route (T037): the stored end kind resolves
         // to the surface that renders the resume decision, and
         // driving the held machine at this open is the
@@ -1440,7 +1565,7 @@ pub mod commands {
         // The one synthesis path (Principle II): split,
         // synthesize, enqueue, start — with the totals fixed
         // at open and the rate seeded from the store.
-        let mut payload = play(&document, state)?;
+        let mut payload = play_document(&document, state)?;
 
         // The open facts the resume decision renders: the
         // content fingerprint, the stored row, and the offer
@@ -2482,6 +2607,40 @@ pub mod commands {
     /// cold-start [`open_document_bytes`], and every later
     /// consumer land here exactly once).
     ///
+    /// The caller owns the FR-018 document switch (the outgoing
+    /// document's durable save and the session teardown); this
+    /// body owns the synthesis alone.
+    ///
+    /// # Errors
+    ///
+    /// * [`OpenError::EmptyDocument`] when the document is
+    ///   blank — nothing to synthesize.
+    /// * [`OpenError::NoSegments`] when the parse yields no
+    ///   bounded chunk.
+    /// * [`OpenError::Synthesis`] when a chunk cannot be
+    ///   synthesized by the bound offline engine.
+    /// * [`OpenError::Backend`] when the audio backend cannot
+    ///   be opened or started at the declared handoff shape —
+    ///   a refusal, never a silent start (FR-005).
+    /// * [`OpenError::NoStart`] when the closed transition
+    ///   table rejects the press (a torn-down session takes no
+    ///   play).
+    fn play(document: &str, state: &AppState) -> Result<serde_json::Value, OpenError> {
+        if document.trim().is_empty() {
+            return Err(OpenError::EmptyDocument);
+        }
+        // The FR-018 document switch: the outgoing document's
+        // last-spoken position is saved durably, the outgoing
+        // session is torn down, and only then does the incoming
+        // document take the session over.
+        switch_to_document(state, document.as_bytes());
+        play_document(document, state)
+    }
+
+    /// The synthesis half of the one synthesis path (Principle II):
+    /// split, synthesize, enqueue, start — with the totals fixed
+    /// at open and the rate seeded from the store.
+    ///
     /// ## Session-start totals (T019 / FR-028a)
     ///
     /// The parsed segments fix the totals once, here: the
@@ -2520,10 +2679,7 @@ pub mod commands {
     /// * [`OpenError::NoStart`] when the closed transition
     ///   table rejects the press (a torn-down session takes no
     ///   play).
-    fn play(document: &str, state: &AppState) -> Result<serde_json::Value, OpenError> {
-        if document.trim().is_empty() {
-            return Err(OpenError::EmptyDocument);
-        }
+    fn play_document(document: &str, state: &AppState) -> Result<serde_json::Value, OpenError> {
         // T042 read-at-start (FR-019b): the session opens at
         // the stored rung — seeded through the rate verbs
         // before anything else happens, so a fresh session
@@ -2588,9 +2744,11 @@ pub mod commands {
 
         // Compute and store the document's blake3 fingerprint (FR-036 / T059)
         // for the 20 s heartbeat bookmark persistence (T011) — the same
-        // call site `open_document` routes through.
-        set_document_fingerprint(state, document.as_bytes());
-
+        // call site `open_document` routes through. The FR-018 switch
+        // already recorded it (`switch_to_document`), so this body
+        // never records a fingerprint of its own: the switch owns the
+        // handover, and the durable save it performs must land under
+        // the OUTGOING document's key.
         start_playback(state, pcm)?;
 
         let snapshot = {
@@ -4445,6 +4603,257 @@ mod open_document_tests {
                 Err("the session-start totals were not fed to the resolver".to_string())
             }
         }
+    }
+}
+
+/// T096 (FR-018) — the second-document durable save.
+///
+/// RED-first contract: picking a second document while a first
+/// one is playing or paused MUST durably save the FIRST
+/// document's last-spoken position under its OWN content
+/// fingerprint (FR-036), with the `Paused`/`Interrupted` end
+/// kind, BEFORE the incoming document is recorded; the first
+/// bookmark is NEVER deleted, and the incoming document starts
+/// at 0.0 with no stored row of its own (never an auto-start).
+///
+/// The test drives the REAL production path — the cold-start
+/// open (`open_document_bytes`) over a real redb file — never a
+/// mock: the row is read back through the store's own `get`.
+#[cfg(test)]
+mod second_document_tests {
+    use super::*;
+    use crate::commands::open_document_bytes;
+    use engine_core::closed::SessionEnd;
+
+    /// The first document: one heading and one spoken paragraph.
+    const FIRST: &[u8] = b"# Primeiro\n\nO onibus sai as seis.";
+    /// The second document: different content, so a different
+    /// content fingerprint (FR-036).
+    const SECOND: &[u8] = b"# Segundo\n\nO trem passa as sete.";
+
+    /// A fresh state whose bookmark store lives in a temp dir —
+    /// one redb file per test, dropped with it.
+    fn state_with_store() -> Result<(tempfile::TempDir, AppState), String> {
+        let dir = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let store =
+            BookmarkStore::open(&dir.path().join("bookmarks.redb")).map_err(|e| e.to_string())?;
+        Ok((dir, AppState::test_state_with_bookmark_store(store)))
+    }
+
+    /// The stored row under `fingerprint`, read back through the
+    /// store's own `get` — the same read the cold-start resume
+    /// path performs.
+    fn stored_row(
+        state: &AppState,
+        fingerprint: &[u8; 32],
+    ) -> Result<Option<StoredPosition>, String> {
+        state
+            .bookmark_store
+            .lock()
+            .map_err(|e| e.to_string())?
+            .as_mut()
+            .ok_or("no bookmark store")?
+            .get(fingerprint)
+            .map_err(|e| e.to_string())
+    }
+
+    /// Open the first document and place its session at a known
+    /// position, then land the given transport verb: the
+    /// audible-progress feed is the production clock (FR-002), and
+    /// no durable write has happened yet (the 20 s heartbeat belongs
+    /// to the app runtime, never to the test).
+    ///
+    /// The position is fed BEFORE the landing verb, so a
+    /// position-retaining landing (`Pause`, `Interrupt`) keeps the
+    /// last-spoken position and a position-discarding landing
+    /// (`Stop`) drops it with the session.
+    fn open_first_at(state: &AppState, position_secs: f64, land: ShellVerb) -> Result<(), String> {
+        // The cold-start open: on a device-less host it answers the
+        // named backend refusal, but the document's fingerprint is
+        // recorded either way (FR-036).
+        let _opened = open_document_bytes(state, FIRST.to_vec());
+        let mut session = state.session.lock().map_err(|e| e.to_string())?;
+        if session.snapshot().transport != TransportState::Playing {
+            let _landed = session
+                .execute(ShellVerb::Play)
+                .map_err(|e| e.to_string())?;
+        }
+        session.on_audible_progress(position_secs);
+        if land != ShellVerb::Play {
+            let _landed = session.execute(land).map_err(|e| e.to_string())?;
+        }
+        drop(session);
+        Ok(())
+    }
+
+    /// Assert a stored offset matches the expected last-spoken
+    /// position within a floating-point epsilon: the stored row
+    /// round-trips through `f64`, so the comparison is an epsilon
+    /// bound, never a strict one.
+    fn assert_offset(actual: f64, expected: f64, what: &str) {
+        assert!(
+            (actual - expected).abs() < 1e-9,
+            "{what}: the saved offset is {actual}, expected {expected}"
+        );
+    }
+
+    /// T096: the first document's bookmark is durable after the
+    /// switch, under its OWN fingerprint, with the deliberate end
+    /// kind — and the incoming document starts from zero.
+    #[test]
+    fn picking_a_second_document_saves_the_first_bookmark() -> Result<(), String> {
+        let (_dir, state) = state_with_store()?;
+        let first_fp = fingerprint::fingerprint(FIRST);
+        let second_fp = fingerprint::fingerprint(SECOND);
+
+        open_first_at(&state, 42.5, ShellVerb::Play)?;
+        assert_eq!(
+            current_fingerprint(&state),
+            Some(first_fp),
+            "the first open must record the first document's fingerprint"
+        );
+        assert!(
+            stored_row(&state, &first_fp)?.is_none(),
+            "the first document must carry no stored row before the switch"
+        );
+
+        // The switch: a second document is picked.
+        let _opened = open_document_bytes(&state, SECOND.to_vec());
+
+        let row = stored_row(&state, &first_fp)?
+            .ok_or("the first document's bookmark was not persisted by the switch (FR-018)")?;
+        assert_offset(
+            row.offset_secs,
+            42.5,
+            "the saved row must carry the last-spoken position",
+        );
+        assert_eq!(
+            row.end_kind,
+            SessionEnd::Paused,
+            "a deliberate document switch saves the `paused` end kind (FR-018 / FR-044)"
+        );
+        // The first bookmark is NEVER deleted by the switch.
+        assert!(
+            stored_row(&state, &first_fp)?.is_some(),
+            "the switch deleted the first document's bookmark (FR-018)"
+        );
+        // The incoming document carries no stored row of its own:
+        // it starts at 0.0 with no offer (never an auto-start).
+        assert!(
+            stored_row(&state, &second_fp)?.is_none(),
+            "the switch wrote a stored row for the incoming document (FR-018)"
+        );
+        let snapshot = state.session.lock().map_err(|e| e.to_string())?.snapshot();
+        assert_offset(
+            snapshot.position_secs,
+            0.0,
+            "the incoming document must start at 0.0, never at the outgoing one's position",
+        );
+        Ok(())
+    }
+
+    /// T096: a PAUSED outgoing session saves the deliberate
+    /// `paused` end kind — the FR-032c continue-offer form — under
+    /// its own fingerprint, with its last-spoken position.
+    #[test]
+    fn a_paused_outgoing_session_saves_the_deliberate_paused_row() -> Result<(), String> {
+        let (_dir, state) = state_with_store()?;
+        let first_fp = fingerprint::fingerprint(FIRST);
+
+        open_first_at(&state, 17.25, ShellVerb::Pause)?;
+        assert_eq!(
+            state
+                .session
+                .lock()
+                .map_err(|e| e.to_string())?
+                .snapshot()
+                .transport,
+            TransportState::Paused,
+            "the outgoing session must be paused before the switch"
+        );
+
+        let _opened = open_document_bytes(&state, SECOND.to_vec());
+
+        let row = stored_row(&state, &first_fp)?
+            .ok_or("the paused session's bookmark was not persisted by the switch (FR-018)")?;
+        assert_offset(
+            row.offset_secs,
+            17.25,
+            "the saved row must carry the last-spoken position",
+        );
+        assert_eq!(
+            row.end_kind,
+            SessionEnd::Paused,
+            "a deliberate pause keeps the `paused` end kind (FR-018 / FR-044)"
+        );
+        Ok(())
+    }
+
+    /// T096: an INTERRUPTED outgoing session (a focus loss, a
+    /// removed device) saves the unexpected `interrupted` end kind —
+    /// the FR-032d explicit-resume form — so recovery from the row
+    /// never auto-starts.
+    #[test]
+    fn an_interrupted_outgoing_session_saves_the_interrupted_row() -> Result<(), String> {
+        let (_dir, state) = state_with_store()?;
+        let first_fp = fingerprint::fingerprint(FIRST);
+
+        open_first_at(&state, 8.5, ShellVerb::Interrupt)?;
+        assert_eq!(
+            state
+                .session
+                .lock()
+                .map_err(|e| e.to_string())?
+                .snapshot()
+                .transport,
+            TransportState::Interrupted,
+            "the outgoing session must be interrupted before the switch"
+        );
+
+        let _opened = open_document_bytes(&state, SECOND.to_vec());
+
+        let row = stored_row(&state, &first_fp)?
+            .ok_or("the interrupted session's bookmark was not persisted by the switch (FR-018)")?;
+        assert_offset(
+            row.offset_secs,
+            8.5,
+            "the saved row must carry the last-spoken position",
+        );
+        assert_eq!(
+            row.end_kind,
+            SessionEnd::Interrupted,
+            "an unexpected end keeps the `interrupted` end kind (FR-018 / FR-044)"
+        );
+        Ok(())
+    }
+
+    /// T096: a TERMINAL outgoing session owes no put — its own end
+    /// already deleted the row (FR-032f), and the switch must never
+    /// resurrect a discarded position.
+    #[test]
+    fn a_terminal_outgoing_session_owes_no_durable_row() -> Result<(), String> {
+        let (_dir, state) = state_with_store()?;
+        let first_fp = fingerprint::fingerprint(FIRST);
+
+        open_first_at(&state, 30.0, ShellVerb::Stop)?;
+        assert_eq!(
+            state
+                .session
+                .lock()
+                .map_err(|e| e.to_string())?
+                .snapshot()
+                .transport,
+            TransportState::Stopped,
+            "the outgoing session must be stopped before the switch"
+        );
+
+        let _opened = open_document_bytes(&state, SECOND.to_vec());
+
+        assert!(
+            stored_row(&state, &first_fp)?.is_none(),
+            "the switch resurrected a terminal session's discarded position (FR-032f)"
+        );
+        Ok(())
     }
 }
 

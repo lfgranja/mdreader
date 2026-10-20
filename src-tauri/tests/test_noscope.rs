@@ -313,6 +313,44 @@ fn no_external_urls_in_served_html_surfaces() {
     );
 }
 
+/// The manifest text with its XML comments removed. A comment
+/// DOCUMENTS the manifest; it declares nothing. The guard must
+/// read the declarations, not the prose — otherwise the artifact
+/// cannot even document why it omits the permission.
+fn without_xml_comments(text: &str) -> String {
+    let mut stripped = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(start) = rest.find("<!--") {
+        stripped.push_str(&rest[..start]);
+        match rest[start + 4..].find("-->") {
+            Some(end) => rest = &rest[start + 4 + end + 3..],
+            // An unterminated comment swallows the remainder.
+            None => return stripped,
+        }
+    }
+    stripped.push_str(rest);
+    stripped
+}
+
+/// T106: the pure-offline build must not even HOLD the INTERNET
+/// permission. A declared permission is a capability the
+/// platform grants BEFORE any code runs, so its absence is the
+/// strongest available statement that no egress can happen — a
+/// permission the app never asks for is a capability it can
+/// never use.
+#[test]
+fn manifest_declares_no_network_permission() -> Result<(), Box<dyn Error>> {
+    let root = repo_root();
+    let manifest = root.join("src-tauri/gen/android/app/src/main/AndroidManifest.xml");
+    let text = std::fs::read_to_string(&manifest)?;
+    let declarations = without_xml_comments(&text);
+    assert!(
+        !declarations.contains("android.permission.INTERNET"),
+        "the pure-offline manifest must not declare android.permission.INTERNET (FR-015, Principle IX)"
+    );
+    Ok(())
+}
+
 #[test]
 fn exactly_one_bundled_voice_directory() {
     let root = repo_root();

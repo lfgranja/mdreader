@@ -239,6 +239,18 @@ ALLOWLIST=(
   # the builders) — the same shape the purity tests above carry; it
   # asserts no playback logic.
   "$SRC_TAURI/tests/test_progress_label.rs"
+  # 004 in-app offer-dialog contract (T116): the test names the
+  # surface's OWN vocabulary to pin it — the transport/rate control
+  # verbs the in-app screen owns (`play`, `pause`, `stop`,
+  # `skip_forward5s`, `skip_back5s`, `rate_up`, `rate_down`), the
+  # two offer-choice verbs, and the identifiers a painted line may
+  # NEVER carry (`rate`, `positionSecs`, `position_secs`, `elapsed`,
+  # `remaining`, `voice`, …). The mention IS the assertion — the
+  # same shape as the purity tests above carry: the file POLICIES
+  # the vocabulary, it does not compute with it. Its occurrences
+  # are still adjudicated by Section 3 and by the T086 residue
+  # inventory below.
+  "$SRC_TAURI/tests/test_offer_dialog.rs"
 )
 
 is_allowlisted() {

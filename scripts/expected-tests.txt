@@ -70,6 +70,7 @@ session::prop_bookmark_durable_20s
 session::prop_bookmark_lifecycle
 session::prop_second_document_preserves_first_bookmark
 session::prop_end_kind_codes
+session::prop_explicit_resume_survives_expiry
 session::prop_fingerprint
 session::prop_ingest
 session::prop_offer
@@ -78,6 +79,7 @@ session::test_ingest_cli
 session::test_offer3s
 src-tauri
 src-tauri::test_kotlin_mirror_payload
+src-tauri::test_lockscreen_resume_control
 src-tauri::test_noscope
 src-tauri::test_offer_dialog
 src-tauri::test_publish_payload

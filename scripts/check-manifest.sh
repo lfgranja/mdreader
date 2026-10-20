@@ -21,6 +21,20 @@
 #     off needs the permission declared, or the haptic
 #     metaphor silently no-ops on a real device)
 #
+# Asserts the ABSENCE of the INTERNET permission (FR-015 /
+# Principle IX, T106): the pure-offline build must not even HOLD
+# it. A declared permission is a capability the platform grants
+# BEFORE any code runs, so its absence is the strongest
+# available statement that no egress can happen — a permission
+# the app never asks for is a capability it can never use. The
+# check reads the DECLARATIONS, not the prose: the manifest
+# documents WHY the permission is absent in an XML comment, and a
+# comment declares nothing, so the comments are stripped before
+# the absence is judged (the same discipline the behavioural
+# guard in `src-tauri/tests/test_noscope.rs` applies). The
+# behavioural guard there stays; this assertion is what makes
+# the gate match the T106 claim.
+#
 # Asserts the SC-032 floor (T081): the application declares
 # minSdk 29. The built Android project declares it as a Gradle
 # `minSdk` property (Tauri generates `minSdk = 29` into
@@ -61,6 +75,47 @@ fail() {
   exit 1
 }
 
+# The manifest's DECLARATIONS, with every XML comment removed: a
+# comment documents the manifest, it declares nothing. The
+# pure-offline build documents why the INTERNET permission is
+# absent in a comment, and that documentation must not fail the
+# gate — but a comment must not be able to hide a declaration
+# either, so the whole text is scanned and only the commented
+# spans are dropped.
+#
+# Multi-line comments are handled (the manifest's own comment
+# spans several lines) and an unterminated comment swallows the
+# remainder — the same rule `src-tauri/tests/test_noscope.rs`
+# applies, so the gate and the behavioural guard judge the same
+# text.
+strip_xml_comments() {
+  awk '
+    BEGIN { in_comment = 0 }
+    {
+      line = $0
+      if (in_comment) {
+        end = index(line, "-->")
+        if (end == 0) next
+        line = substr(line, end + 3)
+        in_comment = 0
+      }
+      while (1) {
+        start = index(line, "<!--")
+        if (start == 0) break
+        rest = substr(line, start + 4)
+        end = index(rest, "-->")
+        if (end == 0) {
+          line = substr(line, 1, start - 1)
+          in_comment = 1
+          break
+        }
+        line = substr(line, 1, start - 1) substr(rest, end + 3)
+      }
+      print line
+    }
+  ' "$1"
+}
+
 # Missing input fails closed.
 [ -f "$MANIFEST" ] \
   || fail "built manifest not found: $MANIFEST (run the Android build first; a missing manifest is a failed check, not a pass)"
@@ -79,6 +134,16 @@ require_pattern() {
   fi
 }
 
+# The mirror of require_pattern: a pattern that MUST NOT appear in
+# the text. Same full-consumption grep (no -q) for the same
+# SIGPIPE reason.
+reject_pattern() {
+  local text="$1" label="$2" pattern="$3"
+  if [ -n "$(printf '%s' "$text" | grep -E "$pattern" || true)" ]; then
+    fail "$label"
+  fi
+}
+
 require_pattern 'the mediaPlayback foreground service declaration' \
   '<service[^>]*android:foregroundServiceType="mediaPlayback"'
 require_pattern 'the FOREGROUND_SERVICE permission' \
@@ -92,6 +157,24 @@ require_pattern 'the POST_NOTIFICATIONS permission (FR-021 / T030b)' \
 # haptic metaphor silently no-ops on a real device.
 require_pattern 'the VIBRATE permission (FR-016 / T031)' \
   'android\.permission\.VIBRATE"'
+
+# FR-015 / Principle IX (T106): the pure-offline build must not
+# even HOLD the INTERNET permission. A declared permission is a
+# capability the platform grants BEFORE any code runs, so its
+# absence is the strongest available statement that no egress can
+# happen — a permission the app never asks for is a capability it
+# can never use.
+#
+# Judged on the DECLARATIONS (the comments stripped), so the
+# manifest may DOCUMENT the omission without failing the gate —
+# and so a comment can never hide a declaration either. The
+# behavioural guard in `src-tauri/tests/test_noscope.rs` stays;
+# this assertion is what makes the gate itself match the T106
+# claim.
+declarations="$(strip_xml_comments "$MANIFEST" | tr '\n' ' ')"
+reject_pattern "$declarations" \
+  'the manifest declares android.permission.INTERNET (FR-015 / Principle IX: the pure-offline build must not HOLD the INTERNET permission — a declared permission is a capability the platform grants before any code runs, so its absence is the strongest available statement that no egress can happen)' \
+  'android\.permission\.INTERNET'
 
 # SC-032 (T081): the application declares the Android 10 (API 29)
 # floor. Mechanical form: a `minSdk`/`minSdkVersion` declaration

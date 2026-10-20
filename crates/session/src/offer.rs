@@ -336,6 +336,16 @@ impl OfferMachine {
     /// FR-031); an explicit-resume requirement
     /// stands as itself (FR-032d / SC-021). The
     /// window ends: nothing remains open.
+    ///
+    /// The explicit-resume requirement LATCHES (FR-009 /
+    /// FR-032d): it stands until the reader resumes,
+    /// so EVERY expiry answers the explicit-resume
+    /// form — never "no offer", and never the
+    /// automatic start (FR-031). The window elapsing
+    /// never clears it: only the next open decision
+    /// ([`resolve_open`](Self::resolve_open)), the
+    /// start-over choice, and the completion teardown
+    /// do.
     #[must_use]
     pub const fn expire(&mut self) -> ExpiryOutcome {
         if let Some(offer) = self.offer.take() {
@@ -354,9 +364,11 @@ impl OfferMachine {
         }
         if self.explicit_resume {
             // The explicit-resume requirement stands
-            // at expiry (FR-032d) — and the window
-            // ends with it.
-            self.explicit_resume = false;
+            // at expiry (FR-032d) — and it LATCHES:
+            // the reader's explicit resume is the only
+            // start (FR-009 / FR-031), so the
+            // requirement survives every expiry of the
+            // offer window.
             return ExpiryOutcome::ExplicitResume;
         }
         ExpiryOutcome::NoOffer
@@ -533,5 +545,33 @@ mod tests {
             OpenOffer::ExplicitResume
         );
         assert_eq!(machine.continue_offer(), None);
+    }
+
+    #[test]
+    fn the_explicit_resume_requirement_latches_across_expiries() {
+        // FR-009 / FR-032d: an unexpected end leaves the
+        // explicit-resume requirement standing, and the
+        // requirement SURVIVES every expiry of the offer
+        // window: the reader's explicit resume is the only
+        // start (FR-031), so the expiry never downgrades it
+        // to "no offer" and never reaches the automatic
+        // start.
+        let mut machine = OfferMachine::new();
+        assert_eq!(
+            machine.resolve_open(Some(stored(SessionEnd::Interrupted))),
+            OpenOffer::ExplicitResume
+        );
+        assert_eq!(machine.expire(), ExpiryOutcome::ExplicitResume);
+        assert_eq!(machine.expire(), ExpiryOutcome::ExplicitResume);
+        assert_eq!(machine.expire(), ExpiryOutcome::ExplicitResume);
+        assert!(!matches!(machine.expire(), ExpiryOutcome::AutoStart { .. }));
+        // The start-over choice clears the requirement: the
+        // reader asked for the first spoken position (FR-032c),
+        // and nothing remains open afterwards (FR-032f).
+        assert_eq!(
+            machine.start_over(),
+            ExpiryOutcome::AutoStart { offset_secs: 0.0 }
+        );
+        assert_eq!(machine.expire(), ExpiryOutcome::NoOffer);
     }
 }

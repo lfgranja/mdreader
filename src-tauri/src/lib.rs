@@ -1761,13 +1761,21 @@ pub(crate) fn expire_parked_open(state: &AppState) {
 /// * [`ExpiryOutcome::ExplicitResume`] — nothing starts on its
 ///   own (FR-032d / FR-031). The reader's explicit resume is the
 ///   only start, and it starts at the stored position the parked
-///   open holds — the row the offer was opened from.
-/// * [`ExpiryOutcome::NoOffer`] — nothing is open: the parked
-///   open is dropped.
+///   open holds — the row the offer was opened from. The requirement
+///   LATCHES: it survives every expiry of the offer window, and the
+///   parked open waits for the reader (FR-009).
+/// * [`ExpiryOutcome::NoOffer`] — nothing is open. The reader's
+///   resume still starts the reading at the stored position the
+///   parked open holds; with no choice, the parked open WAITS — it
+///   is never dropped (FR-009 / FR-018).
 ///
 /// The start-over choice discards the stored entry (FR-032c):
 /// the stored position is no longer a resume point once the
 /// reader asked to start over.
+///
+/// The re-park keeps the SAME open — the same `opened_at` — so the
+/// app never opens a second offer window over the same requirement
+/// (FR-009).
 ///
 /// Returns whether the reading started. A start that the
 /// synthesis path refuses records its own named refusal (FR-017)
@@ -1811,7 +1819,10 @@ pub(crate) fn resolve_parked_open(state: &AppState, resolution: ParkedResolution
                 // The window elapsed on an unexpected end:
                 // nothing starts on its own — the reader's
                 // explicit resume is the only start, so the
-                // parked open waits (FR-032d / FR-031).
+                // parked open waits (FR-032d / FR-031). The
+                // re-park keeps the SAME open — the same
+                // `opened_at` — so no second offer window opens
+                // over the same requirement (FR-009).
                 repark_cold_start(state, pending);
                 false
             }
@@ -1823,6 +1834,12 @@ pub(crate) fn resolve_parked_open(state: &AppState, resolution: ParkedResolution
                 // stored position the parked open holds.
                 start_parked_reading(state, &pending, pending.offset_secs)
             } else {
+                // The window elapsed with nothing open: the parked
+                // open WAITS — the reader's explicit resume is the
+                // only start (FR-009 / FR-032d). Dropping it would
+                // abandon the reading and the document with it
+                // (FR-018), so the same open is re-parked.
+                repark_cold_start(state, pending);
                 false
             }
         }
@@ -6522,6 +6539,88 @@ mod cold_start_gate_tests {
             !pending_open_exists(&state),
             "the resolved cold start left a parked open behind (FR-032f)"
         );
+        Ok(())
+    }
+
+    /// T115: an unexpected end parks the cold start behind the
+    /// explicit-resume requirement, and the requirement SURVIVES the
+    /// offer-window expiries — the parked open is never abandoned,
+    /// and the reader's resume is the only start, at the stored
+    /// position (FR-009 / FR-032d / FR-031).
+    ///
+    /// The requirement is a LATCH, not a one-shot answer: the poll
+    /// that finds the window elapsed re-resolves the parked open, and
+    /// the answer it gets is the explicit-resume form again — never
+    /// "no offer", and never the automatic start.
+    #[test]
+    fn the_parked_cold_start_survives_the_offer_window_expiry() -> Result<(), String> {
+        let (_dir, state) = state_with_store()?;
+        store_row(&state, SessionEnd::Interrupted)?;
+
+        let payload = open_document_bytes(&state, DOC.to_vec()).map_err(|e| e.to_string())?;
+        assert_eq!(
+            payload["offer_route"], "lockscreen_resume",
+            "an unexpected end must route to the lock-screen resume control (FR-032d)"
+        );
+        assert_eq!(
+            payload["status"], "paused",
+            "a gated cold start must not report a playing state (FR-005 / FR-031)"
+        );
+        assert!(
+            pending_open_exists(&state),
+            "an unexpected end did not park the cold start (FR-032d)"
+        );
+
+        // The offer window elapses: nothing starts on its own, and
+        // the parked open WAITS — the reader's explicit resume is the
+        // only start (FR-009 / FR-032d / FR-031).
+        for expiry in 1..=3 {
+            let started = resolve_parked_open(&state, ParkedResolution::WindowElapsed);
+            assert!(
+                !started,
+                "the offer-window expiry {expiry} started the reading on its own (FR-031)"
+            );
+            assert!(
+                pending_open_exists(&state),
+                "the offer-window expiry {expiry} abandoned the parked cold start (FR-009 / FR-032d)"
+            );
+            // The session never reached `Playing`: no audio began.
+            let snapshot = state.session.lock().map_err(|e| e.to_string())?.snapshot();
+            assert_ne!(
+                snapshot.transport,
+                TransportState::Playing,
+                "the offer-window expiry {expiry} started audio on its own (FR-031)"
+            );
+        }
+
+        // The reader's resume is the ONLY start: it begins the
+        // reading at the stored position the parked open holds.
+        let started = resolve_parked_open(&state, ParkedResolution::ReaderResumed);
+        if backend_available() {
+            assert!(
+                started,
+                "the reader's explicit resume did not start the reading (FR-032d)"
+            );
+            let snapshot = state.session.lock().map_err(|e| e.to_string())?.snapshot();
+            assert_eq!(
+                snapshot.transport,
+                TransportState::Playing,
+                "the reader's explicit resume did not start the reading (FR-032d)"
+            );
+            assert_offset(
+                snapshot.position_secs,
+                STORED_OFFSET_SECS,
+                "the reader's explicit resume did not begin at the stored position (FR-032d)",
+            );
+        } else {
+            // A device-less host answers the named backend
+            // refusal: the reading never began, and the resolution
+            // reported that it did not.
+            assert!(
+                !started,
+                "the resolution reported a started reading on a device-less host"
+            );
+        }
         Ok(())
     }
 

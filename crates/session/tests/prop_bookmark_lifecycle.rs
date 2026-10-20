@@ -513,11 +513,15 @@ proptest! {
             "an unexpected end auto-started audio (FR-032d, FR-031)"
         );
 
-        // The window ended with it: a second expiry yields nothing.
+        // The requirement LATCHES: it survives every expiry of the
+        // offer window. The reader's explicit resume is the only
+        // start (FR-009 / FR-032d / FR-031), so a repeated expiry
+        // answers the explicit-resume form again — never "no offer",
+        // and never the automatic start.
         prop_assert_eq!(
             machine.expire(),
-            ExpiryOutcome::NoOffer,
-            "an expiry repeated after the explicit resume (FR-032f)"
+            ExpiryOutcome::ExplicitResume,
+            "an expiry downgraded the explicit-resume requirement — the requirement must survive every expiry (FR-009 / FR-032d)"
         );
 
         // The explicit resume is the only route in: the start-over

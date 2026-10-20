@@ -77,7 +77,17 @@ class Residency(
         const val INTENT_LIFECYCLE_UNMAPPED = "lifecycle_unmapped"
 
         private const val CHANNEL_ID = "mdreader_resident"
-        private const val CHANNEL_NAME = "Resident"
+
+        /**
+         * Notification channel display name — pt-BR (FR-011):
+         * the platform renders this name verbatim in the
+         * system's notification-channel settings, so it is a
+         * user-visible string like every other one this class
+         * publishes — not a diagnostic identifier, and never
+         * an English word the reader sees. It is the resident
+         * surface's counterpart of the media surface's "Mídia".
+         */
+        private const val CHANNEL_NAME = "Residente"
 
         /** Notification id of the single resident surface. The resident
          * component is the playback service itself (FR-009a), so this is
@@ -94,9 +104,34 @@ class Residency(
         private const val REQUEST_SWIPE_AWAY = 1
         private const val REQUEST_LAUNCH = 2
 
-        private const val RESUME_LABEL = "Resume"
-        private const val RESIDENT_STOP_LABEL = "Stop"
-        private const val RESIDENT_CONTENT_TEXT = "Paused"
+        /**
+         * Label of the resume control — pt-BR (FR-011): every
+         * user-visible string the resident surface renders is
+         * pt-BR, and this one names the affordance alone — the
+         * verb that continues the reading, never a state, never
+         * a value, never document text. It is the same word the
+         * media surface's resume action uses ("Retomar"), so
+         * the two surfaces speak one language.
+         */
+        private const val RESUME_LABEL = "Retomar"
+
+        /**
+         * Label of the resident-stop control — pt-BR (FR-011):
+         * the verb that ends residency and preserves the stored
+         * bookmark, never a value and never document text. It is
+         * the same word the in-app Stop control carries
+         * ("Parar"), so the reader meets one vocabulary.
+         */
+        private const val RESIDENT_STOP_LABEL = "Parar"
+
+        /**
+         * The paused-state line of the resident surface — pt-BR
+         * (FR-011): a state word and nothing else — no elapsed
+         * or remaining time, never a multiplier, never a voice
+         * identity, never document text. It is the same word
+         * the contract's pt-BR reason lines carry ("pausado").
+         */
+        private const val RESIDENT_CONTENT_TEXT = "Pausado"
     }
 
     /**

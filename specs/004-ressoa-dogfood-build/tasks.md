@@ -527,3 +527,21 @@ Subagent E: "T032 rewind.rs + resume.rs sentence-snap (independent)"
 
 **Dependencies / order:** T096 (FR-018 auto-save) blocks device T051; T097 (diag wiring) blocks T052; T098/T106 (offline purity) independent; T099 (contract reconcile) independent; T100/T101 (label/line fixes) independent; T102 (tasks.md cleanup) independent; T103/T104 (surface fixes) independent; T105 (contract copy) independent; T107 (commit cleanup) last. All [P] tasks may run in parallel on disjoint files; shared tooling (cargo) serialized per user rule.
 
+---
+
+## Phase 15 Addendum: Convergence
+
+> Source: `cargo clippy` gate evidence during Phase 15 implementation (clippy 1.98 `lint_groups_priority`), constitution v1.8.0 Rust Code Rigor MUST (`clippy::all`/`pedantic` deny, gate 4/5). Regression introduced by commit `811e23b` (T095), which reverted the `priority = -1` overrides on the `nursery`/`cargo` lint groups. Appended as a new traceable task; no existing task rewritten or renumbered.
+
+### Convergence Findings (in-session, before append)
+
+| ID | Gap Type | Severity | Source | Evidence | Remediation (tasks below) |
+|----|----------|----------|--------|----------|---------------------------|
+| F1 | contradicts | CRITICAL | Constitution Rust Code Rigor MUST · gate 4/5 | `Cargo.toml:28-29` — `nursery = "warn"` / `cargo = "warn"` carry an implicit priority of 0, colliding with individual lints (`multiple_crate_versions = "deny"`); clippy 1.98 `lint_groups_priority` errors on EVERY crate: "lint group `cargo` has the same priority (0) as a lint" | T108 |
+
+**Gate evidence (this run):** `cargo clippy -p doc-structure --all-targets -- -D warnings` → exit 101 with 2 `lint_groups_priority` errors; `cargo clippy -p cleanroom-core` → package not a workspace member (crate is excluded from the workspace, so its metadata fix from `0ccd303` is inert). Commit `811e23b` diff confirms the `priority = -1` removal; `1e8ef5b` (T070) had added it.
+
+### Phase 15 Addendum Tasks (append-only; zero renumber of T001–T107)
+
+- [ ] T108 [P] (CRITICAL) Restore the lint-group priority overrides in the workspace `Cargo.toml` lint table: `nursery = { level = "warn", priority = -1 }` and `cargo = { level = "warn", priority = -1 }` so specific lints (`multiple_crate_versions = "deny"`, `unwrap_used`/`expect_used`/`panic` denies) override the groups; this REVERTS the regression introduced by `811e23b` and satisfies clippy 1.98 `lint_groups_priority`; gate: `cargo clippy --workspace --all-targets -- -D warnings` exits 0; NEVER weaken any lint level (Constitution Rust Code Rigor MUST) (`contradicts`)
+

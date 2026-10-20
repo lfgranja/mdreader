@@ -524,6 +524,16 @@
       closeOffer();
       return;
     }
+    // The offer belongs to a REOPEN (FR-009: "when reopening a
+    // deliberately paused document"), so it belongs to a document
+    // with no reading running: the transport the surface already
+    // mirrors is the only witness it has of a live reading, and a
+    // pause inside a running document is never an offer.
+    if (state.transport !== 'stopped') {
+      offer.shown = false;
+      closeOffer();
+      return;
+    }
     if (offer.shown) {
       return; // this offer episode is already on screen
     }
@@ -664,6 +674,13 @@
       // Update rate index from current rate if it changed
       const rateIdx = LADDER.findIndex(r => Math.abs(r - state.rate) < 0.01);
       if (rateIdx >= 0) rateIndex = rateIdx;
+
+      // A torn-down session ends the offer episode: the document
+      // the offer belonged to is gone (an explicit stop, a document
+      // switch), so a later offer opens the dialog again.
+      if (state.transport === 'stopped') {
+        offer.shown = false;
+      }
 
       renderAll();
       refreshOffer();

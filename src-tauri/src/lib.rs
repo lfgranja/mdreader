@@ -1480,6 +1480,18 @@ fn take_play_to_audio_ms(state: &AppState) -> Option<String> {
     Some(latency_ms.to_string())
 }
 
+/// Close the play-to-audio clock at the first audible audio (T113 /
+/// FR-017): the backend's stream start on the FIRST synthesized
+/// chunk IS the first audible audio of the request, so the measured
+/// latency is the FR-003 bound — the time to the first speech — and
+/// never the time the whole document's synthesis took.
+///
+/// The measurement is left pending, exactly as the clock's own
+/// closer leaves it: the next entry that can carry it reports it.
+fn note_first_audible(state: &AppState) {
+    let _measured = take_play_to_audio_ms(state);
+}
+
 /// The measured play-to-audio latency, consumed by the next entry
 /// that can carry it (T097).
 fn take_play_to_audio_ms_pending(state: &AppState) -> Option<String> {
@@ -1867,20 +1879,25 @@ fn resolve_parked_choice(state: &AppState, verb: ShellVerb) -> Result<serde_json
         "offer_resolved": started,
     }))
 }
-/// The PCM that begins at `offset_secs` (T110): the samples
-/// before the resolved position are never played, so a cold start
-/// that continued from its resume offer enters the audio where
-/// the offer continued from (FR-009).
+/// The PCM that begins at the sample `skip_samples` names (T110 /
+/// T113): the samples before the resolved position are never played,
+/// so a cold start that continued from its resume offer enters the
+/// audio where the offer continued from (FR-009).
 ///
-/// An offset past the end of the audio yields no samples: the
-/// reading has nothing left to play, and the caller starts
-/// nothing.
-fn pcm_from_offset(pcm: &[f32], offset_secs: f64) -> Vec<f32> {
-    let start = sample_index_of(offset_secs);
+/// The entry is a SAMPLE INDEX, not a second count: the engine's
+/// declared rate is the only clock the PCM carries, and the sample
+/// index is the exact position the resolved offset names — the
+/// conversion lives in [`sample_index_of`], so the streaming path
+/// (T113) trims every chunk against the SAME exact position the
+/// whole-document path trimmed against.
+///
+/// A sample index past the end of the audio yields no samples: the
+/// reading has nothing left to play, and the caller starts nothing.
+fn pcm_from_sample(pcm: &[f32], skip_samples: usize) -> Vec<f32> {
+    let start = skip_samples.min(pcm.len());
     if start == 0 {
         return pcm.to_vec();
     }
-    let start = start.min(pcm.len());
     pcm[start..].to_vec()
 }
 
@@ -2104,7 +2121,15 @@ fn feed_audible_progress(state: &AppState, position_secs: f64, watch: &mut Playb
     // state locks are ever held together (the crate's lock
     // discipline) — the measurement is best-effort, so a lost race
     // costs one measurement, never a deadlock.
-    let measured = take_play_to_audio_ms(state);
+    //
+    // The clock is closed by the FIRST AUDIBLE audio of the request
+    // (T113): the streaming path starts the backend on the first
+    // chunk, so the measured latency is already pending when the
+    // first credit arrives. The pending value is the measurement this
+    // entry carries — the fallback covers the case where the clock
+    // was closed earlier (T113) and the closer itself has nothing
+    // left to give.
+    let measured = take_play_to_audio_ms(state).or_else(|| take_play_to_audio_ms_pending(state));
     let Ok(guard) = state.session.lock() else {
         return;
     };
@@ -2347,12 +2372,12 @@ pub mod commands {
     use crate::{
         DEFAULT_DOCUMENT_FILENAME, OfferRoute, after_background, after_execute, after_skip,
         current_fingerprint, delete_bookmark, diag_focus_name, diag_focus_value,
-        diag_section_index, document_title, note_play_request, note_removal_request,
-        note_resume_origin, offer_route_wire, park_cold_start, pcm_from_offset,
-        pending_open_exists, persist_last_rate, rate_press_of, record_buffer_state,
-        record_focus_transition, record_named_refusal, record_output_device, record_rate_change,
-        record_refusal, record_section_progress, resolve_parked_choice, route_offer,
-        seed_session_rate, switch_to_document,
+        diag_section_index, document_title, note_first_audible, note_play_request,
+        note_removal_request, note_resume_origin, offer_route_wire, park_cold_start,
+        pcm_from_sample, pending_open_exists, persist_last_rate, rate_press_of,
+        record_buffer_state, record_focus_transition, record_named_refusal, record_output_device,
+        record_rate_change, record_refusal, record_section_progress, resolve_parked_choice,
+        route_offer, sample_index_of, seed_session_rate, switch_to_document,
     };
     use diag::writer::{DeviceDirection, DeviceEvent, ErrorValue, FocusValue};
 
@@ -3735,39 +3760,101 @@ pub mod commands {
             .collect()
     }
 
-    /// Synthesize every bounded segment into one PCM buffer and
-    /// return it with the spoken duration at the declared handoff
-    /// rate (T019 / FR-003): the first segment synthesizes first
-    /// so its PCM can start while the rest synthesize (the SC-002
-    /// ≤3 s ordering). A chunk the bound offline engine refuses is
-    /// the named [`OpenError::Synthesis`].
+    /// The streaming synthesis's totals (T113 / FR-003): the
+    /// document's spoken duration and the samples actually played from
+    /// the resume entry on.
+    #[derive(Debug, Clone, Copy)]
+    struct StreamedSynthesis {
+        /// The document's spoken duration, in seconds — the
+        /// resolver's projection basis, fixed at session start
+        /// (FR-028a).
+        duration_secs: f64,
+        /// The samples played from the resume entry on — the audio
+        /// the reading actually carries (FR-009).
+        played_samples: usize,
+    }
+
+    /// Synthesize the document segment by segment and hand every chunk
+    /// to the backend as it is produced (T113 / FR-003).
+    ///
+    /// The FIRST chunk is enqueued and the backend is started BEFORE
+    /// the second segment is synthesized: the first audible speech
+    /// arrives while the rest of the document is still being
+    /// synthesized, which is what the SC-002 ≤3 s bound names. The
+    /// whole document's PCM never exists in one buffer — every chunk
+    /// reaches the queue as its OWN buffer, so the queue holds the
+    /// speech produced so far and never a whole-document accumulator.
+    ///
+    /// The resume entry (T110) trims the samples before the resolved
+    /// position: the samples before it are never played (FR-009), and
+    /// the samples after it are the ones the reading continues from.
+    ///
+    /// # Errors
+    ///
+    /// * [`OpenError::Synthesis`] when a chunk cannot be synthesized
+    ///   by the bound offline engine.
+    /// * [`OpenError::Backend`] when the backend refuses the chunk or
+    ///   the stream start — a refusal, never a silent start (FR-005).
     #[expect(
         clippy::cast_precision_loss,
         reason = "PCM sample counts are always small (≤ millions), well within f64's 52-bit mantissa"
     )]
-    fn synthesize_segments(
+    fn stream_synthesis(
         segments: &[adapter_synthesis::chunk::DocumentSegment],
-    ) -> Result<(Vec<f32>, f64), OpenError> {
-        let mut pcm = Vec::new();
-        if let Some(first) = segments.first() {
-            let first_buf = adapter_synthesis::synth::synthesize(first).map_err(|failure| {
+        state: &AppState,
+        start_offset_secs: f64,
+    ) -> Result<StreamedSynthesis, OpenError> {
+        // The samples before the resume entry are never played
+        // (FR-009): the count is the exact sample index the resolved
+        // position names, and it shrinks as the chunks arrive.
+        let mut samples_before_entry = sample_index_of(start_offset_secs);
+        let mut total_samples = 0usize;
+        let mut played_samples = 0usize;
+        let mut started = false;
+        for segment in segments {
+            // The chunk the bound offline engine produced for this
+            // segment: a refused chunk is the named
+            // [`OpenError::Synthesis`].
+            let chunk = adapter_synthesis::synth::synthesize(segment).map_err(|failure| {
                 OpenError::Synthesis {
                     reason: format!("{failure:?}"),
                 }
             })?;
-            pcm.extend_from_slice(&first_buf);
-            // First chunk enqueued before remaining synthesis — meets ≤3 s.
+            total_samples += chunk.len();
+            let dropped = samples_before_entry.min(chunk.len());
+            samples_before_entry -= dropped;
+            let chunk = pcm_from_sample(&chunk, dropped);
+            if chunk.is_empty() {
+                // The whole chunk sits before the resume entry: it
+                // carries no audible sample, and the reading waits
+                // for the chunk that does (FR-009).
+                continue;
+            }
+            played_samples += chunk.len();
+            // The chunk reaches the backend as its OWN buffer — never
+            // an accumulator the whole document's PCM was grown into
+            // (FR-003).
+            enqueue_chunk(state, chunk)?;
+            if !started {
+                // The first chunk is queued: the backend starts on it,
+                // and the rest of the document synthesizes while it
+                // plays (FR-003 / SC-002).
+                start_backend(state)?;
+                // The FR-017 diagnostic record (T097 / T113): the
+                // first audible audio of this request closes the
+                // play-to-audio clock — the stream start IS the first
+                // audible speech, so the measured latency is the
+                // FR-003 bound, never the whole document's synthesis
+                // time.
+                note_first_audible(state);
+                started = true;
+            }
         }
-        for segment in segments.iter().skip(1) {
-            let buffer = adapter_synthesis::synth::synthesize(segment).map_err(|failure| {
-                OpenError::Synthesis {
-                    reason: format!("{failure:?}"),
-                }
-            })?;
-            pcm.extend_from_slice(&buffer);
-        }
-        let duration_secs = pcm.len() as f64 / DECLARED_RATE_HZ;
-        Ok((pcm, duration_secs))
+        let duration_secs = total_samples as f64 / DECLARED_RATE_HZ;
+        Ok(StreamedSynthesis {
+            duration_secs,
+            played_samples,
+        })
     }
 
     /// Install the session-start structure (T019 / FR-028a): write
@@ -3803,10 +3890,12 @@ pub mod commands {
         Ok(())
     }
 
-    /// Open (or reuse) the audio backend and start the handed PCM
-    /// (T019 / FR-005): the declared handoff shape or the named
-    /// [`OpenError::Backend`] refusal, never a silent start.
-    fn start_playback(state: &AppState, pcm: Vec<f32>) -> Result<(), OpenError> {
+    /// Open (or reuse) the audio backend (T019 / FR-005): the
+    /// backend is opened once per session and reused for every chunk
+    /// the streaming path hands it (T113). The declared handoff shape
+    /// or the named [`OpenError::Backend`] refusal, never a silent
+    /// start.
+    fn open_backend(state: &AppState) -> Result<(), OpenError> {
         let mut backend = state.backend.lock().map_err(|error| OpenError::Backend {
             reason: error.to_string(),
         })?;
@@ -3816,15 +3905,45 @@ pub mod commands {
             })?;
             *backend = Some(opened);
         }
+        drop(backend);
+        Ok(())
+    }
+
+    /// Hand one synthesized chunk to the backend's playback queue
+    /// (T113 / FR-003): the chunk is enqueued as its OWN buffer, so
+    /// the queue never holds a whole-document accumulator — the
+    /// first chunk is audible while the rest still synthesizes.
+    fn enqueue_chunk(state: &AppState, chunk: Vec<f32>) -> Result<(), OpenError> {
+        let backend = state.backend.lock().map_err(|error| OpenError::Backend {
+            reason: error.to_string(),
+        })?;
         let device = backend.as_ref().ok_or_else(|| OpenError::Backend {
             reason: "no audio backend".to_string(),
         })?;
-        device.enqueue_pcm(pcm);
-        device.play().map_err(|error| OpenError::Backend {
-            reason: error.to_string(),
-        })?;
+        device.enqueue_pcm(chunk);
         drop(backend);
         Ok(())
+    }
+
+    /// Start the backend's output stream (T019 / FR-005): the
+    /// declared handoff shape or the named [`OpenError::Backend`]
+    /// refusal, never a silent start.
+    ///
+    /// The stream starts on the FIRST chunk the streaming path queued
+    /// (T113 / FR-003): the audio begins while the rest of the
+    /// document is still being synthesized.
+    fn start_backend(state: &AppState) -> Result<(), OpenError> {
+        let backend = state.backend.lock().map_err(|error| OpenError::Backend {
+            reason: error.to_string(),
+        })?;
+        let device = backend.as_ref().ok_or_else(|| OpenError::Backend {
+            reason: "no audio backend".to_string(),
+        })?;
+        let started = device.play().map_err(|error| OpenError::Backend {
+            reason: error.to_string(),
+        });
+        drop(backend);
+        started
     }
 
     /// Split, synthesize, enqueue, and start one document —
@@ -3884,12 +4003,14 @@ pub mod commands {
     /// engine's voice model is loaded exactly once (the
     /// adapter caches it — never a per-segment load), the
     /// document is split into bounded chunks before any
-    /// synthesis, and the PCM is enqueued and started the
-    /// moment synthesis completes. A missed bound is fixed
-    /// HERE — the first-segment ordering (start the first
-    /// chunk's PCM while the rest synthesizes) is this body's
-    /// change, never another task's — and the bound is never
-    /// renegotiated.
+    /// synthesis, and the FIRST chunk's PCM is enqueued and
+    /// started while the remaining chunks still synthesize. The
+    /// whole document's PCM is never materialized in one buffer:
+    /// every chunk reaches the backend as its own buffer, so the
+    /// first audible speech does not wait for the last segment
+    /// (FR-003). A missed bound is fixed HERE — the streaming
+    /// order is this body's change, never another task's — and
+    /// the bound is never renegotiated.
     ///
     /// ## The resume entry (T110)
     ///
@@ -3944,17 +4065,19 @@ pub mod commands {
         // "Document", never a sentence of the body.
         let title = document_title(&segments, filename);
 
-        // T056 first-segment ordering (FR-003 ≤3 s): synthesize the
-        // first segment first, so its PCM starts while the rest
-        // synthesize.
-        let (pcm, duration_secs) = synthesize_segments(&segments)?;
-        // The resume entry (T110): the reading continues from the
-        // position the offer resolved to (FR-009), so the samples
-        // before it are never played. The document's own duration
-        // stays the resolver's total — the reading still ends
-        // where the document ends.
-        let pcm = pcm_from_offset(&pcm, start_offset_secs);
-        let pcm_samples = pcm.len();
+        // T113 / FR-003 ≤3 s first-audible: the backend is opened
+        // once, and the STREAMING synthesis hands the first chunk to
+        // it — and starts the stream — while the rest of the document
+        // is still being synthesized. The first audible speech
+        // therefore does not wait for the whole document (SC-002).
+        open_backend(state)?;
+        let streamed = stream_synthesis(&segments, state, start_offset_secs)?;
+        // The document's own duration stays the resolver's total — the
+        // reading still ends where the document ends (FR-028a).
+        let duration_secs = streamed.duration_secs;
+        // The samples the reading actually carries: the audio from
+        // the resume entry on (FR-009).
+        let pcm_samples = streamed.played_samples;
 
         let headings = parse_headings(&segments, duration_secs);
         let total_units = segments.len() as u64;
@@ -3983,14 +4106,20 @@ pub mod commands {
         // re-estimated mid-session (FR-028a / FR-013).
         install_session_structure(state, resolver, headings, duration_secs)?;
 
-        // Compute and store the document's blake3 fingerprint (FR-036 / T059)
-        // for the 20 s heartbeat bookmark persistence (T011) — the same
-        // call site `open_document` routes through. The FR-018 switch
-        // already recorded it (`switch_to_document`), so this body
-        // never records a fingerprint of its own: the switch owns the
-        // handover, and the durable save it performs must land under
-        // the OUTGOING document's key.
-        start_playback(state, pcm)?;
+        // The audio already started (T113): the streaming synthesis
+        // queued the first chunk and the backend is playing it while
+        // this body was still resolving the session-start totals. The
+        // session's transport lands on `Playing` only below, so a
+        // playing landing is always followed by a strictly greater
+        // position — the diagnostic record's stall rule holds.
+        //
+        // The document's blake3 fingerprint (FR-036 / T059) — the key
+        // the 20 s heartbeat bookmark persistence writes under (T011) —
+        // is the same one `open_document` routes through. The FR-018
+        // switch already recorded it (`switch_to_document`), so this
+        // body never records a fingerprint of its own: the switch owns
+        // the handover, and the durable save it performs must land
+        // under the OUTGOING document's key.
 
         {
             let mut session = state.session.lock().map_err(|e| OpenError::NoStart {
@@ -6532,12 +6661,12 @@ mod cold_start_gate_tests {
         let pcm: Vec<f32> = (0..22_050u16).map(f32::from).collect();
         // The entry at 0.0 keeps every sample.
         assert_eq!(
-            pcm_from_offset(&pcm, 0.0).len(),
+            pcm_from_sample(&pcm, sample_index_of(0.0)).len(),
             pcm.len(),
             "the resume at 0.0 dropped audio (FR-009)"
         );
         // The entry at 0.5 s drops the first half-second.
-        let resumed = pcm_from_offset(&pcm, 0.5);
+        let resumed = pcm_from_sample(&pcm, sample_index_of(0.5));
         assert_eq!(
             resumed.len(),
             pcm.len() - 11_025,
@@ -6550,7 +6679,7 @@ mod cold_start_gate_tests {
         );
         // An offset past the end of the audio yields nothing.
         assert!(
-            pcm_from_offset(&pcm, 10.0).is_empty(),
+            pcm_from_sample(&pcm, sample_index_of(10.0)).is_empty(),
             "a resume past the end of the audio played something (FR-009)"
         );
     }

@@ -21,6 +21,11 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri = { version = "=2.12.1", features = [] }
 player = { path = "../crates/player" }
 session = { path = "../crates/session" }
+# The append-only diagnostic record (T097, FR-017): the private,
+# on-device JSONL trace. The crate owns the writer, the retention
+# bounds and the scanners; the shell side owns WHEN an event is
+# recorded.
+diag = { path = "../crates/diag" }
 engine-core = { path = "../crates/engine-core" }
 adapter-synthesis = { path = "../crates/adapter-synthesis" }
 serde = { workspace = true }

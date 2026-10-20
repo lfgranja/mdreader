@@ -46,9 +46,13 @@
 
 use std::sync::Mutex;
 
+use diag::writer::{
+    DeviceEvent, ErrorValue, EventKind, FocusValue, RecordEvent, SessionEndValue, TransportValue,
+};
 use engine_core::closed::SessionEnd;
 use player::backend::CpalBackend;
 use player::cli::{PlaybackSession, SessionSnapshot, ShellVerb};
+use player::focus::FocusOutcome;
 use player::rate::RateStep;
 use player::surface::MirrorState;
 use player::transport::{PlaybackRate, TransportState};
@@ -96,6 +100,14 @@ pub mod status_view;
 /// The named failure + alternatives rendering, conforming to
 /// the T065 reason shapes.
 pub mod failure;
+
+/// The append-only diagnostic record (FR-017 / T097).
+///
+/// The private, on-device JSONL trace: the writer seam the
+/// session lifecycle appends its events through. The record is
+/// never transmitted and has no in-app surface — a maintainer
+/// pulls it off the device.
+pub mod diag_record;
 
 /// Shared application state for the Tauri bridge.
 ///
@@ -168,6 +180,16 @@ pub struct AppState {
     /// recorded" value the raw-table surface accepts
     /// (T063 / storage-schema.md).
     first_yield_ms: Mutex<Option<u64>>,
+    /// The diagnostic record (T097, FR-017): the append-only
+    /// JSONL trace in the app's private storage. Opened once the
+    /// app's data directory is known; every append is
+    /// best-effort, and the record is never transmitted.
+    pub(crate) diag: diag_record::Recorder,
+    /// The measured-latency origins the diagnostic record carries
+    /// (T097): the play-to-audio clock, the device-removal pause
+    /// clock, and the replay window the kill/power-loss recovery
+    /// opens.
+    pub(crate) diag_measures: Mutex<DiagMeasures>,
 }
 
 impl std::fmt::Debug for AppState {
@@ -184,6 +206,8 @@ impl std::fmt::Debug for AppState {
             .field("bookmark_store", &"<BookmarkStore>")
             .field("current_fingerprint", &self.current_fingerprint)
             .field("first_yield_ms", &self.first_yield_ms)
+            .field("diag", &self.diag)
+            .field("diag_measures", &self.diag_measures)
             .finish_non_exhaustive()
     }
 }
@@ -207,6 +231,8 @@ impl AppState {
             bookmark_store: Mutex::new(None),
             current_fingerprint: Mutex::new(None),
             first_yield_ms: Mutex::new(None),
+            diag: diag_record::Recorder::new(),
+            diag_measures: Mutex::new(DiagMeasures::default()),
         }
     }
 
@@ -809,15 +835,33 @@ impl std::error::Error for OpenError {}
 /// The post-execution bookkeeping every verb path
 /// runs once the session has landed (T011 clock,
 /// T035 event-durable puts): note the landed
-/// transport for the FR-015 clock, and — when the
-/// landing is a pause — persist the position with
-/// the end kind that landing names. Every surface
-/// that moves the session through `execute` (the
-/// bridge verbs, the intent paths, the cold-start
-/// open) routes through here, so no call site can
-/// forget the durable write.
-fn after_execute(state: &AppState, snapshot: &SessionSnapshot) {
+/// transport for the FR-015 clock, record the
+/// transport change in the diagnostic record (T097),
+/// and — when the landing is a pause — persist the
+/// position with the end kind that landing names.
+/// Every surface that moves the session through
+/// `execute` (the bridge verbs, the intent paths, the
+/// cold-start open) routes through here, so no call
+/// site can forget the durable write.
+fn after_execute(state: &AppState, snapshot: &SessionSnapshot, verb: ShellVerb) {
     note_transport(state, snapshot.transport);
+    // The diagnostic record (T097): the session's own start, the
+    // transport change, and the session's end — in that order.
+    //
+    // The session start comes FIRST: the record's own scanner
+    // segments the trace by session, and a session start opens the
+    // segment the entries that follow belong to. A transport change
+    // recorded before the start would sit in a segment of its own,
+    // with no later entry to show the session advancing.
+    if snapshot.transport == TransportState::Playing {
+        record_session_start(state, snapshot);
+    }
+    record_transport_change(state, snapshot, verb);
+    if snapshot.transport != TransportState::Playing
+        && let Some(end_kind) = diag_end_reason(snapshot.transport)
+    {
+        record_session_end(state, snapshot, end_kind);
+    }
     if let Some(end_kind) = end_kind_of_pause(snapshot.transport) {
         persist_bookmark(state, snapshot.position_secs, end_kind);
     }
@@ -843,8 +887,12 @@ fn after_execute(state: &AppState, snapshot: &SessionSnapshot) {
 /// read under the session lock, that guard is released, and the
 /// store is locked last inside [`persist_bookmark`] — never two
 /// state locks at once.
-fn after_skip(state: &AppState, snapshot: &SessionSnapshot) {
+fn after_skip(state: &AppState, snapshot: &SessionSnapshot, verb: ShellVerb) {
     note_transport(state, snapshot.transport);
+    // The diagnostic record (T097): the live control's transport
+    // change — the control holds the transport, so no session
+    // start or end is recorded.
+    record_transport_change(state, snapshot, verb);
     if let Some(end_kind) = event_end_kind(snapshot.transport) {
         persist_bookmark(state, snapshot.position_secs, end_kind);
     }
@@ -882,6 +930,511 @@ fn after_background(state: &AppState) {
     if let Some(end_kind) = event_end_kind(snapshot.transport) {
         persist_bookmark(state, snapshot.position_secs, end_kind);
     }
+}
+
+// =============================================================================
+// The diagnostic record (FR-017 / T097).
+//
+// The private, on-device JSONL trace: the session lifecycle's
+// events, appended to the app's own storage. The record is never
+// transmitted and has no in-app surface — a maintainer pulls it off
+// the device (FR-017 / SC-008). Every entry carries timestamps,
+// the session's authoritative position, and typed identifiers only:
+// the document's content hash, a closed vocabulary word, a ladder
+// rung, or a measured value — NEVER document text (FR-017).
+// =============================================================================
+
+/// The diagnostic-record detail keys (T097): the closed set of
+/// typed `key=value` pairs the record's `detail` field carries.
+/// The record's own non-prose rule
+/// (`^[A-Za-z0-9_]+=[A-Za-z0-9_.+\-]+$`) holds for every one of
+/// them, so a value is an identifier or a measurement — never a
+/// sentence, never a fragment of the document.
+const DIAG_DETAIL_ACTION: &str = "action";
+/// The section index the session crossed.
+const DIAG_DETAIL_SECTION: &str = "section";
+/// The document's content-hash reference (FR-036) — the only
+/// document identity the record ever carries.
+const DIAG_DETAIL_DOC: &str = "doc";
+/// The ladder rung before the change.
+const DIAG_DETAIL_RATE_FROM: &str = "rate_from";
+/// The ladder rung after the change.
+const DIAG_DETAIL_RATE_TO: &str = "rate_to";
+/// The interruption's outcome class.
+const DIAG_DETAIL_OUTCOME: &str = "outcome";
+/// The cause of a refusal or a failure, as a closed identifier.
+const DIAG_DETAIL_CAUSE: &str = "cause";
+/// The pre-roll seconds still buffered (FR-015a).
+const DIAG_DETAIL_PREROLL_SECS: &str = "preroll_secs";
+/// The measured play-to-audio latency, in milliseconds.
+const DIAG_DETAIL_PLAY_TO_AUDIO_MS: &str = "play_to_audio_ms";
+/// The measured device-removal pause latency, in milliseconds.
+const DIAG_DETAIL_REMOVAL_PAUSE_MS: &str = "removal_pause_ms";
+/// The measured replay seconds after a kill or a power loss.
+const DIAG_DETAIL_REPLAY_SECS: &str = "replay_secs";
+
+/// The measured-latency origins and results the diagnostic record
+/// carries (T097): the three clocks the contract's measured values
+/// come from (contracts/diagnostic-trace.md).
+///
+/// The origins are stamped when the corresponding event is
+/// REQUESTED; the results are stamped when the awaited event
+/// arrives. A result is consumed by the next entry that can carry
+/// it, so a measurement is reported exactly once.
+#[derive(Debug, Default)]
+pub(crate) struct DiagMeasures {
+    /// The wall-clock millisecond stamp of the play request whose
+    /// first audible audio is awaited — the play-to-audio clock's
+    /// origin.
+    pub(crate) play_request_ms: Option<u64>,
+    /// The wall-clock millisecond stamp of the output-device
+    /// removal whose pause is awaited — the removal-pause clock's
+    /// origin.
+    pub(crate) removal_request_ms: Option<u64>,
+    /// The offset the current session resumed from — the replay
+    /// window's origin: the seconds re-listened after a kill or a
+    /// power loss.
+    pub(crate) resume_origin_secs: Option<f64>,
+    /// The measured play-to-audio latency, in milliseconds.
+    pub(crate) play_to_audio_ms: Option<u64>,
+}
+
+/// The record event envelope (T097): the record version the schema
+/// declares, the wall-clock stamp, the kind, and the session's
+/// authoritative position. The optional fields are filled by the
+/// caller that knows them — the envelope never guesses.
+fn diag_event(kind: EventKind, position_secs: f64) -> RecordEvent {
+    RecordEvent {
+        v: 1,
+        ts_ms: now_ms(),
+        kind,
+        position_secs,
+        transport: None,
+        session_end_reason: None,
+        supersedes_ts_ms: None,
+        focus: None,
+        device: None,
+        error: None,
+        engine: None,
+        engine_tier: None,
+        detail: None,
+        trim: None,
+    }
+}
+
+/// The record's `detail` field from typed pairs (T097): a
+/// non-prose `key=value` string. A pair that cannot be expressed
+/// drops the whole detail — never a panic, never a prose value.
+fn diag_detail_field(pairs: &[(&str, &str)]) -> Option<String> {
+    match diag::writer::detail_from_pairs(pairs) {
+        Ok(detail) => detail,
+        Err(error) => {
+            tracing::warn!(%error, "the diagnostic record detail was dropped");
+            None
+        }
+    }
+}
+
+/// The content-hash reference the record carries for the loaded
+/// document (FR-036 / FR-017): the blake3 fingerprint's hex, or
+/// `none` when no document is loaded. Never document text.
+fn diag_doc_ref(state: &AppState) -> String {
+    current_fingerprint(state).map_or_else(|| String::from("none"), hex::encode)
+}
+
+/// The closed focus set the record carries (FR-017): the player's
+/// three outcomes mapped onto the record's focus set. The mapping
+/// is exhaustive over the closed three-member outcome set — no
+/// catch-all arm (Principle VII / FR-044).
+const fn diag_focus_value(outcome: FocusOutcome) -> FocusValue {
+    match outcome {
+        FocusOutcome::DuckableTransient => FocusValue::DuckableTransient,
+        FocusOutcome::SilenceDemanding => FocusValue::SilenceDemanding,
+        FocusOutcome::PermanentLoss => FocusValue::PermanentLoss,
+    }
+}
+
+/// The closed outcome class name the record carries (FR-017): the
+/// outcome's own wire name — an identifier, never prose.
+const fn diag_focus_name(outcome: FocusOutcome) -> &'static str {
+    match outcome {
+        FocusOutcome::DuckableTransient => "duckable_transient",
+        FocusOutcome::SilenceDemanding => "silence_demanding",
+        FocusOutcome::PermanentLoss => "permanent_loss",
+    }
+}
+
+/// The closed session-end reason a landed transport records
+/// (FR-044): the record's `session_end_reason` names the same four
+/// members the storage schema's `end_kind` uses, so the record and
+/// the stored row never disagree. A `Playing` landing ends no
+/// episode — it starts one.
+const fn diag_end_reason(transport: TransportState) -> Option<SessionEnd> {
+    match transport {
+        TransportState::Paused => Some(SessionEnd::Paused),
+        TransportState::Interrupted => Some(SessionEnd::Interrupted),
+        TransportState::Stopped => Some(SessionEnd::Stopped),
+        TransportState::Completed => Some(SessionEnd::Completed),
+        TransportState::Playing => None,
+    }
+}
+
+/// The session-start entry (T097): the session began playing, with
+/// the document's content hash as its only document reference.
+fn record_session_start(state: &AppState, snapshot: &SessionSnapshot) {
+    let mut event = diag_event(EventKind::SessionStart, snapshot.position_secs);
+    event.transport = Some(TransportValue::from(snapshot.transport));
+    let doc = diag_doc_ref(state);
+    let replay_secs = take_replay_secs(state);
+    let mut pairs: Vec<(&str, &str)> = vec![
+        (DIAG_DETAIL_ACTION, "session_start"),
+        (DIAG_DETAIL_DOC, &doc),
+    ];
+    if let Some(replay_secs) = replay_secs.as_deref() {
+        pairs.push((DIAG_DETAIL_REPLAY_SECS, replay_secs));
+    }
+    event.detail = diag_detail_field(&pairs);
+    state.diag.append(&event);
+}
+
+/// The session-end entry (T097): the episode ended, with the closed
+/// end reason and the landed transport.
+fn record_session_end(state: &AppState, snapshot: &SessionSnapshot, end_kind: SessionEnd) {
+    let mut event = diag_event(EventKind::SessionEnd, snapshot.position_secs);
+    event.transport = Some(TransportValue::from(snapshot.transport));
+    event.session_end_reason = Some(SessionEndValue::from(end_kind));
+    let doc = diag_doc_ref(state);
+    let play_to_audio_ms = take_play_to_audio_ms_pending(state);
+    let mut pairs: Vec<(&str, &str)> =
+        vec![(DIAG_DETAIL_ACTION, "session_end"), (DIAG_DETAIL_DOC, &doc)];
+    if let Some(play_to_audio_ms) = play_to_audio_ms.as_deref() {
+        pairs.push((DIAG_DETAIL_PLAY_TO_AUDIO_MS, play_to_audio_ms));
+    }
+    event.detail = diag_detail_field(&pairs);
+    state.diag.append(&event);
+}
+
+/// The section index the session is in (T097): the 1-based index
+/// of the most-recent-passed heading — the surface resolver's own
+/// answer, never a second count (FR-028d).
+fn diag_section_index(state: &AppState, snapshot: &SessionSnapshot) -> u32 {
+    let Ok(resolver_guard) = state.surface_resolver.lock() else {
+        return 0;
+    };
+    let Some(resolver) = resolver_guard.as_ref() else {
+        return 0; // no document loaded
+    };
+    let Ok(headings_guard) = state.headings.lock() else {
+        return 0;
+    };
+    let surface = resolver.resolve(
+        snapshot.position_secs,
+        resolver.consumed_units_at(snapshot.position_secs),
+        &headings_guard,
+    );
+    match surface.progress {
+        player::surface::Progress::Determinate { k, .. } => k,
+        player::surface::Progress::Indeterminate => 0,
+    }
+}
+
+/// The transport-change entry (T097): one per transport action
+/// (play, pause, a skip, a stop, a rate step) — the action's own
+/// wire name and the landed transport.
+fn record_transport_change(state: &AppState, snapshot: &SessionSnapshot, verb: ShellVerb) {
+    let mut event = diag_event(EventKind::TransportChange, snapshot.position_secs);
+    event.transport = Some(TransportValue::from(snapshot.transport));
+    let action = verb.to_string();
+    event.detail = diag_detail_field(&[(DIAG_DETAIL_ACTION, &action)]);
+    state.diag.append(&event);
+}
+
+/// The per-section progress entry (T097): the session crossed a
+/// section boundary, with the document's content hash as the only
+/// document reference (FR-017).
+fn record_section_progress(state: &AppState, snapshot: &SessionSnapshot, section: u32) {
+    let mut event = diag_event(EventKind::TransportChange, snapshot.position_secs);
+    let doc = diag_doc_ref(state);
+    let section = section.to_string();
+    event.detail = diag_detail_field(&[
+        (DIAG_DETAIL_ACTION, "section"),
+        (DIAG_DETAIL_SECTION, &section),
+        (DIAG_DETAIL_DOC, &doc),
+    ]);
+    state.diag.append(&event);
+}
+
+/// The per-rate-change entry (T097): the ladder rung before and
+/// after the change. The rung NAMES are identifiers — the record is
+/// a private diagnostic artifact, never a surface (FR-012).
+fn record_rate_change(
+    state: &AppState,
+    snapshot: &SessionSnapshot,
+    from: PlaybackRate,
+    to: PlaybackRate,
+) {
+    let mut event = diag_event(EventKind::TransportChange, snapshot.position_secs);
+    let from = format!("{from:?}");
+    let to = format!("{to:?}");
+    event.detail = diag_detail_field(&[
+        (DIAG_DETAIL_ACTION, "rate"),
+        (DIAG_DETAIL_RATE_FROM, &from),
+        (DIAG_DETAIL_RATE_TO, &to),
+    ]);
+    state.diag.append(&event);
+}
+
+/// The progress entry (T097): the session's authoritative position
+/// at a recorded moment — the first audible audio of a play request
+/// and the heartbeat's periodic reading.
+///
+/// The entry carries NO transport: it is a position reading, not a
+/// transport change. That is what keeps the record's stall rule
+/// (the contract's own scanner) honest: a playing landing must be
+/// followed by a later entry at a strictly greater position, and
+/// the progress entries are those later entries.
+fn record_progress(state: &AppState, snapshot: &SessionSnapshot, measured: Option<&str>) {
+    let mut event = diag_event(EventKind::TransportChange, snapshot.position_secs);
+    let mut pairs: Vec<(&str, &str)> = vec![(DIAG_DETAIL_ACTION, "progress")];
+    if let Some(measured) = measured {
+        pairs.push((DIAG_DETAIL_PLAY_TO_AUDIO_MS, measured));
+    }
+    event.detail = diag_detail_field(&pairs);
+    state.diag.append(&event);
+}
+
+/// The buffer-state entry (T097): the pre-roll seconds still
+/// buffered at the moment of the entry (FR-015a; the declared
+/// pre-roll cap is 60 s).
+fn record_buffer_state(state: &AppState, snapshot: &SessionSnapshot) {
+    let buffered_secs = {
+        let Ok(guard) = state.backend.lock() else {
+            return;
+        };
+        let Some(backend) = guard.as_ref() else {
+            return; // no backend — no buffer to report
+        };
+        let samples = u32::try_from(backend.buffered_samples()).unwrap_or(u32::MAX);
+        f64::from(samples) / f64::from(backend.sample_rate())
+    };
+    let mut event = diag_event(EventKind::TransportChange, snapshot.position_secs);
+    let buffered_secs = format!("{buffered_secs:.3}");
+    event.detail = diag_detail_field(&[
+        (DIAG_DETAIL_ACTION, "buffer"),
+        (DIAG_DETAIL_PREROLL_SECS, &buffered_secs),
+    ]);
+    state.diag.append(&event);
+}
+
+/// The focus-transition entry (T097): the interruption's class and
+/// its outcome, with the measured values the contract names
+/// (contracts/diagnostic-trace.md). The measured values are
+/// consumed here, so each measurement is reported exactly once.
+fn record_focus_transition(
+    state: &AppState,
+    snapshot: &SessionSnapshot,
+    focus: FocusValue,
+    action: &str,
+    outcome: &str,
+) {
+    let mut event = diag_event(EventKind::FocusTransition, snapshot.position_secs);
+    event.focus = Some(focus);
+    event.transport = Some(TransportValue::from(snapshot.transport));
+    let play_to_audio_ms = take_play_to_audio_ms_pending(state);
+    let removal_pause_ms = take_removal_pause_ms(state);
+    let replay_secs = take_replay_secs(state);
+    let mut pairs: Vec<(&str, &str)> =
+        vec![(DIAG_DETAIL_ACTION, action), (DIAG_DETAIL_OUTCOME, outcome)];
+    if let Some(play_to_audio_ms) = play_to_audio_ms.as_deref() {
+        pairs.push((DIAG_DETAIL_PLAY_TO_AUDIO_MS, play_to_audio_ms));
+    }
+    if let Some(removal_pause_ms) = removal_pause_ms.as_deref() {
+        pairs.push((DIAG_DETAIL_REMOVAL_PAUSE_MS, removal_pause_ms));
+    }
+    if let Some(replay_secs) = replay_secs.as_deref() {
+        pairs.push((DIAG_DETAIL_REPLAY_SECS, replay_secs));
+    }
+    event.detail = diag_detail_field(&pairs);
+    state.diag.append(&event);
+}
+
+/// The output-device entry (T097): the route change the record
+/// names (FR-017a), with the measured removal-pause latency when
+/// the event was a removal.
+fn record_output_device(
+    state: &AppState,
+    snapshot: &SessionSnapshot,
+    device: DeviceEvent,
+    action: &str,
+) {
+    let mut event = diag_event(EventKind::OutputDevice, snapshot.position_secs);
+    event.device = Some(device);
+    event.transport = Some(TransportValue::from(snapshot.transport));
+    let removal_pause_ms = take_removal_pause_ms(state);
+    let mut pairs: Vec<(&str, &str)> = vec![(DIAG_DETAIL_ACTION, action)];
+    if let Some(removal_pause_ms) = removal_pause_ms.as_deref() {
+        pairs.push((DIAG_DETAIL_REMOVAL_PAUSE_MS, removal_pause_ms));
+    }
+    event.detail = diag_detail_field(&pairs);
+    state.diag.append(&event);
+}
+
+/// The record's entry for the open path's error (T097): a request
+/// refused before anything played is a `Refusal`; a failure of the
+/// engine or the device while the session ran is a `Failure`. The
+/// `error` names the closed engine-taxonomy member the error maps
+/// onto (research.md R5 — the eight product reasons map N:1 onto
+/// the seven engine errors), and the `detail` names the error's own
+/// cause.
+fn record_refusal(state: &AppState, error: &OpenError) {
+    match error {
+        OpenError::Synthesis { .. } | OpenError::Backend { .. } | OpenError::NoStart { .. } => {
+            record_failure(state, diag_error_of(error), diag_error_cause(error));
+        }
+        OpenError::EmptyDocument
+        | OpenError::InvalidUtf8
+        | OpenError::NoSegments
+        | OpenError::Store { .. } => {
+            record_named_refusal(state, diag_error_of(error), diag_error_cause(error));
+        }
+    }
+}
+
+/// The record's entry for a refusal outside the open path (T097):
+/// the permission gate's refusal — the start was refused
+/// (research.md R5: `FocusDenied` → `StartRefused`).
+fn record_named_refusal(state: &AppState, error: ErrorValue, cause: &str) {
+    let mut event = diag_event(EventKind::Refusal, 0.0);
+    event.error = Some(error);
+    event.detail = diag_detail_field(&[(DIAG_DETAIL_CAUSE, cause)]);
+    state.diag.append(&event);
+}
+
+/// The record's entry for a failure (T097): the engine or the
+/// device failed while the session ran. The `error` names the
+/// closed engine-taxonomy member; the `detail` names the cause.
+fn record_failure(state: &AppState, error: ErrorValue, cause: &str) {
+    let mut event = diag_event(EventKind::Failure, 0.0);
+    event.error = Some(error);
+    event.detail = diag_detail_field(&[(DIAG_DETAIL_CAUSE, cause)]);
+    state.diag.append(&event);
+}
+
+/// The closed engine-taxonomy member an open-path error maps onto
+/// (FR-017 / research.md R5): the product reason each error belongs
+/// to, mapped N:1 onto the seven engine errors.
+///
+/// * an unreadable document is the `FormatUndeliverable` reason —
+///   the delivered shape cannot be read (`ChannelMismatch`);
+/// * an unreadable store is the `VoiceUnavailable` reason — the
+///   session could not be brought up from the stored row
+///   (`EngineInitFailed`);
+/// * a refused backend is the `DeviceRefused` reason — the audio
+///   device refused the playback request;
+/// * an undeliverable voice is the `VoiceUnavailable` reason —
+///   the engine could not produce the audio (`EngineUnreachable`).
+const fn diag_error_of(error: &OpenError) -> ErrorValue {
+    match error {
+        OpenError::EmptyDocument | OpenError::InvalidUtf8 | OpenError::NoSegments => {
+            ErrorValue::ChannelMismatch
+        }
+        OpenError::Store { .. } => ErrorValue::EngineInitFailed,
+        OpenError::Backend { .. } => ErrorValue::DeviceRefused,
+        OpenError::Synthesis { .. } => ErrorValue::EngineUnreachable,
+        OpenError::NoStart { .. } => ErrorValue::StartRefused,
+    }
+}
+
+/// The error's own cause as a closed identifier (T097): the
+/// error's variant, never its free-text reason — the reason may
+/// quote the device or the engine, and the record carries names
+/// only.
+const fn diag_error_cause(error: &OpenError) -> &'static str {
+    match error {
+        OpenError::EmptyDocument => "empty_document",
+        OpenError::InvalidUtf8 => "invalid_utf8",
+        OpenError::NoSegments => "no_segments",
+        OpenError::Synthesis { .. } => "synthesis",
+        OpenError::Store { .. } => "store",
+        OpenError::Backend { .. } => "backend",
+        OpenError::NoStart { .. } => "no_start",
+    }
+}
+
+/// Stamp the play-to-audio clock's origin (T097): the wall-clock
+/// instant of a play request. The first audible audio of that
+/// request closes the clock.
+fn note_play_request(state: &AppState) {
+    if let Ok(mut measures) = state.diag_measures.lock() {
+        measures.play_request_ms = Some(now_ms());
+    }
+}
+
+/// Stamp the device-removal clock's origin (T097): the wall-clock
+/// instant of an output-route removal. The pause that follows
+/// closes the clock.
+fn note_removal_request(state: &AppState) {
+    if let Ok(mut measures) = state.diag_measures.lock() {
+        measures.removal_request_ms = Some(now_ms());
+    }
+}
+
+/// Open the replay window (T097): the offset a recovered session
+/// resumed from, after a kill or a power loss. The window's
+/// measured value is the seconds re-listened since.
+fn note_resume_origin(state: &AppState, offset_secs: f64) {
+    if let Ok(mut measures) = state.diag_measures.lock() {
+        measures.resume_origin_secs = Some(offset_secs);
+    }
+}
+
+/// Close the play-to-audio clock (T097): the measured milliseconds
+/// between the play request and the first audible audio of that
+/// request. The measurement is kept until an entry carries it.
+fn take_play_to_audio_ms(state: &AppState) -> Option<String> {
+    let mut measures = state.diag_measures.lock().ok()?;
+    let request_ms = measures.play_request_ms.take()?;
+    let latency_ms = now_ms().saturating_sub(request_ms);
+    measures.play_to_audio_ms = Some(latency_ms);
+    drop(measures);
+    Some(latency_ms.to_string())
+}
+
+/// The measured play-to-audio latency, consumed by the next entry
+/// that can carry it (T097).
+fn take_play_to_audio_ms_pending(state: &AppState) -> Option<String> {
+    let mut measures = state.diag_measures.lock().ok()?;
+    let latency_ms = measures.play_to_audio_ms.take()?;
+    drop(measures);
+    Some(latency_ms.to_string())
+}
+
+/// Close the device-removal clock (T077): the measured milliseconds
+/// between the route removal and the pause it caused. The
+/// measurement is consumed — reported once.
+fn take_removal_pause_ms(state: &AppState) -> Option<String> {
+    let mut measures = state.diag_measures.lock().ok()?;
+    let request_ms = measures.removal_request_ms.take()?;
+    let latency_ms = now_ms().saturating_sub(request_ms);
+    drop(measures);
+    Some(latency_ms.to_string())
+}
+
+/// The measured replay seconds (T097): the seconds re-listened
+/// since the recovered session resumed. The measurement is
+/// consumed — reported once.
+fn take_replay_secs(state: &AppState) -> Option<String> {
+    let mut measures = state.diag_measures.lock().ok()?;
+    let origin_secs = measures.resume_origin_secs.take()?;
+    let current_secs = {
+        let Ok(guard) = state.session.lock() else {
+            return None;
+        };
+        guard.snapshot().position_secs
+    };
+    let replayed = (current_secs - origin_secs).max(0.0);
+    drop(measures);
+    Some(format!("{replayed:.3}"))
 }
 
 /// The surface a resolved resume offer routes to (T037): the
@@ -1014,6 +1567,11 @@ fn heartbeat_once(state: &AppState) {
         return;
     }
     persist_bookmark(state, snapshot.position_secs, SessionEnd::Interrupted);
+    // The FR-017 diagnostic record (T097): the periodic progress
+    // entry — the session's authoritative position at the
+    // heartbeat's cadence. It is the entry that shows the session
+    // advancing between the events.
+    record_progress(state, &snapshot, None);
 }
 
 /// The playback-watch task's carried baselines (F1/F3): the last
@@ -1117,16 +1675,33 @@ fn feed_audible_progress(state: &AppState, position_secs: f64, watch: &mut Playb
     if delta_secs <= 0.0 {
         return;
     }
+    let mut first_audio: Option<String> = None;
     match state.session.lock() {
         Ok(mut session) => {
             if session.snapshot().transport == TransportState::Playing {
                 session.on_audible_progress(delta_secs);
                 watch.fed_secs = position_secs;
+                // The FR-017 diagnostic record (T097): the first
+                // audible audio of a play request closes the
+                // play-to-audio clock. The clock is taken, so the
+                // measurement is made once per request.
+                first_audio = take_play_to_audio_ms(state);
             }
         }
         Err(_) => {
             tracing::warn!("audible progress dropped: the session lock is poisoned");
         }
+    }
+    // The FR-017 diagnostic record (T097): the first audible audio
+    // records the progress entry the record's stall rule needs — a
+    // playing landing followed by a strictly greater position.
+    if let Some(measured) = first_audio {
+        let Ok(guard) = state.session.lock() else {
+            return;
+        };
+        let snapshot = guard.snapshot();
+        drop(guard);
+        record_progress(state, &snapshot, Some(&measured));
     }
 }
 
@@ -1217,6 +1792,8 @@ pub fn run() {
             bookmark_store: Mutex::new(None),
             current_fingerprint: Mutex::new(None),
             first_yield_ms: Mutex::new(None),
+            diag: diag_record::Recorder::new(),
+            diag_measures: Mutex::new(DiagMeasures::default()),
         })
         .setup(|app| {
             // Voice assets ship inside the APK: extract them to a
@@ -1257,6 +1834,21 @@ pub fn run() {
             };
             if let Ok(mut guard) = app_state.bookmark_store.lock() {
                 *guard = store_for_app;
+            }
+            // The diagnostic record (T097, FR-017): the private,
+            // on-device JSONL trace, opened in the app's own data
+            // directory — the same private storage the bookmark
+            // store uses. Nothing transmits it and no in-app
+            // surface reads it; a maintainer pulls it off the
+            // device. A failed open degrades the diagnostics, never
+            // the playback.
+            let record_path = data_dir.join(diag_record::RECORD_FILE_NAME);
+            if let Err(error) = app_state.diag.open(&record_path) {
+                tracing::warn!(
+                    %error,
+                    path = %record_path.display(),
+                    "the diagnostic record could not be opened; the trace is skipped"
+                );
             }
             // Spawn the 20 s heartbeat task (T011): calls `BookmarkStore::put`
             // while Playing for crash-safe position recovery (FR-004 / FR-007).
@@ -1352,9 +1944,14 @@ pub mod commands {
     use super::{AppState, CpalBackend, OpenError};
     use crate::{
         OfferRoute, after_background, after_execute, after_skip, current_fingerprint,
-        delete_bookmark, offer_route_wire, persist_last_rate, rate_press_of, route_offer,
-        seed_session_rate, switch_to_document,
+        delete_bookmark, diag_focus_name, diag_focus_value, diag_section_index, note_play_request,
+        note_removal_request, note_resume_origin, offer_route_wire, persist_last_rate,
+        rate_press_of, record_buffer_state, record_focus_transition, record_named_refusal,
+        record_output_device, record_rate_change, record_refusal, record_section_progress,
+        route_offer, seed_session_rate, switch_to_document,
     };
+    use diag::writer::{DeviceDirection, DeviceEvent, ErrorValue, FocusValue};
+
     use player::cli::{SessionSnapshot, ShellVerb};
     use player::focus::{FocusClassification, FocusIntent, FocusOutcome};
     use player::rate::RateStepper;
@@ -1504,11 +2101,12 @@ pub mod commands {
         bytes: Vec<u8>,
     ) -> Result<serde_json::Value, OpenError> {
         if bytes.is_empty() {
-            return Err(OpenError::EmptyDocument);
+            return Err(refuse(state, OpenError::EmptyDocument));
         }
         // The snapshot bytes are text: decode and validate
         // before anything is derived from them.
-        let document = String::from_utf8(bytes).map_err(|_| OpenError::InvalidUtf8)?;
+        let document =
+            String::from_utf8(bytes).map_err(|_| refuse(state, OpenError::InvalidUtf8))?;
 
         // The content fingerprint (FR-036): the key the 20 s
         // heartbeat and every event-durable put persist under,
@@ -1524,25 +2122,42 @@ pub mod commands {
         // the same file cannot exist, and the heartbeat
         // already writes through this one.
         let lookup = {
-            let mut store_guard =
-                state
-                    .bookmark_store
-                    .lock()
-                    .map_err(|error| OpenError::Store {
+            let mut store_guard = state.bookmark_store.lock().map_err(|error| {
+                refuse(
+                    state,
+                    OpenError::Store {
                         reason: error.to_string(),
-                    })?;
-            let store = store_guard.as_mut().ok_or_else(|| OpenError::Store {
-                reason: "the session store never opened".to_string(),
+                    },
+                )
+            })?;
+            let store = store_guard.as_mut().ok_or_else(|| {
+                refuse(
+                    state,
+                    OpenError::Store {
+                        reason: "the session store never opened".to_string(),
+                    },
+                )
             })?;
             let lookup =
                 session::store::lookup_on_open(store, document.as_bytes()).map_err(|error| {
-                    OpenError::Store {
-                        reason: error.to_string(),
-                    }
+                    refuse(
+                        state,
+                        OpenError::Store {
+                            reason: error.to_string(),
+                        },
+                    )
                 })?;
             drop(store_guard);
             lookup
         };
+
+        // The FR-017 diagnostic record (T097): a session that
+        // resumes from a stored row opens the replay window — the
+        // seconds re-listened since the recovery are measured
+        // against this offset.
+        if let Some(stored) = lookup.stored {
+            note_resume_origin(state, stored.offset_secs);
+        }
 
         // The FR-018 document switch: the OUTGOING document's
         // last-spoken position is saved durably under its OWN
@@ -1565,7 +2180,7 @@ pub mod commands {
         // The one synthesis path (Principle II): split,
         // synthesize, enqueue, start — with the totals fixed
         // at open and the rate seeded from the store.
-        let mut payload = play_document(&document, state)?;
+        let mut payload = play_document(&document, state).map_err(|error| refuse(state, error))?;
 
         // The open facts the resume decision renders: the
         // content fingerprint, the stored row, and the offer
@@ -1595,6 +2210,16 @@ pub mod commands {
             );
         }
         Ok(payload)
+    }
+
+    /// The open path's refusal (T097): the diagnostic record names
+    /// the refusal before the error leaves the path — the closed
+    /// error taxonomy's member and the refusal's own cause, never
+    /// the free-text reason (which may quote the device or the
+    /// engine).
+    fn refuse(state: &AppState, error: OpenError) -> OpenError {
+        record_refusal(state, &error);
+        error
     }
 
     /// The classified bridge action (T110).
@@ -1813,6 +2438,10 @@ pub mod commands {
                 // start (FR-010).
                 let permissions = state.permissions.lock().map_err(|e| e.to_string())?;
                 if let Err(failure) = permissions::check_pre_play(&permissions) {
+                    // The FR-017 diagnostic record (T097): the
+                    // refusal is named before the ack leaves the
+                    // path — the start was refused (R5).
+                    record_named_refusal(state, ErrorValue::StartRefused, "permission_refused");
                     return Ok(serde_json::json!({
                         "ok": false,
                         "error": failure.reason(),
@@ -1828,6 +2457,10 @@ pub mod commands {
                 // state (FR-010).
                 let permissions = state.permissions.lock().map_err(|e| e.to_string())?;
                 if let Err(failure) = permissions::check_pre_play(&permissions) {
+                    // The FR-017 diagnostic record (T097): the
+                    // refusal is named before the ack leaves the
+                    // path — the start was refused (R5).
+                    record_named_refusal(state, ErrorValue::StartRefused, "permission_refused");
                     return Ok(serde_json::json!({
                         "ok": false,
                         "error": failure.reason(),
@@ -1840,7 +2473,7 @@ pub mod commands {
                 publish_current_state(state, None);
                 // Playing-class landing: open the FR-015 clock
                 // (T011) so the next durable write stamps it.
-                after_execute(state, &snap);
+                after_execute(state, &snap, verb);
                 Ok(serde_json::json!({
                     "status": snap.transport.to_string(),
                     "position_secs": snap.position_secs,
@@ -1865,7 +2498,7 @@ pub mod commands {
                 // the position with the `paused` end kind,
                 // which opens the FR-032c continue offer on
                 // the next open (storage-schema.md).
-                after_execute(state, &snap);
+                after_execute(state, &snap, ShellVerb::Pause);
                 Ok(serde_json::json!({
                     "status": "paused",
                     "position_secs": snap.position_secs,
@@ -1889,7 +2522,7 @@ pub mod commands {
                 // deletes the entry below — and the FR-015
                 // clock closes, so it cannot leak into the
                 // next session.
-                after_execute(state, &snap);
+                after_execute(state, &snap, ShellVerb::Stop);
                 // Stop-then-delete (T035, FR-032 / FR-032b /
                 // FR-032f): the press lands `Stopped`, which is
                 // terminal, so the stored row is discarded and
@@ -1990,7 +2623,7 @@ pub mod commands {
         // lands `Paused` (FR-018). Every other live
         // control holds its transport, and the write
         // is a no-op.
-        after_skip(state, &snapshot);
+        after_skip(state, &snapshot, verb);
         // T042 write-on-change (FR-019b): only a rate press
         // persists, and only when it moved the rung — the
         // stepper's `None` (a saturating press) writes
@@ -1999,6 +2632,15 @@ pub mod commands {
             && let Some(rung) = RateStepper::open(Some(previous_rate)).step(step)
         {
             persist_last_rate(state, rung);
+            // The FR-017 diagnostic record (T097): the per-rate
+            // change entry — the rung before and the rung after.
+            record_rate_change(state, &snapshot, previous_rate, rung);
+        } else if matches!(verb, ShellVerb::SkipForward | ShellVerb::SkipBackward) {
+            // The FR-017 diagnostic record (T097): the per-section
+            // progress entry — the section the session landed in,
+            // with the document's content hash as its only document
+            // reference.
+            record_section_progress(state, &snapshot, diag_section_index(state, &snapshot));
         }
         Ok(serde_json::json!({
             "status": snapshot.transport.to_string(),
@@ -2063,6 +2705,10 @@ pub mod commands {
                 } else {
                     false
                 };
+                // The FR-017 diagnostic record (T097): the focus
+                // direction event — the regained focus, never an
+                // outcome (the closed focus set's fourth member).
+                record_focus_regained(state);
                 publish_current_state(state, None);
                 let snapshot = snapshot_of(state)?;
                 Ok(serde_json::json!({
@@ -2085,6 +2731,9 @@ pub mod commands {
                 // (a follow-only intent changes nothing it
                 // holds). Publishes the mirror state (T133).
                 let decision = apply_focus(state, FocusIntent::DeviceAppeared)?;
+                // The FR-017 diagnostic record (T097): the route
+                // that appeared (FR-017a).
+                record_device_appeared(state);
                 publish_current_state(state, None);
                 let snapshot = snapshot_of(state)?;
                 Ok(serde_json::json!({
@@ -2100,14 +2749,23 @@ pub mod commands {
                 // — without inventing a device id. Applied
                 // to the held tracker so the permanent-loss
                 // escalation persists (FR-014).
+                // The FR-017 diagnostic record (T097): the
+                // removal clock opens here — the route-removal
+                // instant — and the pause that follows closes it.
+                note_removal_request(state);
                 let decision = apply_focus(state, FocusIntent::DeviceDisappeared)?;
-                pause_ack(
+                let ack = pause_ack(
                     state,
                     "device_disappeared",
                     decision.outcome,
                     ShellVerb::Interrupt,
                     Some("device_disappeared".to_string()),
-                )
+                )?;
+                // The route that went away (FR-017a): the wire
+                // carries no device identity, so the record names
+                // the direction alone.
+                record_device_disappeared(state);
+                Ok(ack)
             }
             IntentWire::AppForegrounded => {
                 // FR-032c latch only: latched into the held
@@ -2190,6 +2848,62 @@ pub mod commands {
             .map(|session| session.snapshot())
     }
 
+    /// The session's current snapshot for the diagnostic record
+    /// (T097): the record's own position is the session's
+    /// authoritative one, read under the session lock.
+    fn diag_snapshot(state: &AppState) -> Option<SessionSnapshot> {
+        state.session.lock().ok().map(|session| session.snapshot())
+    }
+
+    /// The FR-017 diagnostic record (T097): the focus direction
+    /// event — the regained focus, never an outcome (the closed
+    /// focus set's fourth member).
+    fn record_focus_regained(state: &AppState) {
+        if let Some(snapshot) = diag_snapshot(state) {
+            record_focus_transition(
+                state,
+                &snapshot,
+                FocusValue::Regained,
+                "focus_regained",
+                "regained",
+            );
+        }
+    }
+
+    /// The FR-017 diagnostic record (T097): the route that
+    /// appeared (FR-017a). The wire carries no device identity, so
+    /// the record names the direction alone.
+    fn record_device_appeared(state: &AppState) {
+        if let Some(snapshot) = diag_snapshot(state) {
+            record_output_device(
+                state,
+                &snapshot,
+                DeviceEvent {
+                    direction: DeviceDirection::Appeared,
+                    device_id: String::from("none"),
+                },
+                "device_appeared",
+            );
+        }
+    }
+
+    /// The FR-017 diagnostic record (T097): the route that went
+    /// away (FR-017a). The wire carries no device identity, so the
+    /// record names the direction alone.
+    fn record_device_disappeared(state: &AppState) {
+        if let Some(snapshot) = diag_snapshot(state) {
+            record_output_device(
+                state,
+                &snapshot,
+                DeviceEvent {
+                    direction: DeviceDirection::Disappeared,
+                    device_id: String::from("none"),
+                },
+                "device_disappeared",
+            );
+        }
+    }
+
     /// Apply one focus intent to the held tracker (T125,
     /// FR-014 / FR-032c): the single entry point every
     /// focus-bearing arm uses, so latest-event-wins
@@ -2245,7 +2959,7 @@ pub mod commands {
                 .map_or_else(|_| (current, false), |snapshot| (snapshot, true))
         };
         if moved {
-            after_execute(state, &snapshot);
+            after_execute(state, &snapshot, verb);
         }
         Ok((snapshot, moved))
     }
@@ -2272,6 +2986,18 @@ pub mod commands {
     ) -> Result<serde_json::Value, String> {
         pause_backend(state);
         let (snapshot, changed) = execute_or_current(state, verb)?;
+        // The FR-017 diagnostic record (T097): the interruption's
+        // class and its outcome, with the measured values the
+        // contract names.
+        if let Some(outcome) = outcome {
+            record_focus_transition(
+                state,
+                &snapshot,
+                diag_focus_value(outcome),
+                status,
+                diag_focus_name(outcome),
+            );
+        }
         publish_current_state(state, transient_reason);
         Ok(serde_json::json!({
             "status": status,
@@ -2301,6 +3027,18 @@ pub mod commands {
             false
         };
         let snapshot = snapshot_of(state)?;
+        // The FR-017 diagnostic record (T097): the duckable
+        // transient's class and outcome. A deferred grant names no
+        // outcome, so it records no focus transition.
+        if let Some(outcome) = decision.outcome {
+            record_focus_transition(
+                state,
+                &snapshot,
+                diag_focus_value(outcome),
+                "duckable_transient",
+                diag_focus_name(outcome),
+            );
+        }
         publish_current_state(state, None);
         Ok(serde_json::json!({
             "status": "duckable_transient",
@@ -2399,9 +3137,16 @@ pub mod commands {
         let _ = apply_focus(state, FocusIntent::BecomingNoisy)?;
         let mut tracker = RoutingTracker::new();
         match tracker.apply(RoutingSignal::BecomingNoisy, transport) {
-            RoutingDecision::Pause { latency_ms, .. } => {
+            RoutingDecision::Pause { latency_ms, device } => {
+                // The FR-017 diagnostic record (T097): the removal
+                // clock opens here — the route-removal instant —
+                // and the pause that follows closes it.
+                note_removal_request(state);
                 pause_backend(state);
                 let (snapshot, changed) = execute_or_current(state, ShellVerb::Interrupt)?;
+                // The route that went noisy (FR-017a), with the
+                // machine's own device event.
+                record_output_device(state, &snapshot, device, "becoming_noisy");
                 publish_current_state(state, Some("becoming_noisy".to_string()));
                 Ok(serde_json::json!({
                     "status": "becoming_noisy",
@@ -2680,6 +3425,10 @@ pub mod commands {
     ///   table rejects the press (a torn-down session takes no
     ///   play).
     fn play_document(document: &str, state: &AppState) -> Result<serde_json::Value, OpenError> {
+        // The FR-017 diagnostic record (T097): the play-to-audio
+        // clock opens here — the request instant — and the first
+        // audible audio of this request closes it.
+        note_play_request(state);
         // T042 read-at-start (FR-019b): the session opens at
         // the stored rung — seeded through the rate verbs
         // before anything else happens, so a fresh session
@@ -2764,7 +3513,12 @@ pub mod commands {
 
         // Open the FR-015 clock on the landed Playing
         // transport (T011).
-        after_execute(state, &snapshot);
+        after_execute(state, &snapshot, ShellVerb::Play);
+
+        // The FR-017 diagnostic record (T097): the buffer state
+        // the session started with — the pre-roll seconds still
+        // buffered at the open.
+        record_buffer_state(state, &snapshot);
 
         // Publish mirror snapshot after successful play start —
         // the same helper every verb path uses.
@@ -3768,7 +4522,7 @@ mod heartbeat_bookmark_tests {
                 .execute(ShellVerb::Play)
                 .map_err(|e| e.to_string())?
         };
-        after_execute(state, &snapshot);
+        after_execute(state, &snapshot, ShellVerb::Play);
         Ok(snapshot)
     }
 
@@ -3789,7 +4543,7 @@ mod heartbeat_bookmark_tests {
                 .execute(ShellVerb::Pause)
                 .map_err(|e| e.to_string())?
         };
-        after_execute(&state, &paused);
+        after_execute(&state, &paused, ShellVerb::Pause);
 
         let fingerprint = fingerprint::fingerprint(DOC);
         let row = stored_row(&state, fingerprint)?.ok_or("no row after the deliberate pause")?;
@@ -3829,7 +4583,7 @@ mod heartbeat_bookmark_tests {
                 .execute(ShellVerb::Interrupt)
                 .map_err(|e| e.to_string())?
         };
-        after_execute(&state, &interrupted);
+        after_execute(&state, &interrupted, ShellVerb::Interrupt);
 
         let fingerprint = fingerprint::fingerprint(DOC);
         let row =
@@ -3865,7 +4619,7 @@ mod heartbeat_bookmark_tests {
                 .execute(ShellVerb::Stop)
                 .map_err(|e| e.to_string())?
         };
-        after_execute(&state, &stopped);
+        after_execute(&state, &stopped, ShellVerb::Stop);
         assert_eq!(
             current_first_yield_ms(&state),
             0,
@@ -3900,7 +4654,7 @@ mod heartbeat_bookmark_tests {
                 .execute(ShellVerb::Pause)
                 .map_err(|e| e.to_string())?
         };
-        after_execute(&state, &paused);
+        after_execute(&state, &paused, ShellVerb::Pause);
         heartbeat_once(&state);
         assert_eq!(paused.transport, TransportState::Paused);
         Ok(())
@@ -3962,7 +4716,7 @@ mod event_durable_tests {
                 .execute(ShellVerb::Play)
                 .map_err(|e| e.to_string())?
         };
-        after_execute(state, &snapshot);
+        after_execute(state, &snapshot, ShellVerb::Play);
         Ok(snapshot)
     }
 
@@ -3975,7 +4729,7 @@ mod event_durable_tests {
                 .execute(ShellVerb::Pause)
                 .map_err(|e| e.to_string())?
         };
-        after_execute(state, &paused);
+        after_execute(state, &paused, ShellVerb::Pause);
         Ok(paused)
     }
 
@@ -4003,7 +4757,7 @@ mod event_durable_tests {
                 .execute(ShellVerb::Stop)
                 .map_err(|e| e.to_string())?
         };
-        after_execute(&state, &stopped);
+        after_execute(&state, &stopped, ShellVerb::Stop);
         delete_bookmark(&state);
 
         assert!(
@@ -4044,7 +4798,7 @@ mod event_durable_tests {
                 .execute(ShellVerb::Complete)
                 .map_err(|e| e.to_string())?
         };
-        after_execute(&state, &completed);
+        after_execute(&state, &completed, ShellVerb::Complete);
         if let Ok(mut offer) = state.offer.lock() {
             offer.on_completion();
         }
@@ -4160,7 +4914,7 @@ mod event_durable_tests {
             TransportState::Playing,
             "an ordinary forward skip must hold the playing transport"
         );
-        after_skip(&state, &skipped);
+        after_skip(&state, &skipped, ShellVerb::SkipForward);
 
         let fingerprint = fingerprint::fingerprint(DOC);
         let row = stored_row(&state, fingerprint)?.ok_or("the section change recorded no row")?;
@@ -4852,6 +5606,205 @@ mod second_document_tests {
         assert!(
             stored_row(&state, &first_fp)?.is_none(),
             "the switch resurrected a terminal session's discarded position (FR-032f)"
+        );
+        Ok(())
+    }
+}
+
+/// T097 (FR-017) — the diagnostic record wiring.
+///
+/// RED-first contract: the private, on-device JSONL record receives
+/// the session lifecycle's events. The test drives the REAL
+/// production paths — the cold-start open, the post-execution
+/// bookkeeping every verb path runs, and the live-control path —
+/// over a real record file, and reads the record back from disk.
+/// The record is then scanned by the `diag` crate's own scanner: no
+/// prose, no over-long detail, every failure and refusal carries
+/// its closed error name (FR-017 / SC-008).
+#[cfg(test)]
+mod diag_record_tests {
+    use super::*;
+    use crate::commands::{execute_live_control, open_document_bytes};
+    use serde_json::Value;
+    use std::path::{Path, PathBuf};
+
+    /// The document the open path reads: a heading and a spoken
+    /// paragraph. Its prose must never reach the record.
+    const DOC: &[u8] = b"# Diagnostico\n\nO trem passa as sete.";
+
+    /// The prose fragment the record must never carry.
+    const PROSE: &str = "trem passa";
+
+    /// A fresh state with a real record file and a real bookmark
+    /// store, both in a temp dir dropped with the test.
+    fn state_with_record() -> Result<(tempfile::TempDir, PathBuf, AppState), String> {
+        let dir = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let path = dir.path().join("diagnostic-record.jsonl");
+        let store =
+            BookmarkStore::open(&dir.path().join("bookmarks.redb")).map_err(|e| e.to_string())?;
+        let state = AppState::test_state_with_bookmark_store(store);
+        state.diag.open(&path)?;
+        Ok((dir, path, state))
+    }
+
+    /// The record's entries, read back from the file — the same
+    /// file a maintainer pulls off the device.
+    fn record_entries(path: &Path) -> Result<Vec<Value>, String> {
+        let text = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
+        let mut entries = Vec::new();
+        for line in text.lines() {
+            if line.trim().is_empty() {
+                continue;
+            }
+            entries.push(serde_json::from_str::<Value>(line).map_err(|e| e.to_string())?);
+        }
+        Ok(entries)
+    }
+
+    /// The first entry carrying the given `detail` key, or the
+    /// failure that names the missing entry.
+    fn entry_with_detail<'a>(entries: &'a [Value], needle: &str) -> Result<&'a Value, String> {
+        entries
+            .iter()
+            .find(|entry| {
+                entry
+                    .get("detail")
+                    .and_then(Value::as_str)
+                    .is_some_and(|detail| detail.contains(needle))
+            })
+            .ok_or_else(|| format!("the record carries no entry with {needle}"))
+    }
+
+    /// The first entry of the given kind, or the failure that names
+    /// the missing kind.
+    fn entry_of_kind<'a>(entries: &'a [Value], kind: &str) -> Result<&'a Value, String> {
+        entries
+            .iter()
+            .find(|entry| entry.get("kind").and_then(Value::as_str) == Some(kind))
+            .ok_or_else(|| format!("the record carries no {kind} entry"))
+    }
+
+    /// T097: the open path writes the record — the session start
+    /// on a device host, the named failure on a device-less one —
+    /// and the record the app leaves behind passes the contract's
+    /// own scanner: no prose, no over-long detail, every failure
+    /// and refusal carrying its closed error name.
+    #[test]
+    fn the_open_path_writes_a_record_the_contract_accepts() -> Result<(), String> {
+        let (_dir, path, state) = state_with_record()?;
+        let _opened = open_document_bytes(&state, DOC.to_vec());
+        // The first audible audio of the session: the progress
+        // entry that shows the session advancing (the record's own
+        // stall rule asks for it).
+        let mut watch = PlaybackWatch::default();
+        feed_audible_progress(&state, 1.0, &mut watch);
+        let entries = record_entries(&path)?;
+        assert!(
+            !entries.is_empty(),
+            "the open path wrote no diagnostic record entry (FR-017)"
+        );
+        // The document's prose never reaches the record.
+        let text = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+        assert!(
+            !text.contains(PROSE),
+            "the record quoted the document's prose (FR-017 / SC-008)"
+        );
+        // The contract's own scanner over the record the app wrote.
+        let report = diag::scan::scan_record(&path).map_err(|e| e.to_string())?;
+        assert!(
+            report.violations.is_empty(),
+            "the record violates the diagnostic contract: {:?}",
+            report.violations
+        );
+        Ok(())
+    }
+
+    /// T097: the transport change and the session start reach the
+    /// record when the session lands — the post-execution
+    /// bookkeeping every verb path runs.
+    #[test]
+    fn the_transport_change_and_the_session_start_reach_the_record() -> Result<(), String> {
+        let (_dir, path, state) = state_with_record()?;
+        let snapshot = {
+            let mut session = state.session.lock().map_err(|e| e.to_string())?;
+            session
+                .execute(ShellVerb::Play)
+                .map_err(|e| e.to_string())?
+        };
+        after_execute(&state, &snapshot, ShellVerb::Play);
+        let entries = record_entries(&path)?;
+        let start = entry_of_kind(&entries, "session_start")?;
+        assert_eq!(
+            start.get("transport").and_then(Value::as_str),
+            Some("playing"),
+            "the session start names no transport (FR-017)"
+        );
+        let change = entry_with_detail(&entries, "action=play")?;
+        assert_eq!(
+            change.get("kind").and_then(Value::as_str),
+            Some("transport_change"),
+            "the transport change is not a transport change entry"
+        );
+        Ok(())
+    }
+
+    /// T097: the per-rate change and the per-section progress reach
+    /// the record through the live-control path.
+    #[test]
+    fn the_rate_change_and_the_section_progress_reach_the_record() -> Result<(), String> {
+        let (_dir, path, state) = state_with_record()?;
+        // The open installs the session's structure — the headings
+        // the section index counts — before the audio tail runs.
+        let _opened = open_document_bytes(&state, DOC.to_vec());
+        let _rate = execute_live_control(&state, ShellVerb::RateUp)?;
+        let _skip = execute_live_control(&state, ShellVerb::SkipForward)?;
+        let entries = record_entries(&path)?;
+        let rate = entry_with_detail(&entries, "action=rate ")?;
+        let rate_detail = rate
+            .get("detail")
+            .and_then(Value::as_str)
+            .ok_or("the rate entry carries no detail")?;
+        assert!(
+            rate_detail.contains("rate_from=") && rate_detail.contains("rate_to="),
+            "the rate entry names no rung change: {rate_detail}"
+        );
+        let section = entry_with_detail(&entries, "action=section ")?;
+        let section_detail = section
+            .get("detail")
+            .and_then(Value::as_str)
+            .ok_or("the section entry carries no detail")?;
+        assert!(
+            section_detail.contains("section="),
+            "the section entry names no section index: {section_detail}"
+        );
+        Ok(())
+    }
+
+    /// T097: a refused open is named in the record with the closed
+    /// error taxonomy's member — never the free-text reason, which
+    /// may quote the device or the engine.
+    #[test]
+    fn a_refused_open_is_named_with_the_closed_error() -> Result<(), String> {
+        let (_dir, path, state) = state_with_record()?;
+        let refused = open_document_bytes(&state, Vec::new());
+        assert!(
+            refused.is_err(),
+            "an empty document must be refused, not opened"
+        );
+        let entries = record_entries(&path)?;
+        let refusal = entry_of_kind(&entries, "refusal")?;
+        assert_eq!(
+            refusal.get("error").and_then(Value::as_str),
+            Some("channel_mismatch"),
+            "the refusal names no closed error member (FR-017 / research.md R5)"
+        );
+        let detail = refusal
+            .get("detail")
+            .and_then(Value::as_str)
+            .ok_or("the refusal carries no detail")?;
+        assert!(
+            detail.contains("cause=empty_document"),
+            "the refusal names no cause: {detail}"
         );
         Ok(())
     }

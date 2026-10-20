@@ -4017,6 +4017,7 @@ dependencies = [
  "adapter-synthesis",
  "base64 0.22.1",
  "blake3",
+ "diag",
  "engine-core",
  "hex",
  "jni 0.21.1",

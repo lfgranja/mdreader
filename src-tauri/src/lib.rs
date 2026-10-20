@@ -6814,9 +6814,10 @@ mod cold_start_gate_tests {
         let _second = open_document_bytes(&state, SECOND.to_vec());
         let row = stored_row(&state)?
             .ok_or("the switch did not persist the first document's bookmark (FR-018)")?;
-        assert!(
-            (row.offset_secs - 12.5).abs() < 1e-9,
-            "the switch moved the first document's stored position (FR-018)"
+        assert_offset(
+            row.offset_secs,
+            12.5,
+            "the switch moved the first document's stored position (FR-018)",
         );
         // The incoming document carries no stored row of its own:
         // it never inherits the outgoing document's position.

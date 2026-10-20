@@ -630,3 +630,21 @@ Subagent E: "T032 rewind.rs + resume.rs sentence-snap (independent)"
 ### Phase 16 Addendum Tasks (append-only; zero renumber of T001–T128)
 
 - [ ] T129 [P] Translate the lock-screen action labels to pt-BR per FR-011 in `android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt`: `RESUME_LABEL` ("Resume" → "Retomar"), `RATE_UP_LABEL` ("Rate +"), `RATE_DOWN_LABEL` ("Rate -"), `VOICE_NEXT_LABEL` ("Voice next"), `VOICE_PREV_LABEL` ("Voice prev") — the labels stay value-blind (no numeric rate value may appear, per FR-012/FR-011 purity); also check the remaining lock-screen user-visible strings in the same file (any state label or content-text fallback) for the same defect; covered by the lock-screen purity suite (`src-tauri/tests/test_purity.rs` + `src-tauri/tests/test_lockscreen_resume_control.rs`) (`partial`)
+
+---
+
+## Phase 16 Addendum 2: Convergence
+
+> Source: `spec.md` FR-011 (pt-BR for every user-visible lock-screen string), the T129 implementation report (agent `ses_ea555f28cffepPl6ZMblwEZmjt`), which swept `MediaMirror.kt` and found the same defect class in a sibling file. Appended as a new traceable task; no existing task rewritten or renumbered.
+
+### Convergence Findings (in-session, before append)
+
+| ID | Gap Type | Severity | Source | Evidence | Remediation (tasks below) |
+|----|----------|----------|--------|----------|---------------------------|
+| F1 | partial | MEDIUM | FR-011 | `android-shell/src/main/kotlin/app/mdreader/Residency.kt:97-99` — the resident-pause notification carries `RESUME_LABEL = "Resume"`, `RESIDENT_STOP_LABEL = "Stop"`, `RESIDENT_CONTENT_TEXT = "Paused"`; it shares the media surface's notification id, so these strings DO reach the lock screen on a pause (`:300-307` builds the actions and the content text from them) | T130 |
+
+**Metrics:** 1 finding — 1 partial. 1 MEDIUM. Same defect class as T129, different file; the strings are user-visible on the lock screen, unlike the diag-only identifiers T129 deliberately left in English.
+
+### Phase 16 Addendum 2 Tasks (append-only; zero renumber of T001–T129)
+
+- [ ] T130 [P] Translate the resident-pause notification strings to pt-BR per FR-011 in `android-shell/src/main/kotlin/app/mdreader/Residency.kt`: `RESUME_LABEL` ("Resume"), `RESIDENT_STOP_LABEL` ("Stop"), `RESIDENT_CONTENT_TEXT` ("Paused") — the resident-pause notification shares the media surface's notification id, so these reach the lock screen; match the vocabulary T129 established in `MediaMirror.kt` ("Retomar", "Parar", "Pausado"); sweep the same file for any other user-visible literal still in English (notification title, channel name, accessibility text) and translate it; covered by the lock-screen purity suites (`src-tauri/tests/test_purity.rs` + `test_lockscreen_resume_control.rs`) (`partial`)

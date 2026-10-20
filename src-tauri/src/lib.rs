@@ -57,7 +57,6 @@ use player::rate::RateStep;
 use player::surface::MirrorState;
 use player::transport::{PlaybackRate, TransportState};
 use session::fingerprint;
-use session::offer::ExpiryOutcome;
 use session::store::{BookmarkStore, StoredPosition};
 use std::time::Duration;
 use tauri::Manager;
@@ -140,6 +139,11 @@ pub struct AppState {
     /// foreground latch is read at expiry only — never
     /// converting an open offer early.
     pub(crate) offer: Mutex<session::offer::OfferMachine>,
+    /// The parked cold-start open (T110): the document whose
+    /// resume offer is open, waiting for the offer to resolve
+    /// before ANY audio begins (FR-009 / FR-032c). `None` when
+    /// no offer is open.
+    pub(crate) pending_open: Mutex<Option<PendingOpen>>,
     /// The Rust→shell publish channel (T133): created on
     /// first frontend listener registration, used to
     /// stream `MirrorState` snapshots (sanctioned
@@ -200,6 +204,7 @@ impl std::fmt::Debug for AppState {
             .field("permissions", &self.permissions)
             .field("focus_tracker", &self.focus_tracker)
             .field("offer", &self.offer)
+            .field("pending_open", &self.pending_open)
             .field("publish_channel", &"<tauri::ipc::Channel<MirrorState>>")
             .field("surface_resolver", &self.surface_resolver)
             .field("headings", &self.headings)
@@ -225,6 +230,7 @@ impl AppState {
             permissions: Mutex::new(permissions::PermissionSnapshot::default()),
             focus_tracker: Mutex::new(player::focus::FocusTracker::new()),
             offer: Mutex::new(session::offer::OfferMachine::new()),
+            pending_open: Mutex::new(None),
             publish_channel: Mutex::new(None),
             surface_resolver: Mutex::new(None),
             headings: Mutex::new(Vec::new()),
@@ -1543,27 +1549,76 @@ pub(crate) enum OfferRoute {
 /// visible 3-second continue dialog a deliberate end opens.
 const OFFER_WINDOW_MS: u64 = 3000;
 
+/// The offer-window poll period, in milliseconds (T110): the
+/// cadence the app checks whether the FR-032c window of a
+/// parked cold-start open elapsed. The window's own length is
+/// [`OFFER_WINDOW_MS`]; this cadence only bounds how late the
+/// silence rule lands, never the window itself.
+const OFFER_WINDOW_POLL_MS: u64 = 250;
+
+/// The cold-start open parked behind an open resume offer
+/// (T110): the document whose offer is open, waiting for the
+/// offer to resolve before ANY audio begins (FR-009 / FR-032c).
+///
+/// The parked open holds the document and the stored position
+/// the offer continues from — data, never a decision: the offer
+/// machine owns the decision of whether and when the reading
+/// starts (FR-044).
+#[derive(Debug)]
+pub(crate) struct PendingOpen {
+    /// The document text — the sole synthesis input (FR-018).
+    document: String,
+    /// The picked document's name (T103) — a display input only:
+    /// the surface title's source, never a synthesis input.
+    filename: String,
+    /// The stored position the offer continues from, in seconds.
+    offset_secs: f64,
+    /// When the offer opened (the FR-032c window's start): the
+    /// app's own clock — the offer machine carries none.
+    opened_at: std::time::Instant,
+}
+
+/// The parked cold-start open's resolution (T110): the ways a
+/// parked open ends.
+///
+/// The three members are the whole outcome space of a parked
+/// open; each maps to the offer machine's own answer, never to a
+/// decision made in the shell (FR-044).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ParkedResolution {
+    /// The FR-032c window elapsed with no choice: the silence
+    /// rule continues from the stored position (FR-009).
+    WindowElapsed,
+    /// The reader resumed — the in-app dialog's continue choice
+    /// or the lock-screen resume control: the reading continues
+    /// from the stored position (the FR-032c continue default,
+    /// and the only start an unexpected end permits — FR-032d /
+    /// FR-031).
+    ReaderResumed,
+    /// The reader chose "start over": the reading begins at the
+    /// first spoken position and the stored entry is discarded
+    /// (FR-032c).
+    StartOverChosen,
+}
+
 /// Route a stored session end to the surface that renders its
 /// resume offer (T037) — thin route-to-surface, with no offer
 /// logic of its own.
 ///
 /// The form is READ from the held
 /// [`session::offer::OfferMachine`], never re-derived: the
-/// machine's own decision fn (`on_session_end`) is driven over
-/// a probe row carrying the stored end kind. The machine
-/// resolves the form SOLELY from that kind (storage-schema.md),
-/// so the probe's placeholder offset changes no answer — this
-/// function only maps the machine's answer to a surface.
+/// machine's own decision fn (`resolve_open`) is driven over the
+/// REAL stored row, so the open offer carries the stored position
+/// the FR-009 silence rule continues from. The machine resolves
+/// the form SOLELY from the stored end kind (storage-schema.md),
+/// so this function only maps the machine's answer to a surface.
 ///
 /// * The machine opening the continue offer routes to
 ///   [`OfferRoute::InAppDialog`].
-/// * The machine answering "no open offer" is then asked what
-///   the end resolves to, through its own `expire`: a standing
-///   explicit-resume requirement (FR-032d) routes to
-///   [`OfferRoute::LockScreenResume`], and nothing open routes
-///   to [`OfferRoute::NoRoute`]. The `expire` question is asked
-///   on that branch only, so it can never consume an open
-///   offer.
+/// * A standing explicit-resume requirement (FR-032d) routes to
+///   [`OfferRoute::LockScreenResume`].
+/// * Nothing open — a terminal end (FR-032 / FR-032e) — routes
+///   to [`OfferRoute::NoRoute`].
 ///
 /// Driving the held machine is exactly the open/reopen
 /// lifecycle point — the offer is resolved there and read at
@@ -1572,30 +1627,20 @@ const OFFER_WINDOW_MS: u64 = 3000;
 /// lock records and routes nothing: a route is a rendering
 /// hint, never a playback decision.
 #[must_use]
-pub(crate) fn route_offer(state: &AppState, end_kind: SessionEnd) -> OfferRoute {
-    // The key the row would sit under; the machine itself
-    // ignores it (the form never depends on document identity).
-    let fingerprint = current_fingerprint(state).unwrap_or([0u8; 32]);
-    let probe = StoredPosition {
-        offset_secs: 0.0,
-        first_yield_ms: current_first_yield_ms(state),
-        end_kind,
-    };
+pub(crate) fn route_offer(state: &AppState, stored: &StoredPosition) -> OfferRoute {
     let Ok(mut machine) = state.offer.lock() else {
         tracing::warn!("offer route unresolved: the offer lock is poisoned");
         return OfferRoute::NoRoute;
     };
-    if machine.on_session_end(fingerprint, Some(probe)).is_some() {
-        // The machine opened the continue offer: the
-        // deliberate-pause form.
-        return OfferRoute::InAppDialog;
-    }
-    match machine.expire() {
-        ExpiryOutcome::ExplicitResume => OfferRoute::LockScreenResume,
-        // A foregrounded auto-start resolves on the open-offer
-        // branch above; arriving here means nothing opened at
-        // all (a terminal end, or no stored row).
-        ExpiryOutcome::AutoStart { .. } | ExpiryOutcome::NoOffer => OfferRoute::NoRoute,
+    // The machine's own decision over the REAL stored row: the
+    // deliberate pause opens the continue offer (carrying the
+    // stored position the silence rule continues from), the
+    // unexpected end leaves the explicit-resume requirement
+    // standing, and the terminal ends open nothing.
+    match machine.resolve_open(Some(*stored)) {
+        session::offer::OpenOffer::Continue { .. } => OfferRoute::InAppDialog,
+        session::offer::OpenOffer::ExplicitResume => OfferRoute::LockScreenResume,
+        session::offer::OpenOffer::NoOffer => OfferRoute::NoRoute,
     }
 }
 
@@ -1613,6 +1658,286 @@ pub(crate) const fn offer_route_wire(route: OfferRoute) -> (&'static str, Option
         OfferRoute::LockScreenResume => ("lockscreen_resume", None),
         OfferRoute::NoRoute => ("none", None),
     }
+}
+
+/// Park the cold-start open behind its open offer (T110): the
+/// document waits for the offer to resolve, and NO audio begins
+/// until it does (FR-009 / FR-032c).
+///
+/// The parked open holds DATA — the document, its display name,
+/// and the stored position the offer continues from — never a
+/// decision: the offer machine owns the decision of whether and
+/// where the reading starts (FR-044).
+fn park_cold_start(state: &AppState, document: &str, filename: &str, offset_secs: f64) {
+    let pending = PendingOpen {
+        document: document.to_string(),
+        filename: filename.to_string(),
+        offset_secs,
+        opened_at: std::time::Instant::now(),
+    };
+    let Ok(mut guard) = state.pending_open.lock() else {
+        tracing::warn!("the cold start was not parked: the pending-open lock is poisoned");
+        return;
+    };
+    *guard = Some(pending);
+}
+
+/// Take the parked cold-start open (T110): the waiting document,
+/// if one is parked. The parked open is consumed by its
+/// resolution, so a second resolution finds nothing.
+fn take_parked_open(state: &AppState) -> Option<PendingOpen> {
+    let mut guard = state.pending_open.lock().ok()?;
+    guard.take()
+}
+
+/// Whether a cold-start open is parked (T110): the reader's
+/// choice resolves the parked open instead of the session.
+fn pending_open_exists(state: &AppState) -> bool {
+    state.pending_open.lock().is_ok_and(|guard| guard.is_some())
+}
+
+/// Park the cold-start open again (T110): the resolution left it
+/// waiting — the FR-032d explicit-resume requirement stands, so
+/// the reader's explicit resume is the only start (FR-032d /
+/// FR-031).
+fn repark_cold_start(state: &AppState, pending: PendingOpen) {
+    let Ok(mut guard) = state.pending_open.lock() else {
+        tracing::warn!("the cold start was not re-parked: the pending-open lock is poisoned");
+        return;
+    };
+    *guard = Some(pending);
+}
+
+/// The FR-032c window elapsed (T110): the parked cold-start open
+/// resolves through the offer machine's own answer — the silence
+/// rule continues from the stored position (FR-009), and a
+/// backgrounded window leaves the explicit-resume requirement
+/// standing (FR-032d / FR-031).
+///
+/// The window's length is the app's own clock: the parked open
+/// records when its offer opened, and the window elapses
+/// [`OFFER_WINDOW_MS`] later. The check is a no-op before that
+/// instant and after the open has resolved.
+pub(crate) fn expire_parked_open(state: &AppState) {
+    // The elapsed time is read alone, under the pending-open lock
+    // only: the poll never copies the parked document, and it
+    // never holds two state locks together.
+    let elapsed = {
+        let Ok(guard) = state.pending_open.lock() else {
+            return;
+        };
+        let Some(pending) = guard.as_ref() else {
+            return; // nothing is parked — nothing waits
+        };
+        pending.opened_at.elapsed()
+    };
+    if elapsed < Duration::from_millis(OFFER_WINDOW_MS) {
+        return; // the window is still open
+    }
+    if !resolve_parked_open(state, ParkedResolution::WindowElapsed) {
+        tracing::debug!("the parked cold start did not start the reading");
+    }
+}
+
+/// Resolve the parked cold-start open (T110): the offer machine's
+/// own answer decides whether the reading starts, and where.
+///
+/// * [`ExpiryOutcome::AutoStart`] — the reading starts at the
+///   offset the machine names: the FR-009 silence rule continues
+///   from the stored position, and the start-over choice begins
+///   at the first spoken position (FR-032c).
+/// * [`ExpiryOutcome::ExplicitResume`] — nothing starts on its
+///   own (FR-032d / FR-031). The reader's explicit resume is the
+///   only start, and it starts at the stored position the parked
+///   open holds — the row the offer was opened from.
+/// * [`ExpiryOutcome::NoOffer`] — nothing is open: the parked
+///   open is dropped.
+///
+/// The start-over choice discards the stored entry (FR-032c):
+/// the stored position is no longer a resume point once the
+/// reader asked to start over.
+///
+/// Returns whether the reading started. A start that the
+/// synthesis path refuses records its own named refusal (FR-017)
+/// and starts nothing.
+pub(crate) fn resolve_parked_open(state: &AppState, resolution: ParkedResolution) -> bool {
+    let Some(pending) = take_parked_open(state) else {
+        return false; // nothing is parked — nothing to resolve
+    };
+    let outcome = {
+        let Ok(mut machine) = state.offer.lock() else {
+            tracing::warn!("the parked cold start did not resolve: the offer lock is poisoned");
+            return false;
+        };
+        match resolution {
+            // The reader chose "start over": the machine's own
+            // answer is the first spoken position.
+            ParkedResolution::StartOverChosen => machine.start_over(),
+            // The window elapsed, or the reader resumed: the
+            // machine's own answer is the continue default.
+            ParkedResolution::WindowElapsed | ParkedResolution::ReaderResumed => machine.expire(),
+        }
+    };
+    match outcome {
+        session::offer::ExpiryOutcome::AutoStart { offset_secs } => {
+            if resolution == ParkedResolution::StartOverChosen {
+                // The stored position is discarded: the reader
+                // asked to start over, so the row is no longer a
+                // resume point (FR-032c).
+                delete_bookmark(state);
+            }
+            start_parked_reading(state, &pending, offset_secs)
+        }
+        session::offer::ExpiryOutcome::ExplicitResume => {
+            if resolution == ParkedResolution::ReaderResumed {
+                // The reader's own resume satisfies the
+                // explicit-resume requirement: the reading
+                // starts at the stored position the parked open
+                // holds (FR-032d / FR-031).
+                start_parked_reading(state, &pending, pending.offset_secs)
+            } else {
+                // The window elapsed on an unexpected end:
+                // nothing starts on its own — the reader's
+                // explicit resume is the only start, so the
+                // parked open waits (FR-032d / FR-031).
+                repark_cold_start(state, pending);
+                false
+            }
+        }
+        session::offer::ExpiryOutcome::NoOffer => {
+            if resolution == ParkedResolution::ReaderResumed {
+                // Nothing is open, but the reader's resume is an
+                // explicit start: the reading begins at the
+                // stored position the parked open holds.
+                start_parked_reading(state, &pending, pending.offset_secs)
+            } else {
+                false
+            }
+        }
+    }
+}
+
+/// Start the parked reading (T110): the parked document's
+/// synthesis and playback, entered at `offset_secs` — the one
+/// synthesis path, resumed at the position the offer resolved to.
+///
+/// Returns whether the reading started: a synthesis path that
+/// refuses records its own named refusal (FR-017) and starts
+/// nothing.
+fn start_parked_reading(state: &AppState, pending: &PendingOpen, offset_secs: f64) -> bool {
+    match commands::play_document(&pending.document, state, &pending.filename, offset_secs) {
+        Ok(_payload) => true,
+        Err(error) => {
+            let _refused = commands::refuse(state, error);
+            false
+        }
+    }
+}
+
+/// The reader's choice resolves the parked cold-start open
+/// (T110): the reader's resume or start-over choice resolves the
+/// open offer instead of touching a session that never started.
+///
+/// The choice is the reader's own: the in-app dialog's continue
+/// choice, and the lock-screen resume control an unexpected end
+/// waits for (FR-032d / FR-031).
+///
+/// # Errors
+///
+/// The session lock's poison error, when the snapshot of the
+/// resolved reading cannot be read.
+fn resolve_parked_choice(state: &AppState, verb: ShellVerb) -> Result<serde_json::Value, String> {
+    let resolution = if verb == ShellVerb::StartOver {
+        ParkedResolution::StartOverChosen
+    } else {
+        ParkedResolution::ReaderResumed
+    };
+    let started = resolve_parked_open(state, resolution);
+    let snap = {
+        let Ok(session) = state.session.lock() else {
+            return Err("the session lock is poisoned".to_string());
+        };
+        session.snapshot()
+    };
+    commands::publish_current_state(state, None);
+    Ok(serde_json::json!({
+        "status": snap.transport.to_string(),
+        "position_secs": snap.position_secs,
+        "transport": snap.transport.to_string(),
+        "offer_resolved": started,
+    }))
+}
+/// The PCM that begins at `offset_secs` (T110): the samples
+/// before the resolved position are never played, so a cold start
+/// that continued from its resume offer enters the audio where
+/// the offer continued from (FR-009).
+///
+/// An offset past the end of the audio yields no samples: the
+/// reading has nothing left to play, and the caller starts
+/// nothing.
+fn pcm_from_offset(pcm: &[f32], offset_secs: f64) -> Vec<f32> {
+    let start = sample_index_of(offset_secs);
+    if start == 0 {
+        return pcm.to_vec();
+    }
+    let start = start.min(pcm.len());
+    pcm[start..].to_vec()
+}
+
+/// The sample index the resolved position names (T110): the
+/// engine's declared rate is the only clock the PCM carries, and
+/// a negative offset is floored at the start of the audio.
+fn sample_index_of(offset_secs: f64) -> usize {
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "the offset is floored at 0.0 before the cast, so the conversion is a non-negative truncation of a finite second count into a sample index; the saturation of the float-to-int cast keeps it in range"
+    )]
+    let index = (offset_secs.max(0.0) * commands::DECLARED_RATE_HZ) as usize;
+    index
+}
+
+/// The 500 ms playback-watch task (F1/F3): feeds the session
+/// clock from the backend's audible clock, republishes the
+/// mirror at consumed-unit crossings, and commands the
+/// document-end teardown when the stream drains.
+///
+/// The task carries its own baselines and holds the owned app
+/// handle (never a borrowed `State`), so it outlives the setup
+/// closure; each tick takes every state lock alone — no two are
+/// ever held together, exactly like the heartbeat.
+fn spawn_playback_watch_task(app: &tauri::AppHandle) {
+    let watch_handle = app.clone();
+    let _watch_task = tauri::async_runtime::spawn(async move {
+        let mut ticker = time::interval(Duration::from_millis(PLAYBACK_WATCH_PERIOD_MS));
+        let mut watch = PlaybackWatch::default();
+        loop {
+            let _tick = ticker.tick().await;
+            let app_state = watch_handle.state::<AppState>();
+            playback_watch_tick(&app_state, &mut watch);
+        }
+    });
+}
+
+/// The FR-032c offer window elapsed (T110): the parked
+/// cold-start open resolves 3 s after its offer opens — the
+/// silence rule continues from the stored position (FR-009).
+///
+/// The tick only paces the check; the parked open's own clock
+/// decides when the window elapsed. The task holds the owned app
+/// handle (never a borrowed `State`), so it outlives the setup
+/// closure, and it takes every state lock alone — exactly like
+/// the heartbeat and the playback watch.
+fn spawn_offer_window_task(app: &tauri::AppHandle) {
+    let offer_handle = app.clone();
+    let _offer_task = tauri::async_runtime::spawn(async move {
+        let mut ticker = time::interval(Duration::from_millis(OFFER_WINDOW_POLL_MS));
+        loop {
+            let _tick = ticker.tick().await;
+            let app_state = offer_handle.state::<AppState>();
+            expire_parked_open(&app_state);
+        }
+    });
 }
 
 /// One durable heartbeat tick (T011): while the
@@ -1869,6 +2194,7 @@ pub fn run() {
             permissions: Mutex::new(permissions::PermissionSnapshot::default()),
             focus_tracker: Mutex::new(player::focus::FocusTracker::new()),
             offer: Mutex::new(session::offer::OfferMachine::new()),
+            pending_open: Mutex::new(None),
             publish_channel: Mutex::new(None),
             surface_resolver: Mutex::new(None),
             headings: Mutex::new(Vec::new()),
@@ -1959,21 +2285,14 @@ pub fn run() {
             // session clock from the backend's audible clock,
             // republishes the mirror at consumed-unit crossings,
             // and commands the document-end teardown when the
-            // stream drains. The task carries its own baselines and
-            // holds the owned app handle (never a borrowed
-            // `State`), so it outlives the setup closure; each tick
-            // takes every state lock alone — no two are ever held
-            // together, exactly like the heartbeat above.
-            let watch_handle = app.app_handle().clone();
-            let _watch_task = tauri::async_runtime::spawn(async move {
-                let mut ticker = time::interval(Duration::from_millis(PLAYBACK_WATCH_PERIOD_MS));
-                let mut watch = PlaybackWatch::default();
-                loop {
-                    let _tick = ticker.tick().await;
-                    let app_state = watch_handle.state::<AppState>();
-                    playback_watch_tick(&app_state, &mut watch);
-                }
-            });
+            // stream drains.
+            spawn_playback_watch_task(app.app_handle());
+
+            // The FR-032c offer-window task (T110): the parked
+            // cold-start open resolves 3 s after its offer opens
+            // — the silence rule continues from the stored
+            // position (FR-009).
+            spawn_offer_window_task(app.app_handle());
 
             // Shell JNI channel (T111, FR-002/FR-003): install
             // the integer-code drain holding a clone of the
@@ -2029,9 +2348,10 @@ pub mod commands {
         DEFAULT_DOCUMENT_FILENAME, OfferRoute, after_background, after_execute, after_skip,
         current_fingerprint, delete_bookmark, diag_focus_name, diag_focus_value,
         diag_section_index, document_title, note_play_request, note_removal_request,
-        note_resume_origin, offer_route_wire, persist_last_rate, rate_press_of,
-        record_buffer_state, record_focus_transition, record_named_refusal, record_output_device,
-        record_rate_change, record_refusal, record_section_progress, route_offer,
+        note_resume_origin, offer_route_wire, park_cold_start, pcm_from_offset,
+        pending_open_exists, persist_last_rate, rate_press_of, record_buffer_state,
+        record_focus_transition, record_named_refusal, record_output_device, record_rate_change,
+        record_refusal, record_section_progress, resolve_parked_choice, route_offer,
         seed_session_rate, switch_to_document,
     };
     use diag::writer::{DeviceDirection, DeviceEvent, ErrorValue, FocusValue};
@@ -2044,7 +2364,7 @@ pub mod commands {
     use tauri::{AppHandle, Manager, State, command};
 
     /// Declared sample rate of the engine handoff (mono f32).
-    const DECLARED_RATE_HZ: f64 = 22_050.0;
+    pub(crate) const DECLARED_RATE_HZ: f64 = 22_050.0;
 
     /// Bind the native Android plugin surface.
     ///
@@ -2274,15 +2594,51 @@ pub mod commands {
         // driving the held machine at this open is the
         // lifecycle point that opens the FR-032c continue
         // offer the in-app dialog renders — never mid-window.
-        let route = lookup.stored.map_or(OfferRoute::NoRoute, |stored| {
-            route_offer(state, stored.end_kind)
-        });
+        let route = lookup
+            .stored
+            .map_or(OfferRoute::NoRoute, |stored| route_offer(state, &stored));
+
+        // The cold-start gate (T110): the offer machine's own
+        // decision (FR-044) — the app routes the decision and
+        // never re-derives the offer's form.
+        //
+        // * No stored position: the reading starts now, at the
+        //   first spoken position, with no offer (FR-036a).
+        // * A deliberate pause: the 3-second continue offer is
+        //   open (FR-032c) and NO audio begins until it
+        //   resolves (FR-009) — the offer's silence continues
+        //   from the stored position.
+        // * An unexpected end: no offer opens and no audio
+        //   begins on its own (FR-032d / FR-031) — the reader's
+        //   explicit resume is the only start.
+        let decision = session::offer::cold_start(lookup.offer);
+        let start_offset_secs = match decision {
+            session::offer::ColdStart::StartNow => 0.0,
+            session::offer::ColdStart::AwaitOffer { offset_secs, .. } => offset_secs,
+            session::offer::ColdStart::AwaitExplicitResume => {
+                lookup.stored.map_or(0.0, |stored| stored.offset_secs)
+            }
+        };
 
         // The one synthesis path (Principle II): split,
         // synthesize, enqueue, start — with the totals fixed
         // at open and the rate seeded from the store.
-        let mut payload =
-            play_document(&document, state, filename).map_err(|error| refuse(state, error))?;
+        //
+        // A gated cold start never reaches it: the reading waits
+        // for its offer to resolve (FR-009 / FR-032c).
+        let mut payload = if decision == session::offer::ColdStart::StartNow {
+            play_document(&document, state, filename, 0.0).map_err(|error| refuse(state, error))?
+        } else {
+            // The offer is open: the document is parked, NO audio
+            // is synthesized, enqueued, or started, and the
+            // payload reports the waiting reading.
+            park_cold_start(state, &document, filename, start_offset_secs);
+            serde_json::json!({
+                "status": "paused",
+                "transport": "paused",
+                "position_secs": 0.0,
+            })
+        };
 
         // The open facts the resume decision renders: the
         // content fingerprint, the stored row, and the offer
@@ -2319,9 +2675,60 @@ pub mod commands {
     /// error taxonomy's member and the refusal's own cause, never
     /// the free-text reason (which may quote the device or the
     /// engine).
-    fn refuse(state: &AppState, error: OpenError) -> OpenError {
+    pub(crate) fn refuse(state: &AppState, error: OpenError) -> OpenError {
         record_refusal(state, &error);
         error
+    }
+
+    /// Execute one of the three Play-class verbs that reach
+    /// `Playing` in the closed transition table without the
+    /// `Play` synthesis path: `ResumeAtStored`, `StartOver`,
+    /// and `ExternalStart` (T110).
+    ///
+    /// * The same pre-play gate as `Play`: a refusal executes
+    ///   nothing and reports no playing state (FR-010).
+    /// * A parked cold-start open owns the reading (T110): the
+    ///   reader's resume or start-over choice resolves the open
+    ///   offer instead of touching a session that never started.
+    /// * Otherwise the verb lands on the session through the
+    ///   same [`player::cli::PlaybackSession::execute`] code
+    ///   path every other driver calls (Principle II).
+    fn resume_class_verb(
+        verb: ShellVerb,
+        state: &State<'_, AppState>,
+    ) -> Result<serde_json::Value, String> {
+        let permissions = state.permissions.lock().map_err(|e| e.to_string())?;
+        if let Err(failure) = permissions::check_pre_play(&permissions) {
+            // The FR-017 diagnostic record (T097): the refusal
+            // is named before the ack leaves the path — the start
+            // was refused (R5).
+            record_named_refusal(state, ErrorValue::StartRefused, "permission_refused");
+            return Ok(serde_json::json!({
+                "ok": false,
+                "error": failure.reason(),
+            }));
+        }
+        // T110: a parked cold-start open owns the reading — the
+        // reader's resume or start-over choice resolves the open
+        // offer instead of touching a session that never started.
+        if matches!(verb, ShellVerb::ResumeAtStored | ShellVerb::StartOver)
+            && pending_open_exists(state.inner())
+        {
+            return resolve_parked_choice(state.inner(), verb);
+        }
+        let snap = {
+            let mut session = state.session.lock().map_err(|e| e.to_string())?;
+            session.execute(verb).map_err(|e| e.to_string())?
+        };
+        publish_current_state(state, None);
+        // Playing-class landing: open the FR-015 clock (T011) so
+        // the next durable write stamps it.
+        after_execute(state, &snap, verb);
+        Ok(serde_json::json!({
+            "status": snap.transport.to_string(),
+            "position_secs": snap.position_secs,
+            "transport": snap.transport.to_string(),
+        }))
     }
 
     /// The classified bridge action (T110).
@@ -2552,35 +2959,7 @@ pub mod commands {
                 play(&document.unwrap_or_default(), state).map_err(|error| error.to_string())
             }
             ShellVerb::ResumeAtStored | ShellVerb::StartOver | ShellVerb::ExternalStart => {
-                // The same pre-play gate as `Play`: these are
-                // the remaining verbs that can reach `Playing`
-                // in the closed transition table, so a refusal
-                // executes nothing and reports no playing
-                // state (FR-010).
-                let permissions = state.permissions.lock().map_err(|e| e.to_string())?;
-                if let Err(failure) = permissions::check_pre_play(&permissions) {
-                    // The FR-017 diagnostic record (T097): the
-                    // refusal is named before the ack leaves the
-                    // path — the start was refused (R5).
-                    record_named_refusal(state, ErrorValue::StartRefused, "permission_refused");
-                    return Ok(serde_json::json!({
-                        "ok": false,
-                        "error": failure.reason(),
-                    }));
-                }
-                let snap = {
-                    let mut session = state.session.lock().map_err(|e| e.to_string())?;
-                    session.execute(verb).map_err(|e| e.to_string())?
-                };
-                publish_current_state(state, None);
-                // Playing-class landing: open the FR-015 clock
-                // (T011) so the next durable write stamps it.
-                after_execute(state, &snap, verb);
-                Ok(serde_json::json!({
-                    "status": snap.transport.to_string(),
-                    "position_secs": snap.position_secs,
-                    "transport": snap.transport.to_string(),
-                }))
+                resume_class_verb(verb, state)
             }
             ShellVerb::Pause => {
                 if let Ok(backend) = state.backend.lock()
@@ -3481,7 +3860,7 @@ pub mod commands {
         // session is torn down, and only then does the incoming
         // document take the session over.
         switch_to_document(state, document.as_bytes());
-        play_document(document, state, DEFAULT_DOCUMENT_FILENAME)
+        play_document(document, state, DEFAULT_DOCUMENT_FILENAME, 0.0)
     }
 
     /// The synthesis half of the one synthesis path (Principle II):
@@ -3512,6 +3891,15 @@ pub mod commands {
     /// change, never another task's — and the bound is never
     /// renegotiated.
     ///
+    /// ## The resume entry (T110)
+    ///
+    /// `start_offset_secs` is the position the reading enters at:
+    /// `0.0` for a fresh document, and the stored position for a
+    /// cold start that continued from its resume offer (FR-009).
+    /// The samples before it are never played, and the session's
+    /// position opens AT it, so the audio and the position
+    /// authority agree on where the reading is.
+    ///
     /// # Errors
     ///
     /// * [`OpenError::EmptyDocument`] when the document is
@@ -3526,10 +3914,11 @@ pub mod commands {
     /// * [`OpenError::NoStart`] when the closed transition
     ///   table rejects the press (a torn-down session takes no
     ///   play).
-    fn play_document(
+    pub(crate) fn play_document(
         document: &str,
         state: &AppState,
         filename: &str,
+        start_offset_secs: f64,
     ) -> Result<serde_json::Value, OpenError> {
         // The FR-017 diagnostic record (T097): the play-to-audio
         // clock opens here — the request instant — and the first
@@ -3559,6 +3948,12 @@ pub mod commands {
         // first segment first, so its PCM starts while the rest
         // synthesize.
         let (pcm, duration_secs) = synthesize_segments(&segments)?;
+        // The resume entry (T110): the reading continues from the
+        // position the offer resolved to (FR-009), so the samples
+        // before it are never played. The document's own duration
+        // stays the resolver's total — the reading still ends
+        // where the document ends.
+        let pcm = pcm_from_offset(&pcm, start_offset_secs);
         let pcm_samples = pcm.len();
 
         let headings = parse_headings(&segments, duration_secs);
@@ -3597,15 +3992,37 @@ pub mod commands {
         // the OUTGOING document's key.
         start_playback(state, pcm)?;
 
-        let snapshot = {
+        {
             let mut session = state.session.lock().map_err(|e| OpenError::NoStart {
                 reason: e.to_string(),
             })?;
-            session
+            let _landed = session
                 .execute(ShellVerb::Play)
                 .map_err(|e| OpenError::NoStart {
                     reason: e.to_string(),
-                })?
+                })?;
+        }
+
+        // The session's position opens AT the resume entry
+        // (T110): the audible clock is the only advance path
+        // (FR-002), so the resume credits the offset it entered
+        // at. The audio and the position authority agree on where
+        // the reading is.
+        if start_offset_secs > 0.0 {
+            let Ok(mut session) = state.session.lock() else {
+                return Err(OpenError::NoStart {
+                    reason: "the session lock is poisoned".to_string(),
+                });
+            };
+            session.on_audible_progress(start_offset_secs);
+        }
+        let snapshot = {
+            let Ok(session) = state.session.lock() else {
+                return Err(OpenError::NoStart {
+                    reason: "the session lock is poisoned".to_string(),
+                });
+            };
+            session.snapshot()
         };
 
         // Open the FR-015 clock on the landed Playing
@@ -3835,7 +4252,7 @@ pub mod commands {
         // The one route-to-wire mapping (T037), shared with the
         // cold-start open payload — never a second definition
         // of the route vocabulary.
-        let (offer_route, window_ms) = offer_route_wire(route_offer(&state, stored.end_kind));
+        let (offer_route, window_ms) = offer_route_wire(route_offer(&state, &stored));
         Ok(window_ms.map_or_else(
             || serde_json::json!({ "offer_route": offer_route }),
             |window_ms| {
@@ -4832,6 +5249,17 @@ mod event_durable_tests {
             .map_err(|e| e.to_string())
     }
 
+    /// The stored row the offer machine reads (T110): the real
+    /// row, so the open offer carries the stored position the
+    /// FR-009 silence rule continues from.
+    fn stored_at(end_kind: SessionEnd, offset_secs: f64) -> StoredPosition {
+        StoredPosition {
+            offset_secs,
+            first_yield_ms: 250,
+            end_kind,
+        }
+    }
+
     /// Drive the held session to `Playing` through the real
     /// transition table and run the bookkeeping the bridge
     /// runs at the same point.
@@ -5066,7 +5494,7 @@ mod event_durable_tests {
     fn deliberate_end_routes_to_the_in_app_dialog() -> Result<(), String> {
         let (_dir, state) = state_with_store()?;
         assert_eq!(
-            route_offer(&state, SessionEnd::Paused),
+            route_offer(&state, &stored_at(SessionEnd::Paused, 42.0)),
             OfferRoute::InAppDialog,
             "a deliberate pause did not route to the in-app dialog"
         );
@@ -5079,7 +5507,7 @@ mod event_durable_tests {
             offer.on_foregrounded();
             assert_eq!(
                 offer.expire(),
-                ExpiryOutcome::AutoStart { offset_secs: 0.0 },
+                ExpiryOutcome::AutoStart { offset_secs: 42.0 },
                 "the silence rule did not continue from the stored position (FR-009)"
             );
         }
@@ -5094,7 +5522,7 @@ mod event_durable_tests {
     fn unexpected_end_routes_to_the_lockscreen_resume() -> Result<(), String> {
         let (_dir, state) = state_with_store()?;
         assert_eq!(
-            route_offer(&state, SessionEnd::Interrupted),
+            route_offer(&state, &stored_at(SessionEnd::Interrupted, 42.0)),
             OfferRoute::LockScreenResume,
             "an unexpected end did not route to the lock-screen resume control"
         );
@@ -5109,7 +5537,7 @@ mod event_durable_tests {
         let (_dir, state) = state_with_store()?;
         for end_kind in [SessionEnd::Stopped, SessionEnd::Completed] {
             assert_eq!(
-                route_offer(&state, end_kind),
+                route_offer(&state, &stored_at(end_kind, 42.0)),
                 OfferRoute::NoRoute,
                 "a terminal end opened a resume route"
             );
@@ -5357,42 +5785,42 @@ mod open_document_tests {
     /// deliberate end routes to the in-app 3-second dialog, the
     /// stored offset is reported, and the continue offer is open
     /// on the held machine for the dialog to render.
+    ///
+    /// The open is GATED (T110): the offer is presented and NO
+    /// audio begins until it resolves — so the payload reports a
+    /// paused reading, on a device host and on a device-less one
+    /// alike.
     #[test]
     fn the_offer_route_is_published_for_a_stored_row() -> Result<(), String> {
         let (_dir, state) = state_with_store()?;
         store_row(&state, 42.0, engine_core::closed::SessionEnd::Paused)?;
 
-        let opened = open_document_bytes(&state, DOC.to_vec());
-        if backend_available() {
-            let payload = opened.map_err(|error| error.to_string())?;
-            assert_eq!(
-                payload["offer_route"], "in_app_dialog",
-                "a deliberate pause must route to the in-app dialog (FR-032c)"
-            );
-            assert_eq!(
-                payload["offer_window_ms"], 3000,
-                "the in-app dialog route must carry the FR-032c window"
-            );
-            assert_eq!(payload["has_stored_position"], true);
-            assert_eq!(
-                payload["stored_offset_secs"], 42.0,
-                "the open must report the stored offset the offer continues from"
-            );
-        } else {
-            assert!(
-                matches!(opened, Err(OpenError::Backend { .. })),
-                "a device-less host must answer the named backend refusal, got {opened:?}"
-            );
-        }
+        let payload = open_document_bytes(&state, DOC.to_vec()).map_err(|e| e.to_string())?;
+        assert_eq!(
+            payload["offer_route"], "in_app_dialog",
+            "a deliberate pause must route to the in-app dialog (FR-032c)"
+        );
+        assert_eq!(
+            payload["offer_window_ms"], 3000,
+            "the in-app dialog route must carry the FR-032c window"
+        );
+        assert_eq!(payload["has_stored_position"], true);
+        assert_eq!(
+            payload["stored_offset_secs"], 42.0,
+            "the open must report the stored offset the offer continues from"
+        );
+        assert_eq!(
+            payload["status"], "paused",
+            "the gated open must not report a playing state (FR-005 / FR-009)"
+        );
         // The route is computed at the open (never mid-window): the
         // held machine carries the open continue offer the dialog
         // renders — the FR-009 silence rule auto-starts from the
         // offer's offset when no choice is made inside the window.
         // The route resolves the FORM solely from the stored end
-        // kind, so the machine's offer carries the probe
-        // placeholder offset `route_offer` drives it with; the
-        // offset the reader resumes from is the stored row, which
-        // the open payload reports above (T037 / FR-044).
+        // kind and the machine is driven over the REAL stored row,
+        // so the offer carries the STORED position the silence rule
+        // continues from (T037 / FR-044 / FR-009).
         let mut offer = state.offer.lock().map_err(|e| e.to_string())?;
         assert!(
             offer.continue_offer().is_some(),
@@ -5401,8 +5829,8 @@ mod open_document_tests {
         offer.on_foregrounded();
         assert_eq!(
             offer.expire(),
-            ExpiryOutcome::AutoStart { offset_secs: 0.0 },
-            "the silence rule did not auto-start the open offer (FR-009)"
+            ExpiryOutcome::AutoStart { offset_secs: 42.0 },
+            "the silence rule did not auto-start from the stored position (FR-009)"
         );
         Ok(())
     }
@@ -5413,26 +5841,33 @@ mod open_document_tests {
     /// `route_offer` call the open path runs, asserted here on the
     /// device-independent half (a device host asserts it through
     /// the payload's `offer_route`).
+    ///
+    /// The open is GATED (T110): an unexpected end starts NO audio
+    /// on its own — the reader's explicit resume is the only start
+    /// — so the open never reaches the audio backend and answers
+    /// the same payload on a device host and on a device-less one.
     #[test]
     fn an_unexpected_stored_end_routes_to_the_lock_screen_resume() -> Result<(), String> {
         let (_dir, state) = state_with_store()?;
         store_row(&state, 42.0, engine_core::closed::SessionEnd::Interrupted)?;
 
-        let opened = open_document_bytes(&state, DOC.to_vec());
-        if backend_available() {
-            let payload = opened.map_err(|error| error.to_string())?;
-            assert_eq!(
-                payload["offer_route"], "lockscreen_resume",
-                "an unexpected end must route to the lock-screen resume control (FR-032d)"
-            );
-            assert_eq!(payload["has_stored_position"], true);
-            assert_eq!(payload["stored_offset_secs"], 42.0);
-        } else {
-            assert!(
-                matches!(opened, Err(OpenError::Backend { .. })),
-                "a device-less host must answer the named backend refusal, got {opened:?}"
-            );
-        }
+        let payload = open_document_bytes(&state, DOC.to_vec()).map_err(|e| e.to_string())?;
+        assert_eq!(
+            payload["offer_route"], "lockscreen_resume",
+            "an unexpected end must route to the lock-screen resume control (FR-032d)"
+        );
+        assert_eq!(payload["has_stored_position"], true);
+        assert_eq!(payload["stored_offset_secs"], 42.0);
+        assert_eq!(
+            payload["status"], "paused",
+            "an unexpected end must wait paused, never playing (FR-032d / FR-031)"
+        );
+        let snapshot = state.session.lock().map_err(|e| e.to_string())?.snapshot();
+        assert_ne!(
+            snapshot.transport,
+            TransportState::Playing,
+            "an unexpected end started audio on its own (FR-032d / FR-031)"
+        );
         // The route the open path resolves for that end kind: the
         // explicit-resume control, never a continue offer — and
         // the stored offset the payload reports is what the
@@ -5441,7 +5876,14 @@ mod open_document_tests {
         // kind, so the offset the reader resumes from arrives in
         // the payload's `stored_offset_secs` (FR-044).
         assert_eq!(
-            route_offer(&state, engine_core::closed::SessionEnd::Interrupted),
+            route_offer(
+                &state,
+                &StoredPosition {
+                    offset_secs: 42.0,
+                    first_yield_ms: 250,
+                    end_kind: engine_core::closed::SessionEnd::Interrupted,
+                }
+            ),
             OfferRoute::LockScreenResume,
             "an unexpected end did not route to the lock-screen resume control"
         );
@@ -5734,6 +6176,381 @@ mod second_document_tests {
             "the switch resurrected a terminal session's discarded position (FR-032f)"
         );
         Ok(())
+    }
+}
+
+/// T110 (FR-009 / FR-032c) — the cold-start offer gate.
+///
+/// RED-first contract: opening a document that has a stored
+/// `Paused` bookmark MUST present the 3-second
+/// continue-vs-start-over offer and MUST start NO audio until the
+/// offer resolves; with no choice inside the window, the silence
+/// rule continues from the stored position (FR-009). A document
+/// with NO stored position MUST start immediately (FR-036a). The
+/// second document picked while the first plays MUST never
+/// auto-start from the outgoing document's position, and the first
+/// document's bookmark MUST survive the switch (FR-018).
+///
+/// The test drives the REAL production path — the cold-start open
+/// (`open_document_bytes`) over a real redb file — never a mock:
+/// the row is read back through the store's own `get`, and the
+/// offer is read from the held offer machine.
+#[cfg(test)]
+mod cold_start_gate_tests {
+    use super::*;
+    use crate::commands::open_document_bytes;
+    use engine_core::closed::SessionEnd;
+    use session::offer::Offer;
+    use session::store::StoredPosition;
+
+    /// The document the tests open: one heading and one spoken
+    /// paragraph. The content, never the path, is the key
+    /// (FR-036).
+    const DOC: &[u8] = b"# Rota da Manha\n\nO onibus sai as seis.";
+    /// A second document: different content, so a different
+    /// content fingerprint (FR-036).
+    const SECOND: &[u8] = b"# Outro\n\nO trem passa as sete.";
+
+    /// The stored position the tests resume from: 42.0 s, the
+    /// quarter-second grid the store round-trips exactly.
+    const STORED_OFFSET_SECS: f64 = 42.0;
+
+    /// A fresh state whose bookmark store lives in a temp dir —
+    /// one redb file per test, dropped with it.
+    fn state_with_store() -> Result<(tempfile::TempDir, AppState), String> {
+        let dir = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let store =
+            BookmarkStore::open(&dir.path().join("bookmarks.redb")).map_err(|e| e.to_string())?;
+        Ok((dir, AppState::test_state_with_bookmark_store(store)))
+    }
+
+    /// Whether the backend open succeeded on this host — the
+    /// device-gated twin of the open path's own note.
+    fn backend_available() -> bool {
+        CpalBackend::new().is_ok()
+    }
+
+    /// The document's content fingerprint (FR-036): the key the
+    /// open lookup resolves the stored row under.
+    fn fingerprint() -> [u8; 32] {
+        fingerprint::fingerprint(DOC)
+    }
+
+    /// A stored row under the document's fingerprint, written
+    /// straight into the real store.
+    fn store_row(state: &AppState, end_kind: SessionEnd) -> Result<(), String> {
+        state
+            .bookmark_store
+            .lock()
+            .map_err(|e| e.to_string())?
+            .as_mut()
+            .ok_or("no bookmark store")?
+            .put(
+                &fingerprint(),
+                StoredPosition {
+                    offset_secs: STORED_OFFSET_SECS,
+                    first_yield_ms: 250,
+                    end_kind,
+                },
+            )
+            .map_err(|e| e.to_string())
+    }
+
+    /// The row the store holds under `fingerprint` — read back
+    /// through the store's own `get`.
+    fn stored_row(state: &AppState) -> Result<Option<StoredPosition>, String> {
+        state
+            .bookmark_store
+            .lock()
+            .map_err(|e| e.to_string())?
+            .as_mut()
+            .ok_or("no bookmark store")?
+            .get(&fingerprint())
+            .map_err(|e| e.to_string())
+    }
+
+    /// Assert a session position matches `expected` within a
+    /// floating-point epsilon: the position round-trips through
+    /// `f64`, so the comparison is an epsilon bound, never a
+    /// strict one.
+    fn assert_offset(actual: f64, expected: f64, what: &str) {
+        assert!(
+            (actual - expected).abs() < 1e-9,
+            "{what}: the position is {actual}, expected {expected}"
+        );
+    }
+
+    /// T110: a stored deliberate pause gates the cold start on
+    /// the 3-second continue offer — the offer is presented, and
+    /// NO audio begins before it resolves (FR-009 / FR-032c).
+    #[test]
+    fn a_stored_pause_gates_the_cold_start_and_starts_no_audio() -> Result<(), String> {
+        let (_dir, state) = state_with_store()?;
+        store_row(&state, SessionEnd::Paused)?;
+
+        let payload = open_document_bytes(&state, DOC.to_vec()).map_err(|e| e.to_string())?;
+        assert_eq!(
+            payload["offer_route"], "in_app_dialog",
+            "a deliberate pause must route to the in-app 3-second dialog (FR-032c)"
+        );
+        assert_eq!(
+            payload["offer_window_ms"], 3000,
+            "the in-app dialog route must carry the FR-032c window"
+        );
+        assert_eq!(payload["has_stored_position"], true);
+        assert_eq!(
+            payload["stored_offset_secs"], STORED_OFFSET_SECS,
+            "the open must report the stored offset the offer continues from"
+        );
+        assert_eq!(
+            payload["status"], "paused",
+            "a gated cold start must not report a playing state (FR-005 / FR-009)"
+        );
+        // NO audio began: the session never reached `Playing`,
+        // and the backend was never opened.
+        let snapshot = state.session.lock().map_err(|e| e.to_string())?.snapshot();
+        assert_ne!(
+            snapshot.transport,
+            TransportState::Playing,
+            "the cold start started audio before the offer resolved (FR-009)"
+        );
+        assert_offset(
+            snapshot.position_secs,
+            0.0,
+            "the gated cold start moved the position before the offer resolved",
+        );
+        assert!(
+            state
+                .backend
+                .lock()
+                .map_err(|e| e.to_string())?
+                .as_ref()
+                .is_none(),
+            "the gated cold start opened the audio backend before the offer resolved (FR-009)"
+        );
+        // The open offer carries the STORED position, so the
+        // FR-009 silence rule continues from it.
+        let mut offer = state.offer.lock().map_err(|e| e.to_string())?;
+        assert_eq!(
+            offer.continue_offer(),
+            Some(Offer::Continue {
+                offset_secs: STORED_OFFSET_SECS,
+                first_yield_ms: 250,
+            }),
+            "the open offer did not carry the stored position the silence rule continues from (FR-009)"
+        );
+        Ok(())
+    }
+
+    /// T110: the silence rule — the 3-second window elapses with
+    /// no choice — continues the reading from the stored position
+    /// (FR-009). The resolution asks the offer machine, whose
+    /// answer names the position the reading continues from.
+    #[test]
+    fn the_silence_rule_continues_from_the_stored_position() -> Result<(), String> {
+        let (_dir, state) = state_with_store()?;
+        store_row(&state, SessionEnd::Paused)?;
+        let _payload = open_document_bytes(&state, DOC.to_vec()).map_err(|e| e.to_string())?;
+
+        // The application is in the foreground when the window
+        // elapses — the latched visibility the machine reads at
+        // expiry only (FR-032c).
+        {
+            let mut offer = state.offer.lock().map_err(|e| e.to_string())?;
+            offer.on_foregrounded();
+        }
+        let started = resolve_parked_open(&state, ParkedResolution::WindowElapsed);
+        if backend_available() {
+            assert!(
+                started,
+                "the silence rule did not start the reading (FR-009)"
+            );
+            let snapshot = state.session.lock().map_err(|e| e.to_string())?.snapshot();
+            assert_eq!(
+                snapshot.transport,
+                TransportState::Playing,
+                "the silence rule did not start the reading (FR-009)"
+            );
+            assert!(
+                (snapshot.position_secs - STORED_OFFSET_SECS).abs() < 1e-9,
+                "the silence rule continued from {} instead of the stored position (FR-009)",
+                snapshot.position_secs
+            );
+        } else {
+            // A device-less host answers the named backend
+            // refusal: the reading never began, and the resolution
+            // reported that it did not.
+            assert!(
+                !started,
+                "the resolution reported a started reading on a device-less host"
+            );
+        }
+        // The parked open is consumed by its resolution: nothing
+        // waits for a second offer.
+        assert!(
+            !pending_open_exists(&state),
+            "the resolved cold start left a parked open behind (FR-032f)"
+        );
+        Ok(())
+    }
+
+    /// T110: a document with NO stored position starts
+    /// immediately — no offer, no gate (FR-036a).
+    #[test]
+    fn a_miss_starts_the_cold_start_immediately() -> Result<(), String> {
+        let (_dir, state) = state_with_store()?;
+        let opened = open_document_bytes(&state, DOC.to_vec());
+        if backend_available() {
+            let payload = opened.map_err(|e| e.to_string())?;
+            assert_eq!(
+                payload["offer_route"], "none",
+                "a miss must open no route (FR-036a)"
+            );
+            assert_eq!(payload["status"], "playing");
+            let snapshot = state.session.lock().map_err(|e| e.to_string())?.snapshot();
+            assert_eq!(
+                snapshot.transport,
+                TransportState::Playing,
+                "a document with no stored position did not start immediately (FR-036a)"
+            );
+        } else {
+            assert!(
+                matches!(opened, Err(OpenError::Backend { .. })),
+                "a device-less host must answer the named backend refusal, got {opened:?}"
+            );
+        }
+        assert!(
+            !pending_open_exists(&state),
+            "a document with no stored position was parked behind an offer (FR-036a)"
+        );
+        Ok(())
+    }
+
+    /// T110: the reader's "start over" choice begins the reading
+    /// at the FIRST SPOKEN POSITION and discards the stored entry
+    /// (FR-032c) — the stored position is no longer a resume
+    /// point once the reader asked to start over.
+    #[test]
+    fn the_start_over_choice_begins_at_the_first_spoken_position() -> Result<(), String> {
+        let (_dir, state) = state_with_store()?;
+        store_row(&state, SessionEnd::Paused)?;
+        let _payload = open_document_bytes(&state, DOC.to_vec()).map_err(|e| e.to_string())?;
+
+        let started = resolve_parked_open(&state, ParkedResolution::StartOverChosen);
+        if backend_available() {
+            assert!(
+                started,
+                "the start-over choice did not start the reading (FR-032c)"
+            );
+            let snapshot = state.session.lock().map_err(|e| e.to_string())?.snapshot();
+            assert_offset(
+                snapshot.position_secs,
+                0.0,
+                "the start-over choice did not begin at the first spoken position (FR-032c)",
+            );
+        } else {
+            assert!(
+                !started,
+                "the resolution reported a started reading on a device-less host"
+            );
+        }
+        // The stored entry is discarded: the reader asked to
+        // start over (FR-032c).
+        assert!(
+            stored_row(&state)?.is_none(),
+            "the start-over choice did not discard the stored entry (FR-032c)"
+        );
+        Ok(())
+    }
+
+    /// T110 (FR-018, T096's guarantee): the second document
+    /// picked while the first plays never auto-starts from the
+    /// outgoing document's position, and the first document's
+    /// bookmark survives the switch.
+    #[test]
+    fn the_second_document_never_auto_starts_and_the_first_bookmark_survives() -> Result<(), String>
+    {
+        let (_dir, state) = state_with_store()?;
+        let first_fp = fingerprint::fingerprint(DOC);
+        let second_fp = fingerprint::fingerprint(SECOND);
+
+        // The first document plays and reaches a known position.
+        let _opened = open_document_bytes(&state, DOC.to_vec());
+        {
+            let mut session = state.session.lock().map_err(|e| e.to_string())?;
+            if session.snapshot().transport != TransportState::Playing {
+                let _landed = session
+                    .execute(ShellVerb::Play)
+                    .map_err(|e| e.to_string())?;
+            }
+            session.on_audible_progress(12.5);
+        }
+
+        // The second document is picked: the switch saves the
+        // first's position and never deletes it.
+        let _second = open_document_bytes(&state, SECOND.to_vec());
+        let row = stored_row(&state)?
+            .ok_or("the switch did not persist the first document's bookmark (FR-018)")?;
+        assert!(
+            (row.offset_secs - 12.5).abs() < 1e-9,
+            "the switch moved the first document's stored position (FR-018)"
+        );
+        // The incoming document carries no stored row of its own:
+        // it never inherits the outgoing document's position.
+        let second_row = state
+            .bookmark_store
+            .lock()
+            .map_err(|e| e.to_string())?
+            .as_mut()
+            .ok_or("no bookmark store")?
+            .get(&second_fp)
+            .map_err(|e| e.to_string())?;
+        assert!(
+            second_row.is_none(),
+            "the incoming document inherited a stored position of its own (FR-018)"
+        );
+        let snapshot = state.session.lock().map_err(|e| e.to_string())?.snapshot();
+        assert!(
+            snapshot.position_secs < 12.5,
+            "the incoming document auto-started from the outgoing one's position (FR-018)"
+        );
+        assert_ne!(
+            first_fp, second_fp,
+            "the two documents share a fingerprint (FR-036)"
+        );
+        Ok(())
+    }
+
+    /// T110: the audio a resume enters is the audio FROM the
+    /// resolved position — the samples before it are never played
+    /// (FR-009).
+    #[test]
+    fn the_resumed_audio_begins_at_the_resolved_position() {
+        // One second of audio at the declared engine rate.
+        let pcm: Vec<f32> = (0..22_050u16).map(f32::from).collect();
+        // The entry at 0.0 keeps every sample.
+        assert_eq!(
+            pcm_from_offset(&pcm, 0.0).len(),
+            pcm.len(),
+            "the resume at 0.0 dropped audio (FR-009)"
+        );
+        // The entry at 0.5 s drops the first half-second.
+        let resumed = pcm_from_offset(&pcm, 0.5);
+        assert_eq!(
+            resumed.len(),
+            pcm.len() - 11_025,
+            "the resume did not enter the audio at the resolved position (FR-009)"
+        );
+        assert_eq!(
+            resumed.first(),
+            pcm.get(11_025),
+            "the resumed audio does not continue where the position names (FR-009)"
+        );
+        // An offset past the end of the audio yields nothing.
+        assert!(
+            pcm_from_offset(&pcm, 10.0).is_empty(),
+            "a resume past the end of the audio played something (FR-009)"
+        );
     }
 }
 

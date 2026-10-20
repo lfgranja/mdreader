@@ -129,7 +129,7 @@
 use proptest::prelude::*;
 
 use engine_core::closed::SessionEnd;
-use session::offer::{ExpiryOutcome, Offer, OfferMachine};
+use session::offer::{ColdStart, ExpiryOutcome, Offer, OfferMachine, cold_start};
 use session::store::{BookmarkStore, StoredPosition};
 
 /// The redb file a test store lives in, inside its own
@@ -137,6 +137,20 @@ use session::store::{BookmarkStore, StoredPosition};
 fn store_path(dir: &std::path::Path) -> std::path::PathBuf {
     dir.join("bookmarks.redb")
 }
+
+/// The document bytes the cold-start lookup reads: the CONTENT
+/// is the only key (FR-036), so the stored row the cold-start
+/// path finds is written under the bytes' own fingerprint.
+const COLD_START_DOC: &[u8] = b"# Capitulo\n\nO onibus sai as seis.";
+
+/// The second document's bytes: different content, so a
+/// different content fingerprint (FR-036).
+const COLD_START_SECOND_DOC: &[u8] = b"# Outro\n\nO trem passa as sete.";
+
+/// The third document's bytes: a third content fingerprint, so
+/// a row stored under it can never leak into another document's
+/// open (FR-036).
+const COLD_START_THIRD_DOC: &[u8] = b"# Mais um\n\nO onibus passa as oito.";
 
 /// A playback position on the exact quarter-second grid
 /// `k × 0.25` ∈ [0, 3600] s — an exact binary-fraction
@@ -698,4 +712,178 @@ fn given_the_default_constructor_when_a_machine_is_built_then_no_offer_is_open()
         None,
         "the default constructor left an offer open (O6, O7)"
     );
+}
+
+// T110 — the cold-start open gate (Phase 15 Addendum 2,
+// feature 004-ressoa-dogfood-build).
+//
+// The cold-start open of a document that has a stored `Paused`
+// bookmark MUST present the 3-second continue-vs-start-over offer
+// and MUST start NO audio until the offer resolves (FR-009 /
+// FR-032c): with no choice inside the window, reading continues
+// from the stored position. A document with NO stored position
+// MUST start immediately (FR-036a). The second document picked
+// while the first plays MUST never auto-start from the outgoing
+// document's position, and the first document's bookmark MUST
+// survive the switch (FR-018).
+//
+// The decision is the offer machine's own (FR-044): the open
+// lookup (`session::store::lookup_on_open`) resolves the offer
+// form through the canonical core, and the cold-start gate
+// (`session::offer::cold_start`) projects that form onto the
+// app's three routings — start now, await the 3-second offer, or
+// await an explicit resume. The app NEVER re-derives the offer's
+// form.
+//
+// The silence rule is asserted on the machine that carries the
+// REAL stored row (the offer the app opens at the cold start), so
+// the offset the expiry answers is the stored position and not a
+// placeholder.
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(64))]
+
+    /// T110: a stored deliberate pause gates the cold start on
+    /// the 3-second offer — no audio until it resolves — and the
+    /// silence rule continues from the stored position.
+    #[test]
+    fn prop_a_stored_pause_gates_the_cold_start_on_the_offer(
+        (stored, fingerprint) in (paused_position_strategy(), fingerprint_strategy())
+    ) {
+        let dir = tempfile::tempdir()?;
+        let path = store_path(dir.path());
+        let mut store = BookmarkStore::open(&path)?;
+        let document_fingerprint = session::fingerprint::fingerprint(COLD_START_DOC);
+        store.put(&document_fingerprint, stored)?;
+
+        // The REAL cold-start lookup: bytes → fingerprint → the
+        // stored row → the offer form (T036 / FR-044).
+        let lookup = session::store::lookup_on_open(&mut store, COLD_START_DOC)?;
+        prop_assert!(
+            lookup.stored.is_some(),
+            "the cold-start lookup found no stored row for the document it just wrote (T036)"
+        );
+
+        // The gate: the cold start is NOT authorized to begin
+        // audio — the 3-second continue offer is open
+        // (FR-009 / FR-032c).
+        prop_assert_eq!(
+            cold_start(lookup.offer),
+            ColdStart::AwaitOffer {
+                offset_secs: stored.offset_secs,
+                first_yield_ms: stored.first_yield_ms,
+            },
+            "a stored deliberate pause did not gate the cold start on the 3-second offer (FR-009 / FR-032c)"
+        );
+
+        // The silence rule: with no choice inside the window, the
+        // offer resolves into the continue-from-the-stored-
+        // position start (FR-009) — the machine's own answer over
+        // the REAL stored row.
+        let mut machine = OfferMachine::new();
+        prop_assert!(
+            machine.on_session_end(fingerprint, Some(stored)).is_some(),
+            "the cold start opened no continue offer for the dialog to render (FR-032c)"
+        );
+        machine.on_foregrounded();
+        prop_assert_eq!(
+            machine.expire(),
+            ExpiryOutcome::AutoStart {
+                offset_secs: stored.offset_secs,
+            },
+            "the silence rule did not continue from the stored position (FR-009)"
+        );
+    }
+
+    /// T110: a document with NO stored position starts
+    /// immediately — no offer, no gate.
+    #[test]
+    fn prop_a_miss_starts_the_cold_start_immediately(
+        (first_key, second_key) in (fingerprint_strategy(), fingerprint_strategy())
+    ) {
+        let dir = tempfile::tempdir()?;
+        let path = store_path(dir.path());
+        let mut store = BookmarkStore::open(&path)?;
+        let document_fingerprint = session::fingerprint::fingerprint(COLD_START_DOC);
+        prop_assume!(first_key != document_fingerprint);
+        prop_assume!(second_key != document_fingerprint);
+
+        // Rows under OTHER keys never resolve this document's
+        // open: the key is the content, never an identity
+        // (FR-036).
+        store.put(&first_key, StoredPosition {
+            offset_secs: 12.5,
+            first_yield_ms: 250,
+            end_kind: SessionEnd::Paused,
+        })?;
+        store.put(&second_key, StoredPosition {
+            offset_secs: 30.0,
+            first_yield_ms: 500,
+            end_kind: SessionEnd::Paused,
+        })?;
+
+        // The REAL cold-start lookup over a store with no row
+        // under the document's fingerprint.
+        let lookup = session::store::lookup_on_open(&mut store, COLD_START_DOC)?;
+        prop_assert!(
+            lookup.stored.is_none(),
+            "the cold-start lookup found a stored row for a document that was never read (T036 / FR-036)"
+        );
+        prop_assert_eq!(
+            cold_start(lookup.offer),
+            ColdStart::StartNow,
+            "a document with no stored position did not start immediately (FR-036a)"
+        );
+    }
+
+    /// T110: the second document picked while the first plays
+    /// never auto-starts — it carries no stored row of its own,
+    /// so it starts clean, at its own first spoken position — and
+    /// the first document's bookmark survives the switch
+    /// (FR-018).
+    #[test]
+    fn prop_the_second_document_never_auto_starts_and_the_first_bookmark_survives(
+        (stored, other_stored) in (paused_position_strategy(), paused_position_strategy())
+    ) {
+        let dir = tempfile::tempdir()?;
+        let path = store_path(dir.path());
+        let mut store = BookmarkStore::open(&path)?;
+        let first_fingerprint = session::fingerprint::fingerprint(COLD_START_DOC);
+        let second_fingerprint = session::fingerprint::fingerprint(COLD_START_SECOND_DOC);
+        let third_fingerprint = session::fingerprint::fingerprint(COLD_START_THIRD_DOC);
+        prop_assume!(first_fingerprint != second_fingerprint);
+        prop_assume!(first_fingerprint != third_fingerprint);
+        prop_assume!(second_fingerprint != third_fingerprint);
+
+        // The first document plays and is bookmarked under its OWN
+        // fingerprint (the FR-018 switch's durable save); a third
+        // document carries a row of its own.
+        store.put(&first_fingerprint, stored)?;
+        store.put(&third_fingerprint, other_stored)?;
+
+        // The second document is picked: the switch saves the
+        // first's position and never deletes it.
+        let second_lookup = session::store::lookup_on_open(&mut store, COLD_START_SECOND_DOC)?;
+        prop_assert!(
+            second_lookup.stored.is_none(),
+            "the incoming document inherited a stored position of its own (FR-018)"
+        );
+        prop_assert_eq!(
+            cold_start(second_lookup.offer),
+            ColdStart::StartNow,
+            "the incoming document auto-started from a position it never owned (FR-018)"
+        );
+
+        // The first document's bookmark survives the switch.
+        let first_after = session::store::lookup_on_open(&mut store, COLD_START_DOC)?;
+        prop_assert!(
+            first_after.stored.is_some(),
+            "the switch deleted the first document's bookmark (FR-018)"
+        );
+        if let Some(first_stored) = first_after.stored {
+            prop_assert!(
+                (first_stored.offset_secs - stored.offset_secs).abs() < 1e-9,
+                "the switch moved the first document's stored position (FR-018)"
+            );
+        }
+    }
 }

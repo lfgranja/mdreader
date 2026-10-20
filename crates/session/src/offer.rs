@@ -123,6 +123,69 @@ pub enum OpenOffer {
     NoOffer,
 }
 
+/// The cold-start open decision (T110): whether an opened
+/// document may begin audio NOW, or must wait for its resume
+/// offer to resolve — and, when it waits, the position the
+/// resolution continues from.
+///
+/// This is the app's routing decision, expressed ONCE, here: the
+/// shell routes the decision and never re-derives the offer's
+/// form (FR-044). The three forms are the whole outcome space of
+/// a cold start.
+///
+/// * [`ColdStart::StartNow`] — no stored position: the session
+///   begins at the first spoken position with no offer
+///   (FR-036a).
+/// * [`ColdStart::AwaitOffer`] — a deliberate pause: the 3-second
+///   continue offer is open (FR-032c), NO audio begins until it
+///   resolves, and the resolution continues from the stored
+///   position (FR-009).
+/// * [`ColdStart::AwaitExplicitResume`] — an unexpected end: no
+///   offer opens and no audio begins on its own (FR-032d /
+///   FR-031) — the reader's explicit resume is the only start.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ColdStart {
+    /// Start now — the first spoken position, no offer.
+    StartNow,
+    /// The 3-second continue offer is open (FR-032c): no audio
+    /// until the offer resolves, and the resolution continues
+    /// from the stored position.
+    AwaitOffer {
+        /// The stored last-spoken position the resolution
+        /// continues from, in seconds.
+        offset_secs: f64,
+        /// The start of the continuous non-advancing interval the
+        /// resume continues (FR-015), in milliseconds.
+        first_yield_ms: u64,
+    },
+    /// The explicit-resume requirement stands (FR-032d /
+    /// FR-031): no audio begins on its own.
+    AwaitExplicitResume,
+}
+
+/// The cold-start decision over an open offer form (T110): the
+/// projection of [`OpenOffer`] onto the app's three routings, so
+/// the shell routes the decision and never re-derives the
+/// offer's form (FR-044).
+///
+/// The form never depends on the document's identity — it is
+/// resolved solely from the stored end kind — so the decision
+/// needs no fingerprint in hand.
+#[must_use]
+pub const fn cold_start(offer: OpenOffer) -> ColdStart {
+    match offer {
+        OpenOffer::Continue {
+            offset_secs,
+            first_yield_ms,
+        } => ColdStart::AwaitOffer {
+            offset_secs,
+            first_yield_ms,
+        },
+        OpenOffer::ExplicitResume => ColdStart::AwaitExplicitResume,
+        OpenOffer::NoOffer => ColdStart::StartNow,
+    }
+}
+
 /// The resume-offer state machine: at most one open
 /// offer, the latched application visibility, and
 /// the explicit-resume requirement an unexpected

@@ -44,11 +44,11 @@ Cadence (Option C): in-RAM tick ~1 s; non-durable commit per sentence-end/5 s (s
 
 ## Playback Session (extends 001 `PlaybackSession`)
 
-Transport STATE (single authority): Playing | Paused | Stopped. Stop is an in-app CONTROL only, never a lock-screen control. EndKind (separate closed enum; wire name `session_end_reason` in `contracts/diagnostic-record.schema.json`): Paused | Stopped | Completed | Interrupted (Completed=document end; Interrupted=kill/power-loss/permanent loss/engine failure). Stopped and Completed delete the stored position. Deltas for 004:
+Transport STATE (single authority): Playing | Paused | Stopped. The Stop CONTROL (the transport Stop that clears the stored position) is in-app only; the media lock-screen surface has no Stop CONTROL; the resident-paused surface (`contracts/surface.md` §Resident-paused notification surface) carries the resident-stop, which ends residency and PRESERVES the stored position (FR-002). EndKind (separate closed enum; wire name `session_end_reason` in `contracts/diagnostic-record.schema.json`): Paused | Stopped | Completed | Interrupted (Completed=document end; Interrupted=kill/power-loss/permanent loss/engine failure). Stopped and Completed delete the stored position. Deltas for 004:
 
 - Ingest binds `snapshot_path` + `fingerprint` at session start; totals (`total_n`, `total_units`) fixed at session start for progress determinacy.
 - `end_kind`: `Paused | Stopped | Completed | Interrupted` — `Stopped` (in-app Stop only) and `Completed` delete the stored position; `Paused` → 3 s visual-dialog offer (silence = continue from stored); `Interrupted` (kill/power-loss/permanent loss/engine failure) → wait paused + explicit lock-screen resume control, never auto-start.
-- Stop control exists **only** on the single in-app screen; lock-screen has no Stop (FR-002/FR-019).
+- The Stop CONTROL (position-clearing) exists **only** on the single in-app screen; the media lock-screen surface has no Stop CONTROL; the resident-paused surface carries the resident-stop, which preserves the stored position (FR-002/FR-019).
 
 ## Interruption (closed 8, FR-005 + FR-004 + FR-006)
 

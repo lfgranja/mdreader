@@ -666,3 +666,21 @@ Subagent E: "T032 rewind.rs + resume.rs sentence-snap (independent)"
 ### Phase 16 Addendum 3 Tasks (append-only; zero renumber of T001–T130)
 
 - [ ] T131 [P] Adjudicate the resident-pause Stop control against FR-002 and `contracts/surface.md:8`: the resident-pause notification (`Residency.kt`, `NOTIFICATION_ID = 1`, channel `mdreader_resident`) exposes a Stop action while occupying the SAME notification id the media surface uses, so on the lock screen the reader sees a Stop control that FR-002 and the surface contract forbid ("the Stop CONTROL exists in-app only"); determine and record the resolution — either (a) the resident surface is out of FR-002's lock-screen-surface scope and `contracts/surface.md:8` is amended to say so (the 001 resident-stop affordance stays, with the contract naming the resident notification explicitly), or (b) the resident notification's Stop action is removed and the contract left unchanged; whatever is chosen, update BOTH `contracts/surface.md` and `specs/004-ressoa-dogfood-build/contracts/surface.md` (byte-identical) and record the rationale; do NOT silently delete the affordance without the contract decision, and do NOT break 001's FR-010 (no resume offered for a stopped document) (`contradicts`)
+
+---
+
+## Phase 16 Addendum 4: Convergence
+
+> Source: `spec.md:146` ("When a contract and this spec appear to diverge, the contract is authoritative; updates must be coordinated") and the T131 adjudication (commit `fbfe42f`), which decided the resident-paused notification is a DISTINCT surface outside FR-002's prohibition and amended `contracts/surface.md` accordingly — but explicitly did not edit `spec.md`, because the spec is the source of intent and its coordination is an owner action. Appended as a new traceable task; no existing task rewritten or renumbered.
+
+### Convergence Findings (in-session, before append)
+
+| ID | Gap Type | Severity | Source | Evidence | Remediation (tasks below) |
+|----|----------|----------|--------|----------|---------------------------|
+| F1 | contradicts | MEDIUM | FR-002 · `spec.md:146` (contract/spec coordination) | `contracts/surface.md:8` now scopes the Stop prohibition to "the media lock-screen surface" and adds a §Resident-paused notification surface, but `spec.md` FR-002 still reads "The lock-screen surface MUST NOT expose a Stop control" unqualified — the spec and the contract now diverge, which `spec.md:146` forbids ("updates must be coordinated") | T132 |
+
+**Metrics:** 1 finding — 1 contradicts. 1 MEDIUM. The exact replacement wording was drafted by the T131 adjudication and is carried in the task below; FR-010/FR-019/Key Entities stay accurate as written, and the 2026-10-13 clarification ("Dedicated Stop control on the single in-app screen only") already scopes its answer to the position-clearing stop.
+
+### Phase 16 Addendum 4 Tasks (append-only; zero renumber of T001–T131)
+
+- [ ] T132 [P] Pair the T131 contract amendment with the spec per `spec.md:146` ("updates must be coordinated"): in `specs/004-ressoa-dogfood-build/spec.md`, replace FR-002 with the wording the T131 adjudication recorded — "The system MUST expose play, pause, and skip-forward/back controls on the lock-screen surface during playback; each skip MUST jump to the next/previous section boundary, falling back to ±10 seconds when the document has no sections. The **media playback** lock-screen surface MUST NOT expose a Stop control. The always-resident service's paused notification (the resident-paused surface, `contracts/surface.md` §Resident-paused notification surface) is a distinct surface outside that prohibition: it exposes the resident-stop action, which ends residency while PRESERVING the stored position and never clears it. The Stop CONTROL — the transport Stop that clears the stored position — remains in-app only (FR-010, FR-019), so a document ended by the resident-stop is still offered for resume, and a document ended by the Stop CONTROL is not." — make no other spec change (FR-010/FR-019/Key Entities stay accurate); verify `bash scripts/check-shell-purity.sh` still exits 0 (the spec→test traceability gate reads the spec) (`contradicts`)

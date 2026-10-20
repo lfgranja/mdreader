@@ -316,10 +316,12 @@ class MediaMirror(
      * (contracts/shell-ipc.md) and the transport wire
      * strings of the closed transport set. */
     companion object {
-        /** Wire verb for the Play control — the session's
-         * onPlay route and the resident surface's resume
-         * control (the same closed verb; Rust applies the
-         * resume semantics against the stored bookmark). */
+        /** Wire verb for the Play control — the playback
+         * service route and the in-app transport control. The
+         * lock screen reaches Rust with the stored-point resume
+         * ([VERB_RESUME_AT_STORED]) instead: the resume control
+         * of the surface continues at the stored position
+         * (FR-009). */
         const val VERB_PLAY = "play"
 
         /** Wire verb for the Pause control (the session's
@@ -362,7 +364,11 @@ class MediaMirror(
         /** Wire verb for resuming at the stored bookmark
          * (contracts/shell-ipc.md closed verb set; the
          * session applies the resume semantics against the
-         * stored bookmark). */
+         * stored bookmark). It is the route of the lock
+         * screen's explicit resume control (FR-009): the
+         * session Play and the notification resume action both
+         * forward it, so a parked cold start continues at the
+         * stored position and never at the first spoken one. */
         const val VERB_RESUME_AT_STORED = "resume_at_stored"
 
         /** Wire verb for discarding the bookmark and starting
@@ -688,14 +694,23 @@ class MediaMirror(
      * The session's control callback: each platform control
      * event is forwarded to Rust through [forwardVerb] as
      * the closed verb wire string the moment the platform
-     * delivers it, never honoured locally. The five
-     * transport controls route here; the rate and voice
-     * controls route through the notification's action
-     * buttons (see [surfaceActions]).
+     * delivers it, never honoured locally. The transport
+     * controls route here; the rate and voice controls route
+     * through the notification's action buttons (see
+     * [surfaceActions]).
+     *
+     * The Play control is the surface's explicit resume control
+     * (FR-009; contracts/surface.md:22 — after an unexpected
+     * end the reading waits paused, and the resume control is
+     * the only way back): it reaches Rust as the stored-point
+     * resume, so a parked cold start continues at the stored
+     * position and never at the first spoken position. The
+     * decision belongs to Rust (SC-035) — the mirror forwards
+     * the verb and renders what comes back.
      */
     private val sessionCallback = object : MediaSession.Callback() {
         override fun onPlay() {
-            forwardVerb(VERB_PLAY)
+            forwardVerb(VERB_RESUME_AT_STORED)
         }
 
         override fun onPause() {
@@ -719,12 +734,19 @@ class MediaMirror(
      * [forwardVerb] the moment the platform delivers it. Any
      * other platform action is forwarded as the diagnostic
      * [VERB_CONTROL_UNMAPPED], never absorbed.
+     *
+     * The resume control is the stored-point resume
+     * ([VERB_RESUME_AT_STORED]): the parked or resident-pause
+     * surface keeps a control that continues at the stored
+     * position, and the plain-play verb never stands in for it
+     * (FR-009; FR-028e: the resume control survives the
+     * dismissal of a resident pause).
      */
     private val controlReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             forwardVerb(
                 when (intent.action) {
-                    ACTION_RESUME -> VERB_PLAY
+                    ACTION_RESUME -> VERB_RESUME_AT_STORED
                     ACTION_RATE_UP -> VERB_RATE_UP
                     ACTION_RATE_DOWN -> VERB_RATE_DOWN
                     ACTION_CYCLE_VOICE_NEXT -> VERB_CYCLE_VOICE_NEXT
@@ -1189,18 +1211,25 @@ class MediaMirror(
      * controls ride the notification's actions as broadcast
      * PendingIntents classified at the boundary — they
      * have no MediaSession callback route — while the
-     * transport controls (play, pause, stop, skip) reach
+     * transport controls (play, pause, skip) reach
      * Rust through the MediaSession callback from the
      * lock-screen and media-control surfaces the session
      * token attaches.
      *
-     * A resident pause adds the resume control — the same
-     * closed verb as the session's onPlay — so the paused
+     * A resident or parked pause carries the resume control —
+     * the stored-point resume ([VERB_RESUME_AT_STORED]), the
+     * same closed verb as the session's onPlay — so the paused
      * surface keeps a control that still produces audio
-     * (FR-028e: its resume control survives). A transient
+     * (FR-028e: its resume control survives; FR-009: after an
+     * unexpected end the reading waits paused with an explicit
+     * resume control on this surface). A transient
      * surface carries none: it dismisses itself at the
      * window, and its resume path is the session's paused
      * state on the lock screen (FR-030).
+     *
+     * No Stop control appears here or on any other
+     * lock-screen route: the Stop control exists in-app only
+     * (FR-002 / FR-019).
      */
     private fun surfaceActions(dismissal: Dismissal): List<Notification.Action> {
         val rateAndVoice = listOf(

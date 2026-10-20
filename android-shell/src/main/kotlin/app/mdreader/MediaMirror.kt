@@ -233,6 +233,15 @@ class MediaMirror(
         val sectionTitle: String?,
         /** The progress indication (FR-028a). */
         val progress: Progress,
+        /** The progress label (FR-011/FR-013,
+         * contracts/surface.md:9): the pt-BR content-offset
+         * identifier of a determinate progress ("Seção {k} de
+         * {N} — {p}% (deslocamento de conteúdo)"), or null
+         * when the progress is indeterminate — the label is
+         * present exactly when the progress is determinate, and
+         * its text is Rust's (the mirror renders it verbatim
+         * and never composes one). */
+        val progressLabel: String?,
         /** The stated reason of a transient surface — a
          * failure reason under FR-037 or a focus-loss pause
          * reason under FR-041 — or null for a surface
@@ -867,6 +876,16 @@ class MediaMirror(
                 } else {
                     null
                 }
+            // FR-011/FR-013: the pt-BR progress label of a
+            // determinate progress, published by Rust and read
+            // verbatim; absent (or null) for an indeterminate
+            // session, and the mirror composes none.
+            val progressLabel =
+                if (json.has("progressLabel") && !json.isNull("progressLabel")) {
+                    json.getString("progressLabel")
+                } else {
+                    null
+                }
 
             // FR-016: the published haptic pattern id — Rust's
             // selection, read verbatim; absent (or null) carries
@@ -906,6 +925,7 @@ class MediaMirror(
                     title = title,
                     sectionTitle = sectionTitle,
                     progress = progress,
+                    progressLabel = progressLabel,
                     transientReason = transientReason,
                     dismissal = dismissal,
                     hapticId = hapticId
@@ -1274,13 +1294,14 @@ class MediaMirror(
      * (FR-029), the section title — or, on a transient
      * surface, the stated reason, which is the short
      * lock-screen statement (contracts/shell-ipc.md,
-     * FR-037/FR-041) —, the progress indication (FR-028a),
-     * the handed dismissal mechanics (FR-028e), and the
-     * surface's action buttons. The surface is declared
-     * public so the title and section title reach the lock
-     * screen (FR-028b), and it is a media-category surface
-     * carrying the session token, so the platform's media
-     * controls drive the session's closed transport
+     * FR-037/FR-041) —, the progress indication (FR-028a)
+     * with its pt-BR label (FR-011/FR-013,
+     * contracts/surface.md:9), the handed dismissal mechanics
+     * (FR-028e), and the surface's action buttons. The surface
+     * is declared public so the title and section title reach
+     * the lock screen (FR-028b), and it is a media-category
+     * surface carrying the session token, so the platform's
+     * media controls drive the session's closed transport
      * controls. Content is exactly the FR-028 series —
      * never document body text, never elapsed or remaining
      * time, never rate, never voice.
@@ -1297,7 +1318,15 @@ class MediaMirror(
      * themes; the section and banner tokens are declared and
      * documented on the companion. No field the surface
      * carries is body text, time, rate or voice, and no
-     * ticker, sub-text or marquee ever rides it.
+     * ticker or marquee ever rides it.
+     *
+     * The one secondary line the surface carries is the
+     * progress label — the pt-BR content-offset identifier of
+     * the determinate progress, published by Rust and rendered
+     * verbatim (FR-011/FR-013; contracts/surface.md:9: the
+     * progress indication is the bar plus its label). It rides
+     * the surface only when the progress is determinate: an
+     * indeterminate session carries no label at all.
      */
     private fun buildSurface(
         state: MirrorState,
@@ -1333,6 +1362,15 @@ class MediaMirror(
                 .setDeleteIntent(deleteIntent)
             if (text != null) {
                 configured.setContentText(text)
+            }
+            // FR-011/FR-013 (contracts/surface.md:9): the
+            // progress indication is the bar AND its label — the
+            // pt-BR content-offset identifier published by Rust,
+            // rendered verbatim (the mirror composes no label of
+            // its own). An indeterminate session publishes no
+            // label, so the surface carries no secondary line.
+            state.progressLabel?.let { label ->
+                configured.setSubText(label)
             }
             when (form) {
                 is Progress.Determinate ->

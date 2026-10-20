@@ -1498,14 +1498,19 @@ fn take_removal_pause_ms(state: &AppState) -> Option<String> {
 /// since the recovered session resumed. The measurement is
 /// consumed — reported once.
 fn take_replay_secs(state: &AppState) -> Option<String> {
-    let mut measures = state.diag_measures.lock().ok()?;
-    let origin_secs = measures.resume_origin_secs.take()?;
+    // The session's own position is read FIRST and its lock is
+    // released before the measurement state is locked: the record's
+    // measurement state is a state lock of its own, and no two
+    // state locks are ever held together (the crate's lock
+    // discipline).
     let current_secs = {
         let Ok(guard) = state.session.lock() else {
             return None;
         };
         guard.snapshot().position_secs
     };
+    let mut measures = state.diag_measures.lock().ok()?;
+    let origin_secs = measures.resume_origin_secs.take()?;
     let replayed = (current_secs - origin_secs).max(0.0);
     drop(measures);
     Some(format!("{replayed:.3}"))
@@ -1749,34 +1754,38 @@ fn feed_audible_progress(state: &AppState, position_secs: f64, watch: &mut Playb
     if delta_secs <= 0.0 {
         return;
     }
-    let mut first_audio: Option<String> = None;
-    match state.session.lock() {
-        Ok(mut session) => {
-            if session.snapshot().transport == TransportState::Playing {
-                session.on_audible_progress(delta_secs);
-                watch.fed_secs = position_secs;
-                // The FR-017 diagnostic record (T097): the first
-                // audible audio of a play request closes the
-                // play-to-audio clock. The clock is taken, so the
-                // measurement is made once per request.
-                first_audio = take_play_to_audio_ms(state);
-            }
+    let credited = if let Ok(mut session) = state.session.lock() {
+        if session.snapshot().transport == TransportState::Playing {
+            session.on_audible_progress(delta_secs);
+            watch.fed_secs = position_secs;
+            true
+        } else {
+            false
         }
-        Err(_) => {
-            tracing::warn!("audible progress dropped: the session lock is poisoned");
-        }
+    } else {
+        tracing::warn!("audible progress dropped: the session lock is poisoned");
+        false
+    };
+    if !credited {
+        return;
     }
     // The FR-017 diagnostic record (T097): the first audible audio
-    // records the progress entry the record's stall rule needs — a
-    // playing landing followed by a strictly greater position.
-    if let Some(measured) = first_audio {
-        let Ok(guard) = state.session.lock() else {
-            return;
-        };
-        let snapshot = guard.snapshot();
-        drop(guard);
-        record_progress(state, &snapshot, Some(&measured));
-    }
+    // of a play request closes the play-to-audio clock, and records
+    // the progress entry the record's stall rule needs — a playing
+    // landing followed by a strictly greater position.
+    //
+    // The clock is taken OUTSIDE the session lock: the record's
+    // measurement state is a state lock of its own, and no two
+    // state locks are ever held together (the crate's lock
+    // discipline) — the measurement is best-effort, so a lost race
+    // costs one measurement, never a deadlock.
+    let measured = take_play_to_audio_ms(state);
+    let Ok(guard) = state.session.lock() else {
+        return;
+    };
+    let snapshot = guard.snapshot();
+    drop(guard);
+    record_progress(state, &snapshot, measured.as_deref());
 }
 
 /// Republish the mirror when the consumed-unit count crosses to a

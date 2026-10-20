@@ -2722,16 +2722,22 @@ pub mod commands {
         error
     }
 
-    /// Execute one of the three Play-class verbs that reach
-    /// `Playing` in the closed transition table without the
-    /// `Play` synthesis path: `ResumeAtStored`, `StartOver`,
-    /// and `ExternalStart` (T110).
+    /// Execute one of the Play-class verbs that reach `Playing` in
+    /// the closed transition table without the `Play` synthesis
+    /// path: `ResumeAtStored`, `StartOver`, and `ExternalStart`
+    /// (T110) — and `Play` itself when a parked cold-start open
+    /// owns the reading (T119).
     ///
     /// * The same pre-play gate as `Play`: a refusal executes
     ///   nothing and reports no playing state (FR-010).
     /// * A parked cold-start open owns the reading (T110): the
     ///   reader's resume or start-over choice resolves the open
     ///   offer instead of touching a session that never started.
+    ///   The plain-play verb is admitted to that resolution too
+    ///   (T119): the media session's own Play affordance IS the
+    ///   reader's explicit resume, and it resolves the parked open
+    ///   at the stored position — never a fresh synthesis
+    ///   (FR-009 / FR-032d / FR-031).
     /// * Otherwise the verb lands on the session through the
     ///   same [`player::cli::PlaybackSession::execute`] code
     ///   path every other driver calls (Principle II).
@@ -2750,11 +2756,19 @@ pub mod commands {
                 "error": failure.reason(),
             }));
         }
-        // T110: a parked cold-start open owns the reading — the
-        // reader's resume or start-over choice resolves the open
+        // T110 / T119: a parked cold-start open owns the reading —
+        // the reader's resume or start-over choice resolves the open
         // offer instead of touching a session that never started.
-        if matches!(verb, ShellVerb::ResumeAtStored | ShellVerb::StartOver)
-            && pending_open_exists(state.inner())
+        //
+        // The plain-play verb is admitted to the resolution as well
+        // (T119): the media session's own Play affordance IS the
+        // reader's explicit resume, so it lands on the parked open's
+        // stored position — never on a fresh synthesis (FR-009 /
+        // FR-032d / FR-031).
+        if matches!(
+            verb,
+            ShellVerb::Play | ShellVerb::ResumeAtStored | ShellVerb::StartOver
+        ) && pending_open_exists(state.inner())
         {
             return resolve_parked_choice(state.inner(), verb);
         }
@@ -2976,6 +2990,20 @@ pub mod commands {
     ) -> Result<serde_json::Value, String> {
         match verb {
             ShellVerb::Play => {
+                // T119: a parked cold-start open owns the reading —
+                // the media session's own Play affordance IS the
+                // reader's explicit resume: it resolves the parked
+                // open at the stored point instead of starting a
+                // fresh reading (FR-009 / FR-031 / FR-032d). The
+                // plain-play verb is admitted to the parked
+                // resolution; the reader's resume lands on the
+                // parked open's stored position, never on a fresh
+                // synthesis. The permission gate inside
+                // `resume_class_verb` still applies to this path
+                // (FR-010).
+                if pending_open_exists(state.inner()) {
+                    return resume_class_verb(ShellVerb::Play, state);
+                }
                 // Permission-state gate (T030b, FR-008/FR-010):
                 // consult the pre-play check before any Play-class
                 // verb — `Play` is the one the bridge exposes
@@ -6621,6 +6649,56 @@ mod cold_start_gate_tests {
                 "the resolution reported a started reading on a device-less host"
             );
         }
+        Ok(())
+    }
+
+    /// T119: the media session's own Play affordance IS the reader's
+    /// explicit resume — the plain-play verb resolves a parked cold
+    /// start AT THE STORED POINT, never as a fresh synthesis
+    /// (FR-009 / FR-031 / FR-032d).
+    #[test]
+    fn the_plain_play_verb_resumes_the_parked_cold_start_at_the_stored_point() -> Result<(), String>
+    {
+        let (_dir, state) = state_with_store()?;
+        store_row(&state, SessionEnd::Interrupted)?;
+        let _payload = open_document_bytes(&state, DOC.to_vec()).map_err(|e| e.to_string())?;
+        assert!(
+            pending_open_exists(&state),
+            "an unexpected end did not park the cold start (FR-032d)"
+        );
+
+        let reply = resolve_parked_choice(&state, ShellVerb::Play)?;
+        if backend_available() {
+            assert_eq!(
+                reply["offer_resolved"], true,
+                "the plain-play verb did not resolve the parked cold start (FR-009 / FR-032d)"
+            );
+            let snapshot = state.session.lock().map_err(|e| e.to_string())?.snapshot();
+            assert_eq!(
+                snapshot.transport,
+                TransportState::Playing,
+                "the plain-play verb did not start the reading (FR-009)"
+            );
+            assert_offset(
+                snapshot.position_secs,
+                STORED_OFFSET_SECS,
+                "the plain-play verb did not resume at the stored position (FR-009 / FR-032d)",
+            );
+        } else {
+            // A device-less host answers the named backend refusal:
+            // the reading never began, and the resolution reported
+            // that it did not.
+            assert_eq!(
+                reply["offer_resolved"], false,
+                "the resolution reported a started reading on a device-less host"
+            );
+        }
+        // The parked open is consumed by its resolution: nothing
+        // waits for a second offer.
+        assert!(
+            !pending_open_exists(&state),
+            "the resolved cold start left a parked open behind (FR-032f)"
+        );
         Ok(())
     }
 

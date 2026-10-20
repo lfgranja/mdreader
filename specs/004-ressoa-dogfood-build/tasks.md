@@ -648,3 +648,21 @@ Subagent E: "T032 rewind.rs + resume.rs sentence-snap (independent)"
 ### Phase 16 Addendum 2 Tasks (append-only; zero renumber of T001–T129)
 
 - [ ] T130 [P] Translate the resident-pause notification strings to pt-BR per FR-011 in `android-shell/src/main/kotlin/app/mdreader/Residency.kt`: `RESUME_LABEL` ("Resume"), `RESIDENT_STOP_LABEL` ("Stop"), `RESIDENT_CONTENT_TEXT` ("Paused") — the resident-pause notification shares the media surface's notification id, so these reach the lock screen; match the vocabulary T129 established in `MediaMirror.kt` ("Retomar", "Parar", "Pausado"); sweep the same file for any other user-visible literal still in English (notification title, channel name, accessibility text) and translate it; covered by the lock-screen purity suites (`src-tauri/tests/test_purity.rs` + `test_lockscreen_resume_control.rs`) (`partial`)
+
+---
+
+## Phase 16 Addendum 3: Convergence
+
+> Source: `spec.md` FR-002 ("The lock-screen surface MUST NOT expose a Stop control"), `contracts/surface.md:8` ("**No Stop control on lock-screen** … distinct from the Stop CONTROL which exists in-app only"), and the T130 implementation report (agent `ses_ea534452affein2GTriE7pNjq6`), which flagged the conflict and correctly did not act on it. Appended as a new traceable ADJUDICATION task; no existing task rewritten or renumbered.
+
+### Convergence Findings (in-session, before append)
+
+| ID | Gap Type | Severity | Source | Evidence | Remediation (tasks below) |
+|----|----------|----------|--------|----------|---------------------------|
+| F1 | contradicts | MEDIUM | FR-002 / `contracts/surface.md:8` | `android-shell/src/main/kotlin/app/mdreader/Residency.kt:98,313` — the resident-pause notification carries a `RESIDENT_STOP_LABEL` ("Parar", a Stop action) and occupies `NOTIFICATION_ID = 1`, the SAME id the media notification uses (`MediaMirror.kt:456`); the two use different channels (`mdreader_resident` vs `mdreader_media`), so the resident notification REPLACES the media notification on the lock screen while the session is resident-paused. FR-002 and `contracts/surface.md:8` forbid a Stop control on the lock screen and say the Stop CONTROL exists in-app only. The 001 spec's FR-009a covers component residency, NOT a Stop affordance, and the 004 spec never mentions "resident" | T131 |
+
+**Metrics:** 1 finding — 1 contradicts. 1 MEDIUM. Requires adjudication, not a unilateral removal: the resident-stop affordance is pre-existing 001 behaviour and 001's FR-010 governs what may be offered for resume, so the resolution must be a contract decision (adjudicate the surface scope, or amend the contract) rather than a silent code deletion.
+
+### Phase 16 Addendum 3 Tasks (append-only; zero renumber of T001–T130)
+
+- [ ] T131 [P] Adjudicate the resident-pause Stop control against FR-002 and `contracts/surface.md:8`: the resident-pause notification (`Residency.kt`, `NOTIFICATION_ID = 1`, channel `mdreader_resident`) exposes a Stop action while occupying the SAME notification id the media surface uses, so on the lock screen the reader sees a Stop control that FR-002 and the surface contract forbid ("the Stop CONTROL exists in-app only"); determine and record the resolution — either (a) the resident surface is out of FR-002's lock-screen-surface scope and `contracts/surface.md:8` is amended to say so (the 001 resident-stop affordance stays, with the contract naming the resident notification explicitly), or (b) the resident notification's Stop action is removed and the contract left unchanged; whatever is chosen, update BOTH `contracts/surface.md` and `specs/004-ressoa-dogfood-build/contracts/surface.md` (byte-identical) and record the rationale; do NOT silently delete the affordance without the contract decision, and do NOT break 001's FR-010 (no resume offered for a stopped document) (`contradicts`)

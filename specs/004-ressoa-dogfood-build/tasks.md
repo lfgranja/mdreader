@@ -843,3 +843,21 @@ Subagent E: "T032 rewind.rs + resume.rs sentence-snap (independent)"
 - [ ] T155 [P] Stop the unbounded 4 Hz re-park loop (LOW): `src-tauri/src/lib.rs:1746-1752` `expire_parked_open` fires on every 250 ms tick once the window has elapsed and `:1826`/`:1842` re-park the SAME open (same `opened_at`), so the condition stays true forever — a take/lock/re-park cycle plus a debug log per tick, unbounded in time, for as long as the reader waits for an explicit resume; gate the re-check on "not yet resolved" (e.g. a `window_expired` flag latched on the parked open) or poll at a slower cadence once the window has elapsed (Principle V) (`missing`)
 
 **Dependencies / order:** T140→T141 (resume restarts the audio) · T142→T143 (session live from the first chunk) · T144→T145 (offer dialog reachable) — the three red-first pairs; T146/T147/T148/T149 independent of each other; T150–T155 independent. T141 and T143 both touch `src-tauri/src/lib.rs` and MUST serialize against each other (T141 first, then T143). T145 also touches `src-tauri/src/lib.rs` — serialize after T143. T140/T142/T144 are test-only and may run in parallel (disjoint test files). Verification (a final `verify.sh` + gate 9 re-attestation) runs LAST, after T141–T155.
+
+---
+
+## Phase 17 Addendum: Convergence
+
+> Source: the T150/T153 implementation report (commit `74fbb95`), which proved that `scripts/check-shell-purity.sh` now exits 1 on a pristine HEAD export — the two new Phase 17 test files carry the shell vocabulary and sit outside the T081 allowlist. Appended as a new traceable task; no existing task rewritten or renumbered.
+
+### Convergence Findings (in-session, before append)
+
+| ID | Gap Type | Severity | Source | Evidence | Remediation (tasks below) |
+|----|----------|----------|--------|----------|---------------------------|
+| F1 | contradicts | HIGH | Constitution SC-035 / Driving-Safety · Principle V (gates fail closed) | `scripts/check-shell-purity.sh` exits 1: it flags shell vocabulary (`transport|position_secs|position|rate|gain|duck|skip`) in `src-tauri/tests/test_offer_dialog_reachability.rs` (T144, `80803f5`) and `src-tauri/tests/test_resume_restarts_audio.rs` (T140, `f30feca`) — both outside the T081 allowlist. Proved pre-existing-to-this-change by exporting pristine HEAD to a temp dir: the gate fails identically with and without the T150/T153 commit. The Phase 16 precedent is `src-tauri/tests/test_offer_dialog.rs`, allowlisted with the rationale that the mention IS the assertion | T156 |
+
+**Metrics:** 1 finding — 1 contradicts. 1 HIGH. The gate is doing its job (the new suites assert ON the shell vocabulary), but the allowlist must be extended the same way Phase 16 did — with the rationale comment, and without weakening the rule for production files.
+
+### Phase 17 Addendum Tasks (append-only; zero renumber of T001–T155)
+
+- [ ] T156 [P] (HIGH) Extend the T081 allowlist in `scripts/check-shell-purity.sh` for the two new Phase 17 contract suites — `src-tauri/tests/test_offer_dialog_reachability.rs` (T144) and `src-tauri/tests/test_resume_restarts_audio.rs` (T140) — following the exact precedent of `src-tauri/tests/test_offer_dialog.rs` (allowlisted in Phase 16 with the rationale that the mention IS the assertion, and a comment naming why); the gate must keep failing closed for a production file carrying the vocabulary in a rejected position, for a NON-allowlisted test file gaining it, and for an allowlisted file in a mutable-state or arithmetic position — verify each negative control on a copy; the gate must exit 0 on the real tree; do NOT widen the rule beyond the two named files (`contradicts`)

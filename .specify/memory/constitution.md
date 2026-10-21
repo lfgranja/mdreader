@@ -1,6 +1,94 @@
 <!--
   SYNC IMPACT REPORT
   ===================
+  Amended: 2026-10-20
+  Version change: 1.8.0 -> 1.9.0
+
+  Bump rationale: MINOR. One governance record is added
+  (Exceptions Log entry 13, the PROVISIONAL waiver of
+  RUSTSEC-2026-0381 for the `webpki-roots` 0.26 shim).
+  No principle is added, removed or redefined, no
+  existing MUST is weakened, and there is no
+  architecture reversal. Not PATCH (new governance
+  content), not MAJOR (no principle change).
+
+  What changed:
+    - Exceptions Log entry 13 APPENDED (PROVISIONAL):
+      advisory RUSTSEC-2026-0381 / CVE-2026-111943
+      (2026-10-19) is waived for `webpki-roots 0.26.11`.
+      The flagged node is a pure semver shim — it ships
+      NO trust anchors of its own (`pub use
+      parent::TLS_SERVER_ROOTS;`) — while the anchors
+      actually in use come from `webpki-roots` 1.0.10,
+      which HAS removed the distrusted `emSign ECC Root
+      CA - G3` root. Build-time only; nothing from the
+      `ureq` / `rustls` chain links into any shipped
+      artifact.
+    - The waiver is version-bound: `scripts/verify.sh`
+      gate 5 gains an assertion that the lockfile's
+      `webpki-roots` version set is exactly
+      `{0.26.11, 1.0.10}`. Any other version fails the
+      gate, so the waiver cannot silently widen.
+    - `deny.toml` gains a `[[advisories.ignore]]` block
+      for RUSTSEC-2026-0381.
+    - A new repo-root `.cargo/audit.toml` gains
+      `[advisories] ignore = ["RUSTSEC-2026-0381"]`.
+      Gate 5 runs BOTH `cargo deny check advisories` and
+      `cargo audit`, and each tool reads its own ignore
+      file.
+
+  Modified constraints:
+    - Exceptions Log: entry 13 appended.
+    - deny.toml: new `[[advisories.ignore]]` block.
+    - .cargo/audit.toml: new file (repo root).
+    - scripts/verify.sh: gate 5 gains the `webpki-roots`
+      version-set assertion.
+
+  Principles modified: none.
+  Sections added: none.
+  Sections removed: none.
+  Renamed sections: none.
+
+  Deferred / non-constitution:
+    - The `ureq` 3.x migration of the vendored
+      `sherpa-onnx-sys` is NOT bundled into this waiver:
+      every `ureq` 2.x requires `webpki-roots ^0.26`
+      and only `ureq >= 3.1.0` requires `^1.0.0`, so
+      moving that vendored crate's build-dependency is a
+      SECOND deviation in it, requiring its own
+      Exceptions Log entry and its own amendment.
+    - Entry 13's exit condition: the `webpki-roots` 0.26
+      shim leaving the graph — the vendored
+      `sherpa-onnx-sys` build-dependency moving to
+      `ureq` 3.x, or upstream publishing a 0.26.x
+      release carrying the removal.
+    - Re-evaluation trigger: whenever `webpki-roots` or
+      `ureq` changes version in the lockfile.
+
+  Source evidence: RUSTSEC-2026-0381 (CVE-2026-111943,
+  dated 2026-10-19, category crypto-failure, patched set
+  `>= 1.0.10`; advisory text: "Version 1.0.10+ removes
+  this root"), from the RustSec advisory database.
+  Lockfile path, as reported by `cargo deny check
+  advisories` (2026-10-20): `adapter-synthesis` ->
+  `sherpa-onnx` 1.13.8 -> vendored `sherpa-onnx-sys`
+  1.13.8 (build) -> `ureq` 2.12.1 -> `webpki-roots`
+  0.26.11. Shim fact: `webpki-roots` 0.26.11's ONLY
+  dependency is `[dependencies.parent] version = "1"
+  package = "webpki-roots"` and its `src/lib.rs` is
+  `pub use parent::TLS_SERVER_ROOTS;` — it bundles no
+  roots of its own. Removal fact: `webpki-roots` 1.0.9's
+  `src/lib.rs` carries "emSign ECC Root CA - G3";
+  1.0.10's does not. Tool results (2026-10-20, before
+  the ignore records): `cargo deny check advisories`
+  reports exactly this one vulnerability, and
+  `cargo audit` reports the same one vulnerability
+  (1 vulnerability, 2 allowed warnings) — each is
+  silenced by its own tool's ignore record.
+-->
+<!--
+  SYNC IMPACT REPORT
+  ===================
   Amended: 2026-10-16
   Version change: 1.7.0 -> 1.8.0
 
@@ -935,6 +1023,37 @@ drift. Each was authorized by the sole maintainer on 2026-10-01.
     `crates/adapter-synthesis/Cargo.toml`, delete `vendor/sherpa-onnx-sys/` and the
     `[patch.crates-io]` stanza, and delete this entry.
 
+13. **`webpki-roots` 0.26.11 advisory waived (RUSTSEC-2026-0381 /
+    CVE-2026-111943, 2026-10-20)** — deviates from the advisory-free supply-chain
+    gate (Principle IV). Author: maintainer (2026-10-20), accepted in the commit that
+    records it. Exact version: `webpki-roots` 0.26.11. Reason (why the version cannot
+    simply be bumped): the flagged node is a pure compatibility shim — its ONLY
+    dependency is `[dependencies.parent] version = "1" package = "webpki-roots"` and its
+    `src/lib.rs` is `pub use parent::TLS_SERVER_ROOTS;`, so it ships NO root certificates
+    of its own. The trust anchors actually in use come from `webpki-roots` 1.0.10, which
+    HAS removed the distrusted `emSign ECC Root CA - G3` root (the advisory's own text:
+    "Version 1.0.10+ removes this root"). The patched set is `>= 1.0.10`; the 0.26 line
+    has NO patched release, and every `ureq` 2.x requires `webpki-roots ^0.26` (only
+    `ureq >= 3.1.0` requires `^1.0.0`). The 0.26.11 node is therefore version-flagged
+    while bundling nothing. Reachability: build-time only — `adapter-synthesis` ->
+    `sherpa-onnx` 1.13.8 -> vendored `sherpa-onnx-sys` 1.13.8 (build-dependency `ureq`
+    "2.12") -> `ureq` 2.12.1 -> `webpki-roots` 0.26.11; nothing from `ureq`, `rustls`,
+    `rustls-webpki` or `webpki-roots` links into any shipped artifact. Risk accepted as
+    build-time-only supply-chain surface: the trust anchors in use are already patched at
+    1.0.10, and the residual is a version-number artifact of a shim. Mechanical form
+    (what makes this waiver version-bound): `scripts/verify.sh` gate 5 asserts that the
+    lockfile's `webpki-roots` version set is exactly `{0.26.11, 1.0.10}`; any other
+    version — an unpatched 1.x, a reappearance of an unpatched 0.26.x, or the shim
+    leaving the graph — FAILS the gate, so the waiver cannot silently widen. Tooling
+    form: a `[[advisories.ignore]]` block for RUSTSEC-2026-0381 in `deny.toml`, plus
+    `[advisories] ignore = ["RUSTSEC-2026-0381"]` in a new repo-root `.cargo/audit.toml`
+    — gate 5 runs BOTH `cargo deny check advisories` and `cargo audit`, and each tool
+    reads its own ignore file. PROVISIONAL — exit condition: the `webpki-roots` 0.26
+    shim leaving the graph, i.e. the vendored `sherpa-onnx-sys` build-dependency moving
+    to `ureq` 3.x (which requires `webpki-roots ^1.0.0`), or upstream publishing a
+    0.26.x release carrying the removal; then delete both ignore records and this entry.
+    Re-evaluate whenever `webpki-roots` or `ureq` changes version in the lockfile.
+
 Any new deviation is added here in the same commit that introduces it, and is treated as a
 minor amendment.
 
@@ -975,4 +1094,4 @@ Where this constitution and a convenience conflict, this constitution wins and t
 either changed or proposed as an amendment. Where this constitution and the reference stack
 conflict, the maintainer decides, and the decision is logged.
 
-**Version**: 1.8.0 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-16
+**Version**: 1.9.0 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-20

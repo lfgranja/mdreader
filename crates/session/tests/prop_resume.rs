@@ -863,10 +863,9 @@ fn a_terminal_end_reopens_at_the_first_spoken_position_with_no_offer()
 /// arbitrary offset. A boundary exactly at the
 /// position is at or before it (the lookup is
 /// inclusive).
-#[expect(
-    clippy::float_cmp,
-    reason = "the positions 40.0 and 0.0 and the boundary lists are exact binary fractions on the quarter-second grid, so == is the correct comparison; a tolerance would admit an off-boundary re-anchor"
-)]
+// Exact-value contract: the positions 40.0 and 0.0 and the boundary lists are exact binary
+// fractions on the quarter-second grid, so == is the correct comparison; a tolerance would admit an
+// off-boundary re-anchor
 #[test]
 fn a_position_with_no_boundary_at_or_before_it_falls_back_to_the_document_start() {
     // An empty timeline: nothing precedes the position.

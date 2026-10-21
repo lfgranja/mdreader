@@ -437,10 +437,9 @@ fn a_session_that_never_received_audible_progress_never_reports_playing() {
 /// had — and FR-005: audible progress arriving while
 /// paused neither advances the position nor resurrects a
 /// `Playing` report.
-#[expect(
-    clippy::float_cmp,
-    reason = "the retained-position assertions compare exact binary fractions (12.5 and 5.0 s); == is exact and a tolerance would admit a clock that advances while the session is silent (FR-005)"
-)]
+// Exact-value contract: the retained-position assertions compare exact binary fractions (12.5 and
+// 5.0 s); == is exact and a tolerance would admit a clock that advances while the session is silent
+// (FR-005)
 #[test]
 fn a_paused_session_reports_paused_with_the_position_it_had() {
     let mut session = PlaybackSession::new();
@@ -484,10 +483,8 @@ fn a_paused_session_reports_paused_with_the_position_it_had() {
 /// rejected: the session stays `Interrupted`, the position
 /// does not advance, and the transport never reports
 /// `Playing` (data-model.md "Never" clause, FR-005).
-#[expect(
-    clippy::float_cmp,
-    reason = "the position assertions compare exact binary fractions (0.0 and 5.0 s); == is exact and a tolerance would admit an automatic resume from Interrupted"
-)]
+// Exact-value contract: the position assertions compare exact binary fractions (0.0 and 5.0 s); ==
+// is exact and a tolerance would admit an automatic resume from Interrupted
 #[test]
 fn an_interrupted_session_never_self_resumes() {
     let mut session = PlaybackSession::new();
@@ -534,10 +531,9 @@ fn an_interrupted_session_never_self_resumes() {
 /// (Principle VII / FR-044). A disagreeing cell is an
 /// FR-020 defect: the transport controls would reflect a
 /// state the transition table does not allow.
-#[expect(
-    clippy::float_cmp,
-    reason = "the position assertions compare exact binary fractions (0.0 and 10.0 s, the reset and retained positions); == is exact and a tolerance would admit a position the table does not predict"
-)]
+// Exact-value contract: the position assertions compare exact binary fractions (0.0 and 10.0 s, the
+// reset and retained positions); == is exact and a tolerance would admit a position the table does
+// not predict
 #[test]
 fn every_state_verb_cell_matches_the_reference_table() {
     for start in CLOSED_STATES {

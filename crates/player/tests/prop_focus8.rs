@@ -785,10 +785,8 @@ fn every_routing_decision_maps_to_its_reason_through_from_routing_pause() {
 /// A transient immediately followed by a permanent loss ends paused
 /// with the LATEST reason and no auto-resume (FR-014 / FR-005): the
 /// superseded transient's resume flag dies with the supersede.
-#[expect(
-    clippy::float_cmp,
-    reason = "FULL_GAIN is an exact decimal literal from focus.rs; == is the correct assertion and a tolerance would admit a drifted restore gain"
-)]
+// Exact-value contract: FULL_GAIN is an exact decimal literal from focus.rs; == is the correct
+// assertion and a tolerance would admit a drifted restore gain
 #[test]
 fn transient_immediately_followed_by_permanent_pauses_with_the_latest_reason_and_no_auto_resume() {
     let mut tracker = FocusTracker::new();
@@ -852,10 +850,8 @@ fn transient_immediately_followed_by_permanent_pauses_with_the_latest_reason_and
 /// A permanent loss followed by a transient is a no-op (FR-005 edge
 /// case / FR-014): the app is already paused, the transient is
 /// ignored, and any later focus gain waits for an explicit Play.
-#[expect(
-    clippy::float_cmp,
-    reason = "FULL_GAIN is an exact decimal literal from focus.rs; == is the correct assertion and a tolerance would admit a drifted restore gain"
-)]
+// Exact-value contract: FULL_GAIN is an exact decimal literal from focus.rs; == is the correct
+// assertion and a tolerance would admit a drifted restore gain
 #[test]
 fn permanent_loss_followed_by_transient_is_a_no_op() {
     let mut tracker = FocusTracker::new();
@@ -1015,10 +1011,8 @@ fn refused_grant_fails_named_with_the_focus_denied_reason() {
 /// full gain without place loss, never owing a rewind (FR-004 /
 /// T023): playback never leaves `Playing`, so there is nothing to
 /// rewind and no place to lose.
-#[expect(
-    clippy::float_cmp,
-    reason = "DUCK_GAIN and FULL_GAIN are exact decimal literals from focus.rs; == is the correct assertion and a tolerance would admit a drifted duck gain"
-)]
+// Exact-value contract: DUCK_GAIN and FULL_GAIN are exact decimal literals from focus.rs; == is the
+// correct assertion and a tolerance would admit a drifted duck gain
 #[test]
 fn duck_keeps_playing_at_duck_gain_and_restores_without_losing_place() {
     let decision = classify(FocusIntent::DuckableTransient);
@@ -1085,10 +1079,8 @@ fn duck_keeps_playing_at_duck_gain_and_restores_without_losing_place() {
 /// is 0 ms and always inside the bound; the wall-clock half is
 /// attested on-device by T051 (10/10 per interruption class:
 /// nav-duck vs call/alarm pause vs headphone ≤1 s vs permanent loss).
-#[expect(
-    clippy::float_cmp,
-    reason = "FULL_GAIN is an exact decimal literal from focus.rs; == is the correct assertion and a tolerance would admit a drifted restore gain"
-)]
+// Exact-value contract: FULL_GAIN is an exact decimal literal from focus.rs; == is the correct
+// assertion and a tolerance would admit a drifted restore gain
 #[test]
 fn call_and_alarm_pauses_land_within_the_one_second_bound() {
     assert!(

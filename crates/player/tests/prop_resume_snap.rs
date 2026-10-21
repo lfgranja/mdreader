@@ -464,10 +464,9 @@ fn the_caps_hold_for_a_two_hour_pause() {
 /// gap (FR-007 rule 4: never mid-word), unless that gap leaves the
 /// capped rewind window — then the resume lands exactly at the cap
 /// (the 30-second ceiling no snap may exceed).
-#[expect(
-    clippy::float_cmp,
-    reason = "the yield 120.0, the in-window gap 92.0, the cap point 90.0, and the 30.0 s backward movement are exact binary fractions; == is the correct assertion and a tolerance would admit a mid-word landing"
-)]
+// Exact-value contract: the yield 120.0, the in-window gap 92.0, the cap point 90.0, and the 30.0 s
+// backward movement are exact binary fractions; == is the correct assertion and a tolerance would
+// admit a mid-word landing
 #[test]
 fn a_mid_word_cap_point_snaps_forward_to_the_next_gap_unless_the_gap_leaves_the_window() {
     // yield 120 s, pause 100 s → raw cursor 115 s, cap point 90 s.
@@ -514,10 +513,9 @@ fn a_mid_word_cap_point_snaps_forward_to_the_next_gap_unless_the_gap_leaves_the_
 /// The two degrade paths hold the raw cursor — never document start
 /// (FR-007 rule 6): no declared granularity, and an empty boundary
 /// list, both leave the resume exactly at the raw cursor.
-#[expect(
-    clippy::float_cmp,
-    reason = "raw_cursor(100.0, 40.0) is exactly 98.0 and raw_cursor(10.0, 100.0) is exactly 5.0 on the exact grids used; == is the correct assertion and a tolerance would admit a drift to document start"
-)]
+// Exact-value contract: raw_cursor(100.0, 40.0) is exactly 98.0 and raw_cursor(10.0, 100.0) is
+// exactly 5.0 on the exact grids used; == is the correct assertion and a tolerance would admit a
+// drift to document start
 #[test]
 fn the_degrade_paths_hold_the_raw_cursor_never_document_start() {
     let boundaries = [10.0, 20.0, 30.0];
@@ -582,10 +580,9 @@ fn the_degrade_paths_hold_the_raw_cursor_never_document_start() {
 /// cursor is the session store's contract
 /// (`contracts/resume-algorithm.md` "Atomic write"); this file owns
 /// the position half.
-#[expect(
-    clippy::float_cmp,
-    reason = "stored_basis() must equal the exact sum of the delivered ticks (100.0 + 20.5 + 3.0 + 2.0 = 125.5, exact binary fractions); == is the correct assertion and a tolerance would admit a buffered-ahead cursor"
-)]
+// Exact-value contract: stored_basis() must equal the exact sum of the delivered ticks (100.0 +
+// 20.5 + 3.0 + 2.0 = 125.5, exact binary fractions); == is the correct assertion and a tolerance
+// would admit a buffered-ahead cursor
 #[test]
 fn the_persisted_cursor_is_the_last_spoken_position() -> Result<(), PlayerError> {
     let mut clock = PositionClock::new(0.0);

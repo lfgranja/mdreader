@@ -461,10 +461,9 @@ mod tests {
     use super::*;
     use crate::focus::DUCK_GAIN;
 
-    #[expect(
-        clippy::float_cmp,
-        reason = "the queue copies samples verbatim along the empty and unity paths and every literal is an exact binary fraction, so the buffer must match bit-for-bit; a tolerance would admit a corrupted sample"
-    )]
+    // Exact-value contract: the queue copies samples verbatim along the empty and unity paths and
+    // every literal is an exact binary fraction, so the buffer must match bit-for-bit; a tolerance
+    // would admit a corrupted sample
     #[test]
     fn an_empty_queue_yields_silence_and_zero_consumed() {
         let mut queue = SampleQueue::default();
@@ -475,10 +474,9 @@ mod tests {
         assert_eq!(out, [0.0; 4]);
     }
 
-    #[expect(
-        clippy::float_cmp,
-        reason = "the queue copies samples verbatim along the empty and unity paths and every literal is an exact binary fraction, so the buffer must match bit-for-bit; a tolerance would admit a corrupted sample"
-    )]
+    // Exact-value contract: the queue copies samples verbatim along the empty and unity paths and
+    // every literal is an exact binary fraction, so the buffer must match bit-for-bit; a tolerance
+    // would admit a corrupted sample
     #[test]
     fn queued_samples_come_out_fifo_with_silence_tail() {
         let mut queue = SampleQueue::default();
@@ -491,10 +489,9 @@ mod tests {
         assert_eq!(queue.len(), 0);
     }
 
-    #[expect(
-        clippy::float_cmp,
-        reason = "the queue copies samples verbatim along the empty and unity paths and every literal is an exact binary fraction, so the buffer must match bit-for-bit; a tolerance would admit a corrupted sample"
-    )]
+    // Exact-value contract: the queue copies samples verbatim along the empty and unity paths and
+    // every literal is an exact binary fraction, so the buffer must match bit-for-bit; a tolerance
+    // would admit a corrupted sample
     #[test]
     fn consumption_shorter_than_queued_leaves_the_rest() {
         let mut queue = SampleQueue::default();
@@ -533,20 +530,17 @@ mod tests {
         );
     }
 
-    #[expect(
-        clippy::float_cmp,
-        reason = "the default gain must be exactly FULL_GAIN; == pins the 1.0 default and a tolerance would admit drift"
-    )]
+    // Exact-value contract: the default gain must be exactly FULL_GAIN; == pins the 1.0 default and
+    // a tolerance would admit drift
     #[test]
     fn a_fresh_queue_reads_full_gain() {
         let queue = SampleQueue::default();
         assert_eq!(queue.gain(), FULL_GAIN);
     }
 
-    #[expect(
-        clippy::float_cmp,
-        reason = "the queue copies samples verbatim along the empty and unity paths and every literal is an exact binary fraction, so the buffer must match bit-for-bit; a tolerance would admit a corrupted sample"
-    )]
+    // Exact-value contract: the queue copies samples verbatim along the empty and unity paths and
+    // every literal is an exact binary fraction, so the buffer must match bit-for-bit; a tolerance
+    // would admit a corrupted sample
     #[test]
     fn unity_gain_leaves_samples_bit_identical() {
         let mut queue = SampleQueue::default();
@@ -575,10 +569,9 @@ mod tests {
         }
     }
 
-    #[expect(
-        clippy::float_cmp,
-        reason = "the queue copies samples verbatim along the empty and unity paths and every literal is an exact binary fraction, so the buffer must match bit-for-bit; a tolerance would admit a corrupted sample"
-    )]
+    // Exact-value contract: the queue copies samples verbatim along the empty and unity paths and
+    // every literal is an exact binary fraction, so the buffer must match bit-for-bit; a tolerance
+    // would admit a corrupted sample
     #[test]
     fn duck_gain_leaves_silence_silent() {
         let mut queue = SampleQueue::default();
@@ -589,10 +582,9 @@ mod tests {
         assert_eq!(out, [0.0; 4]);
     }
 
-    #[expect(
-        clippy::float_cmp,
-        reason = "boundary gains must echo bit-for-bit and rejections must leave the stored gain bit-for-bit intact; == pins the echo/unchanged laws and a tolerance would admit drift"
-    )]
+    // Exact-value contract: boundary gains must echo bit-for-bit and rejections must leave the
+    // stored gain bit-for-bit intact; == pins the echo/unchanged laws and a tolerance would admit
+    // drift
     #[test]
     fn boundary_gains_are_accepted_and_echoed() {
         let mut queue = SampleQueue::default();
@@ -609,10 +601,8 @@ mod tests {
         }
     }
 
-    #[expect(
-        clippy::float_cmp,
-        reason = "a rejection must leave the stored gain bit-for-bit intact; == pins the unchanged law and a tolerance would admit drift"
-    )]
+    // Exact-value contract: a rejection must leave the stored gain bit-for-bit intact; == pins the
+    // unchanged law and a tolerance would admit drift
     #[test]
     fn invalid_gains_are_rejected_with_gain_unchanged() {
         let mut queue = SampleQueue::default();

@@ -550,10 +550,8 @@ proptest! {
 
 /// The shared constants match the FR-015 figure verbatim: a 5% fraction
 /// and a 30-second hard cap.
-#[expect(
-    clippy::float_cmp,
-    reason = "REWIND_FRACTION and REWIND_CAP_SECS are exact decimal literals from position.rs; == is the correct assertion and a tolerance would admit a drifted formula"
-)]
+// Exact-value contract: REWIND_FRACTION and REWIND_CAP_SECS are exact decimal literals from
+// position.rs; == is the correct assertion and a tolerance would admit a drifted formula
 #[test]
 fn rewind_constants_match_fr015_figure_verbatim() {
     assert_eq!(
@@ -565,10 +563,8 @@ fn rewind_constants_match_fr015_figure_verbatim() {
 
 /// A non-positive pause rewinds nothing: the cursor for `0.0` and for a
 /// negative duration is exactly `0.0`.
-#[expect(
-    clippy::float_cmp,
-    reason = "cursor(0.0) and cursor(-100.0) are exactly 0.0 by the max(0.0) clamp; == is the correct assertion"
-)]
+// Exact-value contract: cursor(0.0) and cursor(-100.0) are exactly 0.0 by the max(0.0) clamp; == is
+// the correct assertion
 #[test]
 fn non_positive_pause_rewinds_nothing() {
     assert_eq!(cursor(0.0), 0.0, "a zero pause must rewind nothing");
@@ -582,10 +578,8 @@ fn non_positive_pause_rewinds_nothing() {
 /// Boundary case: the cursor precedes every declared boundary, so no
 /// backward snap exists — the resume holds the raw cursor rather than
 /// jumping to document start or forward into unplayed audio.
-#[expect(
-    clippy::float_cmp,
-    reason = "the yield 10.0, pause 100.0, and boundary 50.0 are exact binary fractions and 0.05 × 100.0 is exactly 5.0, so == is the correct assertion"
-)]
+// Exact-value contract: the yield 10.0, pause 100.0, and boundary 50.0 are exact binary fractions
+// and 0.05 × 100.0 is exactly 5.0, so == is the correct assertion
 #[test]
 fn cursor_preceding_all_boundaries_holds_the_raw_cursor() {
     let boundaries = [50.0];

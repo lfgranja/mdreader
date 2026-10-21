@@ -298,10 +298,8 @@ fn focus_names_classify_to_their_own_outcomes() {
 
 /// The gain constants match the FR-013 figure verbatim: the 15–25%
 /// band and full-gain restore.
-#[expect(
-    clippy::float_cmp,
-    reason = "DUCK_GAIN_MIN/MAX, DUCK_GAIN and FULL_GAIN are exact decimal literals from focus.rs; == is the correct assertion and a tolerance would admit a drifted band"
-)]
+// Exact-value contract: DUCK_GAIN_MIN/MAX, DUCK_GAIN and FULL_GAIN are exact decimal literals from
+// focus.rs; == is the correct assertion and a tolerance would admit a drifted band
 #[test]
 fn duck_band_constants_match_fr013_figure_verbatim() {
     assert_eq!(DUCK_GAIN_MIN, 0.15, "the duck band floor drifted from 0.15");

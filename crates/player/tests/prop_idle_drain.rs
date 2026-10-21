@@ -1114,10 +1114,8 @@ const fn pre_roll_after_takeover() -> f64 {
 /// synthesis at all across a full one-hour idle window:
 /// zero requests, zero characters, zero bytes, and an
 /// empty pre-roll buffer at every checkpoint.
-#[expect(
-    clippy::float_cmp,
-    reason = "the floor position is the exact f64 literal 0.0 and an idle session must not move it by a single ulp (FR-002 / FR-005); == is the correct assertion"
-)]
+// Exact-value contract: the floor position is the exact f64 literal 0.0 and an idle session must
+// not move it by a single ulp (FR-002 / FR-005); == is the correct assertion
 #[test]
 fn a_paused_session_with_no_progress_serves_nothing_across_an_idle_hour() {
     let mut pipeline = IdlePipeline::single_engine();
@@ -1186,10 +1184,8 @@ fn prop_assert_idle_shape(pipeline: &IdlePipeline) {
 /// byte budget can never disagree. Only an amendment to
 /// `docs/byte-budget.md` (or the constitution) may change
 /// either number.
-#[expect(
-    clippy::float_cmp,
-    reason = "MAX_PREROLL_SECS, the capacity views, and the 60.0 boundary are exact binary fractions; == is exact and a tolerance would admit an off-boundary pre-roll request"
-)]
+// Exact-value contract: MAX_PREROLL_SECS, the capacity views, and the 60.0 boundary are exact
+// binary fractions; == is exact and a tolerance would admit an off-boundary pre-roll request
 #[test]
 fn the_full_capacity_pre_roll_request_bills_within_the_documented_budget() {
     // The unified cap: the buffer view and the ring view

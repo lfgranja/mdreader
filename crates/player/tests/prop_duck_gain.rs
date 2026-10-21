@@ -139,10 +139,8 @@ proptest! {
 }
 
 /// Default gain is full (`1.0`): a fresh backend reads at unity.
-#[expect(
-    clippy::float_cmp,
-    reason = "the default gain is the exact FULL_GAIN literal; == pins the 1.0 default and a tolerance would admit drift"
-)]
+// Exact-value contract: the default gain is the exact FULL_GAIN literal; == pins the 1.0 default
+// and a tolerance would admit drift
 #[test]
 fn default_gain_is_full() {
     if let Ok(backend) = CpalBackend::new() {
@@ -156,10 +154,8 @@ fn default_gain_is_full() {
 
 /// The spec-anchored factors — silence `0.0`, the nominal duck factor
 /// `0.20`, and full gain `1.0` — are accepted and echoed exactly.
-#[expect(
-    clippy::float_cmp,
-    reason = "gain() must echo the accepted f32 bit-for-bit; == pins the echo law and a tolerance would weaken it"
-)]
+// Exact-value contract: gain() must echo the accepted f32 bit-for-bit; == pins the echo law and a
+// tolerance would weaken it
 #[test]
 fn silence_duck_and_full_factors_are_accepted_and_echoed() {
     if let Ok(backend) = CpalBackend::new() {
@@ -179,10 +175,8 @@ fn silence_duck_and_full_factors_are_accepted_and_echoed() {
 }
 
 /// `NaN` is rejected with the named error and leaves gain unchanged.
-#[expect(
-    clippy::float_cmp,
-    reason = "the unchanged-gain check compares the intact stored f32 against itself; == is exact and a tolerance would admit drift"
-)]
+// Exact-value contract: the unchanged-gain check compares the intact stored f32 against itself; ==
+// is exact and a tolerance would admit drift
 #[test]
 fn nan_is_rejected_with_gain_unchanged() {
     if let Ok(backend) = CpalBackend::new() {

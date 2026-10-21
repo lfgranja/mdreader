@@ -286,10 +286,8 @@ fn new_canonical_buffer_is_empty_and_idle() {
 
 /// `drain_for_idle` empties a filled canonical buffer and closes
 /// preparation (FR-015c).
-#[expect(
-    clippy::float_cmp,
-    reason = "12.5 is an exact binary fraction and the single delivery is held verbatim below the 60 s cap, so == is the correct assertion"
-)]
+// Exact-value contract: 12.5 is an exact binary fraction and the single delivery is held verbatim
+// below the 60 s cap, so == is the correct assertion
 #[test]
 fn drain_for_idle_empties_a_filled_canonical_buffer() {
     let mut buffer = PreRollBuffer::new();

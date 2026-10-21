@@ -152,10 +152,8 @@ const WIRE: [(FocusIntent, &str); 9] = [
 /// The 7 pre-existing intents each map to exactly one FR-013 / FR-013a /
 /// FR-014 / FR-015 / FR-016 / FR-017a outcome (T035): exact outcome,
 /// exact transport, exact gain shape, exact FR anchor.
-#[expect(
-    clippy::float_cmp,
-    reason = "the focus gains are exact f64 literals (FULL_GAIN and the duck band bounds from focus.rs); == is the correct assertion and a tolerance would admit a drifted gain"
-)]
+// Exact-value contract: the focus gains are exact f64 literals (FULL_GAIN and the duck band bounds
+// from focus.rs); == is the correct assertion and a tolerance would admit a drifted gain
 #[test]
 fn seven_pre_existing_intents_each_map_to_exactly_one_fr_outcome() {
     assert_eq!(
@@ -205,10 +203,8 @@ fn seven_pre_existing_intents_each_map_to_exactly_one_fr_outcome() {
 /// A regain (FR-015) owes a transient resume through the tracker while
 /// changing no gain; an appearance (FR-017a) decides no pause — the
 /// follow itself belongs to the routing machine (T046).
-#[expect(
-    clippy::float_cmp,
-    reason = "the focus gains are exact f64 literals (FULL_GAIN and the duck band bounds from focus.rs); == is the correct assertion and a tolerance would admit a drifted gain"
-)]
+// Exact-value contract: the focus gains are exact f64 literals (FULL_GAIN and the duck band bounds
+// from focus.rs); == is the correct assertion and a tolerance would admit a drifted gain
 #[test]
 fn regain_owes_resume_and_appearance_decides_no_pause() {
     let mut tracker = FocusTracker::new();

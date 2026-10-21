@@ -353,10 +353,9 @@ fn paused_duration_strategy() -> impl Strategy<Value = f64> {
 /// 3 s offer naming stand-in B → the expired offer takes
 /// over from the last spoken position, locked, with no
 /// unlock.
-#[expect(
-    clippy::float_cmp,
-    reason = "the drill positions, yields, pauses and grid gaps are exact quarter-second values and the budget constants are exact literals; == is the correct assertion and a tolerance would admit an off-spec replay"
-)]
+// Exact-value contract: the drill positions, yields, pauses and grid gaps are exact quarter-second
+// values and the budget constants are exact literals; == is the correct assertion and a tolerance
+// would admit an off-spec replay
 #[test]
 fn standin_a_failure_offers_b_then_expiry_takes_over_locked() {
     let mut machine = RecoveryMachine::new(two_standin_registry());
@@ -501,10 +500,9 @@ fn single_engine_registry_failure_pauses_with_reason() {
 /// activates resume. The kill is not a Stop — only Stop
 /// discards the stored position (FR-032f) — so the stored
 /// position survives it.
-#[expect(
-    clippy::float_cmp,
-    reason = "the drill positions, yields, pauses and grid gaps are exact quarter-second values and the budget constants are exact literals; == is the correct assertion and a tolerance would admit an off-spec replay"
-)]
+// Exact-value contract: the drill positions, yields, pauses and grid gaps are exact quarter-second
+// values and the budget constants are exact literals; == is the correct assertion and a tolerance
+// would admit an off-spec replay
 #[test]
 fn service_kill_pauses_at_position_without_auto_audio() {
     let mut session = PlaybackSession::new();
@@ -571,10 +569,9 @@ fn service_kill_pauses_at_position_without_auto_audio() {
 /// document with the application in the foreground — the
 /// 3 s offer window elapses and reading begins within the
 /// 4 s offer-to-audio budget, whether or not the user acts.
-#[expect(
-    clippy::float_cmp,
-    reason = "the drill positions, yields, pauses and grid gaps are exact quarter-second values and the budget constants are exact literals; == is the correct assertion and a tolerance would admit an off-spec replay"
-)]
+// Exact-value contract: the drill positions, yields, pauses and grid gaps are exact quarter-second
+// values and the budget constants are exact literals; == is the correct assertion and a tolerance
+// would admit an off-spec replay
 #[expect(
     clippy::assertions_on_constants,
     reason = "the budget arithmetic is compile-time constants by design; the assertion pins the SC-020 bound as a documented, greppable invariant of the fixture (FR-032c)"
@@ -721,10 +718,9 @@ fn unexpected_end_never_auto_starts_even_in_the_foreground() -> Result<(), Box<d
 /// F5d (FR-032c / FR-032f): the reader's own actions
 /// inside the window — activating the offer continues from
 /// the stored position, and start-over discards it.
-#[expect(
-    clippy::float_cmp,
-    reason = "the drill positions, yields, pauses and grid gaps are exact quarter-second values and the budget constants are exact literals; == is the correct assertion and a tolerance would admit an off-spec replay"
-)]
+// Exact-value contract: the drill positions, yields, pauses and grid gaps are exact quarter-second
+// values and the budget constants are exact literals; == is the correct assertion and a tolerance
+// would admit an off-spec replay
 #[test]
 fn reader_activation_and_start_over_inside_the_window() {
     // The reader activates the offer inside the 3 s
@@ -776,10 +772,9 @@ fn reader_activation_and_start_over_inside_the_window() {
 /// short pause, the saturated cap for a long power loss,
 /// and a replay that lands at the last spoken area, never
 /// the document start.
-#[expect(
-    clippy::float_cmp,
-    reason = "the drill positions, yields, pauses and grid gaps are exact quarter-second values and the budget constants are exact literals; == is the correct assertion and a tolerance would admit an off-spec replay"
-)]
+// Exact-value contract: the drill positions, yields, pauses and grid gaps are exact quarter-second
+// values and the budget constants are exact literals; == is the correct assertion and a tolerance
+// would admit an off-spec replay
 #[test]
 fn power_loss_replay_stays_within_the_30s_cap() {
     // The 5% rule: a short pause rewinds 5% of the paused
@@ -817,10 +812,9 @@ fn power_loss_replay_stays_within_the_30s_cap() {
 /// fixture order, driven through the Rust state machines
 /// with the outcome each `result` token records.
 #[test]
-#[expect(
-    clippy::float_cmp,
-    reason = "the drill positions, yields, pauses and grid gaps are exact quarter-second values and the budget constants are exact literals; == is the correct assertion and a tolerance would admit an off-spec replay"
-)]
+// Exact-value contract: the drill positions, yields, pauses and grid gaps are exact quarter-second
+// values and the budget constants are exact literals; == is the correct assertion and a tolerance
+// would admit an off-spec replay
 #[expect(
     clippy::too_many_lines,
     reason = "the fixture replays the whole power-loss sequence end to end — kill, restart, replay, cap check — in one flow over the single session state it perturbs; splitting would thread that state through helpers and scatter the cap arithmetic"

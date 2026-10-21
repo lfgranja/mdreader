@@ -339,10 +339,9 @@ proptest! {
 /// interrupt verb — the service-killed end — presents a paused state
 /// at the last spoken position with an explicit resume control, and
 /// never an auto-start (FR-030 / FR-031 / FR-032d / SC-011).
-#[expect(
-    clippy::float_cmp,
-    reason = "the last spoken position 120.0 is an exact binary fraction and the assertion pins the resume-at-stored-position contract (FR-030); == is exact and a tolerance would admit a position drift"
-)]
+// Exact-value contract: the last spoken position 120.0 is an exact binary fraction and the
+// assertion pins the resume-at-stored-position contract (FR-030); == is exact and a tolerance would
+// admit a position drift
 #[test]
 fn an_interrupted_end_presents_an_explicit_resume_never_an_auto_start() {
     // Drive a session Playing with audible progress, then end it

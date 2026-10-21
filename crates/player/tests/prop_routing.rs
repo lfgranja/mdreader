@@ -892,10 +892,8 @@ proptest! {
 /// headset, `DeviceDisappeared` pauses within the
 /// one-second bound, preserves the position, records the
 /// removed route, and unlatches the output.
-#[expect(
-    clippy::float_cmp,
-    reason = "the position assertions compare exact binary fractions (42.5 s); == is exact and a tolerance would admit a routing decision that moved the position (R4)"
-)]
+// Exact-value contract: the position assertions compare exact binary fractions (42.5 s); == is
+// exact and a tolerance would admit a routing decision that moved the position (R4)
 #[test]
 fn wired_pull_pauses_within_the_bound_and_preserves_position() {
     let mut tracker = RoutingTracker::new();
@@ -953,10 +951,8 @@ fn wired_pull_pauses_within_the_bound_and_preserves_position() {
 /// position preserved (FR-016: a Bluetooth disconnect
 /// carries exactly the same consequence as a wired
 /// removal).
-#[expect(
-    clippy::float_cmp,
-    reason = "the position assertions compare exact binary fractions (31.75 s); == is exact and a tolerance would admit a routing decision that moved the position (R4)"
-)]
+// Exact-value contract: the position assertions compare exact binary fractions (31.75 s); == is
+// exact and a tolerance would admit a routing decision that moved the position (R4)
 #[test]
 fn bt_headset_loss_reported_only_through_the_device_callback_pauses_within_the_bound() {
     let mut tracker = RoutingTracker::new();
@@ -1012,10 +1008,8 @@ fn bt_headset_loss_reported_only_through_the_device_callback_pauses_within_the_b
 /// takes precedence — and the simultaneous appearance
 /// changes nothing while paused: no follow into the
 /// public device, position preserved.
-#[expect(
-    clippy::float_cmp,
-    reason = "the position assertions compare exact binary fractions (12.5 s); == is exact and a tolerance would admit a routing decision that moved the position (R4)"
-)]
+// Exact-value contract: the position assertions compare exact binary fractions (12.5 s); == is
+// exact and a tolerance would admit a routing decision that moved the position (R4)
 #[test]
 fn coincidence_with_disappearance_first_pauses_before_the_appearance() {
     let mut tracker = RoutingTracker::new();
@@ -1071,10 +1065,8 @@ fn coincidence_with_disappearance_first_pauses_before_the_appearance() {
 /// of a private output to a public one still pauses
 /// first — and the removal then changes nothing while
 /// paused: position preserved, no follow.
-#[expect(
-    clippy::float_cmp,
-    reason = "the position assertions compare exact binary fractions (12.5 s); == is exact and a tolerance would admit a routing decision that moved the position (R4)"
-)]
+// Exact-value contract: the position assertions compare exact binary fractions (12.5 s); == is
+// exact and a tolerance would admit a routing decision that moved the position (R4)
 #[test]
 fn coincidence_with_appearance_first_pauses_by_privacy_precedence() {
     let mut tracker = RoutingTracker::new();
@@ -1127,10 +1119,8 @@ fn coincidence_with_appearance_first_pauses_by_privacy_precedence() {
 /// automatically at the unchanged position — no pause,
 /// restart, or repeated phrase — and latches the followed
 /// device.
-#[expect(
-    clippy::float_cmp,
-    reason = "the position assertions compare exact binary fractions (7.25 s); == is exact and a tolerance would admit a routing decision that moved the position (R4)"
-)]
+// Exact-value contract: the position assertions compare exact binary fractions (7.25 s); == is
+// exact and a tolerance would admit a routing decision that moved the position (R4)
 #[test]
 fn public_to_public_appearance_follows_at_the_unchanged_position() {
     let mut tracker = RoutingTracker::new();
@@ -1200,10 +1190,8 @@ fn public_to_public_appearance_follows_at_the_unchanged_position() {
 /// when the user explicitly resumes — an appearance while
 /// paused is a no-op, never an auto-resume, and the
 /// position is retained for the explicit resume.
-#[expect(
-    clippy::float_cmp,
-    reason = "the position assertions compare exact binary fractions (30.0 s); == is exact and a tolerance would admit an automatic resume (FR-017)"
-)]
+// Exact-value contract: the position assertions compare exact binary fractions (30.0 s); == is
+// exact and a tolerance would admit an automatic resume (FR-017)
 #[test]
 fn an_appearance_while_paused_changes_nothing() {
     let mut tracker = RoutingTracker::new();

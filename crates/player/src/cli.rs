@@ -744,10 +744,10 @@ impl Default for PlaybackSession {
 mod tests {
     use super::*;
 
-    #[expect(
-        clippy::float_cmp,
-        reason = "the session position is the exact f64 carried by the closed transport table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are exact binary literals; == pins the exact-value contract and a tolerance would admit a drifting transport"
-    )]
+    // Exact-value contract: the session position is the exact f64 carried by the closed transport
+    // table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are
+    // exact binary literals; == pins the exact-value contract and a tolerance would admit a
+    // drifting transport
     #[test]
     fn new_session_defaults_to_paused_at_zero() {
         let session = PlaybackSession::new();
@@ -772,10 +772,10 @@ mod tests {
         assert!(matches!(result, Ok(ref snap) if snap.transport == TransportState::Paused));
     }
 
-    #[expect(
-        clippy::float_cmp,
-        reason = "the session position is the exact f64 carried by the closed transport table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are exact binary literals; == pins the exact-value contract and a tolerance would admit a drifting transport"
-    )]
+    // Exact-value contract: the session position is the exact f64 carried by the closed transport
+    // table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are
+    // exact binary literals; == pins the exact-value contract and a tolerance would admit a
+    // drifting transport
     #[test]
     fn stop_resets_position() {
         let mut session = PlaybackSession::new();
@@ -785,10 +785,10 @@ mod tests {
         assert_eq!(session.snapshot().position_secs, 0.0);
     }
 
-    #[expect(
-        clippy::float_cmp,
-        reason = "the session position is the exact f64 carried by the closed transport table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are exact binary literals; == pins the exact-value contract and a tolerance would admit a drifting transport"
-    )]
+    // Exact-value contract: the session position is the exact f64 carried by the closed transport
+    // table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are
+    // exact binary literals; == pins the exact-value contract and a tolerance would admit a
+    // drifting transport
     #[test]
     fn audible_progress_advances_only_while_playing() {
         let mut session = PlaybackSession::new();
@@ -802,10 +802,10 @@ mod tests {
         assert_eq!(session.snapshot().position_secs, 5.0);
     }
 
-    #[expect(
-        clippy::float_cmp,
-        reason = "the session position is the exact f64 carried by the closed transport table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are exact binary literals; == pins the exact-value contract and a tolerance would admit a drifting transport"
-    )]
+    // Exact-value contract: the session position is the exact f64 carried by the closed transport
+    // table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are
+    // exact binary literals; == pins the exact-value contract and a tolerance would admit a
+    // drifting transport
     #[test]
     fn sectionless_skip_forward_moves_ten_seconds() {
         let mut session = PlaybackSession::new();
@@ -814,10 +814,10 @@ mod tests {
         assert_eq!(session.snapshot().position_secs, 10.0);
     }
 
-    #[expect(
-        clippy::float_cmp,
-        reason = "the session position is the exact f64 carried by the closed transport table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are exact binary literals; == pins the exact-value contract and a tolerance would admit a drifting transport"
-    )]
+    // Exact-value contract: the session position is the exact f64 carried by the closed transport
+    // table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are
+    // exact binary literals; == pins the exact-value contract and a tolerance would admit a
+    // drifting transport
     #[test]
     fn skip_back_clamps_at_zero() {
         let mut session = PlaybackSession::new();
@@ -901,10 +901,10 @@ mod tests {
         );
     }
 
-    #[expect(
-        clippy::float_cmp,
-        reason = "the session position is the exact f64 carried by the closed transport table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are exact binary literals; == pins the exact-value contract and a tolerance would admit a drifting transport"
-    )]
+    // Exact-value contract: the session position is the exact f64 carried by the closed transport
+    // table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are
+    // exact binary literals; == pins the exact-value contract and a tolerance would admit a
+    // drifting transport
     #[test]
     fn play_from_stopped_is_rejected() {
         let mut session = session_in(TransportState::Stopped);
@@ -918,10 +918,10 @@ mod tests {
         assert_eq!(snap.position_secs, 0.0);
     }
 
-    #[expect(
-        clippy::float_cmp,
-        reason = "the session position is the exact f64 carried by the closed transport table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are exact binary literals; == pins the exact-value contract and a tolerance would admit a drifting transport"
-    )]
+    // Exact-value contract: the session position is the exact f64 carried by the closed transport
+    // table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are
+    // exact binary literals; == pins the exact-value contract and a tolerance would admit a
+    // drifting transport
     #[test]
     fn play_from_completed_is_rejected() {
         let mut session = session_in(TransportState::Completed);
@@ -935,10 +935,10 @@ mod tests {
         assert_eq!(snap.position_secs, 0.0);
     }
 
-    #[expect(
-        clippy::float_cmp,
-        reason = "the session position is the exact f64 carried by the closed transport table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are exact binary literals; == pins the exact-value contract and a tolerance would admit a drifting transport"
-    )]
+    // Exact-value contract: the session position is the exact f64 carried by the closed transport
+    // table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are
+    // exact binary literals; == pins the exact-value contract and a tolerance would admit a
+    // drifting transport
     #[test]
     fn pause_from_paused_is_rejected() {
         let mut session = PlaybackSession::new();
@@ -952,10 +952,10 @@ mod tests {
         assert_eq!(snap.position_secs, 0.0);
     }
 
-    #[expect(
-        clippy::float_cmp,
-        reason = "the session position is the exact f64 carried by the closed transport table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are exact binary literals; == pins the exact-value contract and a tolerance would admit a drifting transport"
-    )]
+    // Exact-value contract: the session position is the exact f64 carried by the closed transport
+    // table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are
+    // exact binary literals; == pins the exact-value contract and a tolerance would admit a
+    // drifting transport
     #[test]
     fn complete_from_paused_is_rejected() {
         let mut session = PlaybackSession::new();
@@ -969,10 +969,10 @@ mod tests {
         assert_eq!(snap.position_secs, 0.0);
     }
 
-    #[expect(
-        clippy::float_cmp,
-        reason = "the session position is the exact f64 carried by the closed transport table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are exact binary literals; == pins the exact-value contract and a tolerance would admit a drifting transport"
-    )]
+    // Exact-value contract: the session position is the exact f64 carried by the closed transport
+    // table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are
+    // exact binary literals; == pins the exact-value contract and a tolerance would admit a
+    // drifting transport
     #[test]
     fn resume_at_stored_from_stopped_is_rejected() {
         let mut session = session_in(TransportState::Stopped);
@@ -986,10 +986,10 @@ mod tests {
         assert_eq!(snap.position_secs, 0.0);
     }
 
-    #[expect(
-        clippy::float_cmp,
-        reason = "the session position is the exact f64 carried by the closed transport table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are exact binary literals; == pins the exact-value contract and a tolerance would admit a drifting transport"
-    )]
+    // Exact-value contract: the session position is the exact f64 carried by the closed transport
+    // table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are
+    // exact binary literals; == pins the exact-value contract and a tolerance would admit a
+    // drifting transport
     #[test]
     fn skip_backward_from_completed_is_rejected() {
         let mut session = session_in(TransportState::Completed);
@@ -1003,10 +1003,10 @@ mod tests {
         assert_eq!(snap.position_secs, 0.0);
     }
 
-    #[expect(
-        clippy::float_cmp,
-        reason = "the session position is the exact f64 carried by the closed transport table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are exact binary literals; == pins the exact-value contract and a tolerance would admit a drifting transport"
-    )]
+    // Exact-value contract: the session position is the exact f64 carried by the closed transport
+    // table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are
+    // exact binary literals; == pins the exact-value contract and a tolerance would admit a
+    // drifting transport
     #[test]
     fn double_play_from_playing_is_rejected() {
         let mut session = session_in(TransportState::Playing);
@@ -1020,10 +1020,10 @@ mod tests {
         assert_eq!(snap.position_secs, 0.0);
     }
 
-    #[expect(
-        clippy::float_cmp,
-        reason = "the session position is the exact f64 carried by the closed transport table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are exact binary literals; == pins the exact-value contract and a tolerance would admit a drifting transport"
-    )]
+    // Exact-value contract: the session position is the exact f64 carried by the closed transport
+    // table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are
+    // exact binary literals; == pins the exact-value contract and a tolerance would admit a
+    // drifting transport
     #[test]
     fn rejected_verbs_leave_state_and_position_untouched() {
         // A paused session holding a retained position:
@@ -1042,10 +1042,10 @@ mod tests {
         }
     }
 
-    #[expect(
-        clippy::float_cmp,
-        reason = "the session position is the exact f64 carried by the closed transport table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are exact binary literals; == pins the exact-value contract and a tolerance would admit a drifting transport"
-    )]
+    // Exact-value contract: the session position is the exact f64 carried by the closed transport
+    // table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are
+    // exact binary literals; == pins the exact-value contract and a tolerance would admit a
+    // drifting transport
     #[test]
     fn start_over_from_paused_discards_the_stored_position() {
         let mut session = PlaybackSession::new();
@@ -1060,10 +1060,10 @@ mod tests {
         assert_eq!(session.snapshot().position_secs, 0.0);
     }
 
-    #[expect(
-        clippy::float_cmp,
-        reason = "the session position is the exact f64 carried by the closed transport table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are exact binary literals; == pins the exact-value contract and a tolerance would admit a drifting transport"
-    )]
+    // Exact-value contract: the session position is the exact f64 carried by the closed transport
+    // table — the 0.0 reset floor, the exact 5/10-second steps and retained values like 12.5 are
+    // exact binary literals; == pins the exact-value contract and a tolerance would admit a
+    // drifting transport
     #[test]
     fn resume_at_stored_from_interrupted_retains_the_position() {
         let mut session = PlaybackSession::new();

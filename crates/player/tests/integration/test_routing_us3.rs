@@ -144,10 +144,9 @@ fn tracker_on(device_id: &str) -> RoutingTracker {
 /// `Paused` with the position unchanged (FR-016), and
 /// the pause is recorded as the wired output's
 /// disappearance (FR-017a).
-#[expect(
-    clippy::float_cmp,
-    reason = "the retained position 10.0 is an exact binary fraction and the assertion pins the pause-preserves-position contract (FR-016); == is exact and a tolerance would admit a position drift"
-)]
+// Exact-value contract: the retained position 10.0 is an exact binary fraction and the assertion
+// pins the pause-preserves-position contract (FR-016); == is exact and a tolerance would admit a
+// position drift
 #[test]
 fn a_wired_pull_via_becoming_noisy_pauses_within_the_bound() {
     let mut session = playing_session();
@@ -211,10 +210,9 @@ fn a_wired_pull_via_becoming_noisy_pauses_within_the_bound() {
 /// pause within the one-second bound, with the position
 /// preserved (FR-016: a Bluetooth disconnect carries
 /// exactly the wired removal's consequence).
-#[expect(
-    clippy::float_cmp,
-    reason = "the retained position 10.0 is an exact binary fraction and the assertion pins the pause-preserves-position contract (FR-016); == is exact and a tolerance would admit a position drift"
-)]
+// Exact-value contract: the retained position 10.0 is an exact binary fraction and the assertion
+// pins the pause-preserves-position contract (FR-016); == is exact and a tolerance would admit a
+// position drift
 #[test]
 fn a_bluetooth_loss_via_on_audio_devices_removed_only_pauses_within_the_bound() {
     let mut session = playing_session();
@@ -277,10 +275,9 @@ fn a_bluetooth_loss_via_on_audio_devices_removed_only_pauses_within_the_bound() 
 /// `NoChange` — never an auto-resume — and only the
 /// explicit `Play` verb resumes, through the device the
 /// tracker latched.
-#[expect(
-    clippy::float_cmp,
-    reason = "the retained position 10.0 is an exact binary fraction and the assertion pins the resume-at-same-position contract (FR-017); == is exact and a tolerance would admit a position drift"
-)]
+// Exact-value contract: the retained position 10.0 is an exact binary fraction and the assertion
+// pins the resume-at-same-position contract (FR-017); == is exact and a tolerance would admit a
+// position drift
 #[test]
 fn a_reconnected_device_never_auto_resumes_and_the_explicit_play_resumes_through_it() {
     let mut session = playing_session();
@@ -480,10 +477,9 @@ fn a_public_appearance_is_never_followed_while_playing_on_a_private_output() {
 /// continues at the same position only through the
 /// explicit verb, and the secondary mechanism alone
 /// pauses again within the bound.
-#[expect(
-    clippy::float_cmp,
-    reason = "the retained position 10.0 is an exact binary fraction and the assertions pin the pause-preserves-position and resume-at-same-position contracts (FR-016, FR-017); == is exact and a tolerance would admit a position drift"
-)]
+// Exact-value contract: the retained position 10.0 is an exact binary fraction and the assertions
+// pin the pause-preserves-position and resume-at-same-position contracts (FR-016, FR-017); == is
+// exact and a tolerance would admit a position drift
 #[expect(
     clippy::too_many_lines,
     reason = "the replay drives every recorded fixture step through the session and the routing tracker with its contract asserts; the length is the fixture's three legs, not control flow"
@@ -674,10 +670,9 @@ fn the_routing_noisy_removal_fixture_replays_every_recorded_result() {
 /// reconnect resumes at the same position only through
 /// the explicit verb (FR-016 / FR-016a / FR-017 /
 /// FR-017a).
-#[expect(
-    clippy::float_cmp,
-    reason = "the retained position 10.0 is an exact binary fraction and the assertions pin the pause-preserves-position and resume-at-same-position contracts (FR-016, FR-017); == is exact and a tolerance would admit a position drift"
-)]
+// Exact-value contract: the retained position 10.0 is an exact binary fraction and the assertions
+// pin the pause-preserves-position and resume-at-same-position contracts (FR-016, FR-017); == is
+// exact and a tolerance would admit a position drift
 #[expect(
     clippy::too_many_lines,
     reason = "the replay drives every recorded fixture step through the session and the routing tracker with its contract asserts; the length is the fixture's two legs, not control flow"

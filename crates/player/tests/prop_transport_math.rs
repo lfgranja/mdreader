@@ -746,10 +746,9 @@ const fn rate_down_from(rate: PlaybackRate) -> PlaybackRate {
 /// pause of exactly 600 s rewinds exactly 30.0 s (`0.05 × 600 ==
 /// 30.0` is exact in f64), and any longer pause still rewinds
 /// exactly 30.0 s — the hard ceiling of FR-015.
-#[expect(
-    clippy::float_cmp,
-    reason = "the boundary values 0.0, 600.0, 1200.0, 3600.0, 30.0 and 3570.0 are exact binary fractions and 0.05 × 600.0 == 30.0 exactly, so == is the correct assertion for a boundary test; a tolerance would admit an off-boundary rewind"
-)]
+// Exact-value contract: the boundary values 0.0, 600.0, 1200.0, 3600.0, 30.0 and 3570.0 are exact
+// binary fractions and 0.05 × 600.0 == 30.0 exactly, so == is the correct assertion for a boundary
+// test; a tolerance would admit an off-boundary rewind
 #[test]
 fn the_rewind_cap_boundary_is_exactly_thirty_seconds() {
     let yield_position = 3600.0;
@@ -787,10 +786,9 @@ fn the_rewind_cap_boundary_is_exactly_thirty_seconds() {
 /// authoritative position has not moved. Position moves only
 /// through `on_audible_progress`, the backend's audio-delivered
 /// clock seam, and a zero-length tick moves nothing.
-#[expect(
-    clippy::float_cmp,
-    reason = "the pre-roll assertion compares the position against the exact binary fraction 0.0 before any audio was delivered; == is exact and a tolerance would admit a clock that advances on its own during pre-roll"
-)]
+// Exact-value contract: the pre-roll assertion compares the position against the exact binary
+// fraction 0.0 before any audio was delivered; == is exact and a tolerance would admit a clock that
+// advances on its own during pre-roll
 #[test]
 fn pre_roll_buffering_never_advances_position() {
     let mut session = PlaybackSession::new();
@@ -822,10 +820,8 @@ fn pre_roll_buffering_never_advances_position() {
 /// The position clock's floor: `position_secs: f64 ≥ 0` (data-model
 /// `PlaybackSession`). A start below zero is clamped to the declared
 /// floor, never carried negative.
-#[expect(
-    clippy::float_cmp,
-    reason = "the floor assertion compares against the exact binary fraction 0.0; == is exact for a clamped start"
-)]
+// Exact-value contract: the floor assertion compares against the exact binary fraction 0.0; == is
+// exact for a clamped start
 #[test]
 fn a_negative_start_is_clamped_to_the_declared_floor() {
     let clock = PositionClock::new(-1.0);
@@ -1295,10 +1291,9 @@ fn the_ladder_is_exactly_the_seven_declared_rungs_ascending() {
 /// The rate-change effective bound is exactly 2.0 s
 /// (FR-019a), and every rung's effective time sits within
 /// it.
-#[expect(
-    clippy::float_cmp,
-    reason = "RATE_EFFECTIVE_BOUND_SECS (2.0) and every rung's effective time are exact binary fractions; == and <= are the correct assertions and a tolerance would admit a drifted bound"
-)]
+// Exact-value contract: RATE_EFFECTIVE_BOUND_SECS (2.0) and every rung's effective time are exact
+// binary fractions; == and <= are the correct assertions and a tolerance would admit a drifted
+// bound
 #[test]
 fn the_rate_change_effective_bound_is_exactly_two_seconds() {
     assert_eq!(
@@ -1335,10 +1330,8 @@ fn a_with_duration_session_reports_its_known_duration() {
 /// Skip forward lands exactly 10.0 s past the press time —
 /// the FR-002 zero-sections fallback for a session with no
 /// document structure — leaving the transport `Playing`.
-#[expect(
-    clippy::float_cmp,
-    reason = "the press time 100.0 and the 10.0 s fallback step are exact binary fractions; == is exact and a tolerance would admit an off-step skip"
-)]
+// Exact-value contract: the press time 100.0 and the 10.0 s fallback step are exact binary
+// fractions; == is exact and a tolerance would admit an off-step skip
 #[test]
 fn skip_forward_lands_exactly_five_seconds_past_the_press_time() {
     let mut session = PlaybackSession::with_duration(3600.0);
@@ -1360,10 +1353,8 @@ fn skip_forward_lands_exactly_five_seconds_past_the_press_time() {
 /// Skip backward lands exactly 10.0 s before the press
 /// time — the FR-002 zero-sections fallback for a session
 /// with no document structure — never changing the transport.
-#[expect(
-    clippy::float_cmp,
-    reason = "the press time 100.0 and the 10.0 s fallback step are exact binary fractions; == is exact and a tolerance would admit an off-step skip"
-)]
+// Exact-value contract: the press time 100.0 and the 10.0 s fallback step are exact binary
+// fractions; == is exact and a tolerance would admit an off-step skip
 #[test]
 fn skip_backward_lands_exactly_five_seconds_before_the_press_time() {
     let mut session = PlaybackSession::with_duration(3600.0);
@@ -1383,10 +1374,8 @@ fn skip_backward_lands_exactly_five_seconds_before_the_press_time() {
 }
 
 /// The backward skip clamps at the 0.0 floor (FR-018).
-#[expect(
-    clippy::float_cmp,
-    reason = "the press time 3.0, the 5.0 s step and the 0.0 floor are exact binary fractions; == is exact"
-)]
+// Exact-value contract: the press time 3.0, the 5.0 s step and the 0.0 floor are exact binary
+// fractions; == is exact
 #[test]
 fn skip_backward_clamps_at_the_zero_floor() {
     let mut session = PlaybackSession::with_duration(3600.0);
@@ -1401,10 +1390,8 @@ fn skip_backward_clamps_at_the_zero_floor() {
 
 /// The forward skip clamps at the duration ceiling
 /// (FR-018).
-#[expect(
-    clippy::float_cmp,
-    reason = "the duration 100.0, the press time 98.0 and the 5.0 s step are exact binary fractions; == is exact"
-)]
+// Exact-value contract: the duration 100.0, the press time 98.0 and the 5.0 s step are exact binary
+// fractions; == is exact
 #[test]
 fn skip_forward_clamps_at_the_duration_ceiling() {
     let mut session = PlaybackSession::with_duration(100.0);
@@ -1421,10 +1408,8 @@ fn skip_forward_clamps_at_the_duration_ceiling() {
 /// end-state at exactly the duration — never Completed,
 /// never Playing (FR-018: completion is document-end
 /// only).
-#[expect(
-    clippy::float_cmp,
-    reason = "the duration 100.0 and the press time 97.0 are exact binary fractions; == is exact"
-)]
+// Exact-value contract: the duration 100.0 and the press time 97.0 are exact binary fractions; ==
+// is exact
 #[test]
 fn a_forward_skip_that_reaches_the_end_lands_the_paused_end_state() {
     let mut session = PlaybackSession::with_duration(100.0);

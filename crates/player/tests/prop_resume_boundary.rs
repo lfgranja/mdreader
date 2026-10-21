@@ -835,10 +835,8 @@ proptest! {
 /// Boundary case: an empty boundary list with the cursor inside the first
 /// 30 seconds of the document snaps to exactly 0.0 — there is no boundary
 /// to land on, and the cap point is the floor.
-#[expect(
-    clippy::float_cmp,
-    reason = "the boundary values 12.0 and 0.0 are exact binary fractions on the quarter-second grid; == is the correct assertion and a tolerance would admit an off-boundary snap"
-)]
+// Exact-value contract: the boundary values 12.0 and 0.0 are exact binary fractions on the
+// quarter-second grid; == is the correct assertion and a tolerance would admit an off-boundary snap
 #[test]
 fn given_no_boundaries_and_a_cursor_within_the_first_thirty_seconds_when_snapping_then_the_resume_is_zero()
  {
@@ -852,10 +850,8 @@ fn given_no_boundaries_and_a_cursor_within_the_first_thirty_seconds_when_snappin
 
 /// Boundary case: a single boundary exactly at the cursor is returned
 /// as-is — the greatest-boundary-at-or-before lookup is inclusive.
-#[expect(
-    clippy::float_cmp,
-    reason = "the boundary values 25.0 and 0.0 are exact binary fractions on the quarter-second grid; == is the correct assertion and a tolerance would admit an off-boundary snap"
-)]
+// Exact-value contract: the boundary values 25.0 and 0.0 are exact binary fractions on the
+// quarter-second grid; == is the correct assertion and a tolerance would admit an off-boundary snap
 #[test]
 fn given_a_single_boundary_at_the_cursor_when_snapping_then_the_boundary_is_returned() {
     let clock = PositionClock::new(25.0);
@@ -870,10 +866,9 @@ fn given_a_single_boundary_at_the_cursor_when_snapping_then_the_boundary_is_retu
 /// Boundary case: the 5% rewind saturates at the 30-second cap, and the
 /// snap of a paragraph longer than the cap lands at the cap point — total
 /// backward movement is exactly 30 s, never more (FR-015).
-#[expect(
-    clippy::float_cmp,
-    reason = "the boundary values 3600.0, 3570.0, 30.0 and 0.0 are exact binary fractions and 0.05 × 7200.0 caps at exactly 30.0, so == is the correct assertion; a tolerance would admit an off-boundary rewind or a cap violation"
-)]
+// Exact-value contract: the boundary values 3600.0, 3570.0, 30.0 and 0.0 are exact binary fractions
+// and 0.05 × 7200.0 caps at exactly 30.0, so == is the correct assertion; a tolerance would admit
+// an off-boundary rewind or a cap violation
 #[test]
 fn given_a_rewind_saturating_at_the_cap_when_snapping_then_total_backward_is_exactly_thirty_seconds()
  {

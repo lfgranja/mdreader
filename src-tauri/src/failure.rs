@@ -413,8 +413,8 @@ mod tests {
                 surface.reason_ttl_ms, None,
                 "{error:?} must render a persistent line — the reader must always learn why nothing plays"
             );
-            assert!(!surface.short_statement.is_empty());
-            assert!(!surface.full_statement.is_empty());
+            assert_ne!(surface.short_statement, "");
+            assert_ne!(surface.full_statement, "");
         }
         // The classification is one across both closed sets: the
         // player's undeliverables persist for the same reason the

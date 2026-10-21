@@ -838,10 +838,10 @@ mod tests {
         // The closed sets render in full: no variant is a dead arm,
         // and every statement is non-empty on both surfaces.
         for reason in ALL_SHORT {
-            assert!(!short_reason(&reason, DOCUMENT_TITLE).is_empty());
+            assert_ne!(short_reason(&reason, DOCUMENT_TITLE), "");
         }
         for reason in ALL_FULL {
-            assert!(!full_reason(&reason, DOCUMENT_TITLE).is_empty());
+            assert_ne!(full_reason(&reason, DOCUMENT_TITLE), "");
         }
     }
 
@@ -988,7 +988,7 @@ mod tests {
         // The one reason of the player set that states no line
         // (FocusDelayed — the zero-audio hold) is neither regime: it
         // carries no line and no TTL at all.
-        assert!(InterruptionReason::FocusDelayed.reason_line().is_empty());
+        assert_eq!(InterruptionReason::FocusDelayed.reason_line(), "");
     }
 
     #[test]

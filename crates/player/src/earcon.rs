@@ -545,7 +545,7 @@ mod tests {
         assert_eq!(desc.sample_rate_hz, 22_050);
         assert_eq!(desc.channels, 1);
         assert_eq!(desc.format, SampleFormat::F32);
-        assert!(!desc.samples.is_empty());
+        assert_ne!(desc.samples, [] as [f32; 0]);
     }
 
     #[test]
@@ -554,7 +554,7 @@ mod tests {
         assert_eq!(desc.kind, EarconKind::Pause);
         assert!(desc.duration_ms <= 500);
         assert_eq!(desc.sample_rate_hz, 22_050);
-        assert!(!desc.samples.is_empty());
+        assert_ne!(desc.samples, [] as [f32; 0]);
     }
 
     #[test]
@@ -562,7 +562,7 @@ mod tests {
         let desc = EarconDescriptor::for_kind(EarconKind::SkipFwd);
         assert_eq!(desc.kind, EarconKind::SkipFwd);
         assert!(desc.duration_ms <= 500);
-        assert!(!desc.samples.is_empty());
+        assert_ne!(desc.samples, [] as [f32; 0]);
     }
 
     #[test]
@@ -570,7 +570,7 @@ mod tests {
         let desc = EarconDescriptor::for_kind(EarconKind::SkipBack);
         assert_eq!(desc.kind, EarconKind::SkipBack);
         assert!(desc.duration_ms <= 500);
-        assert!(!desc.samples.is_empty());
+        assert_ne!(desc.samples, [] as [f32; 0]);
     }
 
     #[test]
@@ -578,7 +578,7 @@ mod tests {
         let desc = EarconDescriptor::for_kind(EarconKind::Warning);
         assert_eq!(desc.kind, EarconKind::Warning);
         assert!(desc.duration_ms <= 500);
-        assert!(!desc.samples.is_empty());
+        assert_ne!(desc.samples, [] as [f32; 0]);
     }
 
     #[test]
@@ -586,7 +586,7 @@ mod tests {
         let desc = EarconDescriptor::for_kind(EarconKind::Failure);
         assert_eq!(desc.kind, EarconKind::Failure);
         assert!(desc.duration_ms <= 500);
-        assert!(!desc.samples.is_empty());
+        assert_ne!(desc.samples, [] as [f32; 0]);
     }
 
     #[test]
@@ -594,7 +594,7 @@ mod tests {
         let desc = EarconDescriptor::for_kind(EarconKind::RateStep);
         assert_eq!(desc.kind, EarconKind::RateStep);
         assert!(desc.duration_ms <= 500);
-        assert!(!desc.samples.is_empty());
+        assert_ne!(desc.samples, [] as [f32; 0]);
     }
 
     #[test]

@@ -527,7 +527,7 @@ mod tests {
     #[test]
     fn the_default_selector_selects_nothing() {
         let mut selector = FallbackSelector::default();
-        assert!(selector.selectable().is_empty());
+        assert_eq!(selector.selectable(), []);
         assert_eq!(selector.on_failure("any-engine"), None);
     }
 }

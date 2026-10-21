@@ -879,3 +879,23 @@ Subagent E: "T032 rewind.rs + resume.rs sentence-snap (independent)"
 ### Phase 17 Addendum 2 Tasks (append-only; zero renumber of T001–T156)
 
 - [ ] T157 [P] (MEDIUM) Sync `scripts/expected-tests.txt` with the live nextest target list per the gate-2 fail-closed two-way diff: add the three new Phase 17 targets — `src-tauri::test_offer_dialog_reachability` (T144, `80803f5`), `src-tauri::test_resume_restarts_audio` (T140, `f30feca`), `src-tauri::test_session_live_from_first_chunk` (T142, `59a12a2`) — in the file's existing sorted order, and run `cargo nextest list --workspace` to make the two-way diff clean in BOTH directions (0 missing, 0 unexpected); if other live targets appear (other agents are adding suites concurrently), pin them too — but only targets that exist in the live list; the negative control (a pinned-but-absent target reports MISSING; a live-but-unpinned target reports UNEXPECTED) must keep the gate fail-closed (`missing`)
+
+---
+
+## Phase 17 Addendum 3: Convergence
+
+> Source: the T149 implementation report (commit `a651c61`), which bounded the resident playback queue and surfaced two follow-ups: (a) the app-shell producer is a one-pass loop that never waits, so a producer faster than the device loses the overrun — the reading SKIPS the audio beyond the window and the reported position (consumed samples only) trails the content actually heard; (b) the new bound observability (`CpalBackend::buffer_state()` — pre-roll depth, cap, dropped count) is not carried into the diagnostic record, whose `record_buffer_state` (`src-tauri/src/lib.rs:1289-1306`) reports only the buffered seconds. Appended as a new traceable task; no existing task rewritten or renumbered.
+
+### Convergence Findings (in-session, before append)
+
+| ID | Gap Type | Severity | Source | Evidence | Remediation (tasks below) |
+|----|----------|----------|--------|----------|---------------------------|
+| F1 | missing | HIGH | FR-002 (the audible clock is the only advance path), FR-007, FR-013 | The producer in `src-tauri/src/lib.rs` is a one-pass loop that never waits for the device: when the producer is faster than the audio device, the audio beyond the 60 s window is dropped, the reading SKIPS it, and the reported position (consumed samples only) trails the content actually heard — the cap keeps the app alive (no ~620 MB residency) but the position and the audio diverge | T158 |
+| F2 | partial | MEDIUM | FR-017 · `contracts/diagnostic-trace.md:23` | `record_buffer_state` (`src-tauri/src/lib.rs:1289-1306`) reports only `preroll_secs`; the bound and the dropped-sample count that T149 exposed through `CpalBackend::buffer_state()` never reach the record, so a reading that skips audio is not diagnosable after the fact | T159 |
+
+**Metrics:** 2 findings — 1 missing · 1 partial. 1 HIGH · 1 MEDIUM. Both touch `src-tauri/src/lib.rs` and MUST serialize after T141/T143/T145 (the Phase 17 `lib.rs` sequence).
+
+### Phase 17 Addendum 3 Tasks (append-only; zero renumber of T001–T157)
+
+- [ ] T158 [P] (HIGH) Close the producer/consumer gap left by the T149 queue bound: the app-shell producer in `src-tauri/src/lib.rs` is a one-pass loop that never waits for the device, so a producer faster than the audio device loses the overrun — the audio beyond the 60 s window is dropped, the reading SKIPS it, and the reported position (consumed samples only) trails the content actually heard; make the producer demand-driven or apply back-pressure so the position and the audio never diverge (the audible clock stays the only advance path, FR-002), and cover it with a RED-first property test asserting that the position reported after a bounded window matches the audio actually delivered (`missing`)
+- [ ] T159 [P] (MEDIUM) Carry the T149 bound observability into the diagnostic record: `record_buffer_state` (`src-tauri/src/lib.rs:1289-1306`) reports only `preroll_secs`; the cap and the dropped-sample count that `CpalBackend::buffer_state()` now exposes must reach the record's `detail` so a reading that skipped audio is diagnosable after the fact (FR-017, `contracts/diagnostic-trace.md:23`); the entry MUST stay prose-free, identifier-pattern, within the 200-char `detail` limit, and carry the content-hash ref the contract requires (`partial`)

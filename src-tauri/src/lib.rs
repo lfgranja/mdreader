@@ -1621,6 +1621,18 @@ pub(crate) struct PendingOpen {
     /// When the offer opened (the FR-032c window's start): the
     /// app's own clock — the offer machine carries none.
     opened_at: std::time::Instant,
+    /// Whether the FR-032c window has ALREADY elapsed for this open
+    /// (T155): the latched fact that stops the poll from re-checking
+    /// an open that is already waiting for the reader.
+    ///
+    /// The re-park keeps the SAME open — the same `opened_at` — so
+    /// the elapsed condition would hold forever, and without this
+    /// latch the poll would take, lock and re-park the open — and
+    /// log — on every tick, for as long as the reader waits
+    /// (Principle V). The reader's explicit resume does NOT depend
+    /// on this latch: it arrives through the verb dispatch, which
+    /// resolves the parked open directly (FR-009 / FR-032d).
+    window_expired: bool,
 }
 
 /// The parked cold-start open's resolution (T110): the ways a
@@ -1755,6 +1767,7 @@ fn park_cold_start(state: &AppState, document: &str, filename: &str, offset_secs
         filename: filename.to_string(),
         offset_secs,
         opened_at: std::time::Instant::now(),
+        window_expired: false,
     };
     let Ok(mut guard) = state.pending_open.lock() else {
         tracing::warn!("the cold start was not parked: the pending-open lock is poisoned");
@@ -1781,7 +1794,15 @@ fn pending_open_exists(state: &AppState) -> bool {
 /// waiting — the FR-032d explicit-resume requirement stands, so
 /// the reader's explicit resume is the only start (FR-032d /
 /// FR-031).
-fn repark_cold_start(state: &AppState, pending: PendingOpen) {
+///
+/// The re-park LATCHES the elapsed window (T155): the open has
+/// waited out its window and the resolution left it waiting, so the
+/// poll must not re-check it. The re-park keeps the SAME open — the
+/// same `opened_at` — so the elapsed condition would otherwise hold
+/// forever, and the poll would take, lock and re-park the open on
+/// every tick, for as long as the reader waits (Principle V).
+fn repark_cold_start(state: &AppState, mut pending: PendingOpen) {
+    pending.window_expired = true;
     let Ok(mut guard) = state.pending_open.lock() else {
         tracing::warn!("the cold start was not re-parked: the pending-open lock is poisoned");
         return;
@@ -1799,19 +1820,43 @@ fn repark_cold_start(state: &AppState, pending: PendingOpen) {
 /// records when its offer opened, and the window elapses
 /// [`OFFER_WINDOW_MS`] later. The check is a no-op before that
 /// instant and after the open has resolved.
+///
+/// ## The re-check is bounded (T155)
+///
+/// The window elapses ONCE for a parked open: the resolution either
+/// starts the reading or leaves the open waiting for the reader —
+/// and the re-park latches that fact. The re-park keeps the SAME
+/// open (the same `opened_at`), so the elapsed condition would hold
+/// forever; without the latch the poll would take, lock and re-park
+/// the open — and log — on every tick, for as long as the reader
+/// waits (Principle V).
+///
+/// The reader's explicit resume is NOT delayed by the latch: it
+/// arrives through the verb dispatch, which resolves the parked open
+/// directly (FR-009 / FR-032d / FR-031).
 pub(crate) fn expire_parked_open(state: &AppState) {
     // The elapsed time is read alone, under the pending-open lock
     // only: the poll never copies the parked document, and it
     // never holds two state locks together.
-    let elapsed = {
+    let (elapsed, already_expired) = {
         let Ok(guard) = state.pending_open.lock() else {
             return;
         };
         let Some(pending) = guard.as_ref() else {
             return; // nothing is parked — nothing waits
         };
-        pending.opened_at.elapsed()
+        (pending.opened_at.elapsed(), pending.window_expired)
     };
+    if already_expired {
+        // T155: the window already elapsed and the resolution left
+        // this open waiting for the reader's explicit resume. The
+        // re-check is NOT repeated: the same open carries the same
+        // `opened_at`, so the elapsed condition would hold forever
+        // and the poll would take, lock and re-park the open — and
+        // log — on every tick, for as long as the reader waits
+        // (Principle V).
+        return;
+    }
     if elapsed < Duration::from_millis(OFFER_WINDOW_MS) {
         return; // the window is still open
     }
@@ -1844,7 +1889,9 @@ pub(crate) fn expire_parked_open(state: &AppState) {
 ///
 /// The re-park keeps the SAME open — the same `opened_at` — so the
 /// app never opens a second offer window over the same requirement
-/// (FR-009).
+/// (FR-009), and it latches the elapsed window (T155) so the poll
+/// does not re-check an open that is already waiting for the
+/// reader.
 ///
 /// Returns whether the reading started. A start that the
 /// synthesis path refuses records its own named refusal (FR-017)

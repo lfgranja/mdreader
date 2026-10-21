@@ -50,6 +50,14 @@
 #      matches a vocabulary token), (b) arithmetic on
 #      `position_secs`/`position`/`rate` (token, whitespace, then an
 #      arithmetic operator — assignment/arithmetic adjacency). The
+#      arithmetic class is split by HOW the token is reached, because
+#      the two reachings are different positions and this section
+#      already separates them: a bare identifier being COMPUTED
+#      (`position_secs + 1`) is rejected in every allowlisted file;
+#      a token reached through a field access — a GETTER read
+#      (`snapshot().position_secs`) — is rejected in every allowlisted
+#      file EXCEPT the two contract suites named in CONTRACT_SUITES,
+#      where reading the mirrored value IS the assertion (T156). The
 #      residue — "is this occurrence genuinely a type, getter, or
 #      delegation?" — is NOT decidable by grep: the script prints it
 #      as a named inventory (every vocabulary occurrence in
@@ -251,11 +259,55 @@ ALLOWLIST=(
   # are still adjudicated by Section 3 and by the T086 residue
   # inventory below.
   "$SRC_TAURI/tests/test_offer_dialog.rs"
+  # 004 offer-dialog REACHABILITY contract (T144, commit 80803f5):
+  # the test names the surface's OWN vocabulary to pin it — the
+  # mirrored transport the offer-open condition reads today, the
+  # mirror-state field names the surface publishes (`transport`,
+  # `positionSecs`, `rate`, …), and the transport/rate control verbs
+  # the in-app screen owns. The mention IS the assertion — the same
+  # shape as the purity tests above carry: the file POLICIES the
+  # vocabulary, it does not compute with it. Its occurrences are
+  # still adjudicated by Section 3 and by the T086 residue inventory
+  # below.
+  "$SRC_TAURI/tests/test_offer_dialog_reachability.rs"
+  # 004 explicit-resume audio contract (T140, commit f30feca): the
+  # test names the surface's OWN vocabulary to pin it — the closed
+  # transport transition table the bridge must land on `Playing`
+  # (`transport`, `TransportState::Playing`), the session's published
+  # `position_secs` clock the resume must re-anchor at, and the
+  # lock-screen payload's `transport` field. The mention IS the
+  # assertion — the same shape as the purity tests above carry: the
+  # file POLICIES the vocabulary, it does not compute with it. Its
+  # occurrences are still adjudicated by Section 3 and by the T086
+  # residue inventory below.
+  "$SRC_TAURI/tests/test_resume_restarts_audio.rs"
+)
+
+# Contract suites (T156): the two Phase 17 contract suites the
+# allowlist above carries — they NAME the mirrored vocabulary to pin
+# it, so the mention IS the assertion (the same shape as the purity
+# tests above). A contract suite may READ a mirrored value and
+# COMPARE it — `snapshot().position_secs - position` is a GETTER read,
+# the getter position Section 3's own header allows — but it may NOT
+# hold the vocabulary as mutable state nor compute it from a bare
+# identifier: both stay rejected (Section 3 below). Exactly these two
+# named files are carved out — no glob, no directory, no pattern.
+CONTRACT_SUITES=(
+  "$SRC_TAURI/tests/test_offer_dialog_reachability.rs"
+  "$SRC_TAURI/tests/test_resume_restarts_audio.rs"
 )
 
 is_allowlisted() {
   local file="$1" entry
   for entry in "${ALLOWLIST[@]}"; do
+    [ "$file" = "$entry" ] && return 0
+  done
+  return 1
+}
+
+is_contract_suite() {
+  local file="$1" entry
+  for entry in "${CONTRACT_SUITES[@]}"; do
     [ "$file" = "$entry" ] && return 0
   done
   return 1
@@ -293,12 +345,41 @@ MUT_STATE='(mut|var)[[:space:]]+[A-Za-z0-9_]*(transport|position_secs|position|r
 # (b) arithmetic on position/position_secs/rate: the token followed
 # by whitespace and an arithmetic operator (covers =-adjacent
 # assignment and compound forms like `position_secs += 1`).
-ARITHMETIC='\b(position_secs|position|rate)[[:space:]]+[-+*/]'
+#
+# The class is split by HOW the token is reached — the two reachings
+# are different positions, and Section 3's own header already
+# separates them:
+#
+#   COMPUTED — the token is a BARE IDENTIFIER being computed
+#     (`position_secs + 1`, `rate * 2`): the vocabulary is COMPUTED,
+#     which no allowlisted file may do. Rejected everywhere.
+#   GETTER — the token is reached through a field access
+#     (`snapshot().position_secs`): the vocabulary is READ. A getter
+#     read is the getter position Section 3's own header allows; the
+#     shell surface still may not COMPUTE with it, so the getter class
+#     is rejected for every allowlisted file except the contract
+#     suites named in CONTRACT_SUITES (T156), where the read IS the
+#     assertion.
+#
+# COMPUTED and GETTER together match exactly what the single class
+# matched before the split: every occurrence the combined form
+# matches, one of the two matches (and none is matched twice —
+# GETTER requires a field access, COMPUTED forbids one).
+ARITHMETIC_COMPUTED='(^|[^.A-Za-z0-9_])(position_secs|position|rate)[[:space:]]+[-+*/]'
+ARITHMETIC_GETTER='\.(position_secs|position|rate)[[:space:]]+[-+*/]'
 
 status=0
 for file in "${ALLOWLIST[@]}"; do
   [ -f "$file" ] || continue
-  hits="$(grep -nE "$MUT_STATE|$ARITHMETIC" "$file" 2>/dev/null || true)"
+  # A contract suite may READ the mirrored vocabulary (the getter
+  # class is carved out for it); every other allowlisted file — the
+  # shell surface itself — keeps the arithmetic rule verbatim.
+  if is_contract_suite "$file"; then
+    position_rule="$MUT_STATE|$ARITHMETIC_COMPUTED"
+  else
+    position_rule="$MUT_STATE|$ARITHMETIC_COMPUTED|$ARITHMETIC_GETTER"
+  fi
+  hits="$(grep -nE "$position_rule" "$file" 2>/dev/null || true)"
   if [ -n "$hits" ]; then
     printf 'check-shell-purity: vocabulary in a rejected position (mut state or arithmetic) in %s:\n' "$file" >&2
     printf '%s\n' "$hits" >&2

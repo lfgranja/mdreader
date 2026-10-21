@@ -758,3 +758,21 @@ Subagent E: "T032 rewind.rs + resume.rs sentence-snap (independent)"
 
 - [ ] T136 [P] (HIGH) Restore `cargo clippy --workspace --all-targets -- -D warnings` to exit 0 under the current stable toolchain (rustc 1.99.1 / clippy 0.1.99): resolve every `unfulfilled_lint_expectations` (the `#[expect(clippy::float_cmp)]` attributes that no longer fire — remove them where the lint is genuinely gone, or re-scope them where it still applies under a different cfg) and every `clippy::assert_is_empty` (use `.is_empty()` instead of `.len() == 0`); start in `crates/player/tests/{prop_transport_math,prop_rewind,prop_resume_boundary}.rs` and sweep `engine-core`/`session`/`src-tauri`; use `--keep-going` to see every target's diagnostics in one pass; the whole existing suite must stay green (`cargo nextest run --workspace`) — no behaviour change, no lint level weakened, no new suppression without a written reason (`contradicts`)
 - [ ] T137 [P] (MEDIUM) Decide and record the toolchain-stability policy per Principle IV and the Constitution Technology Stack: the repository floats on whatever `stable` currently is (no `rust-toolchain.toml`), so the lint set moved under a fixed source tree (T136); the options are (a) add a `rust-toolchain.toml` pinning the toolchain channel + version the project builds against, with the pin refreshed by the same routine that bumps dependencies, or (b) record in the constitution that the workspace tracks `stable` and that a toolchain bump requires a lint-compliance pass (T136) before the tree is re-attested; whichever is chosen, write it where the constitution's Technology Stack / Verification Gates sections expect it, and state the MSRV (1.85) relationship explicitly so the pin never contradicts it (`partial`)
+
+---
+
+## Phase 16 Addendum 9: Convergence
+
+> Source: the T137 implementation report (commit `43df07c`), which recorded the toolchain-stability policy in the constitution (v1.10.0, Technology Stack "Toolchain" + Verification Gates "A toolchain bump moves the lint set, and the tree must be re-earned") and explicitly deferred one item: `scripts/verify.sh` gate 4 does NOT invoke clippy today, so the lint-compliance pass the policy REQUIRES is not itself a deterministic gate. Appended as a new traceable task; no existing task rewritten or renumbered.
+
+### Convergence Findings (in-session, before append)
+
+| ID | Gap Type | Severity | Source | Evidence | Remediation (tasks below) |
+|----|----------|----------|--------|----------|---------------------------|
+| F1 | partial | MEDIUM | Constitution Verification Gates · Principle V (deterministic gates) | The constitution (v1.10.0) now REQUIRES `cargo clippy --workspace --all-targets -- -D warnings` exit 0 before re-attestation, but `scripts/verify.sh` gate 4 (lint-drift) only checks the lint LEVELS in the manifests and never runs clippy — so the drift the policy names would not fail the gate, only the manual pre-attestation pass | T138 |
+
+**Metrics:** 1 finding — 1 partial. 1 MEDIUM. The policy is recorded but not yet enforced by a gate; the T137 report flagged this itself as deferred, out of its `scripts/**`-excluded scope.
+
+### Phase 16 Addendum 9 Tasks (append-only; zero renumber of T001–T137)
+
+- [ ] T138 [P] Make the constitution's lint-compliance pass a deterministic gate: extend `scripts/verify.sh` gate 4 (lint-drift) to also run `cargo clippy --workspace --all-targets -- -D warnings` and FAIL the gate when it does not exit 0 — so a toolchain bump that moves the lint set fails the gate instead of only failing the manual pre-attestation pass the constitution (v1.10.0, "A toolchain bump moves the lint set, and the tree must be re-earned") requires; the gate must keep checking the pinned lint LEVELS as it does today and must not weaken any level, add a blanket `#[allow]`, or use an unreasoned `#[expect]`; the gate must fail closed (a missing toolchain or a non-zero clippy exit is a failure, never a skip) (`partial`)

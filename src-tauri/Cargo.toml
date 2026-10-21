@@ -55,6 +55,11 @@ blake3 = { version = "1.6.0", default-features = false }
 # store's own `get`. Pinned through the workspace table
 # (supply chain: latest stable only).
 tempfile = { workspace = true }
+# T140 (the explicit-resume audio path) is a property test over
+# the closed transport transition table and over the bridge's call
+# graph: the property framework is the crate's own, pinned through
+# the workspace table (supply chain: latest stable only).
+proptest = { workspace = true }
 
 [build-dependencies]
 # tauri-build carries its own version line (latest

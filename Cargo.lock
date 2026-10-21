@@ -4021,6 +4021,7 @@ dependencies = [
  "hex",
  "jni 0.21.1",
  "player",
+ "proptest",
  "serde",
  "serde_json",
  "session",

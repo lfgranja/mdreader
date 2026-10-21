@@ -2,6 +2,113 @@
   SYNC IMPACT REPORT
   ===================
   Amended: 2026-10-21
+  Version change: 1.10.0 -> 1.11.0
+
+  Bump rationale: MINOR. One governance record is CORRECTED: the
+  Verification Gates paragraph that described the mechanical form of
+  the lint-compliance pass as unwired now states the state that holds
+  since T138. No principle is added, removed or redefined, no existing
+  MUST is weakened, and no lint level, gate threshold or constraint is
+  changed. Not PATCH (the record of what gate 4 mechanically enforces
+  changes materially and a prior amendment's deferred item is
+  superseded, which is not a wording, typo or non-semantic
+  refinement), not MAJOR (no principle change, no MUST weakened).
+
+  What changed:
+    - Verification Gates: the paragraph that began "The mechanical
+      form is not wired yet" is replaced. It now states that
+      `scripts/verify.sh` gate 4 runs the lint-compliance pass itself
+      -- `cargo clippy --workspace --all-targets -- -D warnings` -- as
+      a fail-closed step (`running 4 lint-drift-clippy`, then a `fail`
+      on a non-zero exit, then `pass 4 lint-drift-clippy`), so the lint
+      SET is enforced by the gate itself and not only by the manual
+      pre-attestation pass. The gate keeps checking the declared lint
+      LEVELS as well: the clippy step is an ADDITION, not a
+      replacement. The requirement that the moved lints are resolved in
+      code -- never by weakening a lint level, never by a blanket
+      `#[allow]`, never by an unreasoned `#[expect]` -- is unchanged
+      and is retained.
+    - Verification Gates, gate-4 row of the gate table: the row now
+      names the clippy step the gate runs, so the table and the
+      paragraph agree.
+    - The v1.10.0 report's "Deferred / non-constitution" bullet, which
+      carried the same statement in the present tense, is marked
+      SUPERSEDED with a pointer to this report. The historical text
+      beneath the marker is preserved: it remains a true record of
+      what the v1.10.0 amendment itself did (it deliberately touched
+      no gate script).
+    - Provenance of the stale text: it was introduced by the v1.10.0
+      toolchain-policy amendment (commit 43df07c, "docs(constitution):
+      record the toolchain-stability policy"), which declined to touch
+      a gate script for scope discipline and recorded the deferral
+      explicitly. The deferral was discharged MECHANICALLY by T138,
+      not by another policy change.
+
+  Modified constraints:
+    - Verification Gates: the lint-compliance mechanical-enforcement
+      paragraph, and the gate-4 row of the gate table.
+    - Nothing else: no principle, no MUST, no lint level, no gate
+      threshold and no Exceptions Log entry is modified.
+
+  Principles modified: none.
+  Sections added: none.
+  Sections removed: none.
+  Renamed sections: none.
+
+  Deferred / non-constitution:
+    - No Exceptions Log entry: this is not a deviation from the
+      reference stack.
+    - The lint-compliance pass is still REQUIRED before a tree is
+      re-attested after a toolchain bump. It is now ALSO a gate: the
+      gate enforces the pass, it does not replace it, and the
+      obligation is unchanged.
+    - Reversal, stated so the owner can execute it: replace the
+      Verification Gates paragraph beginning "The mechanical form is
+      now wired" with the v1.10.0 text, verbatim -- "The mechanical
+      form is not wired yet: `scripts/verify.sh` gate 4 today checks
+      the declared lint levels and does not itself invoke clippy, so
+      the pass is an attestation-time obligation, run by hand. Wiring
+      clippy into gate 4 would make it mechanical; until it does, the
+      clause above is what stands between a green attestation and a
+      silently drifted lint set. This clause is reversible by deleting
+      this paragraph -- no other gate, principle or constraint depends
+      on it." Restore the gate-4 table row's "Command" cell to "root
+      deny-tables intact; `[lints] workspace = true` in every member",
+      delete the SUPERSEDED marker from the v1.10.0 report, and
+      restore the footer to `**Version**: 1.10.0` (the "Last Amended"
+      date and this report header stay as they are). Reversing this
+      RECORD does not un-wire the gate: the mechanical enforcement
+      lives in `scripts/verify.sh` (commit d23942b), and undoing that
+      is `git revert d23942b`, not an edit to this file.
+
+  Source evidence: commit d23942b ("fix(004): T138 gate the
+  lint-compliance pass in verify.sh") wires the pass into gate 4 as
+  step (d). The step is named `lint-drift-clippy` and is fail-closed:
+  `running 4 lint-drift-clippy`; `if ! cargo clippy --workspace
+  --all-targets -- -D warnings; then fail "gate-4 lint-drift: cargo
+  clippy --workspace --all-targets -- -D warnings failed (the
+  lint-compliance pass must exit 0; resolve the moved lints in code,
+  never by weakening a lint level, a blanket #[allow] or an unreasoned
+  #[expect])"; fi`; `pass 4 lint-drift-clippy`. The pre-existing checks
+  of gate 4 -- (a) `[lints] workspace = true` in every member manifest,
+  (b) the pinned lint-level set, (c) the intact
+  `[workspace.dependencies]` table -- are unchanged, so the clippy step
+  is an addition, not a replacement. Negative control (run on a COPY
+  of the repository; the real tree was never modified): a `println!`
+  injected into `crates/doc-structure/src/lib.rs` trips the denied
+  `clippy::print_stdout`; the copy's `verify.sh` exits 1 with
+  "verify.sh: FAIL: gate-4 lint-drift: cargo clippy --workspace
+  --all-targets -- -D warnings failed"; the copy was reverted and
+  deleted. Positive control: `bash scripts/verify.sh` exits 0 and gate
+  4 reports the clippy step. The stale sentence being corrected is
+  the one this report's "What changed" section quotes; its origin is
+  the v1.10.0 report's "Deferred / non-constitution" bullet and the
+  Verification Gates paragraph of the same amendment (commit 43df07c).
+-->
+<!--
+  SYNC IMPACT REPORT
+  ===================
+  Amended: 2026-10-21
   Version change: 1.9.0 -> 1.10.0
 
   Bump rationale: MINOR. One governance clause is added (the
@@ -43,6 +150,14 @@
   Renamed sections: none.
 
   Deferred / non-constitution:
+    - SUPERSEDED by v1.11.0 (2026-10-21). The mechanical form of the
+      lint-compliance pass IS now wired into `scripts/verify.sh` gate
+      4 as a fail-closed step (T138, commit d23942b): gate 4 runs
+      `cargo clippy --workspace --all-targets -- -D warnings` and
+      FAILS the gate when it does not exit 0. The bullet below is
+      preserved as the historical record of what THIS amendment did
+      (it deliberately touched no gate script); its present-tense
+      statement describes the state as of v1.10.0.
     - The mechanical form of the lint-compliance pass is NOT wired
       into `scripts/verify.sh`: gate 4 still checks the declared lint
       levels only and does not invoke clippy, so the pass is an
@@ -1038,7 +1153,7 @@ Exit status is zero if and only if every gate passes.
 | 1 | format | `cargo fmt --all -- --check` | rustfmt-clean |
 | 2 | tests | `cargo nextest run --workspace` | unit, integration, E2E |
 | 3 | documentation | `cargo doc --workspace --no-deps` | public API documented |
-| 4 | lint-drift | root deny-tables intact; `[lints] workspace = true` in every member | rigour not quietly weakened; on a toolchain bump, the lint-compliance pass below is REQUIRED before re-attestation |
+| 4 | lint-drift | root deny-tables intact; `[lints] workspace = true` in every member; `cargo clippy --workspace --all-targets -- -D warnings` exits 0 (fail-closed step `lint-drift-clippy`) | rigour not quietly weakened; the lint SET is clean under the tracked toolchain, so a toolchain bump that moves it fails the gate; the lint-compliance pass below is REQUIRED before re-attestation |
 | 5 | supply-chain | `cargo deny check advisories licenses bans sources` + `cargo audit` | Principle IV |
 | 6 | deny-list | no denied crate in any manifest or in `Cargo.lock` | Principle IV |
 | 7 | closed-set | no `_ =>` in `crates/*/src/` | Principle VII |
@@ -1063,11 +1178,21 @@ code and T137 records the policy. Gate 5 is unaffected by the movement of the li
 tracked channel cannot break it either: the build-time floor it depends on (rustc >= 1.88, the
 `zip` 9 build dependency of `sherpa-onnx-sys`) is a floor that `stable` only rises above.
 
-The mechanical form is not wired yet: `scripts/verify.sh` gate 4 today checks the declared lint
-levels and does not itself invoke clippy, so the pass is an attestation-time obligation, run by
-hand. Wiring clippy into gate 4 would make it mechanical; until it does, the clause above is what
-stands between a green attestation and a silently drifted lint set. This clause is reversible by
-deleting this paragraph — no other gate, principle or constraint depends on it.
+The mechanical form is now wired: `scripts/verify.sh` gate 4 runs the lint-compliance pass itself —
+`cargo clippy --workspace --all-targets -- -D warnings` — as a fail-closed step (`running 4
+lint-drift-clippy`, then `fail` on a non-zero exit, then `pass 4 lint-drift-clippy`), so the lint
+*set* is enforced by the gate itself, not only by the manual pre-attestation pass: a `stable` bump
+that moves the lint set now fails a deterministic gate (Principle V) instead of depending on a
+person remembering to run the pass. The step fails closed — a missing toolchain, a clippy that
+cannot run and a non-zero exit are all a FAILED gate, never a skipped one; there is no `|| true`,
+no "the tool is missing -> pass" branch and no skip flag. The gate keeps checking the declared lint
+levels as well — the clippy step is an addition, not a replacement — and the moved lints are
+resolved **in code**, never by weakening a lint level in `Cargo.toml` or `clippy.toml`, never by a
+blanket `#[allow]`, and never by an `#[expect]` without a written reason (Rust Code Rigor). Wired
+in T138 (commit `d23942b`); verified by a negative control on a copy of the tree, where a
+`println!` injected into `crates/doc-structure/src/lib.rs` trips the denied `clippy::print_stdout`
+and the copy's `verify.sh` exits 1. This paragraph records the state; the enforcement itself lives
+in `scripts/verify.sh` gate 4, and deleting this paragraph changes no gate, principle or constraint.
 
 Gate 9 exists because gates 1–8 are all satisfiable on a host that cannot produce an Android
 artifact, which would let a workspace pass every deterministic check while having no working app.
@@ -1216,4 +1341,4 @@ Where this constitution and a convenience conflict, this constitution wins and t
 either changed or proposed as an amendment. Where this constitution and the reference stack
 conflict, the maintainer decides, and the decision is logged.
 
-**Version**: 1.10.0 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-21
+**Version**: 1.11.0 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-21

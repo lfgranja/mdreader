@@ -124,7 +124,11 @@ pass 3 documentation
 #       the pinned T001 rigour set — no missing, extra,
 #       or weakened (deny->warn) entry;
 #   (c) the root [workspace.dependencies] table is
-#       intact (the section exists).
+#       intact (the section exists);
+#   (d) the lint-compliance pass (`cargo clippy
+#       --workspace --all-targets -- -D warnings`)
+#       exits 0 — the lint SET, not only the declared
+#       levels, is clean under the tracked toolchain.
 # =============================================================================
 running 4 lint-drift
 ROOT_MANIFEST="$ROOT/Cargo.toml"
@@ -277,6 +281,30 @@ done
 # (c) The root [workspace.dependencies] table is intact.
 grep -q '^\[workspace\.dependencies\]' "$ROOT_MANIFEST" \
   || fail "gate-4 lint-drift: root [workspace.dependencies] table missing (the root deny-tables are not intact)"
+
+# (d) The lint-compliance pass (constitution Verification
+# Gates, "A toolchain bump moves the lint set, and the
+# tree must be re-earned"): the lint SET, not only the
+# declared levels, must be clean under the tracked
+# toolchain. `cargo clippy --workspace --all-targets --
+# -D warnings` MUST exit 0 — the gate that was missing
+# when the 2026-10-20 `stable` bump (rustc 1.98.1 ->
+# 1.99.1, clippy 0.1.98 -> 0.1.99) turned a byte-identical
+# tree red while every other gate stayed green.
+#
+# The gate fails CLOSED: a missing toolchain, a clippy
+# that cannot run, and a non-zero exit are all a FAILED
+# gate, never a skipped one (Principle V) — there is no
+# `|| true`, no "the tool is missing -> pass" branch and
+# no skip flag. The moved lints are resolved IN CODE:
+# never by weakening a lint level in Cargo.toml or
+# clippy.toml, never by a blanket `#[allow]`, never by an
+# `#[expect]` without a written reason (Rust Code Rigor).
+running 4 lint-drift-clippy
+if ! cargo clippy --workspace --all-targets -- -D warnings; then
+  fail "gate-4 lint-drift: cargo clippy --workspace --all-targets -- -D warnings failed (the lint-compliance pass must exit 0; resolve the moved lints in code, never by weakening a lint level, a blanket #[allow] or an unreasoned #[expect])"
+fi
+pass 4 lint-drift-clippy
 pass 4 lint-drift
 
 # =============================================================================

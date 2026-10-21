@@ -1,6 +1,84 @@
 <!--
   SYNC IMPACT REPORT
   ===================
+  Amended: 2026-10-21
+  Version change: 1.9.0 -> 1.10.0
+
+  Bump rationale: MINOR. One governance clause is added (the
+  toolchain-stability policy) and one new repo-root file is added
+  (`rust-toolchain.toml`, naming the tracked channel). No principle
+  is added, removed or redefined, no existing MUST is weakened, and
+  the MSRV floor (1.85 for workspace code, rustc >= 1.88 for the
+  full build) is unchanged. Not PATCH (new governance content), not
+  MAJOR (no principle change).
+
+  What changed:
+    - Technology Stack gains a "Toolchain" entry: the workspace
+      TRACKS the `stable` channel and does NOT pin a compiler
+      version. The MSRV line stays the compatibility floor and is
+      stated as such; the tracked channel can never contradict a
+      floor, because `stable` only rises. A toolchain bump is
+      EXPECTED to move the lint set, and a lint-compliance pass is
+      REQUIRED before the tree is re-attested. The moved lints are
+      resolved in code -- never by weakening a lint level, never by
+      a blanket suppression.
+    - Verification Gates gains a clause beside gate 4: a passing
+      tree can become a failing one with NO source change, because
+      the lint set moves with the toolchain. The lint-compliance
+      pass is the required response, and it is the deterministic-gate
+      concern Principle V exists for.
+    - New repo-root `rust-toolchain.toml`: `channel = "stable"` plus
+      `components = ["rustfmt", "clippy"]`. No version is pinned, so
+      the file cannot contradict the MSRV relationship and cannot
+      force a download of an exact toolchain on a host that lacks it.
+
+  Modified constraints:
+    - Technology Stack: new "Toolchain" entry.
+    - Verification Gates: new clause beside gate 4.
+    - rust-toolchain.toml: new file (repo root).
+
+  Principles modified: none.
+  Sections added: none.
+  Sections removed: none.
+  Renamed sections: none.
+
+  Deferred / non-constitution:
+    - The mechanical form of the lint-compliance pass is NOT wired
+      into `scripts/verify.sh`: gate 4 still checks the declared lint
+      levels only and does not invoke clippy, so the pass is an
+      attestation-time obligation, run by hand. Wiring clippy into
+      gate 4 is a separate change and was deliberately NOT made here
+      (scope discipline: this amendment is a policy record plus one
+      new toolchain file, and no gate script was touched).
+    - No Exceptions Log entry: this is not a deviation from the
+      reference stack. `~/development/MDMV/projetos/crsdd-fabro`
+      carries no `rust-toolchain.toml` and pins no compiler either;
+      it records the toolchain it verified against (rustc 1.98.1) as
+      documentation, which is the practice adopted here.
+    - Reversal, stated so the owner can execute it: delete the
+      "Toolchain" entry from the Technology Stack, delete the clause
+      beside gate 4 in the Verification Gates, and delete the
+      repo-root `rust-toolchain.toml`. No other governance rule
+      depends on any of the three, and the MSRV floor is untouched
+      either way.
+
+  Source evidence: the `stable` toolchain was replaced on
+  2026-10-20 22:19 (rustc 1.98.1 -> 1.99.1, clippy 0.1.98 ->
+  0.1.99) and the repository pinned no rust-toolchain.toml, so the
+  lint set moved under a byte-identical source tree: 86
+  `unfulfilled_lint_expectations` (clippy 0.1.99 no longer lints the
+  `==` that `assert_eq!`/`assert_ne!` generate inside their own
+  macro expansion, so the `#[expect(clippy::float_cmp)]` attributes
+  could no longer be fulfilled) plus 13 `clippy::assert_is_empty`.
+  `cargo clippy --workspace --all-targets -- -D warnings` exited
+  101 while `scripts/verify.sh` still exited 0, because clippy is
+  supplementary to gates 1-8. T136 repaired it in code with no lint
+  level weakened, no new suppression and no behaviour change
+  (commits 8f12acf, 3b642d8, 0756fc3); T137 records the policy.
+-->
+<!--
+  SYNC IMPACT REPORT
+  ===================
   Amended: 2026-10-20
   Version change: 1.8.0 -> 1.9.0
 
@@ -714,6 +792,26 @@ provider — while admitting that one endpoint has no contract behind it.
 - **Language**: Rust, Edition 2024, MSRV 1.85 for workspace code (inherited from the reference
   stack); the full build additionally requires rustc >= 1.88 — the `zip` 9 build-script dependency
   of `sherpa-onnx-sys` (Exceptions Log entry 12)
+- **Toolchain**: the workspace **tracks the `stable` channel** and does **not** pin a compiler
+  version. `rust-toolchain.toml` names that channel and the components the gates need
+  (`rustfmt`, `clippy`), so the toolchain the gates run under is a property of the repository
+  rather than of the host's rustup default, which may be an older pinned toolchain (this host
+  carries 1.94.0, 1.98.0 and nightly alongside `stable`). The **MSRV line above is the
+  compatibility floor and is unchanged by this clause** — it states the oldest compiler the
+  workspace supports (1.85 for workspace code, rustc >= 1.88 for the full build), not the
+  compiler the workspace builds with; a tracked `stable` channel can never contradict a floor,
+  because `stable` only rises. A toolchain bump on the tracked channel is **expected to move the
+  lint set**: a new clippy release may add a lint, change a lint's reach, or retire one, so a
+  tree that was green can become red with **no source change at all**. Every toolchain bump
+  therefore requires a **lint-compliance pass** before the tree is re-attested — see
+  "Verification Gates". The moved lints are resolved **in code**, never by weakening a lint level
+  in `Cargo.toml` or `clippy.toml` and never by a blanket suppression (Rust Code Rigor). A hard
+  version pin is deliberately **not** adopted: it would freeze the compiler *and* the lint set, so
+  new lint coverage would never arrive and a "green" tree would be green only against a frozen
+  toolchain; it would also force a download of that exact toolchain on any host that lacks it,
+  and it would sit in tension with Principle IV's latest-stable posture. This clause is
+  reversible by deleting this entry, deleting the repo-root `rust-toolchain.toml`, and adopting a
+  hard version pin instead — no other governance rule changes.
 - **Build**: Cargo workspace; every member crate declares `[lints] workspace = true`
 - **App shell**: Tauri **2.12.1** (latest stable on the 2.x line as of 2026-10-01).
   `3.0.0-alpha.3` is available and is **not** to be taken: Principle IV permits pre-release only
@@ -940,12 +1038,36 @@ Exit status is zero if and only if every gate passes.
 | 1 | format | `cargo fmt --all -- --check` | rustfmt-clean |
 | 2 | tests | `cargo nextest run --workspace` | unit, integration, E2E |
 | 3 | documentation | `cargo doc --workspace --no-deps` | public API documented |
-| 4 | lint-drift | root deny-tables intact; `[lints] workspace = true` in every member | rigour not quietly weakened |
+| 4 | lint-drift | root deny-tables intact; `[lints] workspace = true` in every member | rigour not quietly weakened; on a toolchain bump, the lint-compliance pass below is REQUIRED before re-attestation |
 | 5 | supply-chain | `cargo deny check advisories licenses bans sources` + `cargo audit` | Principle IV |
 | 6 | deny-list | no denied crate in any manifest or in `Cargo.lock` | Principle IV |
 | 7 | closed-set | no `_ =>` in `crates/*/src/` | Principle VII |
 | 8 | pipeline | byte-budget test under 5,000 bytes/request; SSML capability declared per adapter; sentence-level alignment exercised | Principles VI, X |
 | 9 | android-build | `cargo tauri android build --target aarch64` | the app actually compiles for the device |
+
+**A toolchain bump moves the lint set, and the tree must be re-earned.** Gate 4 checks the lint
+*levels* declared in the root `[workspace.lints]` tables, and those do not move with the
+toolchain. The lint *set* — which lints exist, and which code they reach — does. A `stable`
+release can add a lint (`clippy::assert_is_empty`), change a lint's reach (clippy 0.1.99 stopped
+linting the `==` that `assert_eq!` generates inside its own macro expansion), or retire one, so
+**a tree that passed every gate can fail with no source change at all**. That is the
+deterministic-gate concern Principle V exists for, and it has exactly one required response: on
+every toolchain bump, a **lint-compliance pass** (`cargo clippy --workspace --all-targets -- -D
+warnings`, exit 0) MUST run and MUST be clean **before the tree is re-attested**. The pass
+resolves the moved lints **in code** — never by weakening a lint level in `Cargo.toml` or
+`clippy.toml`, never by a blanket `#[allow]`, and never by an `#[expect]` without a written
+reason (Rust Code Rigor). The recorded instance is the 2026-10-20 `stable` bump (rustc 1.98.1 ->
+1.99.1, clippy 0.1.98 -> 0.1.99), which turned a byte-identical tree red with 86
+`unfulfilled_lint_expectations` and 13 `clippy::assert_is_empty` diagnostics; T136 repaired it in
+code and T137 records the policy. Gate 5 is unaffected by the movement of the lint set, and the
+tracked channel cannot break it either: the build-time floor it depends on (rustc >= 1.88, the
+`zip` 9 build dependency of `sherpa-onnx-sys`) is a floor that `stable` only rises above.
+
+The mechanical form is not wired yet: `scripts/verify.sh` gate 4 today checks the declared lint
+levels and does not itself invoke clippy, so the pass is an attestation-time obligation, run by
+hand. Wiring clippy into gate 4 would make it mechanical; until it does, the clause above is what
+stands between a green attestation and a silently drifted lint set. This clause is reversible by
+deleting this paragraph — no other gate, principle or constraint depends on it.
 
 Gate 9 exists because gates 1–8 are all satisfiable on a host that cannot produce an Android
 artifact, which would let a workspace pass every deterministic check while having no working app.
@@ -1094,4 +1216,4 @@ Where this constitution and a convenience conflict, this constitution wins and t
 either changed or proposed as an amendment. Where this constitution and the reference stack
 conflict, the maintainer decides, and the decision is logged.
 
-**Version**: 1.9.0 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-20
+**Version**: 1.10.0 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-21

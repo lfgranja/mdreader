@@ -144,6 +144,16 @@ pub struct AppState {
     /// before ANY audio begins (FR-009 / FR-032c). `None` when
     /// no offer is open.
     pub(crate) pending_open: Mutex<Option<PendingOpen>>,
+    /// The published resume-offer route (T147): the route the
+    /// cold-start open resolved ONCE, read by the `offer_route`
+    /// command on every poll. `None` before the first open.
+    ///
+    /// The poll READS this value and never re-derives it: the
+    /// decision core is the offer machine's, and a UI timer must
+    /// not mutate it (FR-044 / FR-009). A re-derivation would
+    /// re-open an offer the window already consumed — the
+    /// resolved decision would not survive the poll.
+    pub(crate) published_route: Mutex<Option<OfferRoute>>,
     /// The Rust→shell publish channel (T133): created on
     /// first frontend listener registration, used to
     /// stream `MirrorState` snapshots (sanctioned
@@ -205,6 +215,7 @@ impl std::fmt::Debug for AppState {
             .field("focus_tracker", &self.focus_tracker)
             .field("offer", &self.offer)
             .field("pending_open", &self.pending_open)
+            .field("published_route", &self.published_route)
             .field("publish_channel", &"<tauri::ipc::Channel<MirrorState>>")
             .field("surface_resolver", &self.surface_resolver)
             .field("headings", &self.headings)
@@ -231,6 +242,7 @@ impl AppState {
             focus_tracker: Mutex::new(player::focus::FocusTracker::new()),
             offer: Mutex::new(session::offer::OfferMachine::new()),
             pending_open: Mutex::new(None),
+            published_route: Mutex::new(None),
             publish_channel: Mutex::new(None),
             surface_resolver: Mutex::new(None),
             headings: Mutex::new(Vec::new()),
@@ -1634,8 +1646,14 @@ pub(crate) enum ParkedResolution {
 ///
 /// Driving the held machine is exactly the open/reopen
 /// lifecycle point — the offer is resolved there and read at
-/// expiry afterwards — so the route is computed when a document
-/// with a stored row opens, never mid-window. A poisoned offer
+/// expiry afterwards. This function is therefore called from the
+/// cold-start open and NOWHERE ELSE: the route it resolves is
+/// published once (see [`publish_route`]), and every surface poll
+/// READS that published route. A poll must never re-derive the
+/// route — the decision core is the machine's, and re-deriving it
+/// MUTATES it (a re-derivation re-opens an offer the window has
+/// already consumed), so a UI timer would rewrite the FR-044
+/// decision (FR-009 / FR-044). A poisoned offer
 /// lock records and routes nothing: a route is a rendering
 /// hint, never a playback decision.
 #[must_use]
@@ -1654,6 +1672,36 @@ pub(crate) fn route_offer(state: &AppState, stored: &StoredPosition) -> OfferRou
         session::offer::OpenOffer::ExplicitResume => OfferRoute::LockScreenResume,
         session::offer::OpenOffer::NoOffer => OfferRoute::NoRoute,
     }
+}
+
+/// Publish the resolved route (T147): the cold-start open resolved
+/// the offer's form ONCE, and the published route is what every
+/// surface poll reads. The poll is a READ — it never drives the
+/// offer machine — so the machine's resolved decision survives
+/// every poll unchanged (FR-044 / FR-009).
+fn publish_route(state: &AppState, route: OfferRoute) {
+    let Ok(mut guard) = state.published_route.lock() else {
+        tracing::warn!("the resolved route was not published: the route lock is poisoned");
+        return;
+    };
+    *guard = Some(route);
+}
+
+/// The published route (T147): the route the cold-start open
+/// resolved, read WITHOUT touching the offer machine. Before the
+/// first open nothing is published, and the answer is the
+/// nothing-to-render route (FR-036a).
+///
+/// # Errors
+///
+/// The route lock's poison error, when the published route cannot
+/// be read.
+fn read_published_route(state: &AppState) -> Result<OfferRoute, String> {
+    let guard = state
+        .published_route
+        .lock()
+        .map_err(|error| error.to_string())?;
+    Ok(guard.unwrap_or(OfferRoute::NoRoute))
 }
 
 /// The resume-offer route in wire form (T037): the route's
@@ -2248,6 +2296,7 @@ pub fn run() {
             focus_tracker: Mutex::new(player::focus::FocusTracker::new()),
             offer: Mutex::new(session::offer::OfferMachine::new()),
             pending_open: Mutex::new(None),
+            published_route: Mutex::new(None),
             publish_channel: Mutex::new(None),
             surface_resolver: Mutex::new(None),
             headings: Mutex::new(Vec::new()),
@@ -2399,13 +2448,13 @@ pub mod commands {
     use super::{AppState, CpalBackend, OpenError};
     use crate::{
         DEFAULT_DOCUMENT_FILENAME, OfferRoute, after_background, after_execute, after_skip,
-        current_fingerprint, delete_bookmark, diag_focus_name, diag_focus_value,
-        diag_section_index, document_title, note_first_audible, note_play_request,
-        note_removal_request, note_resume_origin, offer_route_wire, park_cold_start,
-        pcm_from_sample, pending_open_exists, persist_last_rate, rate_press_of,
-        record_buffer_state, record_focus_transition, record_named_refusal, record_output_device,
-        record_rate_change, record_refusal, record_section_progress, record_transport_change,
-        resolve_parked_choice, route_offer, sample_index_of, seed_session_rate, switch_to_document,
+        delete_bookmark, diag_focus_name, diag_focus_value, diag_section_index, document_title,
+        note_first_audible, note_play_request, note_removal_request, note_resume_origin,
+        offer_route_wire, park_cold_start, pcm_from_sample, pending_open_exists, persist_last_rate,
+        publish_route, rate_press_of, read_published_route, record_buffer_state,
+        record_focus_transition, record_named_refusal, record_output_device, record_rate_change,
+        record_refusal, record_section_progress, record_transport_change, resolve_parked_choice,
+        route_offer, sample_index_of, seed_session_rate, switch_to_document,
     };
     use diag::writer::{DeviceDirection, DeviceEvent, ErrorValue, FocusValue};
 
@@ -2651,6 +2700,11 @@ pub mod commands {
         let route = lookup
             .stored
             .map_or(OfferRoute::NoRoute, |stored| route_offer(state, &stored));
+        // T147: the route is resolved ONCE — here, at the open —
+        // and PUBLISHED for every surface poll to read. The poll
+        // never re-derives it, so the offer machine's resolved
+        // decision survives every poll unchanged (FR-044 / FR-009).
+        publish_route(state, route);
 
         // The cold-start gate (T110): the offer machine's own
         // decision (FR-044) — the app routes the decision and
@@ -4793,54 +4847,51 @@ pub mod commands {
     /// Route the stored resume offer to the surface that renders
     /// it (T037, FR-032c / FR-032d / FR-031).
     ///
-    /// The thin route-to-surface command: it reads the stored row
-    /// for the currently loaded document's content fingerprint and
-    /// asks [`crate::route_offer`] which surface the row's end
-    /// kind resolves to — `in_app_dialog` (with the FR-032c 3 s
-    /// window) for the deliberate end, `lockscreen_resume` for the
-    /// unexpected end, `none` when nothing is open. No offer logic
-    /// lives here: the form comes from the offer machine in
-    /// `crates/session/src/offer.rs` (FR-044), so the in-app dialog,
-    /// the lock-screen control, and the CLI's `session ingest`
-    /// path (T018) all render the same resolved offer.
+    /// The thin route-to-surface command: it READS the route the
+    /// cold-start open published — `in_app_dialog` (with the
+    /// FR-032c 3 s window) for the deliberate end,
+    /// `lockscreen_resume` for the unexpected end, `none` when
+    /// nothing is open — and it publishes the pending cold-start
+    /// fact beside it, so the surface can tell a deliberate-pause
+    /// reopen from a pause inside a running document (FR-009).
     ///
-    /// A `none` route is a normal reply, never an error: no loaded
-    /// document, no stored row, and a terminal end all leave
-    /// nothing to render.
+    /// No offer logic lives here: the form comes from the offer
+    /// machine in `crates/session/src/offer.rs` (FR-044), so the
+    /// in-app dialog, the lock-screen control, and the CLI's
+    /// `session ingest` path (T018) all render the same resolved
+    /// offer.
+    ///
+    /// ## The command is READ-ONLY over the decision (T147)
+    ///
+    /// The route is resolved ONCE, at the open, and published; this
+    /// command only reads that published value. The command NEVER
+    /// drives the offer machine: a re-derivation mutates it (it
+    /// re-opens an offer the window already consumed), and the
+    /// surface polls this command on a timer — so a re-derivation
+    /// would let a UI timer rewrite the FR-044 decision
+    /// (FR-044 / FR-009).
+    ///
+    /// A `none` route is a normal reply, never an error: no open
+    /// yet, no stored row, and a terminal end all leave nothing to
+    /// render.
     ///
     /// # Errors
     ///
-    /// Returns the store's error string when the stored row cannot
-    /// be read.
+    /// Returns the route lock's error string when the published
+    /// route cannot be read.
     #[command]
     #[expect(
         clippy::needless_pass_by_value,
         reason = "Tauri's CommandArg extractor is implemented for State by value; &State is not a supported command parameter"
     )]
     pub fn offer_route(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
-        let Some(fingerprint) = current_fingerprint(&state) else {
-            return Ok(offer_reply(
-                OfferRoute::NoRoute,
-                pending_open_exists(state.inner()),
-            ));
-        };
-        let stored = {
-            let mut guard = state.bookmark_store.lock().map_err(|e| e.to_string())?;
-            match guard.as_mut() {
-                Some(store) => store.get(&fingerprint).map_err(|e| e.to_string())?,
-                None => None,
-            }
-        };
-        let Some(stored) = stored else {
-            return Ok(offer_reply(
-                OfferRoute::NoRoute,
-                pending_open_exists(state.inner()),
-            ));
-        };
-        // The one route-to-wire mapping (T037), shared with the
-        // cold-start open payload — never a second definition
-        // of the route vocabulary.
-        let route = route_offer(&state, &stored);
+        // T147: the reply READS the route the cold-start open
+        // published. The poll never drives the offer machine: the
+        // decision core is the machine's, and a re-derivation would
+        // mutate it — a UI timer would rewrite the FR-044 decision
+        // (FR-044 / FR-009). The route is therefore published ONCE,
+        // at the open, and every poll reads the same value.
+        let route = read_published_route(state.inner())?;
         Ok(offer_reply(route, pending_open_exists(state.inner())))
     }
 

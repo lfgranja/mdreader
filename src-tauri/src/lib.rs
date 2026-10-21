@@ -2413,6 +2413,7 @@ pub mod commands {
     use player::focus::{FocusClassification, FocusIntent, FocusOutcome};
     use player::rate::RateStepper;
     use player::routing::{RoutingDecision, RoutingSignal, RoutingTracker};
+    use player::transport::TransportState;
     use session::fingerprint;
     use tauri::{AppHandle, Manager, State, command};
 
@@ -2733,6 +2734,118 @@ pub mod commands {
         error
     }
 
+    /// The re-anchor tolerance (T141, FR-007): how far the
+    /// backend's audible position (the queue head) may sit from
+    /// the resume position and still be the SAME stretch of the
+    /// document.
+    ///
+    /// The session's position is fed from the backend's audible
+    /// clock by the [`PLAYBACK_WATCH_PERIOD_MS`] playback-watch
+    /// tick, so the two agree only within one tick: the tolerance
+    /// is that tick plus a margin for the tick's own jitter. A
+    /// larger gap is a MOVED queue head — the reading stands
+    /// somewhere the queued audio does not reach — never a clock
+    /// lag.
+    const REANCHOR_TOLERANCE_SECS: f64 = 2.0;
+
+    /// The position a resume verb resumes AT (FR-007).
+    ///
+    /// The closed transition table's ordinary landing RETAINS the
+    /// stored position, so the reading continues exactly where the
+    /// audio stopped. The deliberate start-over is the one
+    /// exception: its discarding landing drops the stored position
+    /// and begins again at the first spoken position — a stretch of
+    /// the document the queued audio does not hold, because the
+    /// queue carries what follows the pause point. The re-anchor
+    /// check below refuses that resume (this path carries no
+    /// document to re-synthesise the stretch), and the parked cold
+    /// start is the start-over's route.
+    const fn resume_point(verb: ShellVerb, stored_secs: f64) -> f64 {
+        match verb {
+            ShellVerb::StartOver => 0.0,
+            ShellVerb::Play
+            | ShellVerb::Pause
+            | ShellVerb::Stop
+            | ShellVerb::Complete
+            | ShellVerb::Interrupt
+            | ShellVerb::CycleVoiceNext
+            | ShellVerb::CycleVoicePrev
+            | ShellVerb::RateUp
+            | ShellVerb::RateDown
+            | ShellVerb::SkipForward
+            | ShellVerb::SkipBackward
+            | ShellVerb::ResumeAtStored
+            | ShellVerb::ChooseEngine
+            | ShellVerb::ExternalStart => stored_secs,
+        }
+    }
+
+    /// The live-resume audio restart (T141): the backend's output
+    /// stream is started again before the transport lands on
+    /// `Playing` — the pause arm's mirror.
+    ///
+    /// The restart IS the re-anchor (FR-007): the pause keeps the
+    /// queue and the audible clock, so the stream picks the reading
+    /// up at the sample the pause stopped at — the stored
+    /// position, never the head of a fresh synthesis. The parked
+    /// cold start is a DIFFERENT path: it re-synthesises through
+    /// [`Self::play_document`] and never reaches this body.
+    ///
+    /// The restart is REFUSED, never faked, when the audio cannot
+    /// be produced where the reading stands (FR-005):
+    ///
+    /// * no backend — the session never opened a stream;
+    /// * a queue head that no longer names the resume position —
+    ///   the queued audio is a DIFFERENT stretch of the document
+    ///   (a skip moved the stored position while the queue stood
+    ///   still, or the deliberate start-over asks for the first
+    ///   spoken position the queue never held), and this path
+    ///   carries no document to re-synthesise that stretch;
+    /// * a queue that holds no audio — the reading has nothing to
+    ///   play;
+    /// * a device that refuses to start the stream.
+    ///
+    /// Every refusal leaves the transport exactly where it was, so
+    /// a playing state is never reported over a silent session.
+    ///
+    /// # Errors
+    ///
+    /// * [`OpenError::NoStart`] when the backend is unreachable,
+    ///   when the queued audio does not match the resume position,
+    ///   or when the queue holds nothing to play.
+    /// * [`OpenError::Backend`] when the device refuses to start
+    ///   the stream.
+    fn restart_backend_stream(state: &AppState, resume_secs: f64) -> Result<(), OpenError> {
+        let backend = state.backend.lock().map_err(|error| OpenError::NoStart {
+            reason: error.to_string(),
+        })?;
+        let device = backend.as_ref().ok_or_else(|| OpenError::NoStart {
+            reason: String::from("no audio backend is open"),
+        })?;
+        // The queue head IS the backend's audible position: the
+        // pause kept the queue, so the head is where the reading
+        // stopped. The resume position is the authority, and the
+        // two must name the same stretch of the document — a moved
+        // head would play the wrong words under the stored
+        // position.
+        let head_secs = device.position_secs();
+        if (head_secs - resume_secs).abs() > REANCHOR_TOLERANCE_SECS {
+            return Err(OpenError::NoStart {
+                reason: String::from("the queued audio does not match the resume position"),
+            });
+        }
+        if head_secs <= 0.0 && device.buffered_samples() == 0 {
+            return Err(OpenError::NoStart {
+                reason: String::from("no audio is queued to resume"),
+            });
+        }
+        let started = device.play().map_err(|error| OpenError::Backend {
+            reason: error.to_string(),
+        });
+        drop(backend);
+        started
+    }
+
     /// Execute one of the Play-class verbs that reach `Playing` in
     /// the closed transition table without the `Play` synthesis
     /// path: `ResumeAtStored`, `StartOver`, and `ExternalStart`
@@ -2752,6 +2865,17 @@ pub mod commands {
     /// * Otherwise the verb lands on the session through the
     ///   same [`player::cli::PlaybackSession::execute`] code
     ///   path every other driver calls (Principle II).
+    /// * The live resume RESTARTS THE AUDIO (T141): the backend's
+    ///   output stream is started again before the transport lands
+    ///   on `Playing` — the pause arm's mirror, and the asymmetry
+    ///   the finding names. Without it the transport would read
+    ///   `Playing` over a silent session (FR-005), and the lock
+    ///   screen would show the play glyph over an app that emits
+    ///   nothing. The restart IS the re-anchor (FR-007): the
+    ///   pause keeps the queue and the audible clock, so the
+    ///   stream picks the reading up at the sample the pause
+    ///   stopped at — the stored position, never the head of a
+    ///   fresh synthesis.
     fn resume_class_verb(
         verb: ShellVerb,
         state: &State<'_, AppState>,
@@ -2782,6 +2906,41 @@ pub mod commands {
         ) && pending_open_exists(state.inner())
         {
             return resolve_parked_choice(state.inner(), verb);
+        }
+        // T141: the live resume restarts the audio BEFORE the
+        // transport lands. The pause arm pauses the backend's
+        // stream before it lands on `Paused`; this arm starts that
+        // stream again before it lands on `Playing` — the two are
+        // one symmetry, and the missing half is the defect.
+        //
+        // A session that is already `Playing` is left alone: its
+        // stream runs, and the closed transition table rejects the
+        // press (the double press) — the stream is never started
+        // twice.
+        let stored = {
+            let Ok(session) = state.session.lock() else {
+                return Err("the session lock is poisoned".to_string());
+            };
+            session.snapshot()
+        };
+        if stored.transport != TransportState::Playing {
+            // The resume point (FR-007): the position the reading
+            // resumes at — the stored position for every resume
+            // verb that keeps it, the first spoken position for the
+            // deliberate start-over.
+            let resume_secs = resume_point(verb, stored.position_secs);
+            if let Err(error) = restart_backend_stream(state, resume_secs) {
+                // The refusal is named before the ack leaves the
+                // path (FR-017) and the transport stays exactly
+                // where it was: a playing state is never reported
+                // over a silent session (FR-005).
+                let reason = error.to_string();
+                let _refused = refuse(state, error);
+                return Ok(serde_json::json!({
+                    "ok": false,
+                    "error": reason,
+                }));
+            }
         }
         let snap = {
             let mut session = state.session.lock().map_err(|e| e.to_string())?;

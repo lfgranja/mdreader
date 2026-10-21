@@ -43,6 +43,15 @@
 //!   is a PROJECTION BASIS, never a total. Audio-duration
 //!   estimates never feed the fraction
 //!   `consumed_units / total_units` (FR-013).
+//! - **The measured timeline** (T143 / FR-013): the
+//!   streaming open measures each unit's length as the
+//!   synthesis produces it and writes the unit's end here
+//!   ([`SurfaceResolver::note_measured_unit_end`]), so the
+//!   projection onto the parsed-content offset is EXACT
+//!   from the first measured unit — a measurement, never an
+//!   estimate of the spoken length (FR-013). The session
+//!   that knows its total up front (the CLI) carries no
+//!   measured end and projects through the uniform basis.
 //! - **Title** (FR-029): the document metadata title
 //!   when present, else the filename as the stable
 //!   placeholder — never the first spoken sentence,
@@ -307,6 +316,14 @@ pub struct MirrorState {
 /// re-resolution on boundary-cross, resume, skip, and
 /// re-anchor (FR-028d) re-runs the same pure
 /// function and can never flicker.
+///
+/// The one runtime input the resolver itself carries
+/// is the MEASURED timeline (T143): the ends of the
+/// units the synthesis has produced. It is a
+/// measurement, not an estimate, and it only ever
+/// grows -- so the projection stays exact and monotone
+/// while the document is still being synthesized
+/// (FR-013).
 #[derive(Debug, Clone, PartialEq)]
 pub struct SurfaceResolver {
     /// The surface title, resolved once at construction
@@ -335,6 +352,21 @@ pub struct SurfaceResolver {
     /// fixed for the whole session, never switching,
     /// never estimated.
     duration_known_at_start: bool,
+    /// The MEASURED end of every parsed unit the synthesis
+    /// has produced, in the document's own timeline (the
+    /// seconds from the document's start) -- the exact
+    /// content-offset timeline (FR-013 / T143).
+    ///
+    /// The streaming open measures each unit's length as it
+    /// synthesizes it and writes the end here, so the
+    /// projection onto the parsed-content offset is exact
+    /// from the first measured unit: no audio-duration
+    /// estimate ever feeds the fraction, and the measured
+    /// ends only ever grow (the projection never moves
+    /// backward and never passes the session-start total).
+    /// Empty for a session that knows its spoken length up
+    /// front (the CLI), where the uniform basis applies.
+    measured_unit_ends: Vec<f64>,
 }
 
 impl SurfaceResolver {
@@ -356,12 +388,23 @@ impl SurfaceResolver {
     /// never an estimate;
     /// `total_secs` is the spoken length the projection
     /// basis derives from (`total_secs / total_units`
-    /// seconds per unit); and
+    /// seconds per unit) — the caller that knows the
+    /// document's spoken length up front; and
     /// `duration_known_at_start` fixes the progress
     /// determinacy for the whole session (FR-028a /
     /// FR-013: determinate only when BOTH the section
     /// count and the unit total were known at start,
     /// never switches mid-session, never estimated).
+    ///
+    /// A session whose spoken length is NOT known at start
+    /// (T143: the streaming open, which measures the
+    /// document as it synthesizes it) passes `0.0` as
+    /// `total_secs`: the uniform basis is then empty, and
+    /// the projection runs on the MEASURED timeline the
+    /// synthesis feeds through
+    /// [`SurfaceResolver::note_measured_unit_end`] — a
+    /// measurement, never an estimate of the spoken length
+    /// (FR-013).
     #[must_use]
     #[expect(
         clippy::cast_precision_loss,
@@ -384,6 +427,27 @@ impl SurfaceResolver {
             total_units,
             unit_secs,
             duration_known_at_start,
+            measured_unit_ends: Vec::new(),
+        }
+    }
+
+    /// Note the MEASURED end of one parsed unit (T143 / FR-013):
+    /// the synthesis's own measurement of where the unit's audio
+    /// ends, in the document's timeline (the seconds from the
+    /// document's start).
+    ///
+    /// The ends are appended in order and never move back, so the
+    /// projection onto the parsed-content offset never moves
+    /// backward (FR-013) and never passes the session-start unit
+    /// total. An end that would move the timeline back is ignored:
+    /// the measured timeline only grows.
+    pub fn note_measured_unit_end(&mut self, end_secs: f64) {
+        if self
+            .measured_unit_ends
+            .last()
+            .is_none_or(|last| *last <= end_secs)
+        {
+            self.measured_unit_ends.push(end_secs);
         }
     }
 
@@ -409,6 +473,15 @@ impl SurfaceResolver {
     /// (FR-013). A position at or before the start, or
     /// a session whose totals were not known at start
     /// (`unit_secs == 0.0`), projects to `0`.
+    ///
+    /// A session that MEASURED its units (T143: the
+    /// streaming open) projects through the measured
+    /// timeline instead: the count of the units whose
+    /// measured end the position has passed. That count is
+    /// exact -- the synthesis measured every unit's own
+    /// length -- and it is the same projection the uniform
+    /// basis approximates, never an estimate of the spoken
+    /// length (FR-013).
     #[must_use]
     #[expect(
         clippy::cast_possible_truncation,
@@ -417,6 +490,21 @@ impl SurfaceResolver {
         reason = "the projection divides the authoritative position by the fixed seconds-per-unit basis and clamps the result against the session-start total. The f64-to-u64 cast is Rust's saturating cast (NaN/negative to 0, out-of-range to u64::MAX) and the u64-to-f64 comparison is a bound check against a value that cannot exceed the session's segment count - a fixture-scale document cannot approach 2^53 units, so neither conversion can lose the compared value."
     )]
     pub fn consumed_units_at(&self, position_secs: f64) -> u64 {
+        if !self.measured_unit_ends.is_empty() {
+            // The MEASURED timeline (FR-013 / T143): the count of
+            // the units whose measured end the position has
+            // passed. The count never passes the session-start
+            // total, and it never shrinks as more units are
+            // measured.
+            let passed = self
+                .measured_unit_ends
+                .iter()
+                .filter(|end| **end <= position_secs)
+                .count();
+            return u64::try_from(passed)
+                .unwrap_or(self.total_units)
+                .min(self.total_units);
+        }
         let has_basis = self.unit_secs > 0.0;
         let past_start = position_secs > 0.0;
         if !has_basis || !past_start {
@@ -613,5 +701,65 @@ mod tests {
     #[test]
     fn indeterminate_labels_nothing() {
         assert_eq!(progress_label(&Progress::Indeterminate), None);
+    }
+
+    /// T143 (FR-013): the MEASURED timeline projects the position
+    /// onto the parsed-content offset exactly: the count of the
+    /// units whose measured end the position has passed.
+    ///
+    /// The units are measured with lengths that differ, so the
+    /// projection is NOT the uniform basis the approximation would
+    /// give — and it is the measurement, never an estimate of the
+    /// spoken length.
+    #[test]
+    fn the_measured_timeline_projects_the_content_offset_exactly() {
+        let mut resolver = SurfaceResolver::new(
+            Some(String::from("Documento")),
+            String::from("documento.md"),
+            4,
+            0.0,
+            true,
+        );
+        // The measured ends: 2 s, 5 s, 6 s, 10 s — four units of
+        // different lengths.
+        for end in [2.0, 5.0, 6.0, 10.0] {
+            resolver.note_measured_unit_end(end);
+        }
+        assert_eq!(resolver.consumed_units_at(0.0), 0);
+        assert_eq!(resolver.consumed_units_at(1.9), 0);
+        assert_eq!(resolver.consumed_units_at(2.0), 1);
+        assert_eq!(resolver.consumed_units_at(4.9), 1);
+        assert_eq!(resolver.consumed_units_at(5.0), 2);
+        assert_eq!(resolver.consumed_units_at(9.9), 3);
+        assert_eq!(resolver.consumed_units_at(10.0), 4);
+        // Past the end the count never passes the session-start
+        // total (FR-013).
+        assert_eq!(resolver.consumed_units_at(1_000.0), 4);
+    }
+
+    /// T143 (FR-013): the measured timeline only grows, so the
+    /// projection never moves backward and never passes the
+    /// session-start total — the freeze-then-drop contract.
+    #[test]
+    fn the_measured_timeline_never_moves_backward() {
+        let mut resolver = SurfaceResolver::new(
+            Some(String::from("Documento")),
+            String::from("documento.md"),
+            3,
+            0.0,
+            true,
+        );
+        resolver.note_measured_unit_end(2.0);
+        resolver.note_measured_unit_end(4.0);
+        let before = resolver.consumed_units_at(2.0);
+        // A later measurement of a LATER unit never moves the
+        // projection of an earlier position backward.
+        resolver.note_measured_unit_end(9.0);
+        let after = resolver.consumed_units_at(2.0);
+        assert_eq!(before, after);
+        assert!(after <= 3, "the projection must never pass the total");
+        // An end that would move the timeline back is ignored.
+        resolver.note_measured_unit_end(1.0);
+        assert_eq!(resolver.consumed_units_at(2.0), before);
     }
 }

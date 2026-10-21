@@ -2404,8 +2404,8 @@ pub mod commands {
         note_removal_request, note_resume_origin, offer_route_wire, park_cold_start,
         pcm_from_sample, pending_open_exists, persist_last_rate, rate_press_of,
         record_buffer_state, record_focus_transition, record_named_refusal, record_output_device,
-        record_rate_change, record_refusal, record_section_progress, resolve_parked_choice,
-        route_offer, sample_index_of, seed_session_rate, switch_to_document,
+        record_rate_change, record_refusal, record_section_progress, record_transport_change,
+        resolve_parked_choice, route_offer, sample_index_of, seed_session_rate, switch_to_document,
     };
     use diag::writer::{DeviceDirection, DeviceEvent, ErrorValue, FocusValue};
 
@@ -3938,41 +3938,63 @@ pub mod commands {
         }))
     }
 
-    /// Extract the document headings from the parsed segments
-    /// (T019 / FR-028a): every `Heading`-boundary segment becomes
-    /// a heading whose `position_secs` is estimated from its
-    /// segment index over the total spoken duration. The list is
-    /// the one feeding of the session-start section count, so it
-    /// is computed once at open and never re-estimated.
-    #[expect(
-        clippy::cast_precision_loss,
-        reason = "segment indices and counts are always small (≤ millions), well within f64's 52-bit mantissa"
-    )]
-    fn parse_headings(
+    /// One section of the document (T143): the section's title
+    /// and the parsed unit the section starts at.
+    ///
+    /// Both are CONTENT facts: the parse knows them before a
+    /// single sample is synthesized. The section's POSITION is
+    /// not a content fact — it is where the section's audio
+    /// begins in the document's timeline, and the synthesis
+    /// MEASURES it as it produces that audio (FR-028c).
+    #[derive(Debug, Clone)]
+    struct DocumentSection {
+        /// The section's title: the heading's own text.
+        title: String,
+        /// The parsed unit index the section starts at.
+        unit_index: usize,
+    }
+
+    /// Extract the document's sections from the parsed segments
+    /// (T019 / FR-028a / T143): every `Heading`-boundary segment
+    /// that carries a title becomes one section, in document
+    /// order.
+    ///
+    /// The list is the one feeding of the session-start section
+    /// count, so it is computed once at open and never
+    /// re-estimated (FR-013). The section POSITIONS are not
+    /// content facts — the synthesis measures them as it produces
+    /// each section's audio and writes them as it goes.
+    fn document_sections(
         segments: &[adapter_synthesis::chunk::DocumentSegment],
-        duration_secs: f64,
-    ) -> Vec<player::surface::Heading> {
+    ) -> Vec<DocumentSection> {
         segments
             .iter()
             .enumerate()
-            .filter(|(_, s)| s.boundary_kind == adapter_synthesis::chunk::BoundaryKind::Heading)
-            .map(|(idx, segment)| {
-                let estimated_position = (idx as f64 / segments.len() as f64) * duration_secs;
-                let heading_title = segment
-                    .content
-                    .lines()
-                    .next()
-                    .unwrap_or("")
-                    .trim_start_matches('#')
-                    .trim()
-                    .to_string();
-                player::surface::Heading {
-                    position_secs: estimated_position,
-                    title: heading_title,
-                }
+            .filter(|(_, segment)| {
+                segment.boundary_kind == adapter_synthesis::chunk::BoundaryKind::Heading
             })
-            .filter(|heading| !heading.title.is_empty())
+            .filter_map(|(unit_index, segment)| {
+                let title = heading_title(segment);
+                if title.is_empty() {
+                    return None;
+                }
+                Some(DocumentSection { title, unit_index })
+            })
             .collect()
+    }
+
+    /// The title of a heading segment (T019): its first line
+    /// without the Markdown marker, trimmed — the section's own
+    /// text, never a sentence of the body.
+    fn heading_title(segment: &adapter_synthesis::chunk::DocumentSegment) -> String {
+        segment
+            .content
+            .lines()
+            .next()
+            .unwrap_or("")
+            .trim_start_matches('#')
+            .trim()
+            .to_string()
     }
 
     /// The streaming synthesis's totals (T113 / FR-003): the
@@ -3981,12 +4003,51 @@ pub mod commands {
     #[derive(Debug, Clone, Copy)]
     struct StreamedSynthesis {
         /// The document's spoken duration, in seconds — the
-        /// resolver's projection basis, fixed at session start
-        /// (FR-028a).
+        /// MEASURED length the session's bounded timeline and the
+        /// section boundaries derive from (FR-028a / T143).
         duration_secs: f64,
         /// The samples played from the resume entry on — the audio
         /// the reading actually carries (FR-009).
         played_samples: usize,
+    }
+
+    /// Note the MEASURED end of one parsed unit (T143 / FR-013):
+    /// the synthesis's own measurement of where the unit's audio
+    /// ends, written into the session's resolver — the exact
+    /// content-offset timeline the progress projection runs on.
+    ///
+    /// The resolver sits behind its own lock, taken alone and
+    /// released before the next, so no two state locks are ever
+    /// held together.
+    fn note_measured_unit_end(state: &AppState, end_secs: f64) {
+        let Ok(mut resolver_guard) = state.surface_resolver.lock() else {
+            tracing::warn!("the measured unit end was dropped: the resolver lock is poisoned");
+            return;
+        };
+        if let Some(resolver) = resolver_guard.as_mut() {
+            resolver.note_measured_unit_end(end_secs);
+        }
+    }
+
+    /// Note the MEASURED position of one section (T143 / FR-028c):
+    /// the synthesis measured where the section's audio begins, so
+    /// the section title resolves exactly from the position the
+    /// reading has passed.
+    ///
+    /// The section COUNT is the session-start total and never moves;
+    /// only the position — a measurement, never an estimate — is
+    /// written here. The list sits behind its own lock, taken alone
+    /// and released before the next.
+    fn note_measured_section_position(state: &AppState, section_index: usize, position_secs: f64) {
+        let Ok(mut headings_guard) = state.headings.lock() else {
+            tracing::warn!(
+                "the measured section position was dropped: the headings lock is poisoned"
+            );
+            return;
+        };
+        if let Some(heading) = headings_guard.get_mut(section_index) {
+            heading.position_secs = position_secs;
+        }
     }
 
     /// Synthesize the document segment by segment and hand every chunk
@@ -4004,6 +4065,14 @@ pub mod commands {
     /// position: the samples before it are never played (FR-009), and
     /// the samples after it are the ones the reading continues from.
     ///
+    /// ## The measured timeline (T143 / FR-013)
+    ///
+    /// Every unit's own length is MEASURED here, as the engine
+    /// produces it, and the measured ends reach the session's
+    /// resolver before the chunk is enqueued: the progress
+    /// projection is exact from the first audible sample, and no
+    /// audio-duration estimate ever feeds the fraction (FR-013).
+    ///
     /// # Errors
     ///
     /// * [`OpenError::Synthesis`] when a chunk cannot be synthesized
@@ -4016,6 +4085,7 @@ pub mod commands {
     )]
     fn stream_synthesis(
         segments: &[adapter_synthesis::chunk::DocumentSegment],
+        sections: &[DocumentSection],
         state: &AppState,
         start_offset_secs: f64,
     ) -> Result<StreamedSynthesis, OpenError> {
@@ -4026,7 +4096,11 @@ pub mod commands {
         let mut total_samples = 0usize;
         let mut played_samples = 0usize;
         let mut started = false;
-        for segment in segments {
+        // The section that starts at the unit being synthesized
+        // (T143): the sections are in unit order, so the cursor
+        // only ever moves forward.
+        let mut next_section = 0usize;
+        for (unit_index, segment) in segments.iter().enumerate() {
             // The chunk the bound offline engine produced for this
             // segment: a refused chunk is the named
             // [`OpenError::Synthesis`].
@@ -4035,7 +4109,35 @@ pub mod commands {
                     reason: format!("{failure:?}"),
                 }
             })?;
+            // The unit's own length, in the DOCUMENT's timeline: the
+            // measured content-offset timeline (FR-013 / T143).
+            let unit_start_samples = total_samples;
             total_samples += chunk.len();
+            let unit_start_secs = unit_start_samples as f64 / DECLARED_RATE_HZ;
+            let unit_end_secs = total_samples as f64 / DECLARED_RATE_HZ;
+
+            // The section that starts at this unit (T143): its
+            // position is where the section's audio begins — the
+            // synthesis MEASURES it here, never estimates it
+            // (FR-028c).
+            while sections
+                .get(next_section)
+                .is_some_and(|section| section.unit_index < unit_index)
+            {
+                next_section += 1;
+            }
+            if let Some(section) = sections.get(next_section)
+                && section.unit_index == unit_index
+            {
+                note_measured_section_position(state, next_section, unit_start_secs);
+                next_section += 1;
+            }
+            // The measured end of the unit (FR-013): the exact
+            // content offset the progress projection runs on. It is
+            // written BEFORE the chunk is enqueued, so the
+            // projection is exact from the first audible sample.
+            note_measured_unit_end(state, unit_end_secs);
+
             let dropped = samples_before_entry.min(chunk.len());
             samples_before_entry -= dropped;
             let chunk = pcm_from_sample(&chunk, dropped);
@@ -4072,17 +4174,22 @@ pub mod commands {
         })
     }
 
-    /// Install the session-start structure (T019 / FR-028a): write
-    /// the surface resolver, the heading list, and the spoken
-    /// duration into the shared state — the one feeding the
-    /// publish path and the session read, written once and never
-    /// re-estimated. Each lock is taken alone and released before
-    /// the next, so no two state locks are ever held together.
+    /// Install the session-start structure (T019 / FR-028a / T143):
+    /// write the surface resolver and the section list into the
+    /// shared state — the one feeding of the session-start totals,
+    /// written once and never re-estimated. Each lock is taken
+    /// alone and released before the next, so no two state locks are
+    /// ever held together.
+    ///
+    /// The section POSITIONS are not known yet: the synthesis has
+    /// not measured them. The section list is installed with the
+    /// positions unmeasured, and the synthesis writes each position
+    /// as it measures the section's audio (FR-028c). The section
+    /// COUNT — the session-start total — is fixed here, once.
     fn install_session_structure(
         state: &AppState,
         resolver: player::surface::SurfaceResolver,
-        headings: Vec<player::surface::Heading>,
-        duration_secs: f64,
+        sections: &[DocumentSection],
     ) -> Result<(), OpenError> {
         let mut resolver_guard = state
             .surface_resolver
@@ -4095,14 +4202,70 @@ pub mod commands {
         let mut headings_guard = state.headings.lock().map_err(|e| OpenError::NoStart {
             reason: e.to_string(),
         })?;
-        headings_guard.clone_from(&headings);
+        headings_guard.clear();
+        headings_guard.extend(sections.iter().map(|section| player::surface::Heading {
+            // The position is MEASURED by the synthesis, which
+            // writes it as it produces the section's audio; until
+            // then no position has passed the section.
+            position_secs: f64::INFINITY,
+            title: section.title.clone(),
+        }));
         drop(headings_guard);
+        Ok(())
+    }
+
+    /// Install the MEASURED timeline (T143): the spoken duration
+    /// and the measured section boundaries reach the session — the
+    /// bounded timeline the skips clamp against (FR-002) and the
+    /// section boundaries they land on.
+    ///
+    /// The synthesis has measured both by the time this runs, so the
+    /// values are exact; the session-start totals (the parsed-content
+    /// unit total and the section count) are untouched.
+    fn install_session_timeline(state: &AppState, duration_secs: f64) -> Result<(), OpenError> {
+        let headings: Vec<player::surface::Heading> = {
+            let Ok(headings_guard) = state.headings.lock() else {
+                return Err(OpenError::NoStart {
+                    reason: "the headings lock is poisoned".to_string(),
+                });
+            };
+            headings_guard.clone()
+        };
         let mut session = state.session.lock().map_err(|e| OpenError::NoStart {
             reason: e.to_string(),
         })?;
         session.set_document_structure(duration_secs, headings);
         drop(session);
         Ok(())
+    }
+
+    /// Leave the playing state after a failed open (T143): the
+    /// session landed on `Playing` before the synthesis, and a
+    /// synthesis that never reached the audio must not leave the
+    /// session reporting a playing state while it is silent
+    /// (FR-001 / FR-005).
+    ///
+    /// The closed transition table's own cell does the landing
+    /// (`Playing` + `Pause` lands `Paused`), and the record's
+    /// transport-change entry explains the stall the earlier landing
+    /// would otherwise show (the diagnostic record's own scanner).
+    fn abandon_playing_landing(state: &AppState) {
+        let snapshot = {
+            let Ok(mut session) = state.session.lock() else {
+                tracing::warn!(
+                    "the failed open kept the playing state: the session lock is poisoned"
+                );
+                return;
+            };
+            if session.snapshot().transport != TransportState::Playing {
+                return;
+            }
+            if session.execute(ShellVerb::Pause).is_err() {
+                return;
+            }
+            session.snapshot()
+        };
+        record_transport_change(state, &snapshot, ShellVerb::Pause);
     }
 
     /// Open (or reuse) the audio backend (T019 / FR-005): the
@@ -4197,26 +4360,35 @@ pub mod commands {
         play_document(document, state, DEFAULT_DOCUMENT_FILENAME, 0.0)
     }
 
-    /// The synthesis half of the one synthesis path (Principle II):
+    /// ## The synthesis half of the one synthesis path (Principle II):
     /// split, synthesize, enqueue, start — with the totals fixed
     /// at open and the rate seeded from the store.
     ///
-    /// ## Session-start totals (T019 / FR-028a)
+    /// ## Session-start totals (T019 / FR-028a / T143)
     ///
     /// The parsed segments fix the totals once, here: the
-    /// heading count (`total_n`) and the marked document total
-    /// (`total_units`) the surface resolver derives from the
-    /// heading list this body writes to the shared state at
-    /// open. The list is never re-estimated mid-session, so
-    /// the progress determinacy the resolver resolves for the
-    /// whole session comes from this one feeding.
+    /// parsed-content unit total (`total_units` — the segment
+    /// count) and the section count (the document's headings).
+    /// Both are CONTENT facts: the parse knows them before a
+    /// single sample is synthesized, so the resolver is built from
+    /// them and installed BEFORE the first chunk reaches the
+    /// backend. The list is never re-estimated, so the progress
+    /// determinacy the resolver resolves for the whole session
+    /// comes from this one feeding.
+    ///
+    /// The resolver's PROJECTION BASIS is the measured timeline
+    /// the synthesis produces (FR-013): each unit's own length is
+    /// measured as the engine produces it, so the projection onto
+    /// the parsed-content offset is exact from the first audible
+    /// sample — never an estimate of the spoken length, never a
+    /// re-estimate mid-session.
     ///
     /// ## Cold-start budget (SC-002; T016 measures the host
     /// half, T051 gates the device half)
     ///
     /// This body owns the ≤3 s press-to-first-audio bound: the
-    /// engine's voice model is loaded exactly once (the
-    /// adapter caches it — never a per-segment load), the
+    /// engine's voice model is loaded exactly once (the adapter
+    /// caches it — never a per-segment load), the
     /// document is split into bounded chunks before any
     /// synthesis, and the FIRST chunk's PCM is enqueued and
     /// started while the remaining chunks still synthesize. The
@@ -4226,6 +4398,24 @@ pub mod commands {
     /// (FR-003). A missed bound is fixed HERE — the streaming
     /// order is this body's change, never another task's — and
     /// the bound is never renegotiated.
+    ///
+    /// ## The liveness window (T143 / FR-002 / FR-007 / FR-011 /
+    /// FR-014 / FR-017)
+    ///
+    /// The session is LIVE from the first chunk: the resolver is
+    /// installed, the transport lands on `Playing`, and the surface
+    /// is published BEFORE the synthesis reaches its first
+    /// enqueue. The durable write (FR-007's 20 s heartbeat), the
+    /// in-RAM position tracking (FR-002's audible clock), the
+    /// per-section diagnostic entries (FR-017) and the lock-screen
+    /// surface (FR-011 / FR-014) are therefore armed while the
+    /// document is still being synthesized — not minutes later,
+    /// when the whole document has been spoken into existence.
+    ///
+    /// The landing is followed by a strictly greater position (the
+    /// diagnostic record's stall rule): the audible credit is what
+    /// advances the offset, and the playing state is what gates the
+    /// credit.
     ///
     /// ## The resume entry (T110)
     ///
@@ -4280,29 +4470,21 @@ pub mod commands {
         // "Document", never a sentence of the body.
         let title = document_title(&segments, filename);
 
-        // T113 / FR-003 ≤3 s first-audible: the backend is opened
-        // once, and the STREAMING synthesis hands the first chunk to
-        // it — and starts the stream — while the rest of the document
-        // is still being synthesized. The first audible speech
-        // therefore does not wait for the whole document (SC-002).
-        open_backend(state)?;
-        let streamed = stream_synthesis(&segments, state, start_offset_secs)?;
-        // The document's own duration stays the resolver's total — the
-        // reading still ends where the document ends (FR-028a).
-        let duration_secs = streamed.duration_secs;
-        // The samples the reading actually carries: the audio from
-        // the resume entry on (FR-009).
-        let pcm_samples = streamed.played_samples;
-
-        let headings = parse_headings(&segments, duration_secs);
+        // T143: the session-start facts that are CONTENT facts
+        // (FR-013): the parsed-content unit total (the chunk
+        // split's segment count) and the section count (the
+        // document's sections). Both are known BEFORE a single
+        // sample is synthesized.
         let total_units = segments.len() as u64;
-        let has_headings = !headings.is_empty();
+        let sections = document_sections(&segments);
 
-        // Create surface resolver with the parsed-content totals fixed
+        // The surface resolver, with the parsed-content totals fixed
         // at session start (FR-013 / FR-028a): the unit total is the
         // chunk split's segment count — a content fact — and the
-        // projection basis is the spoken length per unit derived from
-        // the synthesized PCM. The totals knowledge composes BOTH
+        // projection basis is the MEASURED timeline the synthesis
+        // produces (FR-013), so the resolver starts with no basis
+        // and the synthesis feeds the measured unit ends as it
+        // measures them. The totals knowledge composes BOTH
         // session-start facts (the parsed-content unit total AND the
         // section count), so a heading-less session stays
         // indeterminate for the whole session (FR-013).
@@ -4310,23 +4492,38 @@ pub mod commands {
             title,
             filename.to_string(),
             total_units,
-            duration_secs,
-            has_headings,
+            0.0,
+            !sections.is_empty(),
         );
 
-        // Store resolver and headings in AppState for publish path:
-        // the one feeding of the session-start totals — the
-        // resolver holds the parsed-content unit total and its
-        // projection basis, written here, once, and never
-        // re-estimated mid-session (FR-028a / FR-013).
-        install_session_structure(state, resolver, headings, duration_secs)?;
+        // Store resolver and sections in AppState for publish path:
+        // the one feeding of the session-start totals — the resolver
+        // holds the parsed-content unit total, written here, once,
+        // and never re-estimated mid-session (FR-028a / FR-013).
+        //
+        // T143: the installation runs BEFORE the synthesis, so the
+        // progress projection, the section index and the per-section
+        // diagnostic entries are live from the first chunk.
+        install_session_structure(state, resolver, &sections)?;
 
-        // The audio already started (T113): the streaming synthesis
-        // queued the first chunk and the backend is playing it while
-        // this body was still resolving the session-start totals. The
-        // session's transport lands on `Playing` only below, so a
-        // playing landing is always followed by a strictly greater
-        // position — the diagnostic record's stall rule holds.
+        // T113 / FR-003 ≤3 s first-audible: the backend is opened
+        // once, and the STREAMING synthesis hands the first chunk to
+        // it — and starts the stream — while the rest of the document
+        // is still being synthesized. The first audible speech
+        // therefore does not wait for the whole document (SC-002).
+        //
+        // The device handshake runs BEFORE the landing: a device
+        // that refuses the handoff never reaches the playing state,
+        // so a silent session is never reported as playing
+        // (FR-001 / FR-005).
+        open_backend(state)?;
+
+        // T143: the landing on `Playing` happens BEFORE the first
+        // chunk reaches the backend. The durable write (FR-007's
+        // 20 s heartbeat), the in-RAM tracking (FR-002's audible
+        // clock) and the per-section entries (FR-017) are all gated
+        // on the playing state — landing here makes them live for
+        // the whole synthesis window, not only after it.
         //
         // The document's blake3 fingerprint (FR-036 / T059) — the key
         // the 20 s heartbeat bookmark persistence writes under (T011) —
@@ -4335,7 +4532,6 @@ pub mod commands {
         // body never records a fingerprint of its own: the switch owns
         // the handover, and the durable save it performs must land
         // under the OUTGOING document's key.
-
         {
             let mut session = state.session.lock().map_err(|e| OpenError::NoStart {
                 reason: e.to_string(),
@@ -4372,6 +4568,37 @@ pub mod commands {
         // Open the FR-015 clock on the landed Playing
         // transport (T011).
         after_execute(state, &snapshot, ShellVerb::Play);
+
+        // T143: the lock-screen surface (FR-011 / FR-014) is
+        // published AFTER the landing, so the published state IS the
+        // playing one — the surface exists while the audio plays.
+        publish_current_state(state, None);
+
+        // The streaming synthesis: the first chunk reaches the
+        // backend here, and the rest of the document synthesizes
+        // while it plays.
+        let streamed = match stream_synthesis(&segments, &sections, state, start_offset_secs) {
+            Ok(streamed) => streamed,
+            Err(error) => {
+                // The reading never reached the audio: the session
+                // leaves the playing state, so a silent session is
+                // never reported as playing (FR-001 / FR-005).
+                abandon_playing_landing(state);
+                return Err(error);
+            }
+        };
+        // The document's own duration stays the resolver's total — the
+        // reading still ends where the document ends (FR-028a).
+        let duration_secs = streamed.duration_secs;
+        // The samples the reading actually carries: the audio from
+        // the resume entry on (FR-009).
+        let pcm_samples = streamed.played_samples;
+
+        // The MEASURED timeline: the spoken duration and the
+        // measured section positions reach the session — the bounded
+        // timeline the skips clamp against (FR-002) and the section
+        // boundaries they land on.
+        install_session_timeline(state, duration_secs)?;
 
         // The FR-017 diagnostic record (T097): the buffer state
         // the session started with — the pre-roll seconds still

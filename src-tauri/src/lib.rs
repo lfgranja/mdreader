@@ -1492,15 +1492,36 @@ fn take_play_to_audio_ms(state: &AppState) -> Option<String> {
     Some(latency_ms.to_string())
 }
 
-/// Close the play-to-audio clock at the first audible audio (T113 /
-/// FR-017): the backend's stream start on the FIRST synthesized
-/// chunk IS the first audible audio of the request, so the measured
-/// latency is the FR-003 bound — the time to the first speech — and
-/// never the time the whole document's synthesis took.
+/// Close the play-to-audio clock at the first CONSUMED sample
+/// (T152 / FR-017 / FR-003 / SC-002): the measured milliseconds
+/// between the play request and the first audible audio of that
+/// request.
+///
+/// The measurement is closed on the CONSUMPTION, never on the stream
+/// start: the first buffer is consumed on the audio callback that
+/// follows the start, so a window closed at the start UNDER-REPORTS
+/// the bound by the device's output latency.
+///
+/// The backend's audible clock advances ONLY on consumed speech
+/// samples, so a clock past zero IS a consumed sample: while the
+/// clock still sits at zero, nothing was audible, and the closer
+/// DECLINES — the window stays open for the observation that sees
+/// the consumption.
 ///
 /// The measurement is left pending, exactly as the clock's own
 /// closer leaves it: the next entry that can carry it reports it.
-fn note_first_audible(state: &AppState) {
+fn note_first_consumed_sample(state: &AppState) {
+    let consumed = {
+        let Ok(backend) = state.backend.lock() else {
+            return;
+        };
+        backend
+            .as_ref()
+            .is_some_and(|device| device.position_secs() > 0.0)
+    };
+    if !consumed {
+        return;
+    }
     let _measured = take_play_to_audio_ms(state);
 }
 
@@ -2161,6 +2182,13 @@ fn feed_audible_progress(state: &AppState, position_secs: f64, watch: &mut Playb
     if delta_secs <= 0.0 {
         return;
     }
+    // T152: the audible credit IS the first consumed sample — the
+    // backend's audible clock has just advanced past zero. The
+    // play-to-audio measurement closes here when the synthesis's
+    // own observation has not seen the consumption yet: the window
+    // covers the CONSUMED sample, never the stream start
+    // (FR-003 / SC-002).
+    note_first_consumed_sample(state);
     let credited = if let Ok(mut session) = state.session.lock() {
         if session.snapshot().transport == TransportState::Playing {
             session.on_audible_progress(delta_secs);
@@ -2449,7 +2477,7 @@ pub mod commands {
     use crate::{
         DEFAULT_DOCUMENT_FILENAME, OfferRoute, after_background, after_execute, after_skip,
         delete_bookmark, diag_focus_name, diag_focus_value, diag_section_index, document_title,
-        note_first_audible, note_play_request, note_removal_request, note_resume_origin,
+        note_first_consumed_sample, note_play_request, note_removal_request, note_resume_origin,
         offer_route_wire, park_cold_start, pcm_from_sample, pending_open_exists, persist_last_rate,
         publish_route, rate_press_of, read_published_route, record_buffer_state,
         record_focus_transition, record_named_refusal, record_output_device, record_rate_change,
@@ -4222,15 +4250,18 @@ pub mod commands {
                 // and the rest of the document synthesizes while it
                 // plays (FR-003 / SC-002).
                 start_backend(state)?;
-                // The FR-017 diagnostic record (T097 / T113): the
-                // first audible audio of this request closes the
-                // play-to-audio clock — the stream start IS the first
-                // audible speech, so the measured latency is the
-                // FR-003 bound, never the whole document's synthesis
-                // time.
-                note_first_audible(state);
                 started = true;
             }
+            // T152: the play-to-audio clock closes on the first
+            // CONSUMED sample — the backend's audible clock leaving
+            // zero. The STREAM START is not it: the first buffer is
+            // consumed on the NEXT audio callback, and the device's
+            // output latency stands between the two, so a window
+            // closed here would under-report the FR-003 bound
+            // (FR-003 / SC-002). The closer declines until the
+            // consumption is observed — here, or at the next
+            // observation the watch makes.
+            note_first_consumed_sample(state);
         }
         let duration_secs = total_samples as f64 / DECLARED_RATE_HZ;
         Ok(StreamedSynthesis {

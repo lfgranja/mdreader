@@ -2711,6 +2711,17 @@ pub mod commands {
                 let _ignored =
                     object.insert("offer_window_ms".to_string(), serde_json::json!(window_ms));
             }
+            // The pending cold-start fact (T145): the shell's own
+            // discriminator between a deliberate-pause reopen (the
+            // cold start is parked behind its open offer) and a
+            // pause inside a running document (no cold start is
+            // parked). The surface cannot tell the two apart from
+            // the mirrored state, so the shell publishes the fact
+            // (FR-009).
+            let _ignored = object.insert(
+                "pending_cold_start".to_string(),
+                serde_json::Value::Bool(pending_open_exists(state)),
+            );
             let _ignored = object.insert(
                 "has_stored_position".to_string(),
                 serde_json::Value::Bool(lookup.stored.is_some()),
@@ -4808,7 +4819,10 @@ pub mod commands {
     )]
     pub fn offer_route(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
         let Some(fingerprint) = current_fingerprint(&state) else {
-            return Ok(serde_json::json!({ "offer_route": "none" }));
+            return Ok(offer_reply(
+                OfferRoute::NoRoute,
+                pending_open_exists(state.inner()),
+            ));
         };
         let stored = {
             let mut guard = state.bookmark_store.lock().map_err(|e| e.to_string())?;
@@ -4818,21 +4832,46 @@ pub mod commands {
             }
         };
         let Some(stored) = stored else {
-            return Ok(serde_json::json!({ "offer_route": "none" }));
+            return Ok(offer_reply(
+                OfferRoute::NoRoute,
+                pending_open_exists(state.inner()),
+            ));
         };
         // The one route-to-wire mapping (T037), shared with the
         // cold-start open payload — never a second definition
         // of the route vocabulary.
-        let (offer_route, window_ms) = offer_route_wire(route_offer(&state, &stored));
-        Ok(window_ms.map_or_else(
-            || serde_json::json!({ "offer_route": offer_route }),
-            |window_ms| {
-                serde_json::json!({
-                    "offer_route": offer_route,
-                    "window_ms": window_ms,
-                })
-            },
-        ))
+        let route = route_offer(&state, &stored);
+        Ok(offer_reply(route, pending_open_exists(state.inner())))
+    }
+
+    /// The `offer_route` reply (T145): the route the offer machine
+    /// resolved, the FR-032c window that route carries, and the
+    /// PENDING COLD-START fact the surface needs to tell a
+    /// deliberate-pause reopen from a pause inside a running
+    /// document (FR-009).
+    ///
+    /// The pending fact is the SHELL's own: a parked cold-start
+    /// open IS the reopen, and the mirrored state cannot express
+    /// it — a cold-start reopen and a pause inside a running
+    /// document read the same there, so the route alone cannot
+    /// tell them apart. The surface renders what the shell
+    /// publishes and never re-derives the discriminator (FR-011 /
+    /// FR-019).
+    pub(crate) fn offer_reply(route: OfferRoute, pending_cold_start: bool) -> serde_json::Value {
+        let (offer_route, window_ms) = offer_route_wire(route);
+        let mut reply = serde_json::Map::new();
+        let _ignored = reply.insert(
+            "offer_route".to_string(),
+            serde_json::Value::String(offer_route.to_string()),
+        );
+        if let Some(window_ms) = window_ms {
+            let _ignored = reply.insert("window_ms".to_string(), serde_json::json!(window_ms));
+        }
+        let _ignored = reply.insert(
+            "pending_cold_start".to_string(),
+            serde_json::json!(pending_cold_start),
+        );
+        serde_json::Value::Object(reply)
     }
 }
 

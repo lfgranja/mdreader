@@ -462,13 +462,21 @@
   // command, `offer_window_ms` on the cold-start open payload). The
   // shape is read as published; the surface never re-derives the
   // route and never invents a window.
+  //
+  // The shell publishes the PENDING COLD-START fact with it
+  // (`pending_cold_start`): a deliberate-pause reopen parks the
+  // cold start behind its open offer, and that parked open is the
+  // only thing that tells the reopen from a pause inside a running
+  // document — the mirrored state reads the same for both, so the
+  // route alone cannot separate them (FR-009).
   function offerShapeOf(payload) {
     if (!payload) {
       return null;
     }
     const route = payload.offer_route || null;
     const windowMs = payload.window_ms ?? payload.offer_window_ms ?? null;
-    return { route: route, windowMs: windowMs };
+    const pendingColdStart = payload.pending_cold_start === true;
+    return { route: route, windowMs: windowMs, pendingColdStart: pendingColdStart };
   }
 
   // The context of the offer: the title, the section title and the
@@ -516,7 +524,7 @@
 
   // Branches on the route the shell published: the in-app route
   // opens the dialog, every other route closes it.
-  function applyOffer(route, windowMs) {
+  function applyOffer(route, windowMs, pendingColdStart) {
     if (route !== 'in_app_dialog') {
       // The route left the in-app one: a later offer may open the
       // dialog again.
@@ -525,11 +533,13 @@
       return;
     }
     // The offer belongs to a REOPEN (FR-009: "when reopening a
-    // deliberately paused document"), so it belongs to a document
-    // with no reading running: the transport the surface already
-    // mirrors is the only witness it has of a live reading, and a
-    // pause inside a running document is never an offer.
-    if (state.transport !== 'stopped') {
+    // deliberately paused document"), and the shell publishes the
+    // parked cold start that IS the reopen. The mirrored state
+    // cannot tell the two apart — a cold-start reopen and a pause
+    // inside a running document read the same there — so the
+    // dialog opens ONLY for the published fact, never for the
+    // mirror.
+    if (!pendingColdStart) {
       offer.shown = false;
       closeOffer();
       return;
@@ -566,7 +576,7 @@
       if (shape === null) {
         return;
       }
-      applyOffer(shape.route, shape.windowMs);
+      applyOffer(shape.route, shape.windowMs, shape.pendingColdStart);
     } catch (e) {
       // The route is unreadable: no offer is shown, and the next
       // poll asks again.
@@ -707,7 +717,7 @@
         // command publishes.
         const shape = offerShapeOf(initial);
         if (shape !== null) {
-          applyOffer(shape.route, shape.windowMs);
+          applyOffer(shape.route, shape.windowMs, shape.pendingColdStart);
         }
       }
     } catch (e) {

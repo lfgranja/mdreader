@@ -10,6 +10,15 @@
 //! the remainder of a short buffer is silence (`0.0`). The
 //! position clock advances only by samples actually consumed
 //! while the stream runs.
+//!
+//! The resident audio is BOUNDED (FR-018; `plan.md:25`): the queue
+//! holds at most [`MAX_PREROLL_SECS`] (60 s) of not-yet-played
+//! speech — the pre-roll window ahead of the play head — so the
+//! whole document's PCM never stays resident for the whole session
+//! (~620 MB for the SC-001 fixture: ~2 h of speech at 22 050 Hz
+//! mono f32). The bound lives in the player crate, below the app
+//! shell, and the diagnostic buffer-state entry carries it
+//! ([`CpalBackend::buffer_state`]).
 
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
@@ -51,6 +60,186 @@ pub enum BackendError {
     InvalidGain(f32),
 }
 
+/// The resident pre-roll bound, in seconds (FR-018; `plan.md:25`).
+///
+/// The bound on the audio the player keeps RESIDENT — the synthesized
+/// PCM that is queued for the device but not yet played. Without it
+/// the whole document's PCM stays resident for the whole session
+/// (~620 MB for the SC-001 fixture: ~2 h of speech at 22 050 Hz mono
+/// f32) and the app runs out of memory on a mid-range phone; with it
+/// the resident audio is the pre-roll window ahead of the play head
+/// and nothing more.
+///
+/// The value is the single [`crate::position::PREROLL_CAP_SECS`]
+/// (60 s) — an alias, never a second cap that can drift (Principle
+/// VII / FR-044). The diagnostic contract names the same bound
+/// `MAX_PREROLL_SECS=60` (`contracts/diagnostic-trace.md`).
+pub const MAX_PREROLL_SECS: f64 = crate::position::PREROLL_CAP_SECS;
+
+/// The declared engine rate (FR-019): 22 050 Hz — the same value as
+/// [`DeclaredFormat::SAMPLE_RATE`] (a unit test pins the two, so the
+/// rate never drifts).
+const ENGINE_RATE_HZ: f64 = 22_050.0;
+
+/// The resident bound in samples at the declared rate (FR-019:
+/// 22 050 Hz mono f32): 60 s × 22 050 = 1 323 000 samples.
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "MAX_PREROLL_SECS × 22 050 = 1 323 000 is an exact integer, far below usize range"
+)]
+#[expect(
+    clippy::cast_sign_loss,
+    reason = "MAX_PREROLL_SECS and the declared rate are positive constants, so their product is positive — no sign bit is lost in the cast"
+)]
+const MAX_PREROLL_SAMPLES: usize = (MAX_PREROLL_SECS * ENGINE_RATE_HZ) as usize;
+
+/// The resident playback queue: the synthesized speech the device has
+/// not played yet — the pre-roll window ahead of the play head.
+///
+/// The queue is BOUNDED (FR-018; `plan.md:25`): it never holds more
+/// than [`MAX_PREROLL_SECS`] (60 s) of resident audio, so the whole
+/// document's PCM never stays resident for the whole session.
+///
+/// The drop policy keeps the reading AUDIBLY CONTIGUOUS from the play
+/// head: when a chunk would push the resident audio beyond the bound,
+/// the audio BEYOND the window is dropped and the audio AT the head
+/// is kept — the head is the next audible sample, and dropping it
+/// would put a hole in the reading. The dropped audio is the
+/// producer's overrun: the part of the document prepared past the
+/// window.
+///
+/// The queue holds NO position: dropping never moves the reported
+/// position. The audible clock is the only advance path (FR-002) — a
+/// dropped sample is not an audible one.
+#[derive(Debug, Default)]
+pub struct ResidentQueue {
+    /// The resident, not-yet-played samples, oldest first.
+    samples: VecDeque<f32>,
+    /// The samples dropped because they fell beyond the bound.
+    dropped_samples: u64,
+}
+
+impl ResidentQueue {
+    /// A new, empty queue: nothing resident, nothing dropped.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            samples: VecDeque::new(),
+            dropped_samples: 0,
+        }
+    }
+
+    /// The resident bound in samples at the declared rate.
+    #[must_use]
+    pub const fn cap_samples(&self) -> usize {
+        MAX_PREROLL_SAMPLES
+    }
+
+    /// The resident bound in seconds.
+    #[must_use]
+    pub const fn cap_secs(&self) -> f64 {
+        MAX_PREROLL_SECS
+    }
+
+    /// Append synthesized samples to the tail of the resident window.
+    ///
+    /// The window never grows past the bound: what does not fit is
+    /// DROPPED — the audio BEYOND the window, never the audio at the
+    /// head. The head is the next audible sample, so dropping it
+    /// would put a hole in the reading; the dropped audio is the
+    /// producer's overrun — the part of the document prepared past
+    /// the window.
+    ///
+    /// The drop moves no position: a dropped sample is not an audible
+    /// one, and the audible clock is the only advance path (FR-002).
+    pub fn push(&mut self, pcm: &[f32]) {
+        let room = MAX_PREROLL_SAMPLES.saturating_sub(self.samples.len());
+        let kept = room.min(pcm.len());
+        self.samples.extend(pcm[..kept].iter().copied());
+        let dropped = pcm.len() - kept;
+        if dropped > 0 {
+            self.dropped_samples = self
+                .dropped_samples
+                .saturating_add(u64::try_from(dropped).unwrap_or(u64::MAX));
+        }
+    }
+
+    /// The resident sample count.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.samples.len()
+    }
+
+    /// Whether no audio is resident.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.samples.is_empty()
+    }
+
+    /// The resident audio in seconds — the pre-roll depth the
+    /// diagnostic buffer-state entry carries.
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "the resident sample count is a count of samples, far below f64's 52-bit mantissa"
+    )]
+    #[must_use]
+    pub fn buffered_secs(&self) -> f64 {
+        self.samples.len() as f64 / ENGINE_RATE_HZ
+    }
+
+    /// The samples dropped because they fell beyond the bound.
+    #[must_use]
+    pub const fn dropped_samples(&self) -> u64 {
+        self.dropped_samples
+    }
+
+    /// The resident samples, oldest first — the introspection view of
+    /// the window (the diagnostic buffer state and the property tests
+    /// read it; the device's consumption path takes the same samples
+    /// from the head).
+    #[must_use]
+    pub const fn samples(&self) -> &VecDeque<f32> {
+        &self.samples
+    }
+
+    /// Take the next resident sample — the device's consumption path
+    /// (the head of the window: the next audible sample).
+    pub fn pop_front(&mut self) -> Option<f32> {
+        self.samples.pop_front()
+    }
+
+    /// Drop every resident sample; the dropped counter is untouched
+    /// (it is the session's cumulative count, not the queue's depth).
+    pub fn clear(&mut self) {
+        self.samples.clear();
+    }
+}
+
+/// The resident buffer state (FR-017; `contracts/diagnostic-trace.md`).
+///
+/// The diagnostic buffer-state entry carries the pre-roll depth — the
+/// resident, not-yet-played audio — against the bound it never
+/// exceeds, so the bound is observable in the record.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BufferState {
+    /// The resident, not-yet-played audio in seconds (the pre-roll
+    /// depth).
+    pub buffered_secs: f64,
+    /// The bound the resident audio never exceeds, in seconds.
+    pub cap_secs: f64,
+    /// The samples dropped because they fell beyond the bound.
+    pub dropped_samples: u64,
+}
+
+impl BufferState {
+    /// The state of a queue with nothing resident.
+    pub const EMPTY: Self = Self {
+        buffered_secs: 0.0,
+        cap_secs: MAX_PREROLL_SECS,
+        dropped_samples: 0,
+    };
+}
+
 /// FIFO of mono `f32` samples at the declared rate, shared with
 /// the stream callback.
 ///
@@ -61,8 +250,9 @@ pub enum BackendError {
 /// of the gain.
 #[derive(Debug)]
 struct SampleQueue {
-    /// Buffered samples not yet consumed by the callback.
-    samples: VecDeque<f32>,
+    /// The resident, not-yet-played speech — bounded by
+    /// [`MAX_PREROLL_SECS`] (FR-018; `plan.md:25`).
+    speech: ResidentQueue,
     /// Output gain in `[0.0, 1.0]`; full gain by default, so a
     /// fresh queue is bit-identical to the unscaled path.
     gain: f32,
@@ -79,7 +269,7 @@ struct SampleQueue {
 impl Default for SampleQueue {
     fn default() -> Self {
         Self {
-            samples: VecDeque::new(),
+            speech: ResidentQueue::new(),
             gain: FULL_GAIN,
             short_mix: VecDeque::new(),
         }
@@ -89,7 +279,7 @@ impl Default for SampleQueue {
 impl SampleQueue {
     /// Append synthesized samples to the tail.
     fn push(&mut self, pcm: &[f32]) {
-        self.samples.extend(pcm.iter().copied());
+        self.speech.push(pcm);
     }
 
     /// Append duck-exempt earcon PCM to the short-mix buffer
@@ -129,7 +319,7 @@ impl SampleQueue {
         let gain = self.gain;
         let mut speech_consumed = 0;
         for slot in out.iter_mut() {
-            let speech = self.samples.pop_front();
+            let speech = self.speech.pop_front();
             let earcon = self.short_mix.pop_front();
             match (speech, earcon) {
                 (Some(sample), Some(tone)) => {
@@ -156,14 +346,14 @@ impl SampleQueue {
     /// trigger path re-fires it once Playing is restored, per
     /// contracts/earcon.md).
     fn clear(&mut self) {
-        self.samples.clear();
+        self.speech.clear();
         self.short_mix.clear();
     }
 
     /// Buffered speech sample count.
     #[must_use]
     fn len(&self) -> usize {
-        self.samples.len()
+        self.speech.len()
     }
 }
 
@@ -328,6 +518,21 @@ impl CpalBackend {
     #[must_use]
     pub fn buffered_samples(&self) -> usize {
         self.queue.lock().map_or(0, |q| q.len())
+    }
+
+    /// The resident buffer state (FR-017): the pre-roll depth against
+    /// the bound it never exceeds, plus the samples dropped beyond it
+    /// — the source of the diagnostic buffer-state entry
+    /// (`contracts/diagnostic-trace.md`).
+    #[must_use]
+    pub fn buffer_state(&self) -> BufferState {
+        self.queue
+            .lock()
+            .map_or(BufferState::EMPTY, |queue| BufferState {
+                buffered_secs: queue.speech.buffered_secs(),
+                cap_secs: MAX_PREROLL_SECS,
+                dropped_samples: queue.speech.dropped_samples(),
+            })
     }
 
     /// Set the output gain factor (the FR-013 duck actuator).
@@ -645,6 +850,69 @@ mod tests {
             ),
             "NaN rejection did not carry the offending factor"
         );
+    }
+
+    // Exact-value contract: the bound is the plan's 60 s and the single
+    // PREROLL_CAP_SECS the pre-roll ring and the pipeline-side buffer already
+    // share; == pins the exact value and a tolerance would admit drift
+    #[test]
+    fn the_bound_is_the_single_preroll_cap() {
+        assert_eq!(MAX_PREROLL_SECS, 60.0);
+        assert_eq!(MAX_PREROLL_SECS, crate::position::PREROLL_CAP_SECS);
+    }
+
+    // Exact-value contract: the engine rate is the declared 22 050 Hz; == pins
+    // the exact value and a tolerance would admit drift
+    #[test]
+    fn the_engine_rate_is_the_declared_rate() {
+        assert_eq!(ENGINE_RATE_HZ, f64::from(DeclaredFormat::SAMPLE_RATE));
+    }
+
+    // Exact-value contract: the sample bound is the seconds bound at the
+    // declared rate — 60 s x 22 050 Hz = 1 323 000 samples; == pins the exact
+    // integer and a tolerance would admit drift
+    #[test]
+    fn the_sample_bound_is_the_seconds_bound_at_the_declared_rate() {
+        assert_eq!(MAX_PREROLL_SAMPLES, 1_323_000);
+    }
+
+    #[test]
+    fn the_resident_window_holds_at_most_the_bound() {
+        let mut queue = ResidentQueue::new();
+        let chunk = vec![0.5_f32; MAX_PREROLL_SAMPLES + 1_000];
+        queue.push(&chunk);
+        assert_eq!(queue.len(), MAX_PREROLL_SAMPLES);
+        assert_eq!(queue.buffered_secs(), 60.0);
+        assert_eq!(queue.dropped_samples(), 1_000);
+    }
+
+    #[test]
+    fn the_drop_keeps_the_head_of_the_window() {
+        let mut queue = ResidentQueue::new();
+        // The audio at the head: the next audible sample.
+        queue.push(&[1.0, 2.0, 3.0]);
+        // A chunk that overruns the window: its tail falls beyond the
+        // bound and is dropped; its head joins the window.
+        let overrun = vec![0.0_f32; MAX_PREROLL_SAMPLES + 10];
+        queue.push(&overrun);
+
+        assert_eq!(queue.len(), MAX_PREROLL_SAMPLES);
+        // The head survived: the reading stays audibly contiguous from
+        // the play head.
+        let head: Vec<f32> = queue.samples().iter().copied().take(3).collect();
+        assert_eq!(head, vec![1.0, 2.0, 3.0]);
+        // Only the audio beyond the window was dropped: the chunk
+        // carried the bound plus ten, and the window had three free
+        // places for it.
+        assert_eq!(queue.dropped_samples(), 13);
+    }
+
+    #[test]
+    fn an_empty_window_reports_the_empty_buffer_state() {
+        let state = BufferState::EMPTY;
+        assert_eq!(state.buffered_secs, 0.0);
+        assert_eq!(state.cap_secs, MAX_PREROLL_SECS);
+        assert_eq!(state.dropped_samples, 0);
     }
 
     #[test]

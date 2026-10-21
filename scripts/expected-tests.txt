@@ -36,6 +36,7 @@ player::prop_ladder
 player::prop_first_audio_3s
 player::prop_lifecycle
 player::prop_persist
+player::prop_preroll_bound
 player::prop_progress
 player::prop_resume_boundary
 player::prop_resume_snap

@@ -607,8 +607,16 @@
   }
 
   // Button event listeners
+  //
+  // FR-019 / FR-001: the play control RESUMES the reading the app
+  // already holds, at the place it stopped — the resume-at-stored
+  // wire. The bare synthesis wire is never sent from this screen:
+  // the screen holds no document, and the verb channel carries
+  // none, so a synthesis wire would reach the synthesis entry
+  // empty and be refused (the control would never start or resume
+  // a reading at all). The pause arm is the toggle's other half.
   els.btnPlayPause.addEventListener('click', () => {
-    sendAction(state.transport === 'playing' ? 'pause' : 'play');
+    sendAction(state.transport === 'playing' ? 'pause' : 'resume_at_stored');
   });
 
   els.btnStop.addEventListener('click', async () => {

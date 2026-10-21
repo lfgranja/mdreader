@@ -83,7 +83,10 @@ src-tauri::test_kotlin_mirror_payload
 src-tauri::test_lockscreen_resume_control
 src-tauri::test_noscope
 src-tauri::test_offer_dialog
+src-tauri::test_offer_dialog_reachability
 src-tauri::test_publish_payload
 src-tauri::test_purity
 src-tauri::test_progress_label
+src-tauri::test_resume_restarts_audio
+src-tauri::test_session_live_from_first_chunk
 src-tauri::test_surface_us1

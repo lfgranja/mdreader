@@ -1,5 +1,44 @@
 # Session state — 004-ressoa-dogfood-build (shell bring-up wave)
 
+> **RESUME POINT (2026-10-21) — read this first.** The machine was powered off
+> mid-Phase-17. A workspace-wide `cargo nextest run --workspace` was ABORTED at
+> the maintainer's request; it was replaced by the targeted verification below.
+> Phase 17 (the convergence that followed the T095 attestation) is HALF DONE.
+>
+> **Landed in Phase 17** (all committed, working tree clean):
+> T140 `f30feca` (RED resume) · T141 `aa4ecf4` (resume restarts the stream) ·
+> T142 `59a12a2` (RED session-live) · **T143 `97f0046` (session live from the
+> first chunk — VERIFIED: `cargo check -p src-tauri -p player --all-targets`
+> exit 0 and `cargo nextest run -p src-tauri --test
+> test_session_live_from_first_chunk` → 4/4 PASS)** · T144 `80803f5` (RED
+> offer-dialog reachability) · T146/T154 `173b7d2` · T149 `a651c61` (bounded
+> resident queue) · T150/T153 `74fbb95` · T151 `d17da93` (comment-aware
+> literal scanner) · T156 `fa04ca6` (purity-gate allowlist) · T157 `507a991`
+> (expected-tests pins) · T158/T159/T160 appended in `f8caa6c`/`6f94d04`.
+>
+> **Next action, in order:**
+> 1. `src-tauri/src/lib.rs` is a SERIALIZED file — the remaining tasks run one
+>    agent at a time: **T145** (offer-dialog reachability; the T144 suite is
+>    still RED until it lands) → **T148** (in-app Play is inert) → **T147**
+>    (the 250 ms poll mutates the FR-044 decision core) → **T152**
+>    (`play_to_audio_ms` measures the stream start) → **T155** (unbounded 4 Hz
+>    re-park loop) → **T158** (producer back-pressure) → **T159** (bound
+>    observability into the diag record) → **T160** (reachability blocked by
+>    the resume divergence refusal).
+> 2. Then the FINAL VERIFICATION — the only thing that attests completion:
+>    `bash scripts/verify.sh` (gate 2's test-run leg is RED until T145 lands;
+>    gate 4 now runs clippy fail-closed) → `cargo tauri android build --target
+>    aarch64` + APK sha256 → rewrite
+>    `specs/004-ressoa-dogfood-build/verification/T095_attestation.md` →
+>    mark T140–T160 `[X]` in `specs/004-ressoa-dogfood-build/tasks.md`.
+> 3. **T051/T052 remain open** — device-only (reference phone Redmi 2201117TY);
+>    the T095 attestation explicitly does not claim SC-001…SC-010.
+> 4. Do NOT push to `origin/main` without an explicit request (the branch is
+>    far ahead).
+>
+> Housekeeping: `git stash list` is empty; the working tree is clean at
+> `97f0046`.
+
 Updated: 2026-10-17 (Wave B device verification GREEN + user-heard audio
 confirmed; zip-9 substitution complete — patch, lock, governance v1.8.0;
 verify.sh gates 1–4 PASS, gate-5 fixed; F1/F3 wiring IMPLEMENTED (wave-b4):

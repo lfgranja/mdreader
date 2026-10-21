@@ -861,3 +861,21 @@ Subagent E: "T032 rewind.rs + resume.rs sentence-snap (independent)"
 ### Phase 17 Addendum Tasks (append-only; zero renumber of T001–T155)
 
 - [ ] T156 [P] (HIGH) Extend the T081 allowlist in `scripts/check-shell-purity.sh` for the two new Phase 17 contract suites — `src-tauri/tests/test_offer_dialog_reachability.rs` (T144) and `src-tauri/tests/test_resume_restarts_audio.rs` (T140) — following the exact precedent of `src-tauri/tests/test_offer_dialog.rs` (allowlisted in Phase 16 with the rationale that the mention IS the assertion, and a comment naming why); the gate must keep failing closed for a production file carrying the vocabulary in a rejected position, for a NON-allowlisted test file gaining it, and for an allowlisted file in a mutable-state or arithmetic position — verify each negative control on a copy; the gate must exit 0 on the real tree; do NOT widen the rule beyond the two named files (`contradicts`)
+
+---
+
+## Phase 17 Addendum 2: Convergence
+
+> Source: the T142 implementation report (commit `59a12a2`), which noted that `scripts/expected-tests.txt` was not updated for the three new Phase 17 contract suites — gate 2's two-way diff is fail-closed, so an unpinned live target fails the gate for the whole repo. Appended as a new traceable task; no existing task rewritten or renumbered.
+
+### Convergence Findings (in-session, before append)
+
+| ID | Gap Type | Severity | Source | Evidence | Remediation (tasks below) |
+|----|----------|----------|--------|----------|---------------------------|
+| F1 | missing | MEDIUM | Principle V (gate 2, fail-closed two-way diff) | `scripts/expected-tests.txt` carries no pin for the three new Phase 17 suites: `src-tauri::test_resume_restarts_audio` (T140, `f30feca`), `src-tauri::test_session_live_from_first_chunk` (T142, `59a12a2`), `src-tauri::test_offer_dialog_reachability` (T144, `80803f5`) — each is a live nextest target, so gate 2's two-way diff will report them as UNEXPECTED | T157 |
+
+**Metrics:** 1 finding — 1 missing. 1 MEDIUM. The pins are the gate's own registry requirement (the same reason `src-tauri::test_offer_dialog` was pinned in Phase 16).
+
+### Phase 17 Addendum 2 Tasks (append-only; zero renumber of T001–T156)
+
+- [ ] T157 [P] (MEDIUM) Sync `scripts/expected-tests.txt` with the live nextest target list per the gate-2 fail-closed two-way diff: add the three new Phase 17 targets — `src-tauri::test_offer_dialog_reachability` (T144, `80803f5`), `src-tauri::test_resume_restarts_audio` (T140, `f30feca`), `src-tauri::test_session_live_from_first_chunk` (T142, `59a12a2`) — in the file's existing sorted order, and run `cargo nextest list --workspace` to make the two-way diff clean in BOTH directions (0 missing, 0 unexpected); if other live targets appear (other agents are adding suites concurrently), pin them too — but only targets that exist in the live list; the negative control (a pinned-but-absent target reports MISSING; a live-but-unpinned target reports UNEXPECTED) must keep the gate fail-closed (`missing`)

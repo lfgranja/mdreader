@@ -899,3 +899,21 @@ Subagent E: "T032 rewind.rs + resume.rs sentence-snap (independent)"
 
 - [ ] T158 [P] (HIGH) Close the producer/consumer gap left by the T149 queue bound: the app-shell producer in `src-tauri/src/lib.rs` is a one-pass loop that never waits for the device, so a producer faster than the audio device loses the overrun — the audio beyond the 60 s window is dropped, the reading SKIPS it, and the reported position (consumed samples only) trails the content actually heard; make the producer demand-driven or apply back-pressure so the position and the audio never diverge (the audible clock stays the only advance path, FR-002), and cover it with a RED-first property test asserting that the position reported after a bounded window matches the audio actually delivered (`missing`)
 - [ ] T159 [P] (MEDIUM) Carry the T149 bound observability into the diagnostic record: `record_buffer_state` (`src-tauri/src/lib.rs:1289-1306`) reports only `preroll_secs`; the cap and the dropped-sample count that `CpalBackend::buffer_state()` now exposes must reach the record's `detail` so a reading that skipped audio is diagnosable after the fact (FR-017, `contracts/diagnostic-trace.md:23`); the entry MUST stay prose-free, identifier-pattern, within the 200-char `detail` limit, and carry the content-hash ref the contract requires (`partial`)
+
+---
+
+## Phase 17 Addendum 4: Convergence
+
+> Source: the T141 implementation report (commit `aa4ecf4`), which implemented the explicit-resume stream restart and surfaced a deliberate fail-closed trade-off: a resume whose queued audio diverges from the stored position by more than `REANCHOR_TOLERANCE_SECS` (2 s) is REFUSED rather than played, and that refusal blocks "skip while paused → Play" and a live start-over away from 0.0. Appended as a new traceable task so the residual limitation is not left implicit; no existing task rewritten or renumbered.
+
+### Convergence Findings (in-session, before append)
+
+| ID | Gap Type | Severity | Source | Evidence | Remediation (tasks below) |
+|----|----------|----------|--------|----------|---------------------------|
+| F1 | partial | MEDIUM | FR-002 (skip), FR-007 (resume at the stored position), FR-009 (start-over) | `src-tauri/src/lib.rs:2832` — a resume whose queued head diverges from the stored position by > `REANCHOR_TOLERANCE_SECS` (2 s) is refused with *"the queued audio does not match the resume position"*. The divergence arises when a skip (or a start-over) moved the stored position while the queue stood still ⇒ the queued audio is a different stretch of the document. The T141 agent chose fail-closed (never play the wrong words) over a wrong-audio resume, which is the right default — but the consequence is that "skip while paused → Play" and a live start-over away from 0.0 are UNREACHABLE, with the cold-start open as the only recourse | T160 |
+
+**Metrics:** 1 finding — 1 partial. 1 MEDIUM. Deliberately surfaced by the implementing agent rather than left implicit; the fail-closed default is correct and is NOT to be weakened — the residual is the reachability of two driving-time operations.
+
+### Phase 17 Addendum 4 Tasks (append-only; zero renumber of T001–T159)
+
+- [ ] T160 [P] Restore the reachability of the two operations T141's divergence refusal blocks (MEDIUM): after a skip (or a start-over) while paused, the reader's Play is refused with *"the queued audio does not match the resume position"* because the queue head no longer matches the stored position (`src-tauri/src/lib.rs:2832`); make the resume path reach the correct audio — e.g. re-synthesise from the stored position when the queue has diverged (the cold-start open already does this through `play_document` → `start_backend`), or keep the fail-closed refusal but give the reader a working route to the stored position on the SAME surface. The fail-closed default MUST be preserved: never play audio that does not match the stored position (FR-007). RED-first property test; covered by the T141 suite's invariants (`partial`)

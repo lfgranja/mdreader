@@ -37,14 +37,14 @@ The eight map **N:1** onto the seven (research.md R5): each product reason rides
 | `FocusDelayed` | — (the zero-audio hold fails nothing) | — |
 | `PermanentLoss` | — (the focus loss rides the `focus` field of a `focus_transition` entry) | — |
 | `TransientPaused` | — (the focus loss rides the `focus` field of a `focus_transition` entry) | — |
-| `DeviceRemoved` | `device_lost` | `device_removed` |
+| `DeviceRemoved` | — (the device loss rides the `device` field of an `output_device` entry, `direction=disappeared`, never an `error`) | — |
 | `VoiceUnavailable` (the stored row is unreadable) | `engine_init_failed` | `store` |
 | `VoiceUnavailable` (the engine could not produce the audio) | `engine_unreachable` | `synthesis` |
 | `FormatUndeliverable` (the delivered shape cannot be read) | `channel_mismatch` | `empty_document` / `invalid_utf8` / `no_segments` |
 | `FormatUndeliverable` (the delivered rate/width deviates) | `rate_mismatch` | `rate_deviation` / `width_deviation` / `pitch_tolerance_violation` |
 | `DecodeFailed` | `engine_unreachable` | `decode_failed` |
 
-The engine taxonomy has members the eight product reasons do not name: the audio device's refusal of the playback request (`device_refused`, `cause=backend`) and the refused playback start (`start_refused`, `cause=no_start` — the same wire value `FocusDenied` rides, told apart by the `cause`). The `cause` identifiers are the closed identifier set of `src-tauri/src/lib.rs`'s `diag_error_cause` (T097) and `adapter-synthesis`'s `FailureCondition::detail()`; they are identifiers, never prose and never document text.
+The engine taxonomy has members the eight product reasons do not name: the audio device's refusal of the playback request (`device_refused`, `cause=backend`), the audio device's loss during playback (`device_lost` — the `DeviceRemoved` reason rides the `device` field of an `output_device` entry, not this wire value), and the refused playback start (`start_refused`, `cause=no_start` — the same wire value `FocusDenied` rides, told apart by the `cause`). The `cause` identifiers are the closed identifier set of `src-tauri/src/lib.rs`'s `diag_error_cause` (T097) and `adapter-synthesis`'s `FailureCondition::detail()`; they are identifiers, never prose and never document text.
 
 The `error` field is the engine-failure taxonomy and it is set on `failure` and `refusal` entries only — the schema requires it there and nowhere else. A focus-side interruption is recorded by the interruption entry it is: a `focus_transition` entry carries the four-value `focus` taxonomy (`duckable_transient`, `silence_demanding`, `permanent_loss`, `regained`) and an `output_device` entry carries the `device` field. Neither carries an `error`.
 

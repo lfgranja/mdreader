@@ -776,3 +776,21 @@ Subagent E: "T032 rewind.rs + resume.rs sentence-snap (independent)"
 ### Phase 16 Addendum 9 Tasks (append-only; zero renumber of T001–T137)
 
 - [ ] T138 [P] Make the constitution's lint-compliance pass a deterministic gate: extend `scripts/verify.sh` gate 4 (lint-drift) to also run `cargo clippy --workspace --all-targets -- -D warnings` and FAIL the gate when it does not exit 0 — so a toolchain bump that moves the lint set fails the gate instead of only failing the manual pre-attestation pass the constitution (v1.10.0, "A toolchain bump moves the lint set, and the tree must be re-earned") requires; the gate must keep checking the pinned lint LEVELS as it does today and must not weaken any level, add a blanket `#[allow]`, or use an unreasoned `#[expect]`; the gate must fail closed (a missing toolchain or a non-zero clippy exit is a failure, never a skip) (`partial`)
+
+---
+
+## Phase 16 Addendum 10: Convergence
+
+> Source: the T138 implementation report (commit `d23942b`), which wired the lint-compliance pass into `scripts/verify.sh` gate 4 and reported that the constitution's Verification Gates paragraph describing the mechanical form as "not wired yet" is now stale. Appended as a new traceable task; no existing task rewritten or renumbered.
+
+### Convergence Findings (in-session, before append)
+
+| ID | Gap Type | Severity | Source | Evidence | Remediation (tasks below) |
+|----|----------|----------|--------|----------|---------------------------|
+| F1 | contradicts | MEDIUM | Constitution Verification Gates (v1.10.0) | `.specify/memory/constitution.md` states *"The mechanical form is not wired yet: `scripts/verify.sh` gate 4 today checks the declared lint levels and does not itself invoke clippy"* — true when written, false since T138 (`d23942b`) wired `cargo clippy --workspace --all-targets -- -D warnings` into gate 4 as a fail-closed step | T139 |
+
+**Metrics:** 1 finding — 1 contradicts. 1 MEDIUM. The governance text now understates the enforcement the constitution itself requires; the gate is stronger than the record says.
+
+### Phase 16 Addendum 10 Tasks (append-only; zero renumber of T001–T138)
+
+- [ ] T139 [P] Correct the stale constitution paragraph per the Governance section's requirement that amendments carry a Sync Impact Report: in `.specify/memory/constitution.md` (Verification Gates), replace the sentence *"The mechanical form is not wired yet: `scripts/verify.sh` gate 4 today checks the declared lint levels and does not itself invoke clippy"* with the state that holds since T138 (`d23942b`) — gate 4 now ALSO runs `cargo clippy --workspace --all-targets -- -D warnings` as a fail-closed step, so the lint set is enforced by the gate, not only by the manual pre-attestation pass; update the Sync Impact Report header for the amendment (version bump, MINOR: a record corrected, no principle added/removed/redefined, no MUST weakened) and sync the footer version; make no other governance change (`contradicts`)

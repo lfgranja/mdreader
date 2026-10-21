@@ -1,0 +1,21 @@
+# cargo-audit configuration for the constitution's gate 5
+# (supply-chain). This file is the `cargo audit` half of the
+# RUSTSEC-2026-0381 waiver recorded in the constitution's
+# Exceptions Log entry 13; the `cargo deny` half lives in the
+# root `deny.toml` as an `[[advisories.ignore]]` block.
+#
+# The waiver is PROVISIONAL and mechanically bounded: gate 5 of
+# `scripts/verify.sh` asserts that the committed `Cargo.lock`
+# contains exactly the `webpki-roots` versions 0.26.11 and
+# 1.0.10, so the waiver can never silently widen and the gate
+# fails closed if the shim leaves the dependency graph.
+#
+# `cargo audit` reads this file from the repository root
+# (`.cargo/audit.toml`); `scripts/verify.sh` does `cd "$ROOT"`
+# before invoking it, so the file is always found.
+#
+# Schema note: the `[advisories]` table accepts a list of advisory
+# ids under `ignore`; the table-style `[[advisories.ignore]]` form
+# used by `deny.toml` is NOT a valid `cargo audit` schema.
+[advisories]
+ignore = ["RUSTSEC-2026-0381"]

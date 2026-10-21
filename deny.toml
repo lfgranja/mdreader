@@ -13,6 +13,27 @@ yanked = "deny"
 id = "RUSTSEC-2024-0370"
 reason = "compile-time-only proc macro in tauri's gtk chain; unmaintained status, no known vulnerability, no CVE; not linked into any shipped artifact (Exceptions Log entry 10)"
 
+# Exceptions Log entry 13 (PROVISIONAL): RUSTSEC-2026-0381
+# (CVE-2026-111943, 2026-10-19) flags the distrusted `emSign ECC
+# Root CA - G3` root in the `webpki-roots` 0.26 line. The
+# affected node in this graph is `webpki-roots 0.26.11`, a PURE
+# COMPATIBILITY SHIM: it ships NO root certificates of its own
+# and delegates every trust anchor to the patched `webpki-roots`
+# 1.0.10, which already removed the distrusted root. The shim is
+# reached only as a BUILD-TIME dependency (adapter-synthesis ->
+# sherpa-onnx -> sherpa-onnx-sys -> ureq -> webpki-roots
+# 0.26.11); nothing from ureq, rustls, rustls-webpki or
+# webpki-roots is linked into any shipped artifact. The 0.26 line
+# has NO PATCHED RELEASE (the fix ships only on the 1.x line), so
+# the waiver is PROVISIONAL. It is mechanically BOUNDED: gate 5 of
+# scripts/verify.sh asserts that the committed Cargo.lock contains
+# EXACTLY the `webpki-roots` versions 0.26.11 and 1.0.10, so the
+# waiver can never silently widen and the gate fails closed if the
+# shim leaves the dependency graph.
+[[advisories.ignore]]
+id = "RUSTSEC-2026-0381"
+reason = "the affected node is webpki-roots 0.26.11, a pure compatibility shim that ships no root certificates of its own and delegates every trust anchor to the patched webpki-roots 1.0.10 (which already removed the distrusted emSign ECC Root CA - G3); it is build-time only (adapter-synthesis -> sherpa-onnx -> sherpa-onnx-sys -> ureq) and is linked into no shipped artifact; the 0.26 line has no patched release, so the waiver is PROVISIONAL under Exceptions Log entry 13 and is mechanically bounded by a gate-5 assertion on the lockfile's webpki-roots version set (exactly 0.26.11 and 1.0.10)"
+
 [bans]
 deny = [
     { name = "tts-rs" },

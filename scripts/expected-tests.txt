@@ -79,6 +79,7 @@ session::prop_resume
 session::test_ingest_cli
 session::test_offer3s
 src-tauri
+src-tauri::test_buffer_state_in_diag
 src-tauri::test_in_app_play_functional
 src-tauri::test_kotlin_mirror_payload
 src-tauri::test_lockscreen_resume_control
@@ -88,9 +89,11 @@ src-tauri::test_offer_dialog_reachability
 src-tauri::test_offer_route_read_only
 src-tauri::test_parked_open_no_busy_loop
 src-tauri::test_play_to_audio_measured
+src-tauri::test_producer_back_pressure
 src-tauri::test_publish_payload
 src-tauri::test_purity
 src-tauri::test_progress_label
+src-tauri::test_resume_divergence_reachable
 src-tauri::test_resume_restarts_audio
 src-tauri::test_session_live_from_first_chunk
 src-tauri::test_surface_us1

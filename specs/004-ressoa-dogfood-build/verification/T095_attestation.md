@@ -10,66 +10,61 @@
 > **What this file is NOT.** It is not a device acceptance record. The
 > device-only success criteria (SC-001…SC-010 trials) and the device trials
 > T051/T052 are **NOT attested by this host run** — see
-> [§6 Device-only criteria — not attested](#6-device-only-criteria--not-attested).
+> [§7 Device-only criteria — not attested](#7-device-only-criteria--not-attested).
+> It is also **not** a claim that `scripts/verify.sh` is deterministic: it is not,
+> for one pre-existing property test — see
+> [§3.1 The one intermittently-red gate-2 property test](#31-the-one-intermittently-red-gate-2-property-test--disclosed-in-full).
 >
-> **This run re-attests the tree at `19a1467`.** It supersedes two prior
-> attestations: `99c801c` (which covered the tree at `51b20c9`) and `9841cd0`
-> (which covered the pre-Phase-16 tree `3e8e25c`). Between `51b20c9` and this
-> tree the Phase-16 work list grew by T136–T139, all of which is listed with its
-> commit hash in [§7](#7-the-phase-16-work-this-run-attests).
->
-> **Every gate in this run is green.** Unlike the prior attestation (which
-> recorded `cargo clippy --workspace --all-targets -- -D warnings` exiting 101 on
-> clippy-1.99 toolchain drift), the lint-compliance pass now exits **0**, and it
-> is no longer a manual pre-attestation step: T138 (`d23942b`) wired it into
-> `scripts/verify.sh` gate 4 as a **fail-closed** step, so it is enforced by the
-> gate itself — see [§4](#4-the-toolchain-stability-record).
+> **This run re-attests the tree at `1ac0ae3`.** It supersedes two prior
+> attestations: `2c165b7` (which covered the tree at `19a1467`) and, transitively,
+> `99c801c` (tree `51b20c9`) and `9841cd0` (tree `3e8e25c`). Between `19a1467` and
+> this tree the **Phase 17** work list grew by T140–T162 (23 tasks), all of which
+> is listed with its commit hash in
+> [§9](#9-the-phase-17-work-this-run-attests).
 >
 > Constitution Principle V ("do not declare success by implementer assertion")
 > is the reason this file exists: the gates were run, and their own output is
 > quoted.
 
-**Date:** 2026-10-21 (run window 02:33 – 02:54 -0400)
-**Host:** Linux 7.2.11-200.fc44.x86_64 (x86_64) — Fedora Linux 44 (KDE Plasma Desktop Edition) — `rustc 1.99.1 (58cf8f9c3 2026-10-13)` / `cargo 1.99.1 (5f94df478 2026-08-27)` / `clippy 0.1.99 (58cf8f9c35 2026-10-13)`; active rustup channel `stable-x86_64-unknown-linux-gnu` (also installed on the host: `nightly`, `1.94.0`, `1.98.0`).
-**Attested tree:** `19a14678663362a23e888fae3e2e36ed8440274e` (`docs(constitution): correct the stale gate-4 lint-compliance record`) — the tree HEAD at run time. The tree was **clean** (`git status --porcelain` empty) before the run and empty after it.
+**Date:** 2026-10-22 (gate-suite run window 02:03:17 – 02:19:42 -0400; Android artifact build 02:20 – 02:26 -0400)
+**Host:** Linux fedora 7.2.11-200.fc44.x86_64 (x86_64) — Fedora Linux 44 (KDE Plasma Desktop Edition) — `rustc 1.99.1 (58cf8f9c3 2026-10-13)` / `cargo 1.99.1 (5f94df478 2026-08-27)` / `clippy 0.1.99 (58cf8f9c35 2026-10-13)`; active rustup channel `stable-x86_64-unknown-linux-gnu` (also installed on the host: `nightly`, `1.94.0`, `1.98.0`).
+**Attested tree:** `1ac0ae39e1c720cff14f18b8503305cac21243fe` (`test(004): T161 restore the FR-003 first-audible observation`) — the tree HEAD at run time. The tree was **clean** (`git status --porcelain` empty) before the run and empty after it.
 **Attestor:** the verification session for T095 — a read-only verification session running the gates as `scripts/verify.sh` defines them. It wrote no application code, no spec, no plan, no contract, no constitution text and no gate script; the only commits it produces are this attestation and the task markers derived from it.
-**Prior attestations:** `99c801c` (`verify(004): T095 final verification attestation`, tree `51b20c9`) — **superseded** by this file; `9841cd0` (tree `3e8e25c`) — **superseded** twice over.
-**Toolchain in force:** the repo-root `rust-toolchain.toml` (added by T137, `43df07c`) names the tracked channel `stable` with components `rustfmt` and `clippy`; no compiler version is pinned. See [§4](#4-the-toolchain-stability-record).
+**Prior attestations:** `2c165b7` (`verify(004): T095 final re-attestation`, tree `19a1467`) — **superseded** by this file; `99c801c` (tree `51b20c9`) and `9841cd0` (tree `3e8e25c`) — superseded twice over.
+**Toolchain in force:** the repo-root `rust-toolchain.toml` (added by T137, `43df07c`) names the tracked channel `stable` with components `rustfmt` and `clippy`; no compiler version is pinned. See [§5](#5-the-toolchain-stability-record).
+**Constitution in force:** v1.11.0 (footer: "**Version**: 1.11.0 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-21"), with Exceptions Log entry 13 (PROVISIONAL waiver for RUSTSEC-2026-0381).
 
 ---
 
 ## 1. `scripts/verify.sh` — exit status and per-gate table
 
-**Command:**
+**Command (the attested run):**
 ```
-RUSTC_WRAPPER= CARGO_QUEUE_LOCK=/tmp/cargo-build.lock CARGO_QUEUE_TIMEOUT=180 \
-  bash -c 'bash scripts/verify.sh 2>&1 | tee /tmp/opencode/t095_reverify.txt; echo "VERIFY_SH_EXIT=${PIPESTATUS[0]}"'
+RUSTC_WRAPPER= CARGO_QUEUE_LOCK=/tmp/cargo-build.lock CARGO_QUEUE_TIMEOUT=900 \
+TMPDIR=/home/luis/development/.mdreader-t095-final3/tmp \
+  bash -c 'bash scripts/verify.sh 2>&1 | tee /tmp/opencode/t095_final3_verify.txt \
+           /home/luis/development/.mdreader-t095-final3/verify.log; \
+           echo "VERIFY_EXIT=${PIPESTATUS[0]}"'
 ```
-**Exit status:** **0**
-**Log path:** `/tmp/opencode/t095_reverify.txt` (7 057 lines) — durable mirror at
-`/home/luis/development/.mdreader-t095-reverify/verify.log` (both md5
-`27757eca14fe3ad0cfbe08c8eec279b7`).
+**Exit status:** **0** (`VERIFY_EXIT=0`, captured through `PIPESTATUS[0]` under `bash -c`, so it is the **script's** status and not `tee`'s).
+**Log path:** `/home/luis/development/.mdreader-t095-final3/verify.log` (7 260 lines) — durable, disk-backed mirror of `/tmp/opencode/t095_final3_verify.txt`. The `/tmp` copy is the same bytes; the durable copy is the one of record because `/tmp` on this host is a 2.0 GB tmpfs that was being churned by an unrelated process during this session (see [§1.0](#10-environmental-conditions-of-this-run-disclosed)).
 
-The exit status is the exit status of `scripts/verify.sh` itself, captured through
-`PIPESTATUS[0]` under `bash -c`, so it is the script's status and not the status
-of `tee`.
-
-| # | Gate | Result | Evidence (from the log) |
+| # | Gate | Result | Evidence (log line in `verify.log`) |
 |---|------|--------|-------------------------|
-| 1 | `gate-1 format` | **PASS** | `cargo fmt --all -- --check` clean (log line 2) |
-| 2 | `gate-2 tests` | **PASS** | `cargo nextest run --workspace` — *847 tests run: 847 passed (2 slow), 2 skipped* (log line 864); live-vs-pinned target two-way diff clean in BOTH directions (log lines 3–865) |
-| 3 | `gate-3 documentation` | **PASS** | `cargo doc --workspace --no-deps` builds (log lines 866–1412) |
-| 4 | `gate-4 lint-drift` | **PASS** | every workspace member declares `[lints] workspace = true`; the root lint tables equal the pinned T001 rigour set; **step (d)** `cargo clippy --workspace --all-targets -- -D warnings` exits 0 (log lines 1413–1418) |
-| 4d | `gate-4 lint-drift-clippy` | **PASS** | `running 4 lint-drift-clippy` → `Finished \`dev\` profile [unoptimized] target(s) in 7.50s` → `PASS` (log lines 1414–1417) — the fail-closed clippy step T138 added |
-| 5 | `gate-5 supply-chain` | **PASS** | `cargo deny check advisories licenses bans sources` → `advisories ok, bans ok, licenses ok, sources ok` (log line 6027); `cargo audit` → `warning: 2 allowed warnings found` (log line 6048); the RUSTSEC-2026-0381 waiver bound asserted (the assertion is silent on success — the gate's `PASS` at log line 6049 is only reached if the committed lockfile's `webpki-roots` version set is exactly `{0.26.11, 1.0.10}`) |
-| 6 | `gate-6 deny-list` | **PASS** | no constitution-denied crate in any manifest or in `Cargo.lock` (log lines 6050–6051) |
-| 7 | `gate-7 closed-set` | **PASS** | no catch-all `_ =>` match arm in `crates/*/src` (log lines 6052–6053) |
-| 8a | `gate-8-shell pipeline` | **PASS** | `engine-core` handoff/stand-in/pitch/shape suites — *33 tests run: 33 passed* (log line 6094); `player::prop_transport_math` — *29 tests run: 29 passed* (log line 6130) |
-| 8b | `gate-8-full` | **DEFERRED** | `gate-8-full: DEFERRED (owner=synthesis)` (log line 6132) — see [§5](#5-gate-8-full--deferred-never-a-pass) |
-| — | `check-manifest.sh` | **PASS** | `check-manifest: PASS (/home/luis/development/mdreader/src-tauri/gen/android/app/src/main/AndroidManifest.xml)` (log line 6135) |
-| — | `check-shell-purity.sh` | **PASS** | `check-shell-purity: PASS (no forbidden call shapes; vocabulary confined to the T081 allowlist in type/getter/delegation positions; SC-057 closed sets and engine registry conform; spec→test traceability holds)` (log line 7056) |
+| 1 | `gate-1 format` | **PASS** | `cargo fmt --all -- --check` clean (lines 1–2) |
+| 2 | `gate-2 tests` | **PASS** | `cargo nextest run --workspace` — *902 tests run: 902 passed (11 slow), 2 skipped* (line 932); the live-vs-pinned target two-way diff is clean in BOTH directions (the gate fails closed otherwise) (line 933) |
+| 3 | `gate-3 documentation` | **PASS** | `cargo doc --workspace --no-deps` builds (lines 934–1473) |
+| 4 | `gate-4 lint-drift` | **PASS** | every workspace member declares `[lints] workspace = true`; the root lint tables equal the pinned T001 rigour set; the root `[workspace.dependencies]` table is intact (lines 1474–1479) |
+| 4d | `gate-4 lint-drift-clippy` | **PASS** | `running 4 lint-drift-clippy` → `Finished \`dev\` profile [unoptimized] target(s) in 14.09s` → `PASS` (lines 1475–1478) — the fail-closed clippy step T138 added |
+| 5 | `gate-5 supply-chain` | **PASS** | `cargo deny check advisories licenses bans sources` → `advisories ok, bans ok, licenses ok, sources ok` (line 6096); `cargo audit` → `warning: 2 allowed warnings found` (line 6117) → `gate-5 supply-chain: PASS` (line 6118); the RUSTSEC-2026-0381 waiver bound is asserted (the assertion is silent on success — the gate's `PASS` at line 6118 is only reached if the committed lockfile's `webpki-roots` version set is exactly `{0.26.11, 1.0.10}`) |
+| 6 | `gate-6 deny-list` | **PASS** | no constitution-denied crate in any manifest or in `Cargo.lock` (lines 6119–6120) |
+| 7 | `gate-7 closed-set` | **PASS** | no catch-all `_ =>` match arm in `crates/*/src` (lines 6121–6122) |
+| 8a | `gate-8-shell pipeline` | **PASS** | `engine-core` handoff/stand-in/pitch/shape suites — *33 tests run: 33 passed* (line 6163); `player::prop_transport_math` — *29 tests run: 29 passed* (line 6199) |
+| 8b | `gate-8-full` | **DEFERRED** | `gate-8-full: DEFERRED (owner=synthesis)` (line 6201) — see [§6](#6-gate-8-full--deferred-never-a-pass) |
+| — | `check-manifest.sh` | **PASS** | `check-manifest: PASS (/home/luis/development/mdreader/src-tauri/gen/android/app/src/main/AndroidManifest.xml)` (line 6204) |
+| — | `check-shell-purity.sh` | **PASS** | `check-shell-purity: PASS (no forbidden call shapes; vocabulary confined to the T081 allowlist in type/getter/delegation positions; SC-057 closed sets and engine registry conform; spec→test traceability holds)` (line 7259) |
 
-Script's own closing line (log line 7057):
+Script's own closing line (line 7260):
 
 ```
 verify.sh: gates 1-8 complete — gate-8-shell PASS, gate-8-full DEFERRED (owner=synthesis)
@@ -77,26 +72,42 @@ verify.sh: gates 1-8 complete — gate-8-shell PASS, gate-8-full DEFERRED (owner
 
 ### 1.0 Environmental conditions of this run (disclosed)
 
-* **Scratch space.** `/tmp` is a 2.0 GB tmpfs that was at 65 % (736 MB free) during
-  this run — the same constraint that broke an earlier attempt recorded in the
-  prior attestation. The gate suite itself did not need it, and the Android
-  build (which does) was pointed at a **run-unique, disk-backed** scratch
-  directory (`TMPDIR=/home/luis/development/.mdreader-t095-reverify`,
-  `JAVA_TOOL_OPTIONS=-Djava.io.tmpdir=/home/luis/development/.mdreader-t095-reverify/gradle-tmp`),
-  so the Gradle packaging step's scratch space was never on the tmpfs. **No gate,
-  lint level, test, assertion or threshold was changed, relaxed or skipped to
-  reach the green run.**
-* **Artifact freshness.** The first gate-9 invocation of this run returned exit 0
-  but left the APK/AAB files untouched (gradle found its packaging tasks
-  up-to-date against the artifacts the previous session had written at 01:07 /
-  01:19). To make the hashes unambiguously attributable to *this* run, the two
-  output files — both **git-ignored** build outputs under `src-tauri/gen/`, not
-  tracked files — were deleted and the gate was re-run. The second invocation
-  repackaged both artifacts from scratch (APK mtime `2026-10-21 02:53:22`,
-  AAB mtime `2026-10-21 02:54:19`) and the resulting sha256 values are
-  **byte-identical** to the ones the prior attestation recorded for tree
-  `51b20c9` — an independent reproducibility witness. No tracked file was
-  touched by either invocation; `git status --porcelain` was empty afterwards.
+* **Scratch space.** `/tmp` on this host is a **2.0 GB tmpfs**, and an unrelated
+  process on the machine (`livingroots-smoke-harness`, a different project) was
+  creating and deleting directories under `/tmp` throughout the session. Two
+  consequences, both disclosed rather than papered over:
+  1. **A log file was deleted mid-run.** The first gate-suite invocation of this
+     session (01:25) wrote its log to `/tmp/opencode/t095_final3_verify.txt`; that
+     file was removed from the tmpfs at ~01:32 by the unrelated cleanup. The run
+     itself completed and **exited 0** (902/902 tests, gates 1–7 + gate-8-shell
+     green), and its output was recovered from the still-open file descriptor, but
+     the tail of that log was lost. It is therefore cited here as **corroborating
+     evidence only**; the log of record is the durable, disk-backed one named
+     above.
+  2. **A run failed for want of space, not for a code reason.** A later
+     invocation (01:49) failed gate 2 with
+     `adapter-synthesis::cli_protocol arbitrary_documents_read_identically_from_stdin_and_input`
+     → *"the temporary document could not be written: No space left on device
+     (os error 28)"* — the tmpfs was at 100 % (2.0 G used, 0 free; a stale
+     1.1 GB `cargo install` temp directory and the unrelated harness's churn
+     accounted for it). The stale directory was removed (no process held it) and
+     the attested run was given a **run-unique, disk-backed** `TMPDIR`
+     (`/home/luis/development/.mdreader-t095-final3/tmp`), so the test's own
+     temporary-file write never touches the tmpfs. **No gate, lint level, test,
+     assertion or threshold was changed, relaxed or skipped to reach the green
+     run** — only the location of scratch space moved.
+* **Artifact freshness.** The APK and AAB that the previous session produced
+  (2026-10-21 02:53 / 02:54) were **deleted before** this run's gate-9
+  invocation, so the hashes in [§8](#8-android-device-artifact-gate-9) are
+  unambiguously attributable to *this* build (new mtimes, new sizes, new
+  hashes). Both files are **git-ignored** build outputs under `src-tauri/gen/`
+  (`.gitignore`: `/src-tauri/gen/`, `*.apk`, `*.aab`); no tracked file was
+  touched by the build, and `git status --porcelain` was empty afterwards.
+* **Retry loop.** The attested run was the **first attempt** of a bounded retry
+  loop (6 attempts maximum) that exists solely because of the pre-existing flake
+  described in [§3.1](#31-the-one-intermittently-red-gate-2-property-test--disclosed-in-full).
+  The loop keeps **every** attempt's log; attempt 1 was green and is the log of
+  record. No attempt changed anything but the random seed proptest draws.
 
 ---
 
@@ -106,31 +117,22 @@ verify.sh: gates 1-8 complete — gate-8-shell PASS, gate-8-full DEFERRED (owner
 
 **Command:**
 ```
-RUSTC_WRAPPER= CARGO_QUEUE_LOCK=/tmp/cargo-build.lock CARGO_QUEUE_TIMEOUT=180 \
+RUSTC_WRAPPER= CARGO_QUEUE_LOCK=/tmp/cargo-build.lock CARGO_QUEUE_TIMEOUT=900 \
   cargo clippy --workspace --all-targets -- -D warnings
 ```
-**Exit status:** **0** (PASS) · **Log path:** `/tmp/opencode/t095_reverify_clippy.txt`
-(durable mirror `/home/luis/development/.mdreader-t095-reverify/clippy.txt`)
-
+**Exit status:** **0** (PASS) · **Log path:** `/home/luis/development/.mdreader-t095-final3/clippy.txt`
 ```
    Compiling src-tauri v0.1.0 (/home/luis/development/mdreader/src-tauri)
-    Finished `dev` profile [unoptimized] target(s) in 6.70s
+    Finished `dev` profile [unoptimized] target(s) in 13.63s
 ```
-
-The same command is gate 4's fail-closed step (log lines 1414–1417) and it also
-exited 0 inside the gate suite. This is the command the prior attestation
-recorded as exiting **101** (86 unfulfilled `#[expect(clippy::float_cmp)]`
-suppressions + 15 `clippy::assert_is_empty` hits). It is now clean — the repair
-was made **in code** by T136 (`8f12acf`, `3b642d8`, `0756fc3`), which changed no
-`Cargo.toml`, no `clippy.toml` and no lint level: `git show --stat` on all three
-commits shows **no manifest or lint-config file touched**, only Rust sources.
+The same command is gate 4's fail-closed step (`gate-4 lint-drift-clippy`, log
+lines 1475–1478) and it also exited 0 inside the gate suite.
 
 ### 2.2 `cargo fmt --all -- --check` — exit **0**
 
-**Command:** `RUSTC_WRAPPER= CARGO_QUEUE_LOCK=/tmp/cargo-build.lock CARGO_QUEUE_TIMEOUT=180 cargo fmt --all -- --check`
-**Exit status:** **0** (clean — no diff, output file 0 bytes) · **Log path:** `/tmp/opencode/t095_reverify_fmt.txt`
-(durable mirror `/home/luis/development/.mdreader-t095-reverify/fmt.txt`)
-This is the same command gate 1 runs (log line 2, `gate-1 format: PASS`).
+**Command:** `RUSTC_WRAPPER= CARGO_QUEUE_LOCK=/tmp/cargo-build.lock CARGO_QUEUE_TIMEOUT=900 cargo fmt --all -- --check`
+**Exit status:** **0** (clean — no diff, output file 0 bytes) · **Log path:** `/home/luis/development/.mdreader-t095-final3/fmt.txt`
+This is the same command gate 1 runs (log lines 1–2, `gate-1 format: PASS`).
 
 ### 2.3 Nextest target inventory and the two-way diff
 
@@ -139,16 +141,20 @@ pipeline `verify.sh` gate 2 uses (`grep -E "::" | sed -E 's/ .*//' | sort -u`).
 
 | Quantity | Value |
 |----------|-------|
-| Live nextest targets (distinct `package::target` / `package` entries) | **88** |
-| Pinned targets in `scripts/expected-tests.txt` (distinct) | **88** |
+| Live nextest targets (distinct `package::target` / `package` entries) | **99** |
+| Pinned targets in `scripts/expected-tests.txt` (distinct) | **99** |
 | Missing (pinned but not live) | **0** — empty |
 | Unexpected (live but not pinned) | **0** — empty |
 | Two-way diff result | **IDENTICAL** — `cmp` reports the live list and the pinned list byte-for-byte equal after `sort -u` |
 
-The inventory is non-empty (88 entries), satisfying T095's "non-empty" clause.
+The inventory is non-empty (99 entries), satisfying T095's "non-empty" clause.
 Both directions of the diff are empty, so the fail-closed two-way diff that gate 2
-runs has nothing to report. Raw list: `/tmp/opencode/t095_reverify_nextest_list.txt`
-(durable mirror `nextest_list.txt`).
+runs has nothing to report. Raw list: `/home/luis/development/.mdreader-t095-final3/nextest_list.txt`.
+
+The count grew from the previous attestation's 88 to **99** because Phase 17
+added eleven new test targets (T140, T142, T144, T147, T148, T149, T152, T155,
+T158, T159, T160) and T157 synced `scripts/expected-tests.txt` to match, in
+three passes (`507a991`, `9786886`, `2a94589`).
 
 ---
 
@@ -158,10 +164,10 @@ runs has nothing to report. Raw list: `/tmp/opencode/t095_reverify_nextest_list.
 
 | Command | Exit | Log path |
 |---------|------|----------|
-| `cargo deny check advisories licenses bans sources` | **0** | `/tmp/opencode/t095_reverify_deny.txt` (durable mirror `deny.txt`; also inside the gate-5 log, lines 1420–6027) |
-| `cargo audit` | **0** | `/tmp/opencode/t095_reverify_audit.txt` (durable mirror `audit.txt`; also inside the gate-5 log, lines 6028–6048) |
+| `cargo deny check advisories licenses bans sources` | **0** | `/home/luis/development/.mdreader-t095-final3/deny.txt` (also inside the gate-5 log, lines 1480–6096) |
+| `cargo audit` | **0** | `/home/luis/development/.mdreader-t095-final3/audit.txt` (also inside the gate-5 log, lines 6097–6117) |
 
-`cargo deny` closes with (its log line 4608):
+`cargo deny` closes with:
 
 ```
 advisories ok, bans ok, licenses ok, sources ok
@@ -176,7 +182,89 @@ and are unchanged:
 | `proc-macro-error` | 1.0.4 | RUSTSEC-2024-0370 (`unmaintained`) | allowed (constitution Exceptions Log entry 10) |
 | `glib` | 0.18.5 | RUSTSEC-2024-0429 (`unsound`) | allowed |
 
-### 3.1 The RUSTSEC-2026-0381 waiver — constitution Exceptions Log entry 13 (PROVISIONAL, constitution v1.11.0)
+### 3.1 The one intermittently-red gate-2 property test — disclosed in full
+
+**`scripts/verify.sh` is not deterministic at this tree.** One pre-existing
+property test in the `player` crate fails on roughly **1 run in 40** with a
+random proptest seed, and it makes gate 2 (and therefore the whole script) red
+when it does. This is disclosed here rather than hidden, because the attested
+run is a green run of a gate that is not guaranteed green.
+
+* **The failing test:** `player::prop_canonical_guard canonical_resume_resume_snaps_to_containing_sentence_within_the_cap`
+  (`crates/player/tests/prop_canonical_guard.rs:136`).
+* **Observed counterexample (this session):**
+  ```
+  minimal failing input: (yield_secs, paused_duration_secs, boundaries, granularity) = (
+      248.5, 0.0, [0.0, 218.75], Word,
+  )
+  left:  218.5     <- the production's resume
+  right: 218.75    <- the test oracle's expectation
+  "canonical resume 218.5 was not the containing-sentence start (raw cursor 248.5, cap 218.5)"
+  ```
+  A second, independent sample in the same session produced
+  `left: 631.75 / right: 632.0` — the same shape.
+* **Measured rate:** 1 failure in 40 consecutive runs of that test alone
+  (`cargo nextest run -p player --test prop_canonical_guard --no-fail-fast`,
+  64 proptest cases per run). Over the whole 902-test suite the gate-2 failure
+  probability is the same, since that test is the only intermittent one.
+* **Root cause — a STALE TEST ORACLE, not a production defect.** The production
+  `player::rewind::resolve_resume` (`crates/player/src/rewind.rs:159`) implements
+  FR-015 **and** the FR-007 5-second context cue, with documented
+  **cap-precedence**:
+  ```rust
+  let cue_point = if cued { (snapped - CUE_SECS).max(cap_point).max(0.0) } else { snapped };
+  ```
+  When the containing-sentence start lies **less than 5 s above the cap point**,
+  `snapped − 5.0 < cap_point`, so the cap absorbs the cue and the resume lands
+  exactly at the cap point. That is the behaviour the contract requires:
+  `spec.md` FR-007 (*"at containing-sentence-start snapped backward, then further
+  backward by a fixed 5 s context cue, total backward ≤30 s interruption"*) and
+  `contracts/resume-algorithm.md:13` (*"From the sentence start, move further
+  backward by exactly 5 seconds of content"*).
+  The guard test's oracle (`crates/player/tests/prop_canonical_guard.rs:169-173`)
+  models only the snap and the cap-precedence and **never subtracts the cue**:
+  ```rust
+  let expected = match containing_start(raw, &boundaries) {
+      Some(boundary) if boundary >= cap => boundary,   // <- no cue
+      Some(_) => cap,
+      None => raw,
+  };
+  ```
+  For any input whose containing start falls in the half-open window
+  `[cap, cap + 5.0)` the oracle and the production therefore disagree by
+  construction.
+* **Provenance — pre-existing, and outside Phase 17.** The oracle was written at
+  `9455167` (*"test(phase12): Wave-1 BLOCKING tests written and shown RED/GREEN"*, 2026-10-12);
+  the FR-007 cue was added to the production **two days later** at `4050021`
+  (*"feat(004): T032 sentence-snap resume cue + T025 green"*, 2026-10-14) without
+  the guard's oracle being updated. The only later edits to the test file were
+  `db73577` (strategy integer types / lint attributes) and `8f12acf` (T136, lint
+  attributes) — **neither touched the oracle**. The production's last change
+  before HEAD was `c14e294` (T076, 2026-10-18). **No Phase-17 commit
+  (T140–T162) touched `crates/player/src/rewind.rs` or
+  `crates/player/tests/prop_canonical_guard.rs`** — verified with
+  `git log 2c165b7..HEAD -- crates/player/src/rewind.rs crates/player/tests/prop_canonical_guard.rs`,
+  which is empty.
+* **What this session did about it.** Nothing, by design: this is a
+  verification-only session, and the fix is a code change outside its scope
+  (`crates/**` must not be edited). The counterexample was **not** appended to
+  `crates/player/tests/prop_canonical_guard.proptest-regressions` — doing so
+  would make gate 2 deterministically red and would modify a file under
+  `crates/**`. The tracked regression file was restored to its HEAD content
+  after each failing attempt (`git checkout --`), and the tree is clean.
+* **What is needed to fix it (a follow-up task, not done here).** Either the
+  oracle must model the FR-007 cue and the cap-precedence interaction, or the
+  production's cap-precedence branch must be re-specified. This is a **finding**
+  for the maintainer, not a blocker for the Phase-17 work list, and it is
+  **not** a regression introduced by anything this attestation covers.
+* **Effect on this attestation.** The attested run (§1) is a **green** run of
+  the gate suite, with its exit status and per-gate table quoted above. The
+  suite's determinism caveat is stated here in full. The green run is **not**
+  presented as proof that the suite is deterministic — it is not.
+
+---
+
+## 4. The RUSTSEC-2026-0381 waiver — constitution Exceptions Log entry 13 (PROVISIONAL, constitution v1.11.0)
 
 The advisory **RUSTSEC-2026-0381 / CVE-2026-111943** (2026-10-19) is waived for
 `webpki-roots` **0.26.11** by **constitution Exceptions Log entry 13**
@@ -216,7 +304,7 @@ the tree attested here.
   added version, a different version, or the shim leaving the graph altogether
   all **fail the gate closed**.
 * **The bound, verified independently on this run** (same parse, run against the
-  committed `Cargo.lock` of tree `19a1467`):
+  committed `Cargo.lock` of tree `1ac0ae3`):
 
   ```
   webpki-roots 0.26.11
@@ -225,12 +313,13 @@ the tree attested here.
 
   `diff` against the expected set `0.26.11` / `1.0.10` is **empty** — exactly
   the expected set — and gate 5 passed the same assertion inside the run
-  (log line 6049).
+  (log line 6118). Log: `/home/luis/development/.mdreader-t095-final3/webpki_roots.txt`.
 * **Tooling form.** A `[[advisories.ignore]]` block for RUSTSEC-2026-0381 in
-  `deny.toml`, plus `[advisories] ignore = ["RUSTSEC-2026-0381"]` in a new
+  `deny.toml`, plus `[advisories] ignore = ["RUSTSEC-2026-0381"]` in the
   repo-root `.cargo/audit.toml` — gate 5 runs BOTH tools and each reads its own
-  ignore file. `cargo deny` prints the ignore record with its written reason
-  (its log line 4608 and the preceding block).
+  ignore file. `cargo deny` prints the ignore record with its written reason on
+  this run (the `deny.txt` log), and `cargo audit` reports the advisory as an
+  allowed warning rather than a finding.
 * **Bound implementation commit:** `51b20c9` (`fix(004): T135 bound the
   webpki-roots shim waiver with a deterministic gate`), which also records a
   negative control: on a repo copy with the patched `webpki-roots` drifted
@@ -246,9 +335,9 @@ the tree attested here.
 
 ---
 
-## 4. The toolchain-stability record
+## 5. The toolchain-stability record
 
-### 4.1 Constitution v1.10.0 — the Toolchain clause
+### 5.1 Constitution v1.10.0 — the Toolchain clause
 
 The constitution's **Technology Stack → Toolchain** clause (`.specify/memory/constitution.md:910-929`,
 added by amendment commit `43df07c`, constitution **v1.10.0**) records:
@@ -277,7 +366,7 @@ added by amendment commit `43df07c`, constitution **v1.10.0**) records:
 The repo-root `rust-toolchain.toml` landed with that amendment and is present in
 the attested tree (`channel = "stable"`, `components = ["rustfmt", "clippy"]`).
 
-### 4.2 Constitution v1.10.0 — "A toolchain bump moves the lint set, and the tree must be re-earned"
+### 5.2 Constitution v1.10.0 — "A toolchain bump moves the lint set, and the tree must be re-earned"
 
 The **Verification Gates** paragraph (`.specify/memory/constitution.md:1163-1179`)
 states the required response to a bump: on every toolchain bump, a
@@ -292,7 +381,7 @@ lints are resolved in code, never by weakening a lint level, never by a blanket
 > `unfulfilled_lint_expectations` and 13 `clippy::assert_is_empty` diagnostics;
 > T136 repaired it in code and T137 records the policy.
 
-### 4.3 T138 (`d23942b`) — the pass is now a deterministic, fail-closed gate
+### 5.3 T138 (`d23942b`) — the pass is now a deterministic, fail-closed gate
 
 Before T138 the policy existed but was not mechanically enforced. `scripts/verify.sh`
 gate 4 (lint-drift) checked only the **declared lint LEVELS**; it never invoked
@@ -320,16 +409,16 @@ still described the mechanical form as unwired; its SYNC IMPACT REPORT records t
 correction as **MINOR** — one governance record corrected, no principle added,
 removed or redefined, no MUST weakened, no lint level or gate threshold changed.
 
-### 4.4 The recorded bump and the compliance pass it required
+### 5.4 The recorded bump and the compliance pass it required
 
 | Fact | Value |
 |------|-------|
-| The bump | 2026-10-20 22:19:58 -0400 — `stable` replaced: **rustc 1.98.1 → 1.99.1**, **clippy 0.1.98 → 0.1.99** |
+| The bump | **2026-10-20 22:19 -0400** — `stable` replaced: **rustc 1.98.1 → 1.99.1**, **clippy 0.1.98 → 0.1.99** (the `stable-x86_64-unknown-linux-gnu` toolchain directory's mtime on this host is `2026-10-20 22:19`) |
 | Why it turned a fixed tree red | the lint **set** (which lints exist, which code they reach) moves with the toolchain; the lint **levels** do not — the 2026-10-20 bump retired the reach of `#[expect(clippy::float_cmp)]` (86 unfulfilled expectations) and added `clippy::assert_is_empty` (13–15 hits) |
 | The compliance pass required by the constitution | `cargo clippy --workspace --all-targets -- -D warnings`, exit 0, before re-attestation |
 | Was it performed? | **YES** — T136 (`8f12acf` player crate, `3b642d8` session crate, `0756fc3` the `assert_is_empty` sites) cleared every unfulfilled expectation and every `assert_is_empty` hit **in code**, touching **no** `Cargo.toml` and **no** `clippy.toml` and weakening **no** lint level |
 | Is it enforced now? | **YES** — gate 4 step (d), fail-closed (`d23942b`, T138), described in constitution v1.11.0 (`19a1467`, T139) |
-| Result on this run | **exit 0**, inside the gate suite (log line 1417) and standalone (§2.1) |
+| Result on this run | **exit 0**, inside the gate suite (log lines 1475–1478) and standalone (§2.1) |
 
 The toolchain in force for this run was **rustc 1.99.1 / clippy 0.1.99** — i.e.
 the post-bump toolchain — and the tree is clean under it. The lint-compliance
@@ -337,7 +426,7 @@ pass the constitution required has been performed and is now gate-enforced.
 
 ---
 
-## 5. `gate-8-full` — DEFERRED (never a pass)
+## 6. `gate-8-full` — DEFERRED (never a pass)
 
 The constitution's full gate 8 (byte budget < 5000 bytes/request, SSML
 capability, sentence-level alignment) is **DEFERRED, owner=synthesis** — it is
@@ -353,12 +442,12 @@ SC-044 as still `DEFERRED` (T039: "`SC-044` still `DEFERRED` per
 stays `DEFERRED` with all seven discharge prerequisites restated"; T076: "SC-044
 correctly stays `DEFERRED`"). The 004 task text (T048) therefore requires
 `gate-8-full: DEFERRED (owner=synthesis, reason=SC-044-open)` — which is what the
-run printed (log line 6132). The script never prints a bare `gate-8: PASS` while
+run printed (log line 6201). The script never prints a bare `gate-8: PASS` while
 those inputs are absent, and this attestation never claims one.
 
 ---
 
-## 6. Device-only criteria — not attested
+## 7. Device-only criteria — not attested
 
 **This host run does NOT attest the device-only criteria.** Nothing below is
 claimed, implied, or discharged by this attestation:
@@ -388,19 +477,18 @@ SC-001…SC-010 criteria remain un-attested.** Both tasks stay `[ ]` in
 
 ---
 
-## 7. Android device artifact (gate 9)
+## 8. Android device artifact (gate 9)
 
 **Command:**
 ```
-RUSTC_WRAPPER= CARGO_QUEUE_LOCK=/tmp/cargo-build.lock CARGO_QUEUE_TIMEOUT=180 \
-  TMPDIR=/home/luis/development/.mdreader-t095-reverify \
-  JAVA_TOOL_OPTIONS=-Djava.io.tmpdir=/home/luis/development/.mdreader-t095-reverify/gradle-tmp \
+RUSTC_WRAPPER= CARGO_QUEUE_LOCK=/tmp/cargo-build.lock CARGO_QUEUE_TIMEOUT=900 \
+TMPDIR=/home/luis/development/.mdreader-t095-final3/tmp \
+JAVA_TOOL_OPTIONS=-Djava.io.tmpdir=/home/luis/development/.mdreader-t095-final3/gradle-tmp \
   cargo tauri android build --target aarch64
 ```
 **Exit status:** **0**
-**Log path:** `/tmp/opencode/t095_reverify_android.txt` (161 lines) — durable mirror
-`/home/luis/development/.mdreader-t095-reverify/android.log` (both md5
-`48f6b12ea1568773ff24aebffbe46edb`).
+**Log path:** `/home/luis/development/.mdreader-t095-final3/android.txt` (162 lines) —
+`/tmp/opencode/t095_final3_android.txt` is the same bytes.
 
 The build compiled the Rust side for the requested target
 (`target/aarch64-linux-android/release/libsrc_tauri.so`, installed as the
@@ -416,14 +504,13 @@ The build compiled the Rust side for the requested target
 
 | Artifact | Path | Size | mtime | sha256 |
 |----------|------|------|-------|--------|
-| APK (universal, release) | `src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk` | 118 395 410 B | 2026-10-21 02:53:22 -0400 | `33a1b0aeeacf8c9b7ea1f6b1abf093038deee94442f856c2c422e2a3b558195b` |
-| AAB (universal, release) | `src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab` | 86 272 347 B | 2026-10-21 02:54:19 -0400 | `965a87b3a83d38d171eff711b5f50f44f3aa29765819718998f473a4d8c97950` |
+| APK (universal, release) | `src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk` | 118 468 034 B | 2026-10-22 02:24 -0400 | `2e3555f377dceab462acbda7187d355efc1eed3c1cf8389ddddab9529ece08f5` |
+| AAB (universal, release) | `src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab` | 86 292 344 B | 2026-10-22 02:26 -0400 | `c226ecc39afead0f188d0683be5bde19bcdcbfb5dfffae2dbc6ef04f7cc6d42b` |
 
 Both hashes are of the artifacts **as produced by this run**, taken from the files
-on disk after the repackaging described in §1.0. They are byte-identical to the
-hashes the prior attestation recorded for tree `51b20c9`, which is an
-independent reproducibility witness: the same source tree packages to the same
-bytes.
+on disk after the previous session's artifacts were deleted and the gate
+re-run (§1.0). They differ from the hashes the prior attestation recorded for
+tree `19a1467` — expected, since the attested tree changed (Phase 17).
 
 The APK's native payload is the arm64 set (the build target was `aarch64`):
 
@@ -435,7 +522,7 @@ lib/arm64-v8a/libsherpa-onnx-jni.so
 lib/arm64-v8a/libsrc_tauri.so
 ```
 
-### 7.1 Non-hollow artifact check (the dex carries the app's classes)
+### 8.1 Non-hollow artifact check (the dex carries the app's classes)
 
 Gate 9 attests that the build exits zero; it does **not** attest that the app's
 classes are inside the artifact. That is the hollow-APK regression class of
@@ -465,61 +552,74 @@ set that `scripts/check-apk-classes.sh` asserts; that script points at the
 
 ---
 
-## 8. The Phase-16 work this run attests
+## 9. The Phase 17 work this run attests
 
-Every Phase-16 task below is attested by the **same run** recorded above: its
-commit is in the history of tree `19a1467`, its behaviour is covered by the 847
-green tests of gate 2, and its artefacts are inside the gate-9 APK.
+Every Phase-17 task below is attested by the **same run** recorded above: its
+commit is in the history of tree `1ac0ae3`, its behaviour is covered by the 902
+green tests of gate 2, and its artefacts are inside the gate-9 APK. The commit
+for each task was checked with `git show --stat <hash>` before it was recorded
+here and in `tasks.md`.
 
-| Task | What it landed | Commit(s) |
+| Task | What it fixed | Commit(s) |
 |------|----------------|-----------|
-| T112 / T113 | RED-FIRST rewrite of `crates/player/tests/prop_first_audio_3s.rs` against a **real** production seam (the old test was a tautology over a self-written event list) → the ≤ 3 s first-audible path: enqueue and play the **first** synthesized segment, then synthesize/enqueue the remainder | `244e652`, `24aab82` |
-| T114 / T115 | RED-FIRST property for the explicit-resume cold start surviving the offer-window expiries → latch the `explicit_resume` requirement across offer-window expiries; keep the pending open parked until the reader resumes | `07e8e34`, `cf32cf0` |
-| T116 / T117 | RED-FIRST contract test for the in-app resume offer surface (`src-tauri/tests/test_offer_dialog.rs`) → render the 3-second continue-vs-start-over dialog on the single in-app screen and wire both choices (`resume_at_stored` / `start_over`); keep the dialog on the reopen path only | `db30345`, `05e2de1`, `5bacea4` |
-| T118 / T119 | RED-FIRST contract test for the lock-screen explicit resume control (`src-tauri/tests/test_lockscreen_resume_control.rs`) → add the lock-screen resume action/callback (render-only, zero computation) and admit the plain-play verb to the parked-open resolution | `7c66939`, `05f4306`, `503e6ec` |
-| T120 | Render the pt-BR progress label on the lock-screen surface (Kotlin `MediaMirror` parses and renders `progressLabel`) | `17e4e0c` |
-| T121 | Record per-section progress entries in the diagnostic record at the consumed-unit crossing | `9d1e845` |
-| T122 | Amend `contracts/diagnostic-trace.md` to state the N:1 product-reason → error-taxonomy mapping, mirrored in the feature directory | `b21ccf7` |
-| T123 | Correct the stale `frontend_mirror` doc comment | `2485126` |
-| T124 / T125 | Close the superseded task text (T071/T072/T080/T085/T086) with notes pointing at T089/T090/T099 — no ID renumbered or deleted → resolve the untracked artifacts claimed by T107 (`.github/dependabot.yml`, the stray nested duplicate, orphaned cargo-vet state) | `00c0b50`, `f44e01f` |
-| T126 | Hoist the second inline offset arithmetic to T111's `assert_offset` helper | `c6bf8be` |
-| T127 | Replace the English title fallback on the lock screen | `78b7bb1` |
-| T128 | Add the INTERNET-absence assertion to `scripts/check-manifest.sh` (the gate now matches the T106 claim) | `30b0415` |
-| T129 | Translate the lock-screen action labels to pt-BR | `ded005f` |
-| T130 | Translate the resident-pause notification strings to pt-BR | `63b0d95` |
-| T131–T134 | Adjudicate the resident stop affordance (the resident-paused surface is a **distinct** surface outside FR-002's lock-screen prohibition) and pair the `contracts/surface.md` amendment with `spec.md` FR-002, `data-model.md`, `plan.md` and `spec.md` Key Entities | `fbfe42f`, `4c1f9f7`, `52c8758`, `c1e8750` |
-| T135 | Supply-chain waiver + its mechanical bound: the lockfile bump, the constitution Exceptions Log entry 13, and the gate-5 `webpki-roots` version-set assertion | `9701d98`, `71d9f36`, `51b20c9` |
-| T136 | Restore `cargo clippy --workspace --all-targets -- -D warnings` to exit 0 under rustc 1.99.1 / clippy 0.1.99 — the unfulfilled `#[expect(clippy::float_cmp)]` suppressions cleared in the player and session crates, and the `clippy::assert_is_empty` sites rewritten as `assert_eq!`/`assert_ne!` **in code**, with no manifest or lint-config change | `8f12acf`, `3b642d8`, `0756fc3` |
-| T137 | Record the toolchain-stability policy: constitution v1.10.0's Technology Stack "Toolchain" clause + the repo-root `rust-toolchain.toml` (channel `stable`, components `rustfmt` + `clippy`; no version pinned; MSRV relationship stated) | `43df07c` |
-| T138 | Wire the constitution's lint-compliance pass into `scripts/verify.sh` gate 4 as a **fail-closed** step (`lint-drift-clippy`), keeping the pinned lint-level checks and weakening no level | `d23942b` |
-| T139 | Correct the stale constitution paragraph (constitution v1.11.0, Sync Impact Report: MINOR, record corrected, no principle/MUST changed) so the constitution states that gate 4 *does* run clippy | `19a1467` |
+| T140 | **RED-FIRST** property suite `src-tauri/tests/test_resume_restarts_audio.rs` (1033 lines + a proptest regression seed) pinning five invariants: a bridge path that lands `Playing` MUST start the backend's output stream on that same path, a live-resume path MUST NOT reach the backend only THROUGH the synthesis, the synthesis path DOES start the backend (non-vacuity), the bridge DOES pause the backend, a resume after a pause re-anchors at the stored position, and the published lock-screen payload carries exactly the session's transport | `f30feca` |
+| T141 | The explicit-resume arm now calls `restart_backend_stream` **before** the session's landing — mirroring the pause arm's `backend.pause()` exactly — so the transport never reads `Playing` over a silent session (FR-001/FR-005/FR-007). A session already `Playing` is left alone. The deliberate fail-closed trade-off: a resume whose queued head diverges from the stored position by more than `REANCHOR_TOLERANCE_SECS` (2 s) is REFUSED rather than played | `aa4ecf4` |
+| T142 | **RED-FIRST** property suite `src-tauri/tests/test_session_live_from_first_chunk.rs` (1044 lines) pinning the session-liveness window: the `Playing` landing, the resolver's installation and the surface publish must all run **before** the first chunk reaches the backend; the parsed-content totals stay fixed at session start; the stall rule and the playing-gated durable write / in-RAM tracking still hold. **2 of the 4 properties were RED** | `59a12a2` |
+| T143 | The surface resolver is built and installed **before** the first chunk is enqueued (the parsed-content unit total and section count are content facts known pre-synthesis, written once, never re-estimated); the `Playing` landing happens before the first enqueue, so the heartbeat, the position tracking and the per-section diagnostics are armed from the first audible sample; the publish follows the landing; `abandon_playing_landing` undoes a landing whose stream failed to start | `97f0046` |
+| T144 | **RED-FIRST** contract suite `src-tauri/tests/test_offer_dialog_reachability.rs` (1222 lines) pinning five invariants: the `offer_route` reply must be built from and publish the pending cold-start fact the shell already owns (`pending_open_exists`); the surface must read that published fact; the dialog-open condition must be gated on a signal other than the mirrored transport; the dialog must stay closed for the `lockscreen_resume` route; the `start_over` choice must live inside the offer dialog. **3 of 5 were RED** | `80803f5` |
+| T145 | The `offer_route` reply and the cold-start open payload now publish `pending_cold_start`, so the fact REACHES the surface that renders the offer; the surface's dialog-open condition branches on that published fact instead of on the mirrored transport (the mirror-only guard is **replaced**, not supplemented). The negatives hold: the dialog stays closed for `lockscreen_resume` and for a pause inside a running document | `88e4f2d` |
+| T146 | The `DeviceRemoved` row of `contracts/diagnostic-trace.md` corrected: the device loss rides the `device` field of an `output_device` entry (no `error` — the schema requires one only on `failure`/`refusal`), and `device_lost` is added to the list of engine-taxonomy members the eight product reasons do not name. Mirrored byte-identically in `specs/004-ressoa-dogfood-build/contracts/diagnostic-trace.md` | `173b7d2` |
+| T154 | The reviewer-owned checklist shorthand (`specs/004-ressoa-dogfood-build/checklists/requirements-traceability.md:18,71` — "no Stop" where the amended FR-002 says "no Stop CONTROL on the MEDIA lock-screen surface") is **reported, not edited**, per the task's own instruction; the exact suggested wording is recorded in the commit body | `173b7d2` |
+| T147 | The offer route is resolved **ONCE**, at the cold-start open — the lifecycle point the offer's own documentation names — and **published**; the `offer_route` command only READS that published value, so the 250 ms UI poll no longer mutates the FR-044 decision core. New suite `src-tauri/tests/test_offer_route_read_only.rs` (488 lines) shows on the machine itself that a re-derivation re-opens an offer the window already consumed | `3fc7934` |
+| T148 | The in-app Play control now dispatches the **RESUME-AT-STORED** wire — the closed verb that resumes the reading the app already holds, at the place it stopped. The bare synthesis wire is never sent from the screen (the screen holds no document, and the verb channel carries none), so the control can no longer fail silently with `EmptyDocument`. New suite `src-tauri/tests/test_in_app_play_functional.rs` (700 lines) | `7bb8b25` |
+| T149 | The resident playback queue is bounded: `player::backend::MAX_PREROLL_SECS` (60 s) is an **alias** of `player::position::PREROLL_CAP_SECS` — one cap, never a second that can drift; `player::backend::ResidentQueue` is now public so the bound is host-testable without an audio device; `CpalBackend::buffer_state()` exposes depth, cap and dropped-sample count; the REAL bound is recorded in `plan.md` and `data-model.md` instead of a fictional cap. New property `crates/player/tests/prop_preroll_bound.rs` | `a651c61` |
+| T150 | The stale adjudication sentence in `contracts/surface.md:67` (and its byte-identical mirror in the feature directory) corrected: the paired `spec.md` FR-002 change was already applied at `spec.md:153` | `74fbb95` |
+| T153 | The dangling contract paths from the shell resolved: `contracts/shell-ipc.md` (104 lines) and `contracts/storage-schema.md` (29 lines) copied to the repo root, so the 65 + 2 references from `src-tauri/` resolve | `74fbb95` |
+| T151 | The offer-dialog literal scanner in `src-tauri/tests/test_offer_dialog.rs` is now **comment-aware** (comments are stripped before the literal scan, matching the `strip_comments` precedent of `test_lockscreen_resume_control.rs`), so an apostrophe added in HTML/CSS can no longer shift the literal pairing; the "exactly two choices" assertion is kept at least as strong | `d17da93` |
+| T152 | The `play_to_audio_ms` clock now closes on the first **CONSUMED** sample — the backend's audible clock advances only on consumed speech samples, so a clock past zero IS a consumed sample — and never from inside the block that opens the stream; the closer is reached from the synthesis loop and from the playback watch, the two sites that can observe the consumption. The recorded FR-003/SC-002 latency no longer under-reports by the device output latency. New suite `src-tauri/tests/test_play_to_audio_measured.rs` (was 3/4 RED) | `8753164` |
+| T155 | The unbounded 4 Hz take/lock/re-park cycle stopped: the re-park latches the elapsed window on the open it parks again and the poll reads that latch and returns before it resolves, so the window elapses **once per parked open**. The reader's explicit resume is NOT delayed by the latch (it arrives through the verb dispatch, which resolves the parked open directly). New suite `src-tauri/tests/test_parked_open_no_busy_loop.rs` (was 3/5 RED) | `07f59a2` |
+| T156 | The T081 allowlist in `scripts/check-shell-purity.sh` extended for the two new Phase-17 contract suites (`test_offer_dialog_reachability.rs`, `test_resume_restarts_audio.rs`) with the Phase-16 rationale comment; the gate keeps failing closed for a production file carrying the vocabulary in a rejected position, for a NON-allowlisted test file gaining it, and for an allowlisted file in a mutable-state or arithmetic position (each negative control verified on a copy). The rule is not widened beyond the two named files | `fa04ca6` |
+| T157 | `scripts/expected-tests.txt` synced with the live nextest target list, in three passes as the new Phase-17 suites landed (the first pass pinned the three Phase-17 contract suites, the second the suites added by T147/T148/T152/T155, the third the suites added by T158/T159/T160). The two-way diff is now clean in **BOTH** directions: **99 live / 99 pinned, 0 missing, 0 unexpected** | `507a991`, `9786886`, `2a94589` |
+| T158 | The producer/consumer gap closed: `src_tauri::producer::admits` is the ONE rule deciding how much of the pending audio the resident window may take NOW (the window's room, never more than the pending audio); `stream_synthesis` produces the FIRST unit, hands the first PIECE over and starts the stream on it (the first audible speech arrives while the rest of the document is still being produced); `advance_production` is the production's step. The producer can no longer outrun the device, so the position and the audio never diverge. New suite `src-tauri/tests/test_producer_back_pressure.rs` | `024d55e` |
+| T159 | The buffer-state diagnostic entry now carries the depth (`preroll_secs`), the bound it is measured against (`preroll_cap_secs`), the samples dropped beyond it (`dropped_samples`) and the document's content-hash ref (`doc`); `buffer_state_event` is the ONE builder of that entry. The entry stays prose-free, identifier-pattern and within the 200-char `detail` bound, with the record's own detail keys. New suite `src-tauri/tests/test_buffer_state_in_diag.rs` | `5af0f33` |
+| T160 | The resume-divergence refusal's reachability restored: `reanchor_at` drops the diverged queue (the wrong stretch is never played), replaces the session and re-opens the reading **through the open path** at the stored place — the open path is the ONE synthesis path (Principle II). The fail-closed default is preserved: audio that does not match the stored position is never played. New suite `src-tauri/tests/test_resume_divergence_reachable.rs` | `3e4fd0a` |
+| T161 | The FR-003 first-audible observation restored: the property's scanner recognises the production's **current** steps at their call sites (`produce_next_unit` / `enqueue_chunk` / `start_backend`), the boundary the step's own implementation ends in is suppressed inside that body so the step and the boundary are counted once, and the boundary calls remain the fallback for a production shape that reaches the engine and the backend directly. The property carries a **non-vacuity guard** of its own: the observed order must contain at least one synthesis AFTER the first enqueue, so it cannot pass by observing nothing | `1ac0ae3` |
+| T162 | The stale gate-2 header comment in `scripts/verify.sh` corrected: the misleading "the pinned 47-entry format" count and the stale nextest-version reference were dropped, so the comment describes the format without a stale count. The gate's behaviour is unchanged | `b03f1a2`, `5e0acaf` |
 
-### 8.1 The RED → GREEN evidence trail
+### 9.1 The RED → GREEN evidence trail
 
-The four red-first test commits and their green counterparts, in order. The RED
-state of each is recorded in the red commit itself, and the GREEN state is
-witnessed by the same gate-2 run that produced *847 tests run: 847 passed*.
+The three red-first test commits of Phase 17 and their green counterparts, in
+order. The RED state of each is recorded in the red commit itself, and the GREEN
+state is witnessed by the same gate-2 run that produced *902 tests run: 902
+passed*.
 
 | Pair | RED commit (test, recorded failing) | GREEN commit (implementation) | RED evidence in the commit |
 |------|-------------------------------------|-------------------------------|----------------------------|
-| T112 → T113 | `244e652` `test(004): T112 first-audio property red-first` | `24aab82` `feat(004): T113 stream the first chunk so the reading is audible at once` | The commit body states the observed RED order — `synthesize → synthesize → synthesize → enqueue(pcm) → play`, the first enqueue landing **after the LAST synthesis** — and names the stale comment at `src-tauri/src/lib.rs:3759` that T113 had to delete. |
-| T114 → T115 | `07e8e34` `test(004): T114 explicit-resume expiry red-first` | `cf32cf0` `fix(004): T115 latch the explicit-resume requirement across offer-window expiries` | The commit body quotes the RED output verbatim: `left: NoOffer, right: ExplicitResume` on expiry 2, minimal failing input `(StoredPosition { offset_secs: 0.0, first_yield_ms: 0, end_kind: Interrupted }, 2)`, `Summary: 4 tests run: 3 passed, 1 failed`. It also names the defective site (`crates/session/src/offer.rs:340-363`, `src-tauri/src/lib.rs:1791-1816`) and the co-owned test that pinned the defect (`prop_bookmark_lifecycle.rs:516-521`). |
-| T116 → T117 | `db30345` `test(004): T116 in-app offer dialog red-first` | `05e2de1` `feat(004): T117 render the in-app resume offer dialog on the single screen` | The commit **adds** `src-tauri/tests/test_offer_dialog.rs` and pins the target in `scripts/expected-tests.txt` — a test that did not exist before, asserting the two-choice contract that the surface did not implement. *Its commit body is empty: unlike T112/T114/T118, T116's RED transcript is not written into the commit message; the RED evidence for this pair is the added failing test plus the implementation commit that follows it.* |
-| T118 → T119 | `7c66939` `test(004): T118 lock-screen resume control red-first` | `05f4306` `feat(004): T119 add the lock-screen explicit resume control` | The commit body names the two RED assertions (the mirror's forwarding vocabulary carries the plain-play verb and nothing else; the bridge's parked-open resolution admits only `ResumeAtStored`/`StartOver`) and the two GREEN guards (no Stop control and no prohibited field on the published payload; an unexpected end leaves the reading waiting). It states: "No production change: T119 owns the implementation." |
+| T140 → T141 | `f30feca` `test(004): T140 resume restarts audio red-first` | `aa4ecf4` `fix(004): T141 resume restarts the audio stream` | The commit body names the defect exactly (`resume_class_verb` executes the session transition but never calls the backend's `play()`, while the pause arm does) and states the RED state: *"RED against the current code: prop_a fails (minimal failing input `verb = "ExternalStart"`); the other four pass. The property was verified to turn GREEN under the three admissible fix shapes … and to stay RED under a fix that re-synthesises the document instead of restarting the already-queued stream."* |
+| T142 → T143 | `59a12a2` `test(004): T142 session live from first chunk red-first` | `97f0046` `fix(004): T143 session live from the first chunk` | The commit body quotes the RED failure text verbatim for both failing properties: *"the production open path `play_document` reaches the streaming synthesis at offset 90705, and the streaming synthesis enqueues the first chunk at offset 86277. The obligation runs … AFTER the audio already plays"* and *"the resolver is built in the open path `play_document` at offset 91177, AFTER the synthesis call"*. It closes: *"RED against the current code: 2 of the 4 properties fail."* |
+| T144 → T145 | `80803f5` `test(004): T144 offer dialog reachability red-first` | `88e4f2d` `fix(004): T145 offer dialog reachability` | The commit body names the defect (the dialog opens ONLY when the MIRRORED transport reads `stopped`; the parked cold-start open publishes nothing, so after a mid-document pause the mirror reads `paused` and the dialog is closed exactly when the offer must be presented) and states: *"RED against the current code: 3 of 5 fail."* |
 
-All four RED test artifacts are present in the attested tree and are covered by
+All three RED test artifacts are present in the attested tree and are covered by
 the green run:
 
-| Artifact | Present in tree `19a1467` |
-|----------|----------------------------|
-| `crates/player/tests/prop_first_audio_3s.rs` | yes |
-| `crates/session/tests/prop_explicit_resume_survives_expiry.rs` (+ its checked-in proptest failure seed) | yes |
-| `src-tauri/tests/test_offer_dialog.rs` | yes |
-| `src-tauri/tests/test_lockscreen_resume_control.rs` | yes |
+| Artifact | Present in tree `1ac0ae3` | Live nextest target |
+|----------|----------------------------|---------------------|
+| `src-tauri/tests/test_resume_restarts_audio.rs` (+ its proptest regression seed) | yes | `src-tauri::test_resume_restarts_audio` |
+| `src-tauri/tests/test_session_live_from_first_chunk.rs` (+ its proptest regression seed) | yes | `src-tauri::test_session_live_from_first_chunk` |
+| `src-tauri/tests/test_offer_dialog_reachability.rs` | yes | `src-tauri::test_offer_dialog_reachability` |
+
+The suites added by the later Phase-17 tasks are RED-first by the same
+convention and are named in their own commits: `test_offer_route_read_only.rs`
+(T147), `test_in_app_play_functional.rs` (T148), `prop_preroll_bound.rs` (T149),
+`test_play_to_audio_measured.rs` (T152 — "was 3/4 RED against the pre-fix
+bridge"), `test_parked_open_no_busy_loop.rs` (T155 — "was 3/5 RED against the
+pre-fix bridge"), `test_producer_back_pressure.rs` (T158),
+`test_buffer_state_in_diag.rs` (T159) and `test_resume_divergence_reachable.rs`
+(T160).
 
 ---
 
-## 9. Summary of what this attestation does and does not establish
+## 10. Summary of what this attestation does and does not establish
 
 **Established by this run (host-checkable, evidence-named):**
 
@@ -530,12 +630,13 @@ the green run:
 * `cargo fmt --all -- --check` is clean (exit **0**; gate 1).
 * `cargo clippy --workspace --all-targets -- -D warnings` exits **0** — both
   standalone (§2.1) and as gate 4's fail-closed step `lint-drift-clippy`
-  (log line 1417). The clippy-1.99 drift that the prior attestation recorded as
-  exit 101 is repaired **in code** (T136) and is now **gate-enforced** (T138).
-* `cargo nextest list --workspace` is non-empty — **88** live targets vs **88**
+  (log lines 1475–1478). The clippy-1.99 drift that an earlier attestation
+  recorded as exit 101 is repaired **in code** (T136) and is now **gate-enforced**
+  (T138).
+* `cargo nextest list --workspace` is non-empty — **99** live targets vs **99**
   pinned in `scripts/expected-tests.txt`, two-way diff empty in **BOTH**
   directions (`cmp` byte-identical).
-* The workspace suite is green: **847 tests run, 847 passed (2 slow), 2
+* The workspace suite is green: **902 tests run, 902 passed (11 slow), 2
   skipped**; gate-8-shell's own suites: 33/33 (`engine-core`) and 29/29
   (`player::prop_transport_math`).
 * The supply chain is clean: `cargo deny check advisories licenses bans sources`
@@ -548,11 +649,11 @@ the green run:
   and 1.0.10, with `rustls-webpki` at 0.103.16 after the `9701d98` lockfile bump.
 * The Android device artifact builds (`--target aarch64`, exit **0**):
   `app-universal-release.apk`, sha256
-  `33a1b0aeeacf8c9b7ea1f6b1abf093038deee94442f856c2c422e2a3b558195b`;
+  `2e3555f377dceab462acbda7187d355efc1eed3c1cf8389ddddab9529ece08f5`;
   `app-universal-release.aab`, sha256
-  `965a87b3a83d38d171eff711b5f50f44f3aa29765819718998f473a4d8c97950`;
+  `c226ecc39afead0f188d0683be5bde19bcdcbfb5dfffae2dbc6ef04f7cc6d42b`;
   **not hollow** — 7/7 required app classes present in the dex.
-* All Phase-16 tasks T112–T139 are landed and are attested by this run (§8).
+* All Phase-17 tasks T140–T162 are landed and are attested by this run (§9).
 * The toolchain-stability record is complete and enforced: constitution v1.10.0's
   Toolchain clause (`43df07c`), the lint-compliance pass performed and clean
   (T136), the pass wired into gate 4 as a fail-closed step (T138, `d23942b`), and
@@ -561,9 +662,15 @@ the green run:
 **NOT established by this run:**
 
 * The device-only criteria — **SC-001…SC-010** and the **T051 / T052** trials
-  (§6). Those require the reference phone (Redmi 2201117TY), remain open, and
+  (§7). Those require the reference phone (Redmi 2201117TY), remain open, and
   are explicitly not claimed by this host run. No trial sheet exists.
-* `gate-8-full` (§5) — DEFERRED to the synthesis feature with SC-044 open.
+* `gate-8-full` (§6) — DEFERRED to the synthesis feature with SC-044 open.
+* **That `scripts/verify.sh` is deterministic** — it is not. One pre-existing
+  property test (`player::prop_canonical_guard`, a stale oracle that predates the
+  FR-007 context cue) is red on roughly 1 run in 40; the full diagnosis, the
+  counterexample and the provenance are in [§3.1](#31-the-one-intermittently-red-gate-2-property-test--disclosed-in-full).
+  Nothing this attestation covers (Phase 17, T140–T162) touches that test or the
+  code it exercises.
 
 **Scope note:** this attestation covers the host-checkable gates and the
 artifact build only. It does not modify `spec.md`, `plan.md`, `contracts/`, the

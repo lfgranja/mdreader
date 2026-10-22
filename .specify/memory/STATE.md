@@ -1,43 +1,56 @@
 # Session state — 004-ressoa-dogfood-build (shell bring-up wave)
 
-> **RESUME POINT (2026-10-21) — read this first.** The machine was powered off
-> mid-Phase-17. A workspace-wide `cargo nextest run --workspace` was ABORTED at
-> the maintainer's request; it was replaced by the targeted verification below.
-> Phase 17 (the convergence that followed the T095 attestation) is HALF DONE.
+> **RESUME POINT (2026-10-22) — read this first.** Phase 17 is COMPLETE and
+> the final verification has attested the tree at `1ac0ae3` ("test(004): T161
+> restore the FR-003 first-audible observation").
 >
-> **Landed in Phase 17** (all committed, working tree clean):
-> T140 `f30feca` (RED resume) · T141 `aa4ecf4` (resume restarts the stream) ·
-> T142 `59a12a2` (RED session-live) · **T143 `97f0046` (session live from the
-> first chunk — VERIFIED: `cargo check -p src-tauri -p player --all-targets`
-> exit 0 and `cargo nextest run -p src-tauri --test
-> test_session_live_from_first_chunk` → 4/4 PASS)** · T144 `80803f5` (RED
-> offer-dialog reachability) · T146/T154 `173b7d2` · T149 `a651c61` (bounded
-> resident queue) · T150/T153 `74fbb95` · T151 `d17da93` (comment-aware
-> literal scanner) · T156 `fa04ca6` (purity-gate allowlist) · T157 `507a991`
-> (expected-tests pins) · T158/T159/T160 appended in `f8caa6c`/`6f94d04`.
+> **Landed in Phase 17 (23 tasks, all committed):** T140 `f30feca` (RED
+> resume) · T141 `aa4ecf4` (resume restarts the stream) · T142 `59a12a2` (RED
+> session-live) · T143 `97f0046` (session live from the first chunk) · T144
+> `80803f5` (RED offer-dialog reachability) · T145 `88e4f2d` (offer dialog
+> reachable) · T146/T154 `173b7d2` (DeviceRemoved diag contract row) · T147
+> `3fc7934` (offer route read-only) · T148 `7bb8b25` (in-app Play functional) ·
+> T149 `a651c61` (bounded resident queue) · T150/T153 `74fbb95` (surface
+> contract record + shell contract paths) · T151 `d17da93` (comment-aware
+> literal scanner) · T152 `8753164` (first consumed sample latency) · T155
+> `07f59a2` (parked open re-check cadence) · T156 `fa04ca6` (purity-gate
+> allowlist) · T157 `507a991`/`9786886`/`2a94589` (expected-tests sync) · T158
+> `024d55e` (producer back-pressure) · T159 `5af0f33` (buffer bound in the diag
+> record) · T160 `3e4fd0a` (resume divergence reachability) · T161 `1ac0ae3`
+> (FR-003 first-audible observation restored) · T162 `b03f1a2`/`5e0acaf` (stale
+> gate-2 comment).
+>
+> **Final verification (the only thing that attests):** `scripts/verify.sh` exit
+> **0** — gates 1–7 + gate-8-shell PASS (902 tests run: 902 passed, 2 skipped;
+> 99 live / 99 pinned nextest targets, two-way diff clean in BOTH directions);
+> `gate-8-full: DEFERRED (owner=synthesis)` (SC-044 open — NEVER a pass). Gate 9
+> `cargo tauri android build --target aarch64` exit 0 — APK sha256
+> `2e3555f3…ece08f5`, AAB sha256 `c226ecc3…cc6d42b`, non-hollow (7/7 app
+> classes in the dex). Attestation commit `0a5d127`; the task markers are
+> committed on top of it.
+>
+> **Still open — device-only by design:** **T051** (the SC-001…SC-010 trials
+> per `quickstart.md` §3 on the reference phone, Redmi 2201117TY) and **T052**
+> (the on-device `diag scan` audit of the pulled JSONL). No trial sheet exists;
+> both stay `[ ]` in `tasks.md` and the attestation explicitly does not claim
+> them.
+>
+> **Open finding for the maintainer (NOT fixed — it is a code change):**
+> `scripts/verify.sh` is not deterministic at this tree: one PRE-EXISTING
+> property test (`player::prop_canonical_guard`) is red on roughly 1 run in 40
+> because its oracle predates the FR-007 5 s context cue added at `4050021`
+> (2026-10-14). Measured 1/40; the counterexample, the root cause and the
+> provenance are in the attestation's §3.1. No Phase-17 commit touches it. The
+> fix (update the oracle, or re-spec the cap-precedence branch) touches
+> `crates/player/tests/`, so it is NOT a verification-only change.
 >
 > **Next action, in order:**
-> 1. `src-tauri/src/lib.rs` is a SERIALIZED file — the remaining tasks run one
->    agent at a time: **T145** (offer-dialog reachability; the T144 suite is
->    still RED until it lands) → **T148** (in-app Play is inert) → **T147**
->    (the 250 ms poll mutates the FR-044 decision core) → **T152**
->    (`play_to_audio_ms` measures the stream start) → **T155** (unbounded 4 Hz
->    re-park loop) → **T158** (producer back-pressure) → **T159** (bound
->    observability into the diag record) → **T160** (reachability blocked by
->    the resume divergence refusal).
-> 2. Then the FINAL VERIFICATION — the only thing that attests completion:
->    `bash scripts/verify.sh` (gate 2's test-run leg is RED until T145 lands;
->    gate 4 now runs clippy fail-closed) → `cargo tauri android build --target
->    aarch64` + APK sha256 → rewrite
->    `specs/004-ressoa-dogfood-build/verification/T095_attestation.md` →
->    mark T140–T160 `[X]` in `specs/004-ressoa-dogfood-build/tasks.md`.
-> 3. **T051/T052 remain open** — device-only (reference phone Redmi 2201117TY);
->    the T095 attestation explicitly does not claim SC-001…SC-010.
-> 4. Do NOT push to `origin/main` without an explicit request (the branch is
+> 1. T051 + T052 on the reference phone — the only un-attested criteria.
+> 2. Decide the `prop_canonical_guard` oracle (new task).
+> 3. Do NOT push to `origin/main` without an explicit request (the branch is
 >    far ahead).
 >
-> Housekeeping: `git stash list` is empty; the working tree is clean at
-> `97f0046`.
+> Housekeeping: `git stash list` is empty; the working tree is clean.
 
 Updated: 2026-10-17 (Wave B device verification GREEN + user-heard audio
 confirmed; zip-9 substitution complete — patch, lock, governance v1.8.0;

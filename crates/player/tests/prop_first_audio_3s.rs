@@ -32,8 +32,25 @@
 //!   started after the first chunk is queued, and before a second
 //!   segment is synthesized.
 //! * **I4 — no whole-document buffer at the enqueue.** The buffer
-//!   handed to `enqueue_pcm` is the chunk's own, never a buffer the
+//!   handed to the backend is the chunk's own, never a buffer the
 //!   path accumulates every segment's PCM into.
+//!
+//! ## NON-VACUITY — the observation must see the REST of the document
+//!
+//! I1–I4 are about the WHOLE document: the first chunk is handed
+//! over while the rest of the document is still being produced. An
+//! observation that never sees a synthesis AFTER the first enqueue
+//! therefore proves nothing — the property would pass by observing a
+//! single unit and no remainder. The property carries a guard of its
+//! own for that reason: **the observed order must contain at least
+//! one synthesis after the first enqueue**, the evidence that the
+//! scanner really is looking at the remaining units being produced.
+//! Without it, a scanner that lost the production seam and a
+//! production that stopped producing the rest of the document would
+//! be indistinguishable from a production that satisfies the
+//! invariant — the exact silent loss of coverage the T112 rewrite
+//! was written to prevent (Principle III: "the test suite is the
+//! only evidence").
 //!
 //! ## The seam
 //!
@@ -45,10 +62,26 @@
 //! order), so it could never fail: it MODELLED the order instead of
 //! OBSERVING it. This revision reconstructs the order the shipped
 //! code emits — the scanner below walks the real production source,
-//! inlines the production functions the play path calls, and reads the
-//! `synthesize` / `enqueue_pcm` / `play` call sites off it — and
-//! asserts the invariant against THAT. The event list is never written
-//! by this file: it is read out of the production source.
+//! inlines the production functions the play path calls, and reads
+//! the production's own semantic steps off it — and asserts the
+//! invariant against THAT. The event list is never written by this
+//! file: it is read out of the production source.
+//!
+//! ### The production's semantic steps
+//!
+//! The T143 restructure and the T158 back-pressure rewrite moved the
+//! audio pipeline behind three app-shell functions: the production no
+//! longer synthesizes and enqueues inside the play path's own body —
+//! it produces a unit, hands a chunk over and starts the backend
+//! through `produce_next_unit` / `enqueue_chunk` / `start_backend`,
+//! and the producer's steady-state loop advances the production from
+//! there. The scanner recognises THOSE steps ([`PRODUCTION_STEPS`]) at
+//! their call sites, and recognises the boundary call each step's own
+//! implementation ends in (`synthesize` / `enqueue_pcm` / `play`) as
+//! the fallback for a production shape that reaches the engine and
+//! the backend directly. A step and the boundary it carries are the
+//! SAME event, so the scanner emits it once: at the step's call site,
+//! with the boundary suppressed inside the step's own body.
 //!
 //! The production audio pipeline is driven for real as well: the
 //! generated document is split by the production chunker
@@ -74,18 +107,24 @@
 //! * data-model.md `PlaybackSession` (001): "first segment synthesizes,
 //!   first chunk enqueues, `backend.play()` starts — never after full
 //!   PCM".
-//! * Principle III (test-first): the property is RED against the
-//!   shipped implementation, which synthesizes the whole document
-//!   before any enqueue.
+//! * Principle III (test-first): the property was written RED-first,
+//!   against the pre-T143 implementation that synthesized the whole
+//!   document before any enqueue. It is GREEN against the current
+//!   implementation — which is a fact the OBSERVATION establishes,
+//!   never an assumption: the property re-reads the production source
+//!   on every run and fails the moment the production stops
+//!   streaming.
 //!
-//! ## The comment T113 must correct
+//! ## The comment T113 corrected
 //!
-//! `src-tauri/src/lib.rs:3759` reads "First chunk enqueued before
-//! remaining synthesis — meets ≤3 s." while the code beneath it
-//! accumulates the whole document into one `Vec<f32>` and enqueues it
-//! once. T113 must delete that comment (the ≤3 s claim is exactly
-//! what this property gates) — see the T112 report for the exact
-//! wording.
+//! The pre-T143 implementation carried the comment "First chunk
+//! enqueued before remaining synthesis — meets ≤3 s." above a body
+//! that accumulated the whole document into one `Vec<f32>` and
+//! enqueued it once. T113 deleted that comment (the ≤3 s claim is
+//! exactly what this property gates). The production body it described
+//! no longer exists: the audio pipeline moved behind the production's
+//! semantic steps, and the observation below reads the order off
+//! them.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -169,10 +208,81 @@ enum Event {
     /// The production engine synthesized one document segment.
     SegmentSynthesized,
     /// A chunk was handed to the backend's playback queue, carrying
-    /// the identifier the production code passed.
-    ChunkEnqueued(String),
+    /// the identifiers the production passed with it.
+    ChunkEnqueued(Vec<String>),
     /// The backend's output stream was started.
     PlaybackStarted,
+}
+
+/// What a production step of the app shell does.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum StepKind {
+    /// The step synthesizes one document unit.
+    Synthesizes,
+    /// The step hands a chunk to the backend's queue.
+    Enqueues,
+    /// The step starts the backend's output stream.
+    Starts,
+}
+
+/// One production step of the app shell: the function that carries it
+/// and the boundary call its own implementation ends in.
+///
+/// A step and the boundary it carries are the SAME event, so the
+/// scanner emits it once — at the step's call site — with the
+/// boundary suppressed inside the step's own body.
+#[derive(Clone, Copy, Debug)]
+struct ProductionStep {
+    /// The app-shell function that carries the step.
+    function: &'static str,
+    /// The boundary call the step's own implementation ends in.
+    boundary: &'static str,
+    /// What the step does.
+    kind: StepKind,
+}
+
+/// The production path's semantic steps: the app-shell functions the
+/// T143 restructure and the T158 back-pressure rewrite moved the
+/// audio pipeline behind.
+///
+/// The production no longer synthesizes and enqueues inside the play
+/// path's own body — it produces a unit, hands a chunk over and
+/// starts the backend through these three functions, and the
+/// producer's steady-state loop advances the production from there.
+const PRODUCTION_STEPS: [ProductionStep; 3] = [
+    ProductionStep {
+        function: "produce_next_unit",
+        boundary: "synthesize",
+        kind: StepKind::Synthesizes,
+    },
+    ProductionStep {
+        function: "enqueue_chunk",
+        boundary: "enqueue_pcm",
+        kind: StepKind::Enqueues,
+    },
+    ProductionStep {
+        function: "start_backend",
+        boundary: "play",
+        kind: StepKind::Starts,
+    },
+];
+
+impl ProductionStep {
+    /// The event the step emits at its call site, carrying the
+    /// identifiers the production hands over with it.
+    fn event(&self, handed_over: Vec<String>) -> Event {
+        match self.kind {
+            StepKind::Synthesizes => Event::SegmentSynthesized,
+            StepKind::Enqueues => Event::ChunkEnqueued(handed_over),
+            StepKind::Starts => Event::PlaybackStarted,
+        }
+    }
+}
+
+/// The production step the named function carries, when it carries
+/// one.
+fn production_step(name: &str) -> Option<&'static ProductionStep> {
+    PRODUCTION_STEPS.iter().find(|step| step.function == name)
 }
 
 /// One step of the observed production path.
@@ -207,6 +317,9 @@ struct Scanner<'a> {
     functions: &'a FnIndex,
     /// What the scanner observed on the way.
     observed: ObservedPath,
+    /// The boundary call suppressed in the region being scanned — the
+    /// boundary a production step's own body ends in.
+    suppressed: Option<&'static str>,
 }
 
 /// Whether the byte is part of a Rust identifier.
@@ -444,28 +557,44 @@ fn loop_body(bytes: &[u8], after: usize) -> Option<(String, usize)> {
     None
 }
 
-/// The first argument of the call whose paren opens at `open`, and the
+/// The arguments of the call whose paren opens at `open`, and the
 /// index just past the call.
-fn first_argument(bytes: &[u8], open: usize) -> (String, usize) {
+fn call_arguments(bytes: &[u8], open: usize) -> (Vec<String>, usize) {
     let Some(close) = matching_paren(bytes, open) else {
-        return (String::new(), bytes.len());
+        return (Vec::new(), bytes.len());
     };
     let inner = &bytes[open + 1..close];
+    let mut arguments: Vec<String> = Vec::new();
     let mut depth = 0usize;
-    let mut split = inner.len();
+    let mut start = 0usize;
     for (offset, byte) in inner.iter().enumerate() {
         match byte {
             b'(' | b'[' | b'{' => depth += 1,
             b')' | b']' | b'}' => depth = depth.saturating_sub(1),
             b',' if depth == 0 => {
-                split = offset;
-                break;
+                arguments.push(
+                    String::from_utf8_lossy(&inner[start..offset])
+                        .trim()
+                        .to_owned(),
+                );
+                start = offset + 1;
             }
             _ => {}
         }
     }
-    let argument = String::from_utf8_lossy(&inner[..split]).trim().to_owned();
-    (argument, close + 1)
+    let last = String::from_utf8_lossy(&inner[start..]).trim().to_owned();
+    if !last.is_empty() || !arguments.is_empty() {
+        arguments.push(last);
+    }
+    (arguments, close + 1)
+}
+
+/// The identifiers the production hands over at a step's call site.
+///
+/// The app shell passes its state as the FIRST argument of every
+/// helper, so the arguments after it are what the step carries.
+fn handed_over(arguments: &[String]) -> Vec<String> {
+    arguments.iter().skip(1).cloned().collect()
 }
 
 /// Whether the call whose paren opens at `open` takes no argument.
@@ -491,10 +620,15 @@ fn is_statement_position(last_significant: Option<u8>) -> bool {
 /// from the body are INLINED, so the events of a helper (the
 /// synthesizer loop, the backend starter) appear at the position the
 /// caller reaches them.
-fn scan_region(text: &str, scanner: &mut Scanner, depth: usize) -> Vec<Step> {
+///
+/// A production STEP ([`PRODUCTION_STEPS`]) emits its event at its
+/// call site, and its own body is scanned with the boundary the step
+/// carries SUPPRESSED — so the step and the boundary it ends in are
+/// counted once, not twice.
+fn scan_region(text: &str, scanner: &mut Scanner, depth: usize, synthesized: bool) -> Vec<Step> {
     let bytes = text.as_bytes();
     let mut steps: Vec<Step> = Vec::new();
-    let mut synthesized = false;
+    let mut synthesized = synthesized;
     let mut index = 0usize;
     // The last significant byte the walk passed. Only the CODE's own
     // bytes count: a comment or a literal never does, so a call whose
@@ -549,13 +683,23 @@ fn scan_region(text: &str, scanner: &mut Scanner, depth: usize) -> Vec<Step> {
             && is_statement_position(previous)
             && let Some((body, end)) = loop_body(bytes, after)
         {
-            let inner = scan_region(&body, scanner, depth);
+            let inner = scan_region(&body, scanner, depth, false);
             steps.push(Step::Repeat(inner));
             last_significant = Some(b'}');
             index = end;
             continue;
         }
         if is_call {
+            // A production STEP: the semantic event is emitted at the
+            // call site, and the step's own body is scanned with the
+            // boundary the step carries suppressed.
+            if let Some(step) = production_step(&name).filter(|_| !is_method) {
+                synthesized |= step.kind == StepKind::Synthesizes;
+                let end = visit_step(step, bytes, after, scanner, depth, &mut steps);
+                last_significant = Some(b')');
+                index = end;
+                continue;
+            }
             if let Some(end) =
                 inline_production_call(&name, bytes, after, is_method, scanner, depth, &mut steps)
             {
@@ -563,7 +707,9 @@ fn scan_region(text: &str, scanner: &mut Scanner, depth: usize) -> Vec<Step> {
                 index = end;
                 continue;
             }
-            if let Some((event, end)) = production_event(&name, bytes, after, is_method) {
+            if let Some((event, end)) =
+                production_event(&name, bytes, after, is_method, scanner.suppressed)
+            {
                 synthesized |= matches!(&event, Event::SegmentSynthesized);
                 steps.push(Step::Event(event));
                 last_significant = Some(b')');
@@ -581,6 +727,45 @@ fn scan_region(text: &str, scanner: &mut Scanner, depth: usize) -> Vec<Step> {
         index = after;
     }
     steps
+}
+
+/// The steps a production STEP emits at its call site, and the index
+/// just past the call.
+///
+/// The step's semantic event lands at the call site — where the
+/// production reaches it — and the step's own body is scanned right
+/// after it, with the boundary the step carries SUPPRESSED: the step
+/// and the boundary it ends in are the same event and are counted
+/// once.
+fn visit_step(
+    step: &'static ProductionStep,
+    bytes: &[u8],
+    open: usize,
+    scanner: &mut Scanner,
+    depth: usize,
+    steps: &mut Vec<Step>,
+) -> usize {
+    let (arguments, end) = call_arguments(bytes, open);
+    let inner = scanner
+        .functions
+        .get(step.function)
+        .filter(|_| depth < MAX_INLINE_DEPTH)
+        .map(|function| {
+            let outer = scanner.suppressed;
+            scanner.suppressed = Some(step.boundary);
+            let inner = scan_region(
+                function,
+                scanner,
+                depth + 1,
+                step.kind == StepKind::Synthesizes,
+            );
+            scanner.suppressed = outer;
+            inner
+        })
+        .unwrap_or_default();
+    steps.push(Step::Event(step.event(handed_over(&arguments))));
+    steps.extend(inner);
+    end
 }
 
 /// Inline the production function `name` when the region calls it:
@@ -604,15 +789,23 @@ fn inline_production_call(
     }
     let body = scanner.functions.get(name)?;
     if depth < MAX_INLINE_DEPTH {
-        let inner = scan_region(body, scanner, depth + 1);
+        let inner = scan_region(body, scanner, depth + 1, false);
         steps.extend(inner);
     }
-    let (_, end) = first_argument(bytes, open);
+    let (_, end) = call_arguments(bytes, open);
     Some(end)
 }
 
-/// The production event a call site emits, and the index just past
-/// the call.
+/// The production event a BOUNDARY call site emits, and the index
+/// just past the call.
+///
+/// The boundary calls are the engine's synthesis and the backend's
+/// enqueue and stream start: the semantic events the invariant names.
+/// They are the FALLBACK for a production shape that reaches the
+/// engine and the backend directly — the production's own steps
+/// ([`PRODUCTION_STEPS`]) are recognised first, and a boundary inside
+/// a step's own body is suppressed so the two are never counted
+/// twice.
 ///
 /// A METHOD call never inlines a production function: `play` is both
 /// a production function name and the backend's stream starter, and
@@ -622,18 +815,22 @@ fn production_event(
     bytes: &[u8],
     open: usize,
     is_method: bool,
+    suppressed: Option<&'static str>,
 ) -> Option<(Event, usize)> {
+    if suppressed == Some(name) {
+        return None;
+    }
     match name {
         "synthesize" => {
-            let (_, end) = first_argument(bytes, open);
+            let (_, end) = call_arguments(bytes, open);
             Some((Event::SegmentSynthesized, end))
         }
         "enqueue_pcm" => {
-            let (argument, end) = first_argument(bytes, open);
-            Some((Event::ChunkEnqueued(argument), end))
+            let (arguments, end) = call_arguments(bytes, open);
+            Some((Event::ChunkEnqueued(arguments), end))
         }
         "play" if is_method && has_no_argument(bytes, open) => {
-            let (_, end) = first_argument(bytes, open);
+            let (_, end) = call_arguments(bytes, open);
             Some((Event::PlaybackStarted, end))
         }
         _ => None,
@@ -654,9 +851,10 @@ fn observe_play_path() -> ObservedPath {
     let mut scanner = Scanner {
         functions: &functions,
         observed: ObservedPath::default(),
+        suppressed: None,
     };
     if let Some(body) = functions.get(PLAY_PATH_ENTRY) {
-        let steps = scan_region(body, &mut scanner, 0);
+        let steps = scan_region(body, &mut scanner, 0, false);
         scanner.observed.steps = steps;
     }
     scanner.observed
@@ -715,7 +913,7 @@ fn render_trace(trace: &[Event]) -> String {
         .iter()
         .map(|event| match event {
             Event::SegmentSynthesized => "synthesize".to_owned(),
-            Event::ChunkEnqueued(argument) => format!("enqueue({argument})"),
+            Event::ChunkEnqueued(identifiers) => format!("enqueue({})", identifiers.join(", ")),
             Event::PlaybackStarted => "play".to_owned(),
         })
         .collect();
@@ -789,9 +987,10 @@ proptest! {
     /// and the enqueued buffer must be the chunk's own — never a
     /// buffer the path accumulates the whole document into.
     ///
-    /// RED against the shipped implementation: the play path
-    /// synthesizes every segment into one `Vec<f32>` and enqueues it
-    /// once, so the first enqueue lands after the LAST synthesis.
+    /// The observation must ALSO SEE the rest of the document: at
+    /// least one synthesis must follow the first enqueue, or the
+    /// property would pass by observing a single unit and no
+    /// remainder (the non-vacuity guard).
     #[test]
     fn prop_t112_first_chunk_is_enqueued_before_the_rest_is_synthesized(
         document in fixture_scale_doc(),
@@ -837,6 +1036,30 @@ proptest! {
             trace = render_trace(&trace),
         );
 
+        // NON-VACUITY — the observation must SEE the remaining units
+        // being produced after the first enqueue.
+        //
+        // The invariant is about the WHOLE document: the first chunk
+        // is handed over while the rest of the document is still
+        // being produced. An observed order with no synthesis AFTER
+        // the first enqueue proves nothing — the property would pass
+        // by observing a single unit and no remainder, and a scanner
+        // that lost the production seam (or a production that stopped
+        // producing the rest of the document) would be
+        // indistinguishable from a production that satisfies the
+        // invariant. The guard is what keeps the property from
+        // passing by observing nothing (Principle III: the test suite
+        // is the only evidence).
+        let syntheses_after = trace[enqueue_index + 1..]
+            .iter()
+            .filter(|event| matches!(event, Event::SegmentSynthesized))
+            .count();
+        prop_assert!(
+            syntheses_after >= 1,
+            "FR-003 first-audible NOT OBSERVED: the production play path ({PLAY_PATH_ENTRY}) shows NO segment synthesis after the first enqueue at position {enqueue_index} — the observation cannot see the remaining units being produced, so the first-audible invariant is unguarded: the scanner lost the production seam, or the production stopped producing the rest of the document\nobserved production order: {trace}",
+            trace = render_trace(&trace),
+        );
+
         // I2 — the first enqueue precedes the LAST synthesis.
         let last_synthesis = last_synthesis(&trace).unwrap_or(usize::MAX);
         prop_assert!(
@@ -870,13 +1093,21 @@ proptest! {
 
         // I4 — the enqueued buffer is the chunk's own, never a
         // buffer the path accumulates the whole document into.
+        //
+        // The check names the identifiers the production hands to the
+        // backend at the handover: the buffer the chunk travels in
+        // must not be one the path grows with every segment's PCM.
         let enqueued = match trace.get(enqueue_index) {
-            Some(Event::ChunkEnqueued(argument)) => argument.clone(),
-            _ => String::new(),
+            Some(Event::ChunkEnqueued(identifiers)) => identifiers.clone(),
+            _ => Vec::new(),
         };
+        let accumulated: Vec<&String> = enqueued
+            .iter()
+            .filter(|identifier| observed.accumulators.contains(*identifier))
+            .collect();
         prop_assert!(
-            !observed.accumulators.contains(&enqueued),
-            "FR-003 first-audible violated: the production play path enqueues `{enqueued}` — a buffer it accumulates every segment's PCM into — so the whole document is materialized before the first enqueue\nobserved production order: {trace}",
+            accumulated.is_empty(),
+            "FR-003 first-audible violated: the production play path hands {enqueued:?} to the backend and {accumulated:?} is a buffer it accumulates every segment's PCM into — so the whole document is materialized before the first enqueue\nobserved production order: {trace}",
             trace = render_trace(&trace),
         );
     }

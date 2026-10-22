@@ -234,6 +234,12 @@ pub struct AppState {
     /// clock, and the replay window the kill/power-loss recovery
     /// opens.
     pub(crate) diag_measures: Mutex<DiagMeasures>,
+    /// The loaded document (T160): the bytes the reader picked and
+    /// the name the picker addressed it by, kept so a resume whose
+    /// queued audio no longer names the stored position can
+    /// RE-SYNTHESISE the correct stretch. `None` when no document is
+    /// loaded.
+    pub(crate) document: Mutex<Option<LoadedDocument>>,
     /// The production still to be delivered (T158): the document's
     /// audio, produced and handed over as fast as the resident
     /// window can take it.
@@ -263,6 +269,7 @@ impl std::fmt::Debug for AppState {
             .field("first_yield_ms", &self.first_yield_ms)
             .field("diag", &self.diag)
             .field("diag_measures", &self.diag_measures)
+            .field("document", &self.document)
             .field("production", &self.production)
             .finish_non_exhaustive()
     }
@@ -282,6 +289,21 @@ pub(crate) struct DocumentSection {
     title: String,
     /// The parsed unit index the section starts at.
     unit_index: usize,
+}
+
+/// The loaded document (T160): the bytes the reader picked and the
+/// name the picker addressed it by.
+///
+/// The text is the synthesis' sole input (FR-018) and the name is
+/// the surface title's source (T103 / FR-011). Both are kept so a
+/// resume whose queued audio no longer names the stored position can
+/// re-synthesise the correct stretch through the open path.
+#[derive(Debug, Clone)]
+pub(crate) struct LoadedDocument {
+    /// The document's text.
+    pub(crate) text: String,
+    /// The picked document's name.
+    pub(crate) name: String,
 }
 
 /// The production still to be delivered (T158): the document's
@@ -347,6 +369,7 @@ impl AppState {
             first_yield_ms: Mutex::new(None),
             diag: diag_record::Recorder::new(),
             diag_measures: Mutex::new(DiagMeasures::default()),
+            document: Mutex::new(None),
             production: Mutex::new(None),
         }
     }
@@ -699,6 +722,13 @@ fn teardown_outgoing_session(state: &AppState) {
         *guard = None;
     } else {
         tracing::warn!("the outgoing production was not dropped: the state lock is poisoned");
+    }
+    // The outgoing document is dropped (T160): the re-anchor
+    // re-synthesises the LOADED document, never the outgoing one.
+    if let Ok(mut guard) = state.document.lock() {
+        *guard = None;
+    } else {
+        tracing::warn!("the outgoing document was not dropped: the state lock is poisoned");
     }
 }
 
@@ -2392,6 +2422,15 @@ fn feed_audible_progress(state: &AppState, position_secs: f64, watch: &mut Playb
     // The credit delta is resolved by the position authority (the
     // player crate) — the bridge forwards the reading and applies the
     // returned delta, carrying no arithmetic of its own.
+    // A run reset (T160): the backend's clock restarted (a document
+    // switch or a re-anchor drops the queue and the clock with it),
+    // so the reading TRAILS the baseline. The baseline moves with the
+    // run, or the credit would stall until the new run passed the
+    // old baseline.
+    if position_secs < watch.fed_secs {
+        watch.fed_secs = position_secs;
+        return;
+    }
     let delta_secs = player::position::audible_progress_delta(position_secs, watch.fed_secs);
     if delta_secs <= 0.0 {
         return;
@@ -2547,6 +2586,7 @@ pub fn run() {
             first_yield_ms: Mutex::new(None),
             diag: diag_record::Recorder::new(),
             diag_measures: Mutex::new(DiagMeasures::default()),
+            document: Mutex::new(None),
             production: Mutex::new(None),
         })
         .setup(|app| {
@@ -2688,16 +2728,20 @@ pub mod commands {
     //! Plugin commands exposed via IPC.
 
     use super::permissions::{self, PermissionSnapshot};
-    use super::{AppState, CpalBackend, DocumentSection, OpenError, Production, producer};
+    use super::{
+        AppState, CpalBackend, DocumentSection, LoadedDocument, OpenError, PlaybackSession,
+        Production, producer,
+    };
     use crate::{
         DEFAULT_DOCUMENT_FILENAME, OfferRoute, after_background, after_execute, after_skip,
-        delete_bookmark, diag_focus_name, diag_focus_value, diag_section_index, document_title,
-        note_first_consumed_sample, note_play_request, note_removal_request, note_resume_origin,
-        offer_route_wire, park_cold_start, pcm_from_sample, pending_open_exists, persist_last_rate,
-        publish_route, rate_press_of, read_published_route, record_buffer_state,
-        record_focus_transition, record_named_refusal, record_output_device, record_rate_change,
-        record_refusal, record_section_progress, record_transport_change, resolve_parked_choice,
-        route_offer, sample_index_of, seed_session_rate, switch_to_document,
+        delete_bookmark, diag_error_cause, diag_error_of, diag_focus_name, diag_focus_value,
+        diag_section_index, document_title, note_first_consumed_sample, note_play_request,
+        note_removal_request, note_resume_origin, offer_route_wire, park_cold_start,
+        pcm_from_sample, pending_open_exists, persist_last_rate, publish_route, rate_press_of,
+        read_published_route, record_buffer_state, record_failure, record_focus_transition,
+        record_named_refusal, record_output_device, record_rate_change, record_refusal,
+        record_section_progress, record_transport_change, resolve_parked_choice, route_offer,
+        sample_index_of, seed_session_rate, switch_to_document,
     };
     use diag::writer::{DeviceDirection, DeviceEvent, ErrorValue, FocusValue};
     use std::collections::VecDeque;
@@ -3155,6 +3199,84 @@ pub mod commands {
         started
     }
 
+    /// The loaded document (T160): the bytes the reader picked, so a
+    /// resume can re-synthesise the correct stretch.
+    fn current_document(state: &AppState) -> Option<LoadedDocument> {
+        let Ok(guard) = state.document.lock() else {
+            return None;
+        };
+        guard.clone()
+    }
+
+    /// Whether the session may be resumed at all (T160): only the
+    /// silent-but-alive states (paused, interrupted) carry a reading
+    /// the reader can resume. A stopped or completed session has no
+    /// reading to re-anchor.
+    fn resumable_transport(state: &AppState) -> bool {
+        let Ok(guard) = state.session.lock() else {
+            return false;
+        };
+        matches!(
+            guard.snapshot().transport,
+            TransportState::Paused | TransportState::Interrupted
+        )
+    }
+
+    /// Re-anchor the reading at the stored position (T160): the
+    /// queued audio no longer names it (a jump moved the stored
+    /// position while the queue stood still, or the deliberate
+    /// start-over asks for the first spoken position the queue never
+    /// held), so the correct stretch is RE-SYNTHESISED from the
+    /// stored position.
+    ///
+    /// The fail-closed default is preserved (FR-007): the diverged
+    /// queue is DROPPED before the re-synthesis, never played, and
+    /// the reading resumes at the stored position or not at all.
+    ///
+    /// # Errors
+    ///
+    /// * [`OpenError::NoStart`] when no document is loaded (there is
+    ///   nothing to re-synthesise, so the reading stays silent).
+    /// * [`OpenError::NoSegments`] when the loaded document yields no
+    ///   bounded chunk.
+    /// * [`OpenError::Synthesis`] when a chunk cannot be synthesized
+    ///   by the bound offline engine.
+    fn reanchor_at(state: &AppState, resume_secs: f64) -> Result<(), OpenError> {
+        if !resumable_transport(state) {
+            // A stopped or completed session has no reading to
+            // re-anchor: the reader's play must not start audio for a
+            // reading that has ended (FR-005).
+            return Err(OpenError::NoStart {
+                reason: String::from("the reading cannot be resumed"),
+            });
+        }
+        let Some(document) = current_document(state) else {
+            return Err(OpenError::NoStart {
+                reason: String::from("the document is not loaded"),
+            });
+        };
+        // The diverged queue is dropped: the reading must never play
+        // audio that does not name the stored position (FR-007).
+        stop_backend(state);
+        // The session is replaced: the re-anchor opens the reading AT
+        // the stored place, and the fresh session's clock is the
+        // place the open path credits (the open path is the ONE
+        // synthesis path) (Principle II).
+        {
+            let Ok(mut session) = state.session.lock() else {
+                return Err(OpenError::NoStart {
+                    reason: String::from("the session lock is poisoned"),
+                });
+            };
+            *session = PlaybackSession::new();
+        }
+        // The re-synthesis: the same open path the cold start uses,
+        // entering AT the stored place (FR-009) (the audio the
+        // reader hears is the stretch the stored place names).
+        let _opened = play_document(&document.text, state, &document.name, resume_secs)?;
+        Ok(())
+    }
+
     /// Execute one of the Play-class verbs that reach `Playing` in
     /// the closed transition table without the `Play` synthesis
     /// path: `ResumeAtStored`, `StartOver`, and `ExternalStart`
@@ -3239,15 +3361,45 @@ pub mod commands {
             // deliberate start-over.
             let resume_secs = resume_point(verb, stored.position_secs);
             if let Err(error) = restart_backend_stream(state, resume_secs) {
-                // The refusal is named before the ack leaves the
-                // path (FR-017) and the transport stays exactly
-                // where it was: a playing state is never reported
-                // over a silent session (FR-005).
-                let reason = error.to_string();
-                let _refused = refuse(state, error);
+                // T160: the queued audio no longer names the stored
+                // place (a jump moved the place while the queue stood
+                // still, or the deliberate start-over asks for the
+                // first spoken place the queue never held). The
+                // reader's play must still REACH the stored place, so
+                // the correct stretch is re-synthesised from it — and
+                // the diverged queue is dropped, never played (FR-007).
+                if let Err(failure) = reanchor_at(state, resume_secs) {
+                    // The re-anchor could not run: the original
+                    // refusal stands and the reading stays silent
+                    // (fail-closed, FR-007).
+                    record_failure(state, diag_error_of(&failure), diag_error_cause(&failure));
+                    // The refusal is named before the ack leaves the
+                    // path (FR-017) and the transport stays exactly
+                    // where it was: a playing state is never reported
+                    // over a silent session (FR-005).
+                    let reason = error.to_string();
+                    let _refused = refuse(state, error);
+                    return Ok(serde_json::json!({
+                        "ok": false,
+                        "error": reason,
+                    }));
+                }
+                // The re-anchor opened the reading AT the stored
+                // place: the open path landed the transport and
+                // started the stream, so the resume's own landing is
+                // done. The state the reader sees is published here.
+                let snap = {
+                    let Ok(session) = state.session.lock() else {
+                        return Err("the session lock is poisoned".to_string());
+                    };
+                    session.snapshot()
+                };
+                publish_current_state(state, None);
+                after_execute(state, &snap, verb);
                 return Ok(serde_json::json!({
-                    "ok": false,
-                    "error": reason,
+                    "status": snap.transport.to_string(),
+                    "position_secs": snap.position_secs,
+                    "transport": snap.transport.to_string(),
                 }));
             }
         }
@@ -5005,6 +5157,17 @@ pub mod commands {
         // clock opens here — the request instant — and the first
         // audible audio of this request closes it.
         note_play_request(state);
+        // T160: the document is kept, so a resume whose queued audio
+        // no longer names the stored position can re-synthesise the
+        // correct stretch through this same path (FR-007).
+        if let Ok(mut guard) = state.document.lock() {
+            *guard = Some(LoadedDocument {
+                text: document.to_string(),
+                name: filename.to_string(),
+            });
+        } else {
+            tracing::warn!("the document was not kept: the state lock is poisoned");
+        }
         // T042 read-at-start (FR-019b): the session opens at
         // the stored rung — seeded through the rate verbs
         // before anything else happens, so a fresh session

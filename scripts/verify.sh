@@ -65,7 +65,7 @@ pass 1 format
 #
 # Note: the task text's `cargo nextest list
 # --workspace-type all` flag does not exist in nextest
-# 0.9.133; `--workspace` is the equivalent and is what
+# 0.9.x; `--workspace` is the equivalent and is what
 # the pinned format was produced with: one entry per
 # target, `<package>` for a package target and
 # `<package>::<target>` for a test target. The pinned

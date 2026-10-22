@@ -1163,6 +1163,14 @@ const DIAG_DETAIL_OUTCOME: &str = "outcome";
 const DIAG_DETAIL_CAUSE: &str = "cause";
 /// The pre-roll seconds still buffered (FR-015a).
 const DIAG_DETAIL_PREROLL_SECS: &str = "preroll_secs";
+/// The resident window's bound, in seconds (FR-015a): the bound the
+/// pre-roll depth never exceeds, so the record carries the bound the
+/// depth is measured against.
+const DIAG_DETAIL_PREROLL_CAP_SECS: &str = "preroll_cap_secs";
+/// The samples dropped beyond the resident window's bound: the
+/// producer's overrun, the one number that says the reading SKIPPED
+/// a stretch of the document.
+const DIAG_DETAIL_DROPPED_SAMPLES: &str = "dropped_samples";
 /// The measured play-to-audio latency, in milliseconds.
 const DIAG_DETAIL_PLAY_TO_AUDIO_MS: &str = "play_to_audio_ms";
 /// The measured device-removal pause latency, in milliseconds.
@@ -1400,26 +1408,64 @@ fn record_progress(state: &AppState, snapshot: &SessionSnapshot, measured: Optio
     state.diag.append(&event);
 }
 
+/// The buffer-state entry (T097 / T159): the resident window's
+/// pre-roll depth, the bound it never exceeds, the samples dropped
+/// beyond it, and the document's content-hash ref.
+///
+/// The entry is prose-free and identifier-pattern by construction:
+/// the record's own scanner accepts it (no prose, at most 200
+/// characters, and the `error` the failure and refusal kinds
+/// require), and the content hash is the only document reference the
+/// entry ever carries (FR-017 / FR-036).
+#[must_use]
+pub fn buffer_state_event(
+    position_secs: f64,
+    buffered_secs: f64,
+    cap_secs: f64,
+    dropped_samples: u64,
+    doc_ref: &str,
+) -> RecordEvent {
+    let buffered_secs = format!("{buffered_secs:.3}");
+    let cap_secs = format!("{cap_secs:.3}");
+    let dropped_samples = dropped_samples.to_string();
+    let mut event = diag_event(EventKind::TransportChange, position_secs);
+    event.detail = diag_detail_field(&[
+        (DIAG_DETAIL_ACTION, "buffer"),
+        (DIAG_DETAIL_PREROLL_SECS, &buffered_secs),
+        (DIAG_DETAIL_PREROLL_CAP_SECS, &cap_secs),
+        (DIAG_DETAIL_DROPPED_SAMPLES, &dropped_samples),
+        (DIAG_DETAIL_DOC, doc_ref),
+    ]);
+    event
+}
+
 /// The buffer-state entry (T097): the pre-roll seconds still
 /// buffered at the moment of the entry (FR-015a; the declared
-/// pre-roll cap is 60 s).
+/// pre-roll cap is 60 s), the bound it never exceeds, and the
+/// samples dropped beyond it (T159) — the numbers a reading that
+/// skipped audio needs to be diagnosable after the fact.
 fn record_buffer_state(state: &AppState, snapshot: &SessionSnapshot) {
-    let buffered_secs = {
+    let (buffered_secs, cap_secs, dropped_samples) = {
         let Ok(guard) = state.backend.lock() else {
             return;
         };
         let Some(backend) = guard.as_ref() else {
             return; // no backend — no buffer to report
         };
-        let samples = u32::try_from(backend.buffered_samples()).unwrap_or(u32::MAX);
-        f64::from(samples) / f64::from(backend.sample_rate())
+        let buffer = backend.buffer_state();
+        (
+            buffer.buffered_secs,
+            buffer.cap_secs,
+            buffer.dropped_samples,
+        )
     };
-    let mut event = diag_event(EventKind::TransportChange, snapshot.position_secs);
-    let buffered_secs = format!("{buffered_secs:.3}");
-    event.detail = diag_detail_field(&[
-        (DIAG_DETAIL_ACTION, "buffer"),
-        (DIAG_DETAIL_PREROLL_SECS, &buffered_secs),
-    ]);
+    let event = buffer_state_event(
+        snapshot.position_secs,
+        buffered_secs,
+        cap_secs,
+        dropped_samples,
+        &diag_doc_ref(state),
+    );
     state.diag.append(&event);
 }
 

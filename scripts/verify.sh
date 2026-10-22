@@ -66,7 +66,11 @@ pass 1 format
 # Note: the task text's `cargo nextest list
 # --workspace-type all` flag does not exist in nextest
 # 0.9.133; `--workspace` is the equivalent and is what
-# the pinned 47-entry format was produced with.
+# the pinned format was produced with: one entry per
+# target, `<package>` for a package target and
+# `<package>::<target>` for a test target. The pinned
+# list tracks the live target inventory — it grows with
+# every new suite, so no entry count is stated here.
 # =============================================================================
 running 2 tests
 if ! cargo nextest run --workspace; then

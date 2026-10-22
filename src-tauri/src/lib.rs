@@ -108,6 +108,36 @@ pub mod failure;
 /// pulls it off the device.
 pub mod diag_record;
 
+/// The producer's back-pressure rule (T158).
+///
+/// The ONE place that decides how much of the pending audio the
+/// resident window may take NOW. The rule is the whole
+/// producer/consumer gap in one line: the window never holds more
+/// than its bound, so the producer hands the audio over only as
+/// fast as the window can take it. The audio beyond the window is
+/// never produced into a queue that would drop it, and the reading
+/// never skips a stretch of the document (FR-002: the audible
+/// clock stays the only advance path, so a dropped sample is a
+/// stretch the reader never hears).
+pub mod producer {
+    /// How many of the pending samples the resident window may take
+    /// NOW: the window's room — its bound minus what it already
+    /// holds — and never more than the pending audio.
+    ///
+    /// The bound and the drop policy are the queue's own
+    /// (`player::backend::ResidentQueue`): the audio AT the play
+    /// head is never dropped, the audio BEYOND the window is. The
+    /// producer therefore never offers more than the window can
+    /// hold: it waits for the device instead of losing the
+    /// overrun.
+    #[must_use]
+    pub fn admits(buffered_samples: usize, cap_samples: usize, pending_samples: usize) -> usize {
+        cap_samples
+            .saturating_sub(buffered_samples)
+            .min(pending_samples)
+    }
+}
+
 /// Shared application state for the Tauri bridge.
 ///
 /// One playback session, one lazily-opened audio backend,
@@ -204,6 +234,15 @@ pub struct AppState {
     /// clock, and the replay window the kill/power-loss recovery
     /// opens.
     pub(crate) diag_measures: Mutex<DiagMeasures>,
+    /// The production still to be delivered (T158): the document's
+    /// audio, produced and handed over as fast as the resident
+    /// window can take it.
+    ///
+    /// `None` when no production runs. Its PRESENCE is the
+    /// producer's own activity flag: the end-of-document drain
+    /// signal is gated on it, so the reading never ends while the
+    /// producer still holds audio the reader has not heard.
+    pub(crate) production: Mutex<Option<Production>>,
 }
 
 impl std::fmt::Debug for AppState {
@@ -224,8 +263,65 @@ impl std::fmt::Debug for AppState {
             .field("first_yield_ms", &self.first_yield_ms)
             .field("diag", &self.diag)
             .field("diag_measures", &self.diag_measures)
+            .field("production", &self.production)
             .finish_non_exhaustive()
     }
+}
+
+/// One section of the document (T143): the section's title
+/// and the parsed unit the section starts at.
+///
+/// Both are CONTENT facts: the parse knows them before a
+/// single sample is synthesized. The section's POSITION is
+/// not a content fact — it is where the section's audio
+/// begins in the document's timeline, and the synthesis
+/// MEASURES it as it produces that audio (FR-028c).
+#[derive(Debug, Clone)]
+pub(crate) struct DocumentSection {
+    /// The section's title: the heading's own text.
+    title: String,
+    /// The parsed unit index the section starts at.
+    unit_index: usize,
+}
+
+/// The production still to be delivered (T158): the document's
+/// audio, unit by unit, plus the counters of what was already
+/// delivered.
+///
+/// The production is DEMAND-DRIVEN: the audio reaches the resident
+/// window only as fast as the window can take it, so the queue's
+/// bound never has to drop the overrun (the audio beyond the
+/// window is dropped by the queue, and a dropped sample is a
+/// stretch the reader never hears — FR-002).
+///
+/// The state sits behind its own lock, taken alone and released
+/// before the next, so no two state locks are ever held together.
+#[derive(Debug)]
+pub(crate) struct Production {
+    /// The document's bounded units, in order.
+    segments: Vec<adapter_synthesis::chunk::DocumentSegment>,
+    /// The document's sections, in unit order.
+    sections: Vec<DocumentSection>,
+    /// The index of the next unit to synthesize.
+    next_unit: usize,
+    /// The samples before the resume entry, still to be trimmed
+    /// (FR-009): the samples before the resolved position are never
+    /// played.
+    samples_before_entry: usize,
+    /// The audio produced but not yet handed over.
+    pending: std::collections::VecDeque<f32>,
+    /// The measured samples so far — the document's own timeline
+    /// (FR-013 / T143).
+    total_samples: usize,
+    /// The samples handed over — the audio the reading carries
+    /// (FR-009).
+    played_samples: usize,
+    /// The section the production measures next (T143): the
+    /// sections are in unit order, so the cursor only ever moves
+    /// forward.
+    next_section: usize,
+    /// Whether the output stream has started (FR-005).
+    started: bool,
 }
 
 #[cfg(test)]
@@ -251,6 +347,7 @@ impl AppState {
             first_yield_ms: Mutex::new(None),
             diag: diag_record::Recorder::new(),
             diag_measures: Mutex::new(DiagMeasures::default()),
+            production: Mutex::new(None),
         }
     }
 
@@ -594,6 +691,14 @@ fn teardown_outgoing_session(state: &AppState) {
         *clock = None;
     } else {
         tracing::warn!("the FR-015 clock was not closed: the state lock is poisoned");
+    }
+    // The outgoing production is dropped (T158): the incoming
+    // document's audio is the only audio, and the outgoing
+    // document's producer never hands its audio over.
+    if let Ok(mut guard) = state.production.lock() {
+        *guard = None;
+    } else {
+        tracing::warn!("the outgoing production was not dropped: the state lock is poisoned");
     }
 }
 
@@ -2204,12 +2309,28 @@ fn playback_watch_tick(state: &AppState, watch: &mut PlaybackWatch) {
 
     feed_audible_progress(state, position_secs, watch);
 
-    if drained {
+    // T158: the end-of-document drain is gated on the production:
+    // while the producer still holds audio the reader has not heard,
+    // an empty queue is the producer WAITING for the device, never
+    // the end of the document.
+    if drained && !commands::production_running(state) {
         signal_document_end(state);
         return;
     }
 
     let _ = maybe_republish_progress(state, watch);
+
+    // T158: the production advances with the device's demand — the
+    // audio reaches the resident window only as fast as the window
+    // can take it, so the queue's bound never has to drop the
+    // overrun and the reading never skips a stretch of the document.
+    if let Err(error) = commands::advance_production(state) {
+        // The production failed: the reading leaves the playing state
+        // and the failure is recorded — a silent session is never
+        // reported as playing (FR-001 / FR-005).
+        commands::abandon_playing_landing(state);
+        record_failure(state, diag_error_of(&error), diag_error_cause(&error));
+    }
 }
 
 /// Credit the backend's audible progress into the session clock
@@ -2380,6 +2501,7 @@ pub fn run() {
             first_yield_ms: Mutex::new(None),
             diag: diag_record::Recorder::new(),
             diag_measures: Mutex::new(DiagMeasures::default()),
+            production: Mutex::new(None),
         })
         .setup(|app| {
             // Voice assets ship inside the APK: extract them to a
@@ -2520,7 +2642,7 @@ pub mod commands {
     //! Plugin commands exposed via IPC.
 
     use super::permissions::{self, PermissionSnapshot};
-    use super::{AppState, CpalBackend, OpenError};
+    use super::{AppState, CpalBackend, DocumentSection, OpenError, Production, producer};
     use crate::{
         DEFAULT_DOCUMENT_FILENAME, OfferRoute, after_background, after_execute, after_skip,
         delete_bookmark, diag_focus_name, diag_focus_value, diag_section_index, document_title,
@@ -2532,6 +2654,7 @@ pub mod commands {
         route_offer, sample_index_of, seed_session_rate, switch_to_document,
     };
     use diag::writer::{DeviceDirection, DeviceEvent, ErrorValue, FocusValue};
+    use std::collections::VecDeque;
 
     use player::cli::{SessionSnapshot, ShellVerb};
     use player::focus::{FocusClassification, FocusIntent, FocusOutcome};
@@ -3697,6 +3820,11 @@ pub mod commands {
             let _ = backend.set_gain(player::focus::FULL_GAIN);
             backend.stop();
         }
+        // T158: the stop ends the production too — the producer never
+        // hands audio over for a reading the reader has ended.
+        if let Ok(mut guard) = state.production.lock() {
+            *guard = None;
+        }
     }
 
     /// The session's current mirror for read-only intent
@@ -4078,22 +4206,6 @@ pub mod commands {
         }))
     }
 
-    /// One section of the document (T143): the section's title
-    /// and the parsed unit the section starts at.
-    ///
-    /// Both are CONTENT facts: the parse knows them before a
-    /// single sample is synthesized. The section's POSITION is
-    /// not a content fact — it is where the section's audio
-    /// begins in the document's timeline, and the synthesis
-    /// MEASURES it as it produces that audio (FR-028c).
-    #[derive(Debug, Clone)]
-    struct DocumentSection {
-        /// The section's title: the heading's own text.
-        title: String,
-        /// The parsed unit index the section starts at.
-        unit_index: usize,
-    }
-
     /// Extract the document's sections from the parsed segments
     /// (T019 / FR-028a / T143): every `Heading`-boundary segment
     /// that carries a title becomes one section, in document
@@ -4137,20 +4249,6 @@ pub mod commands {
             .to_string()
     }
 
-    /// The streaming synthesis's totals (T113 / FR-003): the
-    /// document's spoken duration and the samples actually played from
-    /// the resume entry on.
-    #[derive(Debug, Clone, Copy)]
-    struct StreamedSynthesis {
-        /// The document's spoken duration, in seconds — the
-        /// MEASURED length the session's bounded timeline and the
-        /// section boundaries derive from (FR-028a / T143).
-        duration_secs: f64,
-        /// The samples played from the resume entry on — the audio
-        /// the reading actually carries (FR-009).
-        played_samples: usize,
-    }
-
     /// Note the MEASURED end of one parsed unit (T143 / FR-013):
     /// the synthesis's own measurement of where the unit's audio
     /// ends, written into the session's resolver — the exact
@@ -4190,28 +4288,18 @@ pub mod commands {
         }
     }
 
-    /// Synthesize the document segment by segment and hand every chunk
-    /// to the backend as it is produced (T113 / FR-003).
-    ///
-    /// The FIRST chunk is enqueued and the backend is started BEFORE
-    /// the second segment is synthesized: the first audible speech
+    /// Start the production (T158): install the document's audio
+    /// work and deliver the FIRST unit, so the first audible speech
     /// arrives while the rest of the document is still being
-    /// synthesized, which is what the SC-002 ≤3 s bound names. The
-    /// whole document's PCM never exists in one buffer — every chunk
-    /// reaches the queue as its OWN buffer, so the queue holds the
-    /// speech produced so far and never a whole-document accumulator.
+    /// produced (FR-003 / SC-002).
     ///
-    /// The resume entry (T110) trims the samples before the resolved
-    /// position: the samples before it are never played (FR-009), and
-    /// the samples after it are the ones the reading continues from.
-    ///
-    /// ## The measured timeline (T143 / FR-013)
-    ///
-    /// Every unit's own length is MEASURED here, as the engine
-    /// produces it, and the measured ends reach the session's
-    /// resolver before the chunk is enqueued: the progress
-    /// projection is exact from the first audible sample, and no
-    /// audio-duration estimate ever feeds the fraction (FR-013).
+    /// The production is DEMAND-DRIVEN from here: the audio reaches
+    /// the resident window only as fast as the window can take it
+    /// (the back-pressure rule, [`producer::admits`]), so the
+    /// queue's bound never has to drop the overrun — the reading
+    /// never skips a stretch of the document, and the reported place
+    /// (credited from the consumed samples alone, FR-002) always
+    /// names the audio the reader actually heard.
     ///
     /// # Errors
     ///
@@ -4219,102 +4307,369 @@ pub mod commands {
     ///   by the bound offline engine.
     /// * [`OpenError::Backend`] when the backend refuses the chunk or
     ///   the stream start — a refusal, never a silent start (FR-005).
-    #[expect(
-        clippy::cast_precision_loss,
-        reason = "PCM sample counts are always small (≤ millions), well within f64's 52-bit mantissa"
-    )]
     fn stream_synthesis(
         segments: &[adapter_synthesis::chunk::DocumentSegment],
         sections: &[DocumentSection],
         state: &AppState,
         start_offset_secs: f64,
-    ) -> Result<StreamedSynthesis, OpenError> {
-        // The samples before the resume entry are never played
-        // (FR-009): the count is the exact sample index the resolved
-        // position names, and it shrinks as the chunks arrive.
-        let mut samples_before_entry = sample_index_of(start_offset_secs);
-        let mut total_samples = 0usize;
-        let mut played_samples = 0usize;
-        let mut started = false;
-        // The section that starts at the unit being synthesized
-        // (T143): the sections are in unit order, so the cursor
-        // only ever moves forward.
-        let mut next_section = 0usize;
-        for (unit_index, segment) in segments.iter().enumerate() {
-            // The chunk the bound offline engine produced for this
-            // segment: a refused chunk is the named
-            // [`OpenError::Synthesis`].
-            let chunk = adapter_synthesis::synth::synthesize(segment).map_err(|failure| {
-                OpenError::Synthesis {
-                    reason: format!("{failure:?}"),
-                }
-            })?;
-            // The unit's own length, in the DOCUMENT's timeline: the
-            // measured content-offset timeline (FR-013 / T143).
-            let unit_start_samples = total_samples;
-            total_samples += chunk.len();
-            let unit_start_secs = unit_start_samples as f64 / DECLARED_RATE_HZ;
-            let unit_end_secs = total_samples as f64 / DECLARED_RATE_HZ;
+    ) -> Result<(), OpenError> {
+        let production = Production {
+            segments: segments.to_vec(),
+            sections: sections.to_vec(),
+            next_unit: 0,
+            // The samples before the resume entry are never played
+            // (FR-009): the count is the exact sample index the
+            // resolved position names, and it shrinks as the units
+            // arrive.
+            samples_before_entry: sample_index_of(start_offset_secs),
+            pending: VecDeque::new(),
+            total_samples: 0,
+            played_samples: 0,
+            next_section: 0,
+            started: false,
+        };
+        {
+            let Ok(mut guard) = state.production.lock() else {
+                return Err(OpenError::NoStart {
+                    reason: String::from("the production lock is poisoned"),
+                });
+            };
+            *guard = Some(production);
+        }
+        // The FIRST unit is produced, and the first piece reaches the
+        // backend as its OWN buffer — never an accumulator the whole
+        // document's PCM was grown into (FR-003). The stream starts
+        // on it: the first audible speech arrives while the rest of
+        // the document is still being produced (FR-003 / SC-002).
+        let _unit = produce_next_unit(state)?;
+        let piece = take_piece(state, queue_room(state));
+        enqueue_chunk(state, piece)?;
+        // The stream starts on the first piece (T152 pins the block:
+        // the measured window is never closed at the stream start).
+        if !production_started(state) {
+            start_backend(state)?;
+            mark_production_started(state);
+        }
+        // T152: the play-to-audio clock closes on the first CONSUMED
+        // sample — the backend's audible clock leaving zero. The
+        // STREAM START is not it: the first buffer is consumed on the
+        // NEXT audio callback, and the device's output latency stands
+        // between the two, so a window closed here would under-report
+        // the FR-003 bound (FR-003 / SC-002). The closer declines
+        // until the consumption is observed — here, or at the next
+        // observation the watch makes.
+        note_first_consumed_sample(state);
+        // The production advances once more: the window takes the
+        // next unit as fast as the device drains it (T158), and the
+        // rest of the document is produced while the first unit
+        // plays (FR-003).
+        let _advanced = advance_production(state)?;
+        Ok(())
+    }
 
-            // The section that starts at this unit (T143): its
-            // position is where the section's audio begins — the
-            // synthesis MEASURES it here, never estimates it
-            // (FR-028c).
-            while sections
+    /// One production step (T158): make sure there is audio to hand
+    /// over, and hand over as much of it as the resident window can
+    /// take NOW.
+    ///
+    /// The step NEVER waits and NEVER blocks: the window's room is
+    /// the producer's back-pressure. A full window means the device
+    /// has not caught up, so the producer does not produce the next
+    /// unit — the audio the queue would drop is never produced
+    /// (FR-002), and the next step hands over the rest as the device
+    /// drains.
+    ///
+    /// Returns whether the production still holds audio to deliver.
+    ///
+    /// # Errors
+    ///
+    /// * [`OpenError::Synthesis`] when a chunk cannot be synthesized
+    ///   by the bound offline engine.
+    /// * [`OpenError::Backend`] when the backend refuses the chunk or
+    ///   the stream start — a refusal, never a silent start (FR-005).
+    pub(crate) fn advance_production(state: &AppState) -> Result<bool, OpenError> {
+        // The production is over when every unit has been produced
+        // and the last audio has been handed over.
+        let finished = {
+            let Ok(guard) = state.production.lock() else {
+                return Ok(false);
+            };
+            let Some(production) = guard.as_ref() else {
+                return Ok(false);
+            };
+            production.next_unit >= production.segments.len() && production.pending.is_empty()
+        };
+        if finished {
+            finish_production(state);
+            return Ok(false);
+        }
+        if pending_samples(state) == 0 {
+            // The window's room decides whether the next unit is
+            // produced: a full window means the device has not
+            // caught up, and the producer WAITS (T158) rather than
+            // producing audio the queue would drop.
+            if queue_room(state) == 0 {
+                return Ok(true);
+            }
+            let _unit = produce_next_unit(state)?;
+        }
+        let _handed = handover_pending(state)?;
+        Ok(true)
+    }
+
+    /// The resident window's room, in samples (T158): the samples it
+    /// can take NOW — its bound minus what it already holds.
+    fn queue_room(state: &AppState) -> usize {
+        let Ok(guard) = state.backend.lock() else {
+            return 0;
+        };
+        let Some(backend) = guard.as_ref() else {
+            return 0;
+        };
+        let buffer = backend.buffer_state();
+        let cap_samples = cap_samples_of(buffer.cap_secs, backend.sample_rate());
+        producer::admits(backend.buffered_samples(), cap_samples, usize::MAX)
+    }
+
+    /// The resident bound in samples (T158): the window's own bound
+    /// (in seconds) at the stream's declared rate.
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "the bound is a positive constant (60 s) and the rate is the declared 22 050 Hz, so their product is a small positive sample count"
+    )]
+    fn cap_samples_of(cap_secs: f64, sample_rate: u32) -> usize {
+        (cap_secs * f64::from(sample_rate)) as usize
+    }
+
+    /// The pending audio's length (T158): the samples produced but
+    /// not yet handed over.
+    fn pending_samples(state: &AppState) -> usize {
+        let Ok(guard) = state.production.lock() else {
+            return 0;
+        };
+        guard
+            .as_ref()
+            .map_or(0, |production| production.pending.len())
+    }
+
+    /// Whether a production is running (T158): the producer still
+    /// holds audio the reader has not heard. The end-of-document
+    /// drain signal is gated on it, so the reading never ends while
+    /// the producer holds audio.
+    pub(crate) fn production_running(state: &AppState) -> bool {
+        let Ok(guard) = state.production.lock() else {
+            return false;
+        };
+        guard.is_some()
+    }
+
+    /// The production's counters (T158): the measured duration so
+    /// far and the samples the reading carries.
+    fn production_counters(state: &AppState) -> (f64, usize) {
+        let Ok(guard) = state.production.lock() else {
+            return (0.0, 0);
+        };
+        let Some(production) = guard.as_ref() else {
+            return (0.0, 0);
+        };
+        (
+            timeline_secs(production.total_samples),
+            production.played_samples,
+        )
+    }
+
+    /// Take the piece the resident window can take NOW (T158): the
+    /// pending audio, up to the window's room — never more (the
+    /// queue would drop the rest) and never a whole unit at once
+    /// (the queue's bound would drop it).
+    fn take_piece(state: &AppState, room: usize) -> Vec<f32> {
+        if room == 0 {
+            return Vec::new();
+        }
+        let Ok(mut guard) = state.production.lock() else {
+            return Vec::new();
+        };
+        let Some(production) = guard.as_mut() else {
+            return Vec::new();
+        };
+        let take = producer::admits(0, room, production.pending.len());
+        if take == 0 {
+            return Vec::new();
+        }
+        production.pending.drain(..take).collect()
+    }
+
+    /// Whether the output stream has started (T158): the first
+    /// handover starts it, and no later handover starts it again.
+    fn production_started(state: &AppState) -> bool {
+        let Ok(guard) = state.production.lock() else {
+            return false;
+        };
+        guard.as_ref().is_some_and(|production| production.started)
+    }
+
+    /// Note that the output stream has started (T158): the first
+    /// handover starts it, and no later handover starts it again.
+    fn mark_production_started(state: &AppState) {
+        let Ok(mut guard) = state.production.lock() else {
+            return;
+        };
+        if let Some(production) = guard.as_mut() {
+            production.started = true;
+        }
+    }
+
+    /// Hand the pending audio over (T158): as much of it as the
+    /// resident window can take NOW — the production's own
+    /// back-pressure. The piece reaches the backend as its OWN
+    /// buffer (FR-003), and the stream is never started twice.
+    ///
+    /// # Errors
+    ///
+    /// * [`OpenError::Backend`] when the backend refuses the chunk —
+    ///   a refusal, never a silent handover (FR-005).
+    fn handover_pending(state: &AppState) -> Result<usize, OpenError> {
+        let piece = take_piece(state, queue_room(state));
+        if piece.is_empty() {
+            return Ok(0);
+        }
+        let samples = piece.len();
+        enqueue_chunk(state, piece)?;
+        note_first_consumed_sample(state);
+        Ok(samples)
+    }
+
+    /// Produce the next unit (T158): synthesize it, measure it, and
+    /// put its audio in the pending buffer.
+    ///
+    /// # Errors
+    ///
+    /// * [`OpenError::Synthesis`] when a chunk cannot be synthesized
+    ///   by the bound offline engine.
+    /// * [`OpenError::NoStart`] when the session lock is poisoned.
+    fn produce_next_unit(state: &AppState) -> Result<bool, OpenError> {
+        let (unit_index, segment, total_samples, samples_before_entry) = {
+            let Ok(guard) = state.production.lock() else {
+                return Ok(false);
+            };
+            let Some(production) = guard.as_ref() else {
+                return Ok(false);
+            };
+            let Some(segment) = production.segments.get(production.next_unit) else {
+                return Ok(false);
+            };
+            (
+                production.next_unit,
+                segment.clone(),
+                production.total_samples,
+                production.samples_before_entry,
+            )
+        };
+        // The chunk the bound offline engine produced for this
+        // segment: a refused chunk is the named
+        // [`OpenError::Synthesis`].
+        let chunk = adapter_synthesis::synth::synthesize(&segment).map_err(|failure| {
+            OpenError::Synthesis {
+                reason: format!("{failure:?}"),
+            }
+        })?;
+        // The unit's own length, in the DOCUMENT's timeline: the
+        // measured content-offset timeline (FR-013 / T143).
+        let unit_end_samples = total_samples + chunk.len();
+        let unit_start_secs = timeline_secs(total_samples);
+        let unit_end_secs = timeline_secs(unit_end_samples);
+
+        // The section that starts at this unit (T143): its position
+        // is where the section's audio begins — the synthesis
+        // MEASURES it here, never estimates it (FR-028c).
+        let section_index = {
+            let Ok(mut guard) = state.production.lock() else {
+                return Ok(false);
+            };
+            let Some(production) = guard.as_mut() else {
+                return Ok(false);
+            };
+            let mut next_section = production.next_section;
+            while production
+                .sections
                 .get(next_section)
                 .is_some_and(|section| section.unit_index < unit_index)
             {
                 next_section += 1;
             }
-            if let Some(section) = sections.get(next_section)
-                && section.unit_index == unit_index
-            {
-                note_measured_section_position(state, next_section, unit_start_secs);
-                next_section += 1;
-            }
-            // The measured end of the unit (FR-013): the exact
-            // content offset the progress projection runs on. It is
-            // written BEFORE the chunk is enqueued, so the
-            // projection is exact from the first audible sample.
-            note_measured_unit_end(state, unit_end_secs);
-
-            let dropped = samples_before_entry.min(chunk.len());
-            samples_before_entry -= dropped;
-            let chunk = pcm_from_sample(&chunk, dropped);
-            if chunk.is_empty() {
-                // The whole chunk sits before the resume entry: it
-                // carries no audible sample, and the reading waits
-                // for the chunk that does (FR-009).
-                continue;
-            }
-            played_samples += chunk.len();
-            // The chunk reaches the backend as its OWN buffer — never
-            // an accumulator the whole document's PCM was grown into
-            // (FR-003).
-            enqueue_chunk(state, chunk)?;
-            if !started {
-                // The first chunk is queued: the backend starts on it,
-                // and the rest of the document synthesizes while it
-                // plays (FR-003 / SC-002).
-                start_backend(state)?;
-                started = true;
-            }
-            // T152: the play-to-audio clock closes on the first
-            // CONSUMED sample — the backend's audible clock leaving
-            // zero. The STREAM START is not it: the first buffer is
-            // consumed on the NEXT audio callback, and the device's
-            // output latency stands between the two, so a window
-            // closed here would under-report the FR-003 bound
-            // (FR-003 / SC-002). The closer declines until the
-            // consumption is observed — here, or at the next
-            // observation the watch makes.
-            note_first_consumed_sample(state);
+            let starts_here = production
+                .sections
+                .get(next_section)
+                .is_some_and(|section| section.unit_index == unit_index);
+            production.next_section = if starts_here {
+                next_section + 1
+            } else {
+                next_section
+            };
+            starts_here.then_some(next_section)
+        };
+        if let Some(index) = section_index {
+            note_measured_section_position(state, index, unit_start_secs);
         }
-        let duration_secs = total_samples as f64 / DECLARED_RATE_HZ;
-        Ok(StreamedSynthesis {
-            duration_secs,
-            played_samples,
-        })
+
+        // The resume entry (T110 / FR-009): the samples before the
+        // resolved position are never played.
+        let dropped = samples_before_entry.min(chunk.len());
+        let chunk = pcm_from_sample(&chunk, dropped);
+        {
+            let Ok(mut guard) = state.production.lock() else {
+                return Ok(false);
+            };
+            let Some(production) = guard.as_mut() else {
+                return Ok(false);
+            };
+            production.next_unit = unit_index + 1;
+            production.total_samples = unit_end_samples;
+            production.samples_before_entry = samples_before_entry - dropped;
+            production.played_samples += chunk.len();
+            production.pending.extend(chunk.iter().copied());
+        }
+        // The measured end of the unit (FR-013): the exact content
+        // offset the progress projection runs on. It is written
+        // BEFORE the audio is handed over, so the projection is
+        // exact from the first audible sample.
+        note_measured_unit_end(state, unit_end_secs);
+        // The MEASURED timeline reaches the session: the duration
+        // measured so far bounds the skips, and the sections measured
+        // so far are the ones a skip can land on (FR-002 / FR-013).
+        install_session_timeline(state, unit_end_secs)?;
+        Ok(true)
+    }
+
+    /// The production is over (T158): the document's audio has all
+    /// been handed over. The measured timeline reaches the session
+    /// once more and the surface is published again.
+    fn finish_production(state: &AppState) {
+        let finished = {
+            let Ok(mut guard) = state.production.lock() else {
+                return;
+            };
+            guard.take()
+        };
+        let Some(production) = finished else {
+            return;
+        };
+        // The MEASURED timeline: the spoken duration and the measured
+        // section positions reach the session — the bounded timeline
+        // the skips clamp against (FR-002) and the section boundaries
+        // they land on.
+        let _ = install_session_timeline(state, timeline_secs(production.total_samples));
+    }
+
+    /// The document timeline's seconds for a sample count (T158):
+    /// the declared rate is a constant, so the division never
+    /// drifts.
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "PCM sample counts are always small (≤ millions), well within f64's 52-bit mantissa"
+    )]
+    fn timeline_secs(samples: usize) -> f64 {
+        samples as f64 / DECLARED_RATE_HZ
     }
 
     /// Install the session-start structure (T019 / FR-028a / T143):
@@ -4365,6 +4720,13 @@ pub mod commands {
     /// The synthesis has measured both by the time this runs, so the
     /// values are exact; the session-start totals (the parsed-content
     /// unit total and the section count) are untouched.
+    ///
+    /// The production installs the timeline as it measures (T158),
+    /// so the sections whose audio the production has not reached
+    /// yet are NOT carried: a skip may only land on a boundary the
+    /// session knows, and an unmeasured boundary is no boundary at
+    /// all (FR-002). The section COUNT — the session-start total —
+    /// is untouched by this filter: it was fixed at the open.
     fn install_session_timeline(state: &AppState, duration_secs: f64) -> Result<(), OpenError> {
         let headings: Vec<player::surface::Heading> = {
             let Ok(headings_guard) = state.headings.lock() else {
@@ -4372,7 +4734,11 @@ pub mod commands {
                     reason: "the headings lock is poisoned".to_string(),
                 });
             };
-            headings_guard.clone()
+            headings_guard
+                .iter()
+                .filter(|heading| heading.position_secs.is_finite())
+                .cloned()
+                .collect()
         };
         let mut session = state.session.lock().map_err(|e| OpenError::NoStart {
             reason: e.to_string(),
@@ -4392,7 +4758,7 @@ pub mod commands {
     /// (`Playing` + `Pause` lands `Paused`), and the record's
     /// transport-change entry explains the stall the earlier landing
     /// would otherwise show (the diagnostic record's own scanner).
-    fn abandon_playing_landing(state: &AppState) {
+    pub(crate) fn abandon_playing_landing(state: &AppState) {
         let snapshot = {
             let Ok(mut session) = state.session.lock() else {
                 tracing::warn!(
@@ -4717,31 +5083,30 @@ pub mod commands {
         // playing one — the surface exists while the audio plays.
         publish_current_state(state, None);
 
-        // The streaming synthesis: the first chunk reaches the
-        // backend here, and the rest of the document synthesizes
-        // while it plays.
-        let streamed = match stream_synthesis(&segments, &sections, state, start_offset_secs) {
-            Ok(streamed) => streamed,
-            Err(error) => {
-                // The reading never reached the audio: the session
-                // leaves the playing state, so a silent session is
-                // never reported as playing (FR-001 / FR-005).
-                abandon_playing_landing(state);
-                return Err(error);
-            }
-        };
-        // The document's own duration stays the resolver's total — the
-        // reading still ends where the document ends (FR-028a).
-        let duration_secs = streamed.duration_secs;
-        // The samples the reading actually carries: the audio from
-        // the resume entry on (FR-009).
-        let pcm_samples = streamed.played_samples;
-
-        // The MEASURED timeline: the spoken duration and the
-        // measured section positions reach the session — the bounded
-        // timeline the skips clamp against (FR-002) and the section
-        // boundaries they land on.
-        install_session_timeline(state, duration_secs)?;
+        // T158: the production BEGINS here — the first unit is
+        // produced and handed over, so the first audible speech
+        // arrives while the rest of the document is still being
+        // produced (FR-003 / SC-002).
+        //
+        // The production then advances with the DEVICE's demand: the
+        // audio reaches the resident window only as fast as the
+        // window can take it, so the queue's bound never has to drop
+        // the overrun. The reading never skips a stretch of the
+        // document, and the reported place — credited from the
+        // consumed samples alone (FR-002) — always names the audio
+        // the reader actually heard.
+        if let Err(error) = stream_synthesis(&segments, &sections, state, start_offset_secs) {
+            // The reading never reached the audio: the session
+            // leaves the playing state, so a silent session is never
+            // reported as playing (FR-001 / FR-005).
+            abandon_playing_landing(state);
+            return Err(error);
+        }
+        // The MEASURED timeline so far: the spoken duration measured
+        // up to now and the samples the reading carries (FR-009).
+        // The production measures the rest as it goes, and the
+        // session's own timeline follows it (FR-013).
+        let (duration_secs, pcm_samples) = production_counters(state);
 
         // The FR-017 diagnostic record (T097): the buffer state
         // the session started with — the pre-roll seconds still

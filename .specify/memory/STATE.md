@@ -1,10 +1,13 @@
 # Session state — 004-ressoa-dogfood-build (shell bring-up wave)
 
-> **RESUME POINT (2026-10-22) — read this first.** Phase 17 is COMPLETE and
-> the final verification has attested the tree at `1ac0ae3` ("test(004): T161
-> restore the FR-003 first-audible observation").
+> **RESUME POINT (2026-10-22) — read this first.** Phase 17 is COMPLETE
+> (T140–T163, all committed) and the final verification has RE-ATTESTED the
+> tree at `9501bba` ("test(004): T163 model the FR-007 five-second cue in the
+> canonical guard oracle") in the attestation commit `21892dd`
+> ("verify(004): T095 final re-attestation (deterministic gate 2)"); the task
+> markers are committed on top of it (`ce54aea`).
 >
-> **Landed in Phase 17 (23 tasks, all committed):** T140 `f30feca` (RED
+> **Landed in Phase 17 (24 tasks, all committed):** T140 `f30feca` (RED
 > resume) · T141 `aa4ecf4` (resume restarts the stream) · T142 `59a12a2` (RED
 > session-live) · T143 `97f0046` (session live from the first chunk) · T144
 > `80803f5` (RED offer-dialog reachability) · T145 `88e4f2d` (offer dialog
@@ -18,16 +21,44 @@
 > `024d55e` (producer back-pressure) · T159 `5af0f33` (buffer bound in the diag
 > record) · T160 `3e4fd0a` (resume divergence reachability) · T161 `1ac0ae3`
 > (FR-003 first-audible observation restored) · T162 `b03f1a2`/`5e0acaf` (stale
-> gate-2 comment).
+> gate-2 comment) · T163 `9501bba` (the canonical-guard oracle repaired).
 >
-> **Final verification (the only thing that attests):** `scripts/verify.sh` exit
-> **0** — gates 1–7 + gate-8-shell PASS (902 tests run: 902 passed, 2 skipped;
-> 99 live / 99 pinned nextest targets, two-way diff clean in BOTH directions);
-> `gate-8-full: DEFERRED (owner=synthesis)` (SC-044 open — NEVER a pass). Gate 9
-> `cargo tauri android build --target aarch64` exit 0 — APK sha256
+> **Final verification (the only thing that attests) — DETERMINISTIC, TWICE.**
+> `scripts/verify.sh` was run TWICE on the attested tree, back to back, and
+> BOTH runs exited **0** with a byte-identical per-gate result sequence — the
+> determinism claim is DEMONSTRATED, not asserted:
+> run 1 (03:27:34 – 03:43:03 -0400, 7 265 lines, `VERIFY_EXIT=0`) and run 2
+> (03:50:02 – 04:05:58 -0400, 7 261 lines, `VERIFY_EXIT=0`); the exit status is
+> the SCRIPT's (`PIPESTATUS[0]` under `bash -c`), and the two per-gate result
+> sequences compare EMPTY under `diff`. Gates 1–7 + gate-8-shell PASS in both
+> runs (906 tests run, 906 passed, 2 skipped — up from 902, T163's four new
+> pins); `gate-8-full: DEFERRED (owner=synthesis)` (SC-044 open — NEVER a
+> pass); `check-manifest.sh` and `check-shell-purity.sh` PASS in both runs.
+> Standalone: clippy exit **0** (also as gate 4's fail-closed
+> `lint-drift-clippy`), fmt exit **0**, nextest inventory **99 live / 99
+> pinned** with the two-way diff empty in BOTH directions, `cargo deny` exit 0
+> (`advisories ok, bans ok, licenses ok, sources ok`), `cargo audit` exit 0
+> with the 2 allowed warnings. The RUSTSEC-2026-0381 waiver (Exceptions Log
+> entry 13, PROVISIONAL, constitution v1.11.0) holds its mechanical bound: the
+> COMMITTED lockfile carries exactly `webpki-roots` 0.26.11 + 1.0.10.
+> Gate 9 `cargo tauri android build --target aarch64` exit 0 — APK sha256
 > `2e3555f3…ece08f5`, AAB sha256 `c226ecc3…cc6d42b`, non-hollow (7/7 app
-> classes in the dex). Attestation commit `0a5d127`; the task markers are
-> committed on top of it.
+> classes in the dex). Logs of record:
+> `/home/luis/development/.mdreader-t095-reattest-tmp/logs/` (`run1.log`,
+> `run2.log`, `android.txt`, `clippy.txt`, `fmt.txt`, `nextest_list.txt`,
+> `deny.txt`, `audit.txt`).
+>
+> **RESOLVED — the §3.1 flake is GONE.** The previously-disclosed
+> intermittency (`player::prop_canonical_guard` red ~1 run in 40) was a STALE
+> ORACLE, not a production defect, and T163 `9501bba` repaired the oracle with
+> the production left byte-identical (`git diff --exit-code
+> crates/player/src/rewind.rs` empty). The FR-007 5 s cue is now modelled, the
+> `[cap, cap+5)` counterexample is pinned, the repair is mutation-proven
+> (removing the cue turns 4 of 9 red), a 1 200 000-case equivalence sweep found
+> zero disagreements, and a genuine proptest-recorded seed replaced the
+> hand-copied hash that replayed no counterexample. T163's own 105 consecutive
+> runs recorded 0 failures; all NINE `player::prop_canonical_guard` tests PASS
+> in BOTH attested runs. Full detail in the attestation's §3.1.
 >
 > **Still open — device-only by design:** **T051** (the SC-001…SC-010 trials
 > per `quickstart.md` §3 on the reference phone, Redmi 2201117TY) and **T052**
@@ -35,22 +66,20 @@
 > both stay `[ ]` in `tasks.md` and the attestation explicitly does not claim
 > them.
 >
-> **Open finding for the maintainer (NOT fixed — it is a code change):**
-> `scripts/verify.sh` is not deterministic at this tree: one PRE-EXISTING
-> property test (`player::prop_canonical_guard`) is red on roughly 1 run in 40
-> because its oracle predates the FR-007 5 s context cue added at `4050021`
-> (2026-10-14). Measured 1/40; the counterexample, the root cause and the
-> provenance are in the attestation's §3.1. No Phase-17 commit touches it. The
-> fix (update the oracle, or re-spec the cap-precedence branch) touches
-> `crates/player/tests/`, so it is NOT a verification-only change.
->
 > **Next action, in order:**
 > 1. T051 + T052 on the reference phone — the only un-attested criteria.
-> 2. Decide the `prop_canonical_guard` oracle (new task).
-> 3. Do NOT push to `origin/main` without an explicit request (the branch is
->    far ahead).
+> 2. Do NOT push to `origin/main` without an explicit request (the branch is
+>    far ahead — 514 commits).
+> 3. Optional maintainer housekeeping: `cargo deny` reports the
+>    RUSTSEC-2026-0381 ignore as `advisory-not-detected` (a warning, not a
+>    finding) because the graph now carries the patched 1.0.10; removing the
+>    two ignore records is a constitution exit-condition decision, not a
+>    verification-session change.
 >
-> Housekeeping: `git stash list` is empty; the working tree is clean.
+> Housekeeping: `git stash list` is empty; the working tree is clean. Note the
+> host's `/tmp` is a 2.0 GB tmpfs that another project (a `dotnet build`
+> fixture of `livingroots-smoke-harness`) fills to 100 % — use a disk-backed
+> `TMPDIR` for cargo/Gradle and the scratch space.
 
 Updated: 2026-10-17 (Wave B device verification GREEN + user-heard audio
 confirmed; zip-9 substitution complete — patch, lock, governance v1.8.0;

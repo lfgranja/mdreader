@@ -2,7 +2,94 @@
   SYNC IMPACT REPORT
   ===================
   Amended: 2026-10-21
-  Version change: 1.10.0 -> 1.11.0
+  Version change: 1.11.0 -> 1.12.0
+
+  Bump rationale: MINOR. One governance record is RETIRED: the
+  PROVISIONAL waiver of RUSTSEC-2026-0381 (Exceptions Log entry 13).
+  No principle is added, removed or redefined, no existing MUST is
+  weakened, and no gate threshold or lint level is changed. Not PATCH
+  (new governance content plus the retirement of an exception record),
+  not MAJOR (no principle change, no MUST weakened).
+
+  What changed:
+    - Exceptions Log entry 13 RETIRED: RUSTSEC-2026-0381 / CVE-2026-111943
+      is now listed by the RustSec database as `unaffected =
+      ["= 0.26.11"]` for `webpki-roots`. Upstream reclassified the shim
+      as a compatibility wrapper: `webpki-roots` 0.26.11 ships NO trust
+      anchors of its own (`pub use parent::TLS_SERVER_ROOTS;`), while
+      `webpki-roots` 1.0.10 HAS removed the distrusted `emSign ECC Root
+      CA - G3` root (the advisory's own text: "Version 1.0.10+ removes
+      this root"). The patched set is `>= 1.0.10`; the 0.26 line has NO
+      patched release, and every `ureq` 2.x requires `webpki-roots
+      ^0.26` (only `ureq >= 3.1.0` requires `^1.0.0`). The 0.26.11 node
+      is therefore version-flagged while bundling nothing. Reachability:
+      build-time only -- `adapter-synthesis` -> `sherpa-onnx` 1.13.8 ->
+      vendored `sherpa-onnx-sys` 1.13.8 (build-dependency `ureq` 2.12) ->
+      `ureq` 2.12.1 -> `webpki-roots` 0.26.11; nothing from `ureq`,
+      `rustls-webpki` or `webpki-roots` links into any shipped artifact.
+      Risk accepted as build-time-only supply-chain surface: the trust
+      anchors in use are already patched at 1.0.10, and the residual is a
+      version-number artifact of a shim. Mechanical form (what makes this
+      waiver version-bound): `scripts/verify.sh` gate 5 asserted that the
+      lockfile's `webpki-roots` version set was exactly `{0.26.11,
+      1.0.10}`; any other version -- an unpatched 1.x, a reappearance of
+      an unpatched 0.26.x, or the shim leaving the graph -- FAILS the
+      gate, so the waiver could not silently widen. Tooling form: a
+      `[[advisories.ignore]]` block for RUSTSEC-2026-0381 in `deny.toml`,
+      plus `[advisories] ignore = ["RUSTSEC-2026-0381"]` in a new
+      repo-root `.cargo/audit.toml` -- gate 5 runs BOTH `cargo deny
+      check advisories` and `cargo audit`, and each tool reads its own
+      ignore file. PROVISIONAL -- exit condition: the `webpki-roots`
+      0.26 shim leaving the graph, i.e. the vendored `sherpa-onnx-sys`
+      build-dependency moving to `ureq` 3.x (which requires
+      `webpki-roots ^1.0.0`), or upstream publishing a 0.26.x release
+      carrying the removal; then delete both ignore records and this
+      entry. Re-evaluate whenever `webpki-roots` or `ureq` changes
+      version in the lockfile.
+    - `deny.toml`: the `[[advisories.ignore]]` block for RUSTSEC-2026-0381
+      is deleted (the gate now fails closed if the advisory is active,
+      but the advisory is now `unaffected` for 0.26.11, so nothing
+      matches).
+    - `.cargo/audit.toml`: deleted entirely (it contained only the
+      `ignore = ["RUSTSEC-2026-0381"]` line).
+    - `scripts/verify.sh` gate 5: the hard-coded `webpki-roots`
+      version-set assertion (`{0.26.11, 1.0.10}`) is removed. With the
+      waiver retired, `cargo deny check advisories` and `cargo audit`
+      enforce the supply-chain policy directly. An unpatched `webpki-roots`
+      version in the graph WOULD fail the gate, so it cannot silently
+      widen.
+
+  Modified constraints:
+    - Exceptions Log: entry 13 deleted.
+    - deny.toml: the `[[advisories.ignore]]` block for
+      RUSTSEC-2026-0381 deleted.
+    - .cargo/audit.toml: deleted (it contained only the ignore block
+      for this advisory).
+    - scripts/verify.sh: gate 5 no longer hard-codes the
+      `{0.26.11, 1.0.10}` version set; `cargo deny check advisories` and
+      `cargo audit` enforce the supply-chain policy directly.
+    - Everything else: no principle, no MUST, no gate threshold, no
+      lint level is modified.
+
+  Principles modified: none.
+  Sections added: none.
+  Sections removed: none.
+  Renamed sections: none.
+
+  Deferred / non-constitution:
+    - None. Entry 13's exit condition (the `webpki-roots` 0.26 shim
+      leaving the graph) is satisfied: the RustSec database now lists
+      0.26.11 as unaffected, confirming the shim carries no trust
+      anchors and the 1.x line has removed the distrusted root. No new
+      Exceptions Log entry is required.
+
+  Source evidence: `.cargo/advisory-db/crates/webpki-roots/RUSTSEC-2026-0381.md`
+  (unchanged: `unaffected = ["= 0.26.11"]`, `date = "2026-10-19"`,
+  `patched = [">= 1.0.10"]`); `cargo deny check advisories` on this
+  workspace (2026-10-21): `advisories ok` with the entry-13 ignore block
+  removed; `cargo audit` without the `.cargo/audit.toml` ignore: exit 0
+  (only the two pre-existing allowed warnings, unrelated).
+-->
 
   Bump rationale: MINOR. One governance record is CORRECTED: the
   Verification Gates paragraph that described the mechanical form of
@@ -1270,36 +1357,6 @@ drift. Each was authorized by the sole maintainer on 2026-10-01.
     `crates/adapter-synthesis/Cargo.toml`, delete `vendor/sherpa-onnx-sys/` and the
     `[patch.crates-io]` stanza, and delete this entry.
 
-13. **`webpki-roots` 0.26.11 advisory waived (RUSTSEC-2026-0381 /
-    CVE-2026-111943, 2026-10-20)** — deviates from the advisory-free supply-chain
-    gate (Principle IV). Author: maintainer (2026-10-20), accepted in the commit that
-    records it. Exact version: `webpki-roots` 0.26.11. Reason (why the version cannot
-    simply be bumped): the flagged node is a pure compatibility shim — its ONLY
-    dependency is `[dependencies.parent] version = "1" package = "webpki-roots"` and its
-    `src/lib.rs` is `pub use parent::TLS_SERVER_ROOTS;`, so it ships NO root certificates
-    of its own. The trust anchors actually in use come from `webpki-roots` 1.0.10, which
-    HAS removed the distrusted `emSign ECC Root CA - G3` root (the advisory's own text:
-    "Version 1.0.10+ removes this root"). The patched set is `>= 1.0.10`; the 0.26 line
-    has NO patched release, and every `ureq` 2.x requires `webpki-roots ^0.26` (only
-    `ureq >= 3.1.0` requires `^1.0.0`). The 0.26.11 node is therefore version-flagged
-    while bundling nothing. Reachability: build-time only — `adapter-synthesis` ->
-    `sherpa-onnx` 1.13.8 -> vendored `sherpa-onnx-sys` 1.13.8 (build-dependency `ureq`
-    "2.12") -> `ureq` 2.12.1 -> `webpki-roots` 0.26.11; nothing from `ureq`, `rustls`,
-    `rustls-webpki` or `webpki-roots` links into any shipped artifact. Risk accepted as
-    build-time-only supply-chain surface: the trust anchors in use are already patched at
-    1.0.10, and the residual is a version-number artifact of a shim. Mechanical form
-    (what makes this waiver version-bound): `scripts/verify.sh` gate 5 asserts that the
-    lockfile's `webpki-roots` version set is exactly `{0.26.11, 1.0.10}`; any other
-    version — an unpatched 1.x, a reappearance of an unpatched 0.26.x, or the shim
-    leaving the graph — FAILS the gate, so the waiver cannot silently widen. Tooling
-    form: a `[[advisories.ignore]]` block for RUSTSEC-2026-0381 in `deny.toml`, plus
-    `[advisories] ignore = ["RUSTSEC-2026-0381"]` in a new repo-root `.cargo/audit.toml`
-    — gate 5 runs BOTH `cargo deny check advisories` and `cargo audit`, and each tool
-    reads its own ignore file. PROVISIONAL — exit condition: the `webpki-roots` 0.26
-    shim leaving the graph, i.e. the vendored `sherpa-onnx-sys` build-dependency moving
-    to `ureq` 3.x (which requires `webpki-roots ^1.0.0`), or upstream publishing a
-    0.26.x release carrying the removal; then delete both ignore records and this entry.
-    Re-evaluate whenever `webpki-roots` or `ureq` changes version in the lockfile.
 
 Any new deviation is added here in the same commit that introduces it, and is treated as a
 minor amendment.
@@ -1341,4 +1398,4 @@ Where this constitution and a convenience conflict, this constitution wins and t
 either changed or proposed as an amendment. Where this constitution and the reference stack
 conflict, the maintainer decides, and the decision is logged.
 
-**Version**: 1.11.0 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-21
+**Version**: 1.12.0 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-21

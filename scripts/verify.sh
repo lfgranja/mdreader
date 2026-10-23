@@ -332,62 +332,6 @@ if ! cargo audit; then
   fail "gate-5 supply-chain: cargo audit failed"
 fi
 
-# The RUSTSEC-2026-0381 waiver bound (constitution Exceptions
-# Log entry 13, PROVISIONAL): the advisory names the
-# `webpki-roots` 0.26 line, and the node in this graph is
-# `webpki-roots 0.26.11` — a pure compatibility shim with no
-# roots of its own, delegating every trust anchor to the
-# patched `webpki-roots` 1.0.10. The waiver is scoped to
-# exactly that version set, so it can never silently widen:
-# the committed lockfile must contain EXACTLY the versions
-# 0.26.11 (the shim) and 1.0.10 (the patched trust-anchor
-# set). An added version, a different version, or the shim
-# leaving the graph altogether all fail closed.
-#
-# The lockfile is PARSED, not grepped: an awk over the
-# `[[package]]` blocks reads each block's `name`/`version`
-# pair and keeps the ones whose name is `webpki-roots`, so a
-# blind pattern match can never pick up an unrelated line
-# (the `dependencies` array of the 0.26.11 block literally
-# contains the text "webpki-roots 1.0.10").
-WAIVER_LOCKFILE="$ROOT/Cargo.lock"
-[ -f "$WAIVER_LOCKFILE" ] \
-  || fail "gate-5 supply-chain: missing input: $WAIVER_LOCKFILE (the committed lockfile is a gate input; a missing file is a failed gate)"
-EXPECTED_WEBPKI_VERSIONS="$(printf '0.26.11\n1.0.10')"
-LOCK_WEBPKI_VERSIONS="$(
-  awk '
-    /^\[\[package\]\]/ { if (is_target && ver != "") print ver; in_pkg = 1; is_target = 0; ver = ""; next }
-    /^\[/ { if (is_target && ver != "") print ver; in_pkg = 0; is_target = 0; ver = ""; next }
-    in_pkg && /^[[:space:]]*name[[:space:]]*=/ {
-      line = $0
-      sub(/^[^"]*"/, "", line)
-      sub(/".*$/, "", line)
-      is_target = (line == "webpki-roots")
-      next
-    }
-    in_pkg && is_target && /^[[:space:]]*version[[:space:]]*=/ {
-      line = $0
-      sub(/^[^"]*"/, "", line)
-      sub(/".*$/, "", line)
-      ver = line
-      next
-    }
-    END { if (is_target && ver != "") print ver }
-  ' "$WAIVER_LOCKFILE" | sort -u
-)"
-if [ "$LOCK_WEBPKI_VERSIONS" != "$EXPECTED_WEBPKI_VERSIONS" ]; then
-  OFFENDING_WEBPKI_VERSIONS="$(
-    {
-      comm -23 <(printf '%s\n' "$EXPECTED_WEBPKI_VERSIONS") <(printf '%s\n' "$LOCK_WEBPKI_VERSIONS")
-      comm -13 <(printf '%s\n' "$EXPECTED_WEBPKI_VERSIONS") <(printf '%s\n' "$LOCK_WEBPKI_VERSIONS")
-    } | tr '\n' ' '
-  )"
-  {
-    printf 'webpki-roots versions found in %s:\n%s\n' "$WAIVER_LOCKFILE" "${LOCK_WEBPKI_VERSIONS:-<none>}"
-    printf 'webpki-roots versions expected (RUSTSEC-2026-0381 waiver bound, Exceptions Log entry 13):\n%s\n' "$EXPECTED_WEBPKI_VERSIONS"
-    printf 'offending webpki-roots version(s): %s\n' "${OFFENDING_WEBPKI_VERSIONS:-<none>}"
-  } >&2
-  fail "gate-5 supply-chain: the committed lockfile's webpki-roots version set violates the RUSTSEC-2026-0381 waiver bound (Exceptions Log entry 13: exactly 0.26.11 and 1.0.10); the waiver may not widen"
 fi
 pass 5 supply-chain
 

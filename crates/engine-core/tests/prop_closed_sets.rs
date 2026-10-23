@@ -118,7 +118,7 @@ const ENGINE_TIERS: [(EngineTier, &str); 5] = [
 // exactly the named variants — no `Other`/`Unknown`/`_ =>` arm can be added
 // without breaking this test target (Principle VII, FR-044).
 
-fn rate_wire_of(rate: PlaybackRate) -> f64 {
+const fn rate_wire_of(rate: PlaybackRate) -> f64 {
     match rate {
         PlaybackRate::R0_75 => 0.75,
         PlaybackRate::R1_0 => 1.0,
@@ -130,7 +130,7 @@ fn rate_wire_of(rate: PlaybackRate) -> f64 {
     }
 }
 
-fn transport_wire_of(state: TransportState) -> &'static str {
+const fn transport_wire_of(state: TransportState) -> &'static str {
     match state {
         TransportState::Playing => "playing",
         TransportState::Paused => "paused",
@@ -140,7 +140,7 @@ fn transport_wire_of(state: TransportState) -> &'static str {
     }
 }
 
-fn focus_wire_of(outcome: FocusOutcome) -> &'static str {
+const fn focus_wire_of(outcome: FocusOutcome) -> &'static str {
     match outcome {
         FocusOutcome::DuckableTransient => "duckable_transient",
         FocusOutcome::SilenceDemanding => "silence_demanding",
@@ -148,13 +148,13 @@ fn focus_wire_of(outcome: FocusOutcome) -> &'static str {
     }
 }
 
-fn focus_regained_wire_of(event: FocusRegained) -> &'static str {
+const fn focus_regained_wire_of(event: FocusRegained) -> &'static str {
     match event {
         FocusRegained::Regained => "regained",
     }
 }
 
-fn engine_error_wire_of(error: EngineError) -> &'static str {
+const fn engine_error_wire_of(error: EngineError) -> &'static str {
     match error {
         EngineError::Unreachable => "engine_unreachable",
         EngineError::InitFailed => "engine_init_failed",
@@ -166,7 +166,7 @@ fn engine_error_wire_of(error: EngineError) -> &'static str {
     }
 }
 
-fn session_end_wire_of(end: SessionEnd) -> &'static str {
+const fn session_end_wire_of(end: SessionEnd) -> &'static str {
     match end {
         SessionEnd::Paused => "paused",
         SessionEnd::Stopped => "stopped",
@@ -175,7 +175,7 @@ fn session_end_wire_of(end: SessionEnd) -> &'static str {
     }
 }
 
-fn engine_tier_wire_of(tier: EngineTier) -> &'static str {
+const fn engine_tier_wire_of(tier: EngineTier) -> &'static str {
     match tier {
         EngineTier::OfflineDefault => "offline_default",
         EngineTier::CloudDefault => "cloud_default",
@@ -260,12 +260,12 @@ proptest! {
     fn rate_ladder_round_trips_every_declared_rung(rate in rate_strategy()) {
         // Invariant: the rate rungs are exactly `[0.75, 1.0, 1.25, 1.5,
         // 1.75, 2.0, 4.0]` and serde round-trips every variant (FR-044).
-        let wire = serde_json::to_value(&rate).ok();
+        let wire = serde_json::to_value(rate).ok();
         prop_assert!(wire.is_some(), "PlaybackRate failed to serialize: {rate:?}");
         let wire = wire.unwrap_or(Value::Null);
         prop_assert_eq!(
-            wire.clone(),
-            json!(rate_wire_of(rate)),
+            &wire,
+            &json!(rate_wire_of(rate)),
             "wire form of {:?} is not its declared rung number",
             rate
         );
@@ -282,12 +282,12 @@ proptest! {
     fn transport_states_round_trip_every_declared_variant(state in transport_strategy()) {
         // Invariant: transport is exactly `Playing|Paused|Stopped|Completed|
         // Interrupted` and serde round-trips every variant (FR-020, FR-044).
-        let wire = serde_json::to_value(&state).ok();
+        let wire = serde_json::to_value(state).ok();
         prop_assert!(wire.is_some(), "TransportState failed to serialize: {state:?}");
         let wire = wire.unwrap_or(Value::Null);
         prop_assert_eq!(
-            wire.clone(),
-            json!(transport_wire_of(state)),
+            &wire,
+            &json!(transport_wire_of(state)),
             "wire form of {:?} is not its declared wire string",
             state
         );
@@ -304,12 +304,12 @@ proptest! {
     fn focus_outcomes_round_trip_every_declared_variant(outcome in focus_strategy()) {
         // Invariant: focus outcomes are exactly `DuckableTransient|
         // SilenceDemanding|PermanentLoss` and serde round-trips every variant.
-        let wire = serde_json::to_value(&outcome).ok();
+        let wire = serde_json::to_value(outcome).ok();
         prop_assert!(wire.is_some(), "FocusOutcome failed to serialize: {outcome:?}");
         let wire = wire.unwrap_or(Value::Null);
         prop_assert_eq!(
-            wire.clone(),
-            json!(focus_wire_of(outcome)),
+            &wire,
+            &json!(focus_wire_of(outcome)),
             "wire form of {:?} is not its declared wire string",
             outcome
         );
@@ -327,12 +327,12 @@ proptest! {
         // Invariant: `regained` is a direction event, not a fourth outcome
         // classification (spec.md, session 2026-10-02), and it round-trips
         // to the wire string the diagnostic record carries.
-        let wire = serde_json::to_value(&event).ok();
+        let wire = serde_json::to_value(event).ok();
         prop_assert!(wire.is_some(), "FocusRegained failed to serialize: {event:?}");
         let wire = wire.unwrap_or(Value::Null);
         prop_assert_eq!(
-            wire.clone(),
-            json!(focus_regained_wire_of(event)),
+            &wire,
+            &json!(focus_regained_wire_of(event)),
             "wire form of the regained direction event is not \"regained\""
         );
         let round_trip = serde_json::from_value::<FocusRegained>(wire).ok();
@@ -349,12 +349,12 @@ proptest! {
         // Invariant: `EngineError` is exactly `Unreachable|InitFailed|
         // RateMismatch|ChannelMismatch|DeviceRefused|DeviceLost|StartRefused`
         // and serde round-trips every variant (FR-023, FR-035, FR-037).
-        let wire = serde_json::to_value(&error).ok();
+        let wire = serde_json::to_value(error).ok();
         prop_assert!(wire.is_some(), "EngineError failed to serialize: {error:?}");
         let wire = wire.unwrap_or(Value::Null);
         prop_assert_eq!(
-            wire.clone(),
-            json!(engine_error_wire_of(error)),
+            &wire,
+            &json!(engine_error_wire_of(error)),
             "wire form of {:?} is not its declared wire string",
             error
         );
@@ -372,12 +372,12 @@ proptest! {
         // Invariant: session-end is exactly `Paused|Stopped|Completed|
         // Interrupted` — one closed set of four values shared with the record
         // (FR-044) — and serde round-trips every variant.
-        let wire = serde_json::to_value(&end).ok();
+        let wire = serde_json::to_value(end).ok();
         prop_assert!(wire.is_some(), "SessionEnd failed to serialize: {end:?}");
         let wire = wire.unwrap_or(Value::Null);
         prop_assert_eq!(
-            wire.clone(),
-            json!(session_end_wire_of(end)),
+            &wire,
+            &json!(session_end_wire_of(end)),
             "wire form of {:?} is not its declared wire string",
             end
         );
@@ -394,12 +394,12 @@ proptest! {
     fn engine_tiers_round_trip_every_declared_variant(tier in engine_tier_strategy()) {
         // Invariant: the engine tier is a closed-5 set in ascending fallback
         // order (FR-023c) and serde round-trips every variant.
-        let wire = serde_json::to_value(&tier).ok();
+        let wire = serde_json::to_value(tier).ok();
         prop_assert!(wire.is_some(), "EngineTier failed to serialize: {tier:?}");
         let wire = wire.unwrap_or(Value::Null);
         prop_assert_eq!(
-            wire.clone(),
-            json!(engine_tier_wire_of(tier)),
+            &wire,
+            &json!(engine_tier_wire_of(tier)),
             "wire form of {:?} is not its declared wire string",
             tier
         );
@@ -486,7 +486,7 @@ fn every_declared_wire_string_is_produced_by_exactly_one_variant() {
     // within each set, which is only possible if each variant maps to its own
     // wire form (the compile-time exhaustive matches already prove the variant
     // sets are exactly as specified).
-    fn distinct<T: Copy + PartialEq>(entries: &[(T, &str)]) -> bool {
+    fn distinct<T: Copy + PartialEq, W: PartialEq>(entries: &[(T, W)]) -> bool {
         for (i, (_, a)) in entries.iter().enumerate() {
             for (_, b) in entries.iter().skip(i + 1) {
                 if a == b {
@@ -497,9 +497,11 @@ fn every_declared_wire_string_is_produced_by_exactly_one_variant() {
         true
     }
 
-    assert!(distinct(
-        &RATE_RUNGS.iter().map(|(r, v)| (*r, "")).collect::<Vec<_>>()
-    ));
+    // The rate rungs serialize as their JSON numbers (closed.rs
+    // `PlaybackRate::value`), so distinctness is checked over the real
+    // wire numbers — all seven are exact binary fractions, so `==` is
+    // exact and no tolerance is involved (FR-019).
+    assert!(distinct(&RATE_RUNGS));
     assert!(distinct(&TRANSPORT_STATES));
     assert!(distinct(&FOCUS_OUTCOMES));
     assert!(distinct(&ENGINE_ERRORS));

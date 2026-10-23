@@ -12,7 +12,7 @@
 //! and **CHK001/CHK002/CHK008** (segment-resume: splitting fully
 //! specified, `DocumentSegment` fields, the 5000-byte limit is a hard
 //! upper bound, not a target). All invariants are normative per
-//! **API_CONTRACT §2** (frozen interface, §2.1 rules 1–12) and §0
+//! **`API_CONTRACT` §2** (frozen interface, §2.1 rules 1–12) and §0
 //! global rules.
 //!
 //! These tests bind to the frozen contract, not to the current stub:
@@ -53,7 +53,7 @@ use adapter_synthesis::chunk::{
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(8))]
     #[test]
-    fn max_chunk_bytes_is_exactly_5000(_ in any::<()>()) {
+    fn max_chunk_bytes_is_exactly_5000(() in any::<()>()) {
         prop_assert_eq!(MAX_CHUNK_BYTES, 5_000);
     }
 }
@@ -91,7 +91,7 @@ proptest! {
             );
             prop_assert_eq!(
                 segment.byte_length(),
-                segment.content.as_bytes().len()
+                segment.content.len()
             );
         }
 
@@ -149,8 +149,7 @@ proptest! {
         // `Sentence`) would not compile.
         for segment in &segments {
             match segment.boundary_kind {
-                BoundaryKind::Paragraph => {}
-                BoundaryKind::Heading => {}
+                BoundaryKind::Paragraph | BoundaryKind::Heading => {}
             }
         }
 
@@ -209,12 +208,12 @@ proptest! {
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(8))]
     #[test]
-    fn byte_length_counts_bytes_not_chars_on_multibyte_input(_ in any::<()>()) {
+    fn byte_length_counts_bytes_not_chars_on_multibyte_input(() in any::<()>()) {
         let document = "### Título com acentos\n\nAção, çães e ãos: áêíóú, çãõ. Portuguese mid-sized paragraph ãããõõõççç.\n\nPróxima seção: mais caracteres multi-byte para medir bytes, não caracteres.\n";
         let segments = split_document(document, "multibyte-hash");
         let mut saw_multibyte = false;
         for segment in &segments {
-            let byte_count = segment.content.as_bytes().len();
+            let byte_count = segment.content.len();
             let char_count = segment.content.chars().count();
             prop_assert_eq!(
                 segment.byte_length(),
@@ -240,7 +239,7 @@ proptest! {
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(8))]
     #[test]
-    fn split_document_within_enforces_explicit_byte_budget(_ in any::<()>()) {
+    fn split_document_within_enforces_explicit_byte_budget(() in any::<()>()) {
         let word = "Ação_çação_ãõé"; // 13 chars, 23 bytes
         let mut document = String::new();
         for _ in 0..80 {
@@ -254,7 +253,7 @@ proptest! {
                 "piece is {} bytes, over the 64-byte budget",
                 segment.byte_length()
             );
-            prop_assert_eq!(segment.byte_length(), segment.content.as_bytes().len());
+            prop_assert_eq!(segment.byte_length(), segment.content.len());
             prop_assert!(segment.content.chars().count() <= segment.byte_length());
         }
         prop_assert!(

@@ -1,5 +1,5 @@
 {
-  "productName": "mdreader",
+  "productName": "Ressoa",
   "version": "0.1.0",
   "identifier": "app.mdreader",
   "build": {
@@ -12,7 +12,7 @@
     "windows": [
       {
         "fullscreen": false,
-        "title": "mdreader",
+        "title": "Ressoa",
         "width": 800,
         "height": 600
       }
@@ -24,7 +24,7 @@
   },
   "bundle": {
     "android": {
-      "minSdkVersion": 26
+      "minSdkVersion": 29
     },
     "resources": {
       "../crates/adapter-synthesis/assets/voices/pt_BR-faber-medium": "voices/pt_BR-faber-medium"

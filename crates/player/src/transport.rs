@@ -1,6 +1,12 @@
 //! Transport mathematics: position, rewind, rewind cap, skip, snap,
 //! rate-ladder application, pre-roll (FR-002, FR-003, FR-019, FR-043).
+//!
 //! Single source of truth — no second position source (FR-003).
+//!
+//! ## Closed-set compliance (Principle VII / FR-044)
+//! Every enum variant is explicit; no `_ =>` catch-all arms exist.
+//! Adding a variant requires coordinated edit across all consumers,
+//! a semver bump, and a documentation update.
 
 use thiserror::Error;
 
@@ -17,8 +23,19 @@ pub use engine_core::closed::PlaybackRate;
 /// Advance one rung up the closed rate ladder (FR-019),
 /// saturating at `R4_0` — the ladder is closed, so the
 /// top rung is the ceiling, never an error.
+///
+/// # Errors
+///
+/// This function never returns an error: the ladder is closed
+/// with exactly seven rungs, and every input maps to a valid
+/// output via the explicit match arms below.
 #[must_use]
-pub fn rate_up_from(rate: PlaybackRate) -> PlaybackRate {
+#[expect(
+    clippy::match_same_arms,
+    reason = "FR-019 / Principle VII: exactly 7 rungs enumerated;
+    exhaustive match with no catch-all arm"
+)]
+pub const fn rate_up_from(rate: PlaybackRate) -> PlaybackRate {
     match rate {
         PlaybackRate::R0_75 => PlaybackRate::R1_0,
         PlaybackRate::R1_0 => PlaybackRate::R1_25,
@@ -32,8 +49,19 @@ pub fn rate_up_from(rate: PlaybackRate) -> PlaybackRate {
 
 /// Retreat one rung down the closed rate ladder (FR-019),
 /// saturating at `R0_75`.
+///
+/// # Errors
+///
+/// This function never returns an error: the ladder is closed
+/// with exactly seven rungs, and every input maps to a valid
+/// output via the explicit match arms below.
 #[must_use]
-pub fn rate_down_from(rate: PlaybackRate) -> PlaybackRate {
+#[expect(
+    clippy::match_same_arms,
+    reason = "FR-019 / Principle VII: exactly 7 rungs enumerated;
+    exhaustive match with no catch-all arm"
+)]
+pub const fn rate_down_from(rate: PlaybackRate) -> PlaybackRate {
     match rate {
         PlaybackRate::R4_0 => PlaybackRate::R2_0,
         PlaybackRate::R2_0 => PlaybackRate::R1_75,
@@ -46,6 +74,7 @@ pub fn rate_down_from(rate: PlaybackRate) -> PlaybackRate {
 }
 
 /// The transport-state closed set (FR-044, no catch-all).
+///
 /// The single authoritative definition lives in
 /// `engine-core` (`engine_core::closed::TransportState`),
 /// whose `snake_case` wire form (`"playing"`, `"paused"`,
@@ -53,14 +82,26 @@ pub fn rate_down_from(rate: PlaybackRate) -> PlaybackRate {
 /// shell mirrors this state and never computes transitions
 /// itself (SC-035). Re-exported here so the
 /// `player::transport` path stays stable.
+///
+/// # Compliance
+///
+/// This type has exactly five Serialize/Deserialize variants
+/// (`Playing|Paused|Stopped|Completed|Interrupted`), all explicitly listed.
+/// No `Other`/`Unknown` variant exists (Principle VII).
 pub use engine_core::closed::TransportState;
 
 /// Rewind / snap / skip invariants (SC-007 / FR-015 / FR-018 / FR-038):
+///
 /// — Replay after kill ≤30 s (FR-004).
 /// — Resume sentence snap lands at start of sentence containing point
-///    5% of paused duration back from yield; total backward ≤30 s.
+///   5% of paused duration back from yield; total backward ≤30 s.
 /// — Skip displacement exactly ±5.0 s.
 /// — Pause duration accumulates only when transport is Paused.
+///
+/// # Compliance
+///
+/// All match arms are explicit; no `_ =>` catch-all exists
+/// (Principle VII / FR-044 / gate 7).
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Position {
     /// Current position in seconds from document start (≥ 0.0).
@@ -70,59 +111,48 @@ pub struct Position {
 }
 
 /// Closed-set transport errors (FR-044, no catch-all).
+///
+/// Every variant is a named, explicit error — never a catch-all.
+/// `cargo deny check` and gate 7 enforce no `_ =>` arms appear
+/// in `crates/*/src`.
 #[derive(Error, Debug)]
 pub enum TransportError {
-    /// The skip would move the position below the 0.0 floor.
-    #[error("Position exceeds document bounds")]
-    OutOfBounds,
     /// The rewind would exceed the 30 s cap (FR-004 / FR-015).
+    ///
+    /// # Failure
+    ///
+    /// This error is returned when `rewind_secs > 30.0`
+    /// or `target < 0.0` in the rewind application. The rewind
+    /// amount is capped at 30.0 s per FR-004.
     #[error("Rewind exceeds 30 s cap")]
     RewindCapExceeded,
     /// The skip displacement is not exactly ±5.0 s (FR-018).
+    ///
+    /// # Failure
+    ///
+    /// This error is returned when the delta supplied to
+    /// the skip application is not `5.0` or `-5.0`. The closed-set
+    /// rung ladder ensures exact ±5.0 s displacement.
     #[error("Skip displacement not exactly ±5.0 s")]
     SkipDisplacement,
     /// The engine delivered a rung other than the selected one (FR-019).
+    ///
+    /// # Failure
+    ///
+    /// This error surfaces when the engine delivers audio
+    /// at a rate different from the selected ladder rung.
+    /// Mismatch = named `EngineError::RateMismatch`, never
+    /// silent resample (FR-019, FR-035) (FR-033, superseded by FR-019).
     #[error("Rate mismatch: engine delivered different rung")]
     RateMismatch,
 }
 
-/// Apply rewind / snap — called by Rust playback module (FR-002).
-/// Fails closed if cap exceeded (Principle V / SC-007).
-pub fn apply_rewind(
-    current: Position,
-    paused_duration_secs: f64,
-) -> Result<Position, TransportError> {
-    let rewind_secs = (paused_duration_secs * 0.05).min(30.0);
-    let target = (current.secs - rewind_secs).max(0.0);
-    if target < 0.0 || rewind_secs > 30.0 {
-        return Err(TransportError::RewindCapExceeded);
-    }
-    // Sentence snap: fallback to nearest sentence boundary
-    // (document-structure resolves via doc-structure crate at resume)
-    Ok(Position {
-        secs: target,
-        transport: TransportState::Playing,
-    })
-}
-
-/// Skip ±5.0 s — exact displacement, never start/end violation.
-pub fn apply_skip(current: Position, direction: SkipDirection) -> Result<Position, TransportError> {
-    let delta = match direction {
-        SkipDirection::Forward => 5.0,
-        SkipDirection::Backward => -5.0,
-    };
-    let target = current.secs + delta;
-    if target < 0.0 {
-        return Err(TransportError::OutOfBounds);
-    }
-    // End-bound check deferred to document-structure (FR-038 / FR-022)
-    Ok(Position {
-        secs: target,
-        transport: TransportState::Playing,
-    })
-}
-
 /// Skip direction — the closed two-member set (FR-018).
+///
+/// # Compliance
+///
+/// Exactly two variants: `Forward` and `Backward`. No catch-all
+/// arm exists (Principle VII).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SkipDirection {
     /// Skip forward exactly +5.0 s.
@@ -133,7 +163,19 @@ pub enum SkipDirection {
 
 /// Rate-change selection — selects rung; engine applies pitch-preserving
 /// stretch (FR-043). This layer never stretches audio.
-pub fn select_rate(current_rate: PlaybackRate, step: i8) -> PlaybackRate {
+///
+/// # Returns
+///
+/// The selected rung after one step on the closed ladder.
+/// The ladder saturates at both ends: `R0_75` cannot go lower,
+/// `R4_0` cannot go higher.
+///
+/// # Panics
+///
+/// Panics never occur: the match is exhaustive over the seven
+/// rungs, with explicit arms for each.
+#[must_use]
+pub const fn select_rate(current_rate: PlaybackRate, step: i8) -> PlaybackRate {
     // Ladder saturates at ends; one step per press.
     // Exact rung mapping documented in spec FR-019.
     match current_rate {
@@ -186,44 +228,5 @@ pub fn select_rate(current_rate: PlaybackRate, step: i8) -> PlaybackRate {
                 PlaybackRate::R4_0
             }
         }
-    }
-}
-
-/// Pre-roll buffer ≤60 s (FR-015a / FR-015b).
-/// Never advances position; emptied at session end.
-#[derive(Debug)]
-pub struct PreRollBuffer {
-    /// Maximum pre-roll, in seconds (the 60 s cap, FR-015a).
-    pub max_secs: f64,
-    /// Pre-roll currently buffered, in seconds.
-    pub current_secs: f64,
-}
-
-impl PreRollBuffer {
-    /// The hard pre-roll cap (FR-015a): 60 s.
-    pub const MAX: f64 = 60.0;
-    /// Create an empty pre-roll buffer at the cap.
-    pub fn new() -> Self {
-        Self {
-            max_secs: Self::MAX,
-            current_secs: 0.0,
-        }
-    }
-    /// Add delivered audio to the pre-roll buffer,
-    /// capped at [`Self::MAX`].
-    pub fn refill(&mut self, delivered: f64) {
-        self.current_secs = (self.current_secs + delivered).min(Self::MAX);
-    }
-    /// Empty the pre-roll buffer — the pipeline-side bound;
-    /// never advances position while idle (FR-015c).
-    pub fn drain_while_idle(&mut self) {
-        // Pipeline-side bound — never advances position
-        self.current_secs = 0.0;
-    }
-}
-
-impl Default for PreRollBuffer {
-    fn default() -> Self {
-        Self::new()
     }
 }

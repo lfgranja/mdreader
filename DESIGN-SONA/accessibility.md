@@ -32,14 +32,18 @@ Referência: `Universe:Sona` (terminologia musical: Adagio, Andante, Allegro, Sf
 
 ---
 
-## 3. Synesthesia — Visualização da voz (opcional, decorativa, não informativa)
+## 3. Synesthesia — Visualização da voz (tríade acústica e faixa in-app)
 
 **Referência:** `Universe:Sona` — *"Sona is able to see music as a visual stimulus."* A licença de que som pode ser visto é documentada pela Riot.
 
 **Aplicação no design:**
-- **In-app (opcional):** uma faixa de 3–5 px na borda do progresso, com cor turquesa (`#8FD8E8`) que varia sutilmente com o nível de RMS (não com o estado — só com a intensidade). É decorativa; não é necessária; não substitui a barra de progresso.
-- **Nunca na notificação:** a notificação não tem espaço para decoração; a faixa é só in-app.
-- **Regra:** se a faixa existe, é apenas uma "visualização da voz" de Sona — não é canal de informação (não mostra posição, não mostra estado). Se o usuário não a vê, o sistema funciona igual.
+- **Identidade da Marca (Logo e Ícones):** A voz ganha corpo visual através de três ondas senoidais harmônicas que representam as frequências da fala:
+  - Onda Superior (Azul `#8FD8E8`): Agudos e foco intelectual.
+  - Onda Central (Verde `#5AD6A8`): Médios vocálicos e cura do silêncio.
+  - Onda Inferior (Roxo `#B9A6F5`): Graves e cadência temporal.
+- **In-app StatusView (opcional):** Uma faixa sutil de 3–5 px que varia suavemente com a intensidade RMS da síntese PCM. É decorativa; não é canal de informação; não substitui a barra de progresso.
+- **Nunca na notificação:** A notificação não tem espaço para decoração; a faixa é só in-app.
+- **Regra:** Se a faixa existe, é apenas uma "visualização da voz" de Sona — não é canal de informação (não mostra posição, não mostra estado). Se o usuário não a vê, o sistema funciona igual.
 
 ---
 
@@ -72,13 +76,16 @@ Quando o estado muda (play → pause → resume → skip), pode haver uma breve 
 
 ---
 
-## 7. Testes (mesmo do B, com nota Sona adicional)
+## 7. Testes (mesmo do B, com nota Sona e validação cromática)
 
 - **Blind-test (SC-008):** confirmar que cada earcon (Adagio, Andante, Allegro, Sforzando, Ostinato, Unison) é distintivo sem olhar. O earcon de "Aviso 3s" (Ostinato) deve ser distinto do "Falha" (Sforzando) — a frequência e a duração devem ser claramente diferentes.
-- **Colorblind:** testar com simulação de deuteranopia (como Riot faz) — a distinção entre turquesa (`#8FD8E8`) e dourado (`#E8C46A`) deve ser perceptível por forma/posição, não só por cor; se não for, adicionar símbolo (ex.: ponto vs barra vs posição).
+- **Colorblind & Monocromático (Logo e Ondas):** testar com simulação de deuteranopia, protanopia e acromatopsia total:
+  - As três ondas sonoras contam com **espaçamento físico negativo (*gap*) de 3.5px**, garantindo que a identificação das 3 frequências seja perceptível por **forma e posição espacial**, e nunca apenas por cor.
+  - A distinção entre turquesa (`#8FD8E8`) e dourado (`#E8C46A`) in-app mantém redundância por símbolo e posição de campo na grade 2-campo.
 - **Mudo:** testar com earcon desativado — confirmar que cor + forma + texto + posição continuam operáveis.
 - **Matrix:** Pixel / Samsung / Xiaomi (mesmo do B).
 
 ---
 
-*Referências:* `DESIGN/accessibility.md` (B base); `Universe:Sona` (§6c — synesthesia); `Sona/Trivia` (mudez, sign language, sound); `wiki.leagueoflegends.com/en-us/Sona/Audio`; `m3.material.io` touch targets; `developer.android.com` (MediaStyle, AudioAttributes — USAGE_MEDIA / USAGE_NOTIFICATION).
+*Referências:* `DESIGN/accessibility.md` (B base); `briefing-logo-ressoa-design-sona.md` (Briefing Oficial v2.0.0); `Universe:Sona` (§6c — synesthesia); `Sona/Trivia` (mudez, sign language, sound); `wiki.leagueoflegends.com/en-us/Sona/Audio`; `m3.material.io` touch targets; `developer.android.com` (MediaStyle, AudioAttributes — USAGE_MEDIA / USAGE_NOTIFICATION).
+

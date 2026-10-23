@@ -1,7 +1,7 @@
 //! T059 — FR-024 synthesis adapter prop/declaration tests (test-only).
 //! BLOCKS T060 — do NOT implement; observe RED only.
 //! Rule 2 (clean session): writes only this file; no src/ edits.
-//! Freeze bound: API_CONTRACT.md §1 / adapter-capabilities.md / adapter-handoff.md.
+//! Freeze bound: `API_CONTRACT.md` §1 / adapter-capabilities.md / adapter-handoff.md.
 
 use adapter_synthesis::consume::{ResumeAnchor, SsmlDelivery, plan_for};
 use adapter_synthesis::reg::{REGISTERED_TIERS, is_selectable};

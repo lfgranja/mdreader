@@ -2,7 +2,14 @@
 //! Declares capabilities against existing engine-core shapes (format.rs / closed.rs);
 //! does NOT invent phantom trait methods (T016 not yet built — Assumption 3 corrected).
 
+#![expect(
+    clippy::multiple_crate_versions,
+    reason = "the jni-sys duplicate is third-party-forced at newest-release pins: ndk 0.9.0 and ndk-sys 0.6.0 (the latest on crates.io) depend on jni-sys 0.3.1, whose published 0.3.1 release itself depends on jni-sys 0.4.1 — every ndk consumer therefore always carries both versions, cargo cannot unify a dependency with its own transitive re-export, and supply-chain governance for this duplicate belongs to cargo-deny, not this lint"
+)]
+
 use engine_core::closed::EngineTier;
+
+pub use engine_core::trait_::{AlignmentGranularity, SsmlLevel};
 
 #[cfg(target_os = "android")]
 pub mod android_assets;
@@ -23,36 +30,6 @@ pub mod synth;
 /// `standin_b`) are fixtures and are never selectable while this
 /// non-`test_double` adapter is registered (`closed.rs`:398-406).
 pub const REGISTERED_TIER: EngineTier = EngineTier::OfflineDefault;
-
-/// Closed SSML capability level (no catch-all; Principle VII).
-///
-/// The closed set is exactly `None | Partial | Full` — no
-/// `Other`/`Unknown` variant exists.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SsmlLevel {
-    /// No SSML rendering (the `offline_default` declaration:
-    /// sherpa-onnx + Piper does not honor SSML).
-    None,
-    /// Partial SSML (reserved for a future cloud engine).
-    Partial,
-    /// Full SSML (reserved for a future engine with full SSML).
-    Full,
-}
-
-/// Closed resume-granularity level (no catch-all; Principle VII).
-///
-/// The closed set is exactly `None | Word | Sentence` — no
-/// `Other`/`Unknown` variant exists. `Sentence` is deferred to
-/// v2 (Piper exposes no sentence-boundary events).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AlignmentGranularity {
-    /// Paragraph/heading boundary only (v1 declaration).
-    None,
-    /// Word boundary (reserved).
-    Word,
-    /// Sentence boundary (deferred to v2).
-    Sentence,
-}
 
 /// Declared adapter capabilities (FR-024c).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

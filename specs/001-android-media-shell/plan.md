@@ -205,6 +205,8 @@ docs/
 # `crates/player/tests/{integration,contract}/` with the other crates as dev-dependencies.
 ```
 
+**Cross-feature structure note:** the workspace additionally hosts `crates/adapter-synthesis`, owned by feature `specs/002-fr-024-synthesis-adapter` (constitution §TTS Engine Registry pins `sherpa-onnx` 1.13.8 + Piper pt-BR `faber` as the `offline_default` engine — admissible, Principle IX; bound by feature 002's T044, commit ee95b2d, with the `ort` deviation recorded there); `SsmlLevel` and `AlignmentGranularity` are single-sourced in `crates/engine-core/src/trait_.rs` (Constitution VII) and re-exported by `adapter-synthesis`; `player` consumes engine-core contract shapes only — no runtime dependency on the synthesis adapter (dev-dependency solely for the T069 consumer-wiring test).
+
 **Test-harness placement** (constitution Principle I + gate 2 fail-closed): property suites
 live beside the crate whose invariant they test (`crates/*/tests/prop_*.rs`); cross-crate
 suites live in `crates/player/tests/integration/` and `crates/player/tests/contract/`, which

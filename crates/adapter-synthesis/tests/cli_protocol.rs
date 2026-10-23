@@ -303,73 +303,57 @@ enum JsonValue {
     /// A JSON string.
     String(String),
     /// A JSON array.
-    Array(Vec<JsonValue>),
+    Array(Vec<Self>),
     /// A JSON object, preserving field order.
-    Object(Vec<(String, JsonValue)>),
+    Object(Vec<(String, Self)>),
 }
 
 impl JsonValue {
     /// The value stored under `key` in an object, if
     /// this value is an object that carries the field.
-    fn field(&self, key: &str) -> Option<&JsonValue> {
+    fn field(&self, key: &str) -> Option<&Self> {
         match self {
-            JsonValue::Object(fields) => fields
+            Self::Object(fields) => fields
                 .iter()
                 .find(|(name, _)| name == key)
                 .map(|(_, value)| value),
-            JsonValue::Null
-            | JsonValue::Bool(_)
-            | JsonValue::Number(_)
-            | JsonValue::String(_)
-            | JsonValue::Array(_) => None,
+            Self::Null | Self::Bool(_) | Self::Number(_) | Self::String(_) | Self::Array(_) => None,
         }
     }
 
     /// The elements, if this value is an array.
-    fn array(&self) -> Option<&[JsonValue]> {
+    fn array(&self) -> Option<&[Self]> {
         match self {
-            JsonValue::Array(items) => Some(items),
-            JsonValue::Null
-            | JsonValue::Bool(_)
-            | JsonValue::Number(_)
-            | JsonValue::String(_)
-            | JsonValue::Object(_) => None,
+            Self::Array(items) => Some(items),
+            Self::Null | Self::Bool(_) | Self::Number(_) | Self::String(_) | Self::Object(_) => {
+                None
+            }
         }
     }
 
     /// The text, if this value is a string.
     fn text(&self) -> Option<&str> {
         match self {
-            JsonValue::String(text) => Some(text),
-            JsonValue::Null
-            | JsonValue::Bool(_)
-            | JsonValue::Number(_)
-            | JsonValue::Array(_)
-            | JsonValue::Object(_) => None,
+            Self::String(text) => Some(text),
+            Self::Null | Self::Bool(_) | Self::Number(_) | Self::Array(_) | Self::Object(_) => None,
         }
     }
 
     /// The flag, if this value is a boolean.
-    fn boolean(&self) -> Option<bool> {
+    const fn boolean(&self) -> Option<bool> {
         match self {
-            JsonValue::Bool(flag) => Some(*flag),
-            JsonValue::Null
-            | JsonValue::Number(_)
-            | JsonValue::String(_)
-            | JsonValue::Array(_)
-            | JsonValue::Object(_) => None,
+            Self::Bool(flag) => Some(*flag),
+            Self::Null | Self::Number(_) | Self::String(_) | Self::Array(_) | Self::Object(_) => {
+                None
+            }
         }
     }
 
     /// The numeric value, if this value is a number.
-    fn number(&self) -> Option<f64> {
+    const fn number(&self) -> Option<f64> {
         match self {
-            JsonValue::Number(value) => Some(*value),
-            JsonValue::Null
-            | JsonValue::Bool(_)
-            | JsonValue::String(_)
-            | JsonValue::Array(_)
-            | JsonValue::Object(_) => None,
+            Self::Number(value) => Some(*value),
+            Self::Null | Self::Bool(_) | Self::String(_) | Self::Array(_) | Self::Object(_) => None,
         }
     }
 }
@@ -723,12 +707,11 @@ fn parse_json(document: &str) -> Result<JsonValue, String> {
     parser.skip_whitespace();
     let value = parser.parse_value()?;
     parser.skip_whitespace();
-    match parser.peek() {
-        None => Ok(value),
-        Some(character) => Err(format!(
+    parser.peek().map_or(Ok(value), |character| {
+        Err(format!(
             "trailing character '{character}' after the JSON value"
-        )),
-    }
+        ))
+    })
 }
 
 // ---------------------------------------------------------------------------

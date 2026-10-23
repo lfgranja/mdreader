@@ -57,5 +57,10 @@ Thumbs.db
 .env.*
 !.env.example
 *.pem
-*.keytarget/
+*.key
+target/
 .env*
+
+# Snapshots — repo-local snapshot content (device filesDir/snapshots never enters git)
+/snapshots/
+/snapshots/*

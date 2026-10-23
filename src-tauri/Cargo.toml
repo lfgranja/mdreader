@@ -1,17 +1,79 @@
 [package]
 name = "src-tauri"
+license = "MIT"
 version = "0.1.0"
 edition = "2024"
+description = "Tauri Android shell: media session, notification, and audio focus management."
+repository = "https://github.com/mdreader/mdreader"
+readme = "README.md"
+keywords = ["tauri", "android", "media-session", "audio"]
+categories = ["multimedia::audio"]
 
 [lib]
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [dependencies]
-tauri = { version = "=3.0.0-alpha.3", features = [] }
-tauri-runtime-wry = { version = "=3.0.0-alpha.3", features = [] }
+# Tauri 2.12.1 — the constitution's pinned app-shell
+# version (Tauri Platform Contract; Principle IV).
+# 3.0.0-alpha.3 is a pre-release the constitution
+# explicitly rejects ("not to be taken"), so the pin
+# is an exact stable version with no recorded exception.
+tauri = { version = "=2.12.1", features = [] }
 player = { path = "../crates/player" }
+session = { path = "../crates/session" }
+# The append-only diagnostic record (T097, FR-017): the private,
+# on-device JSONL trace. The crate owns the writer, the retention
+# bounds and the scanners; the shell side owns WHEN an event is
+# recorded.
+diag = { path = "../crates/diag" }
+engine-core = { path = "../crates/engine-core" }
 adapter-synthesis = { path = "../crates/adapter-synthesis" }
+serde = { workspace = true }
+tracing = { workspace = true }
 serde_json = "1.0.132"
+tokio = { version = "1", features = ["rt", "time"] }
+base64 = { workspace = true }
+hex = { workspace = true }
+# JNI for Android Rust↔Kotlin calls. Aligned to the workspace's
+# Android JNI pin (`crates/adapter-synthesis`) and to the version
+# tauri 2.12.1's own Android stack resolves (jni 0.21.1): the
+# entry points in `src/shell_jni.rs` are written against the 0.21
+# API (`JNIEnv::from_raw`, `JString::from_raw(ptr)`,
+# `convert_byte_array`), and 0.22 is a breaking rewrite
+# (`Env`/`EnvUnowned`, 2-argument `from_raw`). 0.22 also had no
+# other dependent anywhere in the graph.
+#[cfg(target_os = "android")]
+jni = { version = "0.21" }
+
+# BLAKE3 for JNI document fingerprint (ingest flow)
+#[cfg(target_os = "android")]
+blake3 = { version = "1.6.0", default-features = false }
+
+[dev-dependencies]
+# The T011 persistence tests write through a real redb
+# file in a temp dir and read the rows back through the
+# store's own `get`. Pinned through the workspace table
+# (supply chain: latest stable only).
+tempfile = { workspace = true }
+# T140 (the explicit-resume audio path) is a property test over
+# the closed transport transition table and over the bridge's call
+# graph: the property framework is the crate's own, pinned through
+# the workspace table (supply chain: latest stable only).
+proptest = { workspace = true }
 
 [build-dependencies]
-tauri-build = { version = "=3.0.0-alpha.3", features = [] }
+# tauri-build carries its own version line (latest
+# stable 2.7.2), independent of the tauri 2.12.1 pin.
+tauri-build = { version = "=2.7.2", features = [] }
+
+# The workspace rigour tables (constitution "Rust Code
+# Rigor"): every workspace member declares them, so the
+# lint-drift gate (gate 4) verifies this member against
+# the same pinned set as every crate — no member may
+# quietly opt out of the deny tables.
+[lints]
+workspace = true
+
+[[test]]
+name = "test_publish_payload"
+path = "tests/test_publish_payload.rs"

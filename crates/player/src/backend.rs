@@ -10,6 +10,15 @@
 //! the remainder of a short buffer is silence (`0.0`). The
 //! position clock advances only by samples actually consumed
 //! while the stream runs.
+//!
+//! The resident audio is BOUNDED (FR-018; `plan.md:25`): the queue
+//! holds at most [`MAX_PREROLL_SECS`] (60 s) of not-yet-played
+//! speech — the pre-roll window ahead of the play head — so the
+//! whole document's PCM never stays resident for the whole session
+//! (~620 MB for the SC-001 fixture: ~2 h of speech at 22 050 Hz
+//! mono f32). The bound lives in the player crate, below the app
+//! shell, and the diagnostic buffer-state entry carries it
+//! ([`CpalBackend::buffer_state`]).
 
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
@@ -21,6 +30,7 @@ use engine_core::format::{DeclaredFormat, check_handoff};
 use thiserror::Error;
 use tracing::{error, info, instrument};
 
+use crate::focus::FULL_GAIN;
 use crate::position::PositionClock;
 
 /// Errors from the CPAL backend.
@@ -44,47 +54,306 @@ pub enum BackendError {
     /// Playback start was refused.
     #[error("playback start refused: {0}")]
     StartRefused(String),
+    /// The gain factor was outside `[0.0, 1.0]` — never applied;
+    /// the previous gain stands.
+    #[error("gain must be within [0.0, 1.0], got {0}")]
+    InvalidGain(f32),
+}
+
+/// The resident pre-roll bound, in seconds (FR-018; `plan.md:25`).
+///
+/// The bound on the audio the player keeps RESIDENT — the synthesized
+/// PCM that is queued for the device but not yet played. Without it
+/// the whole document's PCM stays resident for the whole session
+/// (~620 MB for the SC-001 fixture: ~2 h of speech at 22 050 Hz mono
+/// f32) and the app runs out of memory on a mid-range phone; with it
+/// the resident audio is the pre-roll window ahead of the play head
+/// and nothing more.
+///
+/// The value is the single [`crate::position::PREROLL_CAP_SECS`]
+/// (60 s) — an alias, never a second cap that can drift (Principle
+/// VII / FR-044). The diagnostic contract names the same bound
+/// `MAX_PREROLL_SECS=60` (`contracts/diagnostic-trace.md`).
+pub const MAX_PREROLL_SECS: f64 = crate::position::PREROLL_CAP_SECS;
+
+/// The declared engine rate (FR-019): 22 050 Hz — the same value as
+/// [`DeclaredFormat::SAMPLE_RATE`] (a unit test pins the two, so the
+/// rate never drifts).
+const ENGINE_RATE_HZ: f64 = 22_050.0;
+
+/// The resident bound in samples at the declared rate (FR-019:
+/// 22 050 Hz mono f32): 60 s × 22 050 = 1 323 000 samples.
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "MAX_PREROLL_SECS × 22 050 = 1 323 000 is an exact integer, far below usize range"
+)]
+#[expect(
+    clippy::cast_sign_loss,
+    reason = "MAX_PREROLL_SECS and the declared rate are positive constants, so their product is positive — no sign bit is lost in the cast"
+)]
+const MAX_PREROLL_SAMPLES: usize = (MAX_PREROLL_SECS * ENGINE_RATE_HZ) as usize;
+
+/// The resident playback queue: the synthesized speech the device has
+/// not played yet — the pre-roll window ahead of the play head.
+///
+/// The queue is BOUNDED (FR-018; `plan.md:25`): it never holds more
+/// than [`MAX_PREROLL_SECS`] (60 s) of resident audio, so the whole
+/// document's PCM never stays resident for the whole session.
+///
+/// The drop policy keeps the reading AUDIBLY CONTIGUOUS from the play
+/// head: when a chunk would push the resident audio beyond the bound,
+/// the audio BEYOND the window is dropped and the audio AT the head
+/// is kept — the head is the next audible sample, and dropping it
+/// would put a hole in the reading. The dropped audio is the
+/// producer's overrun: the part of the document prepared past the
+/// window.
+///
+/// The queue holds NO position: dropping never moves the reported
+/// position. The audible clock is the only advance path (FR-002) — a
+/// dropped sample is not an audible one.
+#[derive(Debug, Default)]
+pub struct ResidentQueue {
+    /// The resident, not-yet-played samples, oldest first.
+    samples: VecDeque<f32>,
+    /// The samples dropped because they fell beyond the bound.
+    dropped_samples: u64,
+}
+
+impl ResidentQueue {
+    /// A new, empty queue: nothing resident, nothing dropped.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            samples: VecDeque::new(),
+            dropped_samples: 0,
+        }
+    }
+
+    /// The resident bound in samples at the declared rate.
+    #[must_use]
+    pub const fn cap_samples(&self) -> usize {
+        MAX_PREROLL_SAMPLES
+    }
+
+    /// The resident bound in seconds.
+    #[must_use]
+    pub const fn cap_secs(&self) -> f64 {
+        MAX_PREROLL_SECS
+    }
+
+    /// Append synthesized samples to the tail of the resident window.
+    ///
+    /// The window never grows past the bound: what does not fit is
+    /// DROPPED — the audio BEYOND the window, never the audio at the
+    /// head. The head is the next audible sample, so dropping it
+    /// would put a hole in the reading; the dropped audio is the
+    /// producer's overrun — the part of the document prepared past
+    /// the window.
+    ///
+    /// The drop moves no position: a dropped sample is not an audible
+    /// one, and the audible clock is the only advance path (FR-002).
+    pub fn push(&mut self, pcm: &[f32]) {
+        let room = MAX_PREROLL_SAMPLES.saturating_sub(self.samples.len());
+        let kept = room.min(pcm.len());
+        self.samples.extend(pcm[..kept].iter().copied());
+        let dropped = pcm.len() - kept;
+        if dropped > 0 {
+            self.dropped_samples = self
+                .dropped_samples
+                .saturating_add(u64::try_from(dropped).unwrap_or(u64::MAX));
+        }
+    }
+
+    /// The resident sample count.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.samples.len()
+    }
+
+    /// Whether no audio is resident.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.samples.is_empty()
+    }
+
+    /// The resident audio in seconds — the pre-roll depth the
+    /// diagnostic buffer-state entry carries.
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "the resident sample count is a count of samples, far below f64's 52-bit mantissa"
+    )]
+    #[must_use]
+    pub fn buffered_secs(&self) -> f64 {
+        self.samples.len() as f64 / ENGINE_RATE_HZ
+    }
+
+    /// The samples dropped because they fell beyond the bound.
+    #[must_use]
+    pub const fn dropped_samples(&self) -> u64 {
+        self.dropped_samples
+    }
+
+    /// The resident samples, oldest first — the introspection view of
+    /// the window (the diagnostic buffer state and the property tests
+    /// read it; the device's consumption path takes the same samples
+    /// from the head).
+    #[must_use]
+    pub const fn samples(&self) -> &VecDeque<f32> {
+        &self.samples
+    }
+
+    /// Take the next resident sample — the device's consumption path
+    /// (the head of the window: the next audible sample).
+    pub fn pop_front(&mut self) -> Option<f32> {
+        self.samples.pop_front()
+    }
+
+    /// Drop every resident sample; the dropped counter is untouched
+    /// (it is the session's cumulative count, not the queue's depth).
+    pub fn clear(&mut self) {
+        self.samples.clear();
+    }
+}
+
+/// The resident buffer state (FR-017; `contracts/diagnostic-trace.md`).
+///
+/// The diagnostic buffer-state entry carries the pre-roll depth — the
+/// resident, not-yet-played audio — against the bound it never
+/// exceeds, so the bound is observable in the record.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BufferState {
+    /// The resident, not-yet-played audio in seconds (the pre-roll
+    /// depth).
+    pub buffered_secs: f64,
+    /// The bound the resident audio never exceeds, in seconds.
+    pub cap_secs: f64,
+    /// The samples dropped because they fell beyond the bound.
+    pub dropped_samples: u64,
+}
+
+impl BufferState {
+    /// The state of a queue with nothing resident.
+    pub const EMPTY: Self = Self {
+        buffered_secs: 0.0,
+        cap_secs: MAX_PREROLL_SECS,
+        dropped_samples: 0,
+    };
 }
 
 /// FIFO of mono `f32` samples at the declared rate, shared with
 /// the stream callback.
-#[derive(Debug, Default)]
+///
+/// Carries the output gain factor (the FR-013 duck actuator):
+/// every audible sample is scaled by it on the way out, so a
+/// duck or restore applies to already-queued audio too. The
+/// silence written for an empty queue stays `0.0` regardless
+/// of the gain.
+#[derive(Debug)]
 struct SampleQueue {
-    /// Buffered samples not yet consumed by the callback.
-    samples: VecDeque<f32>,
+    /// The resident, not-yet-played speech — bounded by
+    /// [`MAX_PREROLL_SECS`] (FR-018; `plan.md:25`).
+    speech: ResidentQueue,
+    /// Output gain in `[0.0, 1.0]`; full gain by default, so a
+    /// fresh queue is bit-identical to the unscaled path.
+    gain: f32,
+    /// Duck-exempt short-mix buffer (contracts/earcon.md): the
+    /// procedural earcon PCM rides the SAME stream and the
+    /// SAME clock as speech, but is never scaled by the gain —
+    /// a nav-duck never quiets a confirmation. Consumed
+    /// independently of the speech queue and never counted as
+    /// audible speech, so it can never advance the position
+    /// bookmark.
+    short_mix: VecDeque<f32>,
+}
+
+impl Default for SampleQueue {
+    fn default() -> Self {
+        Self {
+            speech: ResidentQueue::new(),
+            gain: FULL_GAIN,
+            short_mix: VecDeque::new(),
+        }
+    }
 }
 
 impl SampleQueue {
     /// Append synthesized samples to the tail.
     fn push(&mut self, pcm: &[f32]) {
-        self.samples.extend(pcm.iter().copied());
+        self.speech.push(pcm);
     }
 
-    /// Move up to `out.len()` samples into `out`, filling the
-    /// remainder with silence. Returns the consumed count.
+    /// Append duck-exempt earcon PCM to the short-mix buffer
+    /// (contracts/earcon.md): mixed at full gain on the same
+    /// stream, never scaled by the duck actuator.
+    fn push_short_mix(&mut self, pcm: &[f32]) {
+        self.short_mix.extend(pcm.iter().copied());
+    }
+
+    /// The currently applied output gain.
+    const fn gain(&self) -> f32 {
+        self.gain
+    }
+
+    /// Set the output gain, accepting `[0.0, 1.0]` and rejecting
+    /// negatives, factors above `1.0`, infinities, and `NaN`
+    /// with the offending factor carried in the error. A
+    /// rejection leaves the previous gain untouched.
+    fn set_gain(&mut self, factor: f32) -> Result<(), BackendError> {
+        if factor.is_finite() && (0.0..=1.0).contains(&factor) {
+            self.gain = factor;
+            Ok(())
+        } else {
+            Err(BackendError::InvalidGain(factor))
+        }
+    }
+
+    /// Move up to `out.len()` samples into `out`, scaling each
+    /// audible speech sample by the current gain, mixing in the
+    /// duck-exempt short-mix (earcon) samples at full gain, and
+    /// filling the remainder with silence. Returns the count of
+    /// SPEECH samples consumed — the only count that may advance
+    /// the position clock (contracts/earcon.md: "Must not
+    /// advance the position bookmark — clock counts speech
+    /// samples only").
     fn consume_into(&mut self, out: &mut [f32]) -> usize {
-        let mut consumed = 0;
+        let gain = self.gain;
+        let mut speech_consumed = 0;
         for slot in out.iter_mut() {
-            if let Some(sample) = self.samples.pop_front() {
-                *slot = sample;
-                consumed += 1;
-            } else {
-                *slot = 0.0;
+            let speech = self.speech.pop_front();
+            let earcon = self.short_mix.pop_front();
+            match (speech, earcon) {
+                (Some(sample), Some(tone)) => {
+                    *slot = sample.mul_add(gain, tone);
+                    speech_consumed += 1;
+                }
+                (Some(sample), None) => {
+                    *slot = sample * gain;
+                    speech_consumed += 1;
+                }
+                (None, Some(tone)) => {
+                    // Duck-exempt: the confirmation plays at full
+                    // gain even while the speech stream is ducked.
+                    *slot = tone;
+                }
+                (None, None) => *slot = 0.0,
             }
         }
-        consumed
+        speech_consumed
     }
 
-    /// Buffered sample count.
+    /// Drop every buffered sample, speech and short-mix alike:
+    /// a pause or stop stands the confirmation down too (the
+    /// trigger path re-fires it once Playing is restored, per
+    /// contracts/earcon.md).
+    fn clear(&mut self) {
+        self.speech.clear();
+        self.short_mix.clear();
+    }
+
+    /// Buffered speech sample count.
     #[must_use]
     fn len(&self) -> usize {
-        self.samples.len()
-    }
-
-    /// Whether the queue holds no samples.
-    #[must_use]
-    fn is_empty(&self) -> bool {
-        self.samples.is_empty()
+        self.speech.len()
     }
 }
 
@@ -147,7 +416,11 @@ impl CpalBackend {
                 && config.min_sample_rate() <= DeclaredFormat::SAMPLE_RATE
                 && config.max_sample_rate() >= DeclaredFormat::SAMPLE_RATE
             {
-                negotiated = Some(config.with_sample_rate(DeclaredFormat::SAMPLE_RATE).config());
+                negotiated = Some(
+                    config
+                        .with_sample_rate(DeclaredFormat::SAMPLE_RATE)
+                        .config(),
+                );
                 break;
             }
         }
@@ -214,16 +487,83 @@ impl CpalBackend {
 
     /// Append synthesized mono `f32` samples at the declared rate
     /// to the playback queue.
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "the app-shell caller hands over its owned synthesis buffer in an ownership transfer; the queue copies the samples immediately, but taking &[f32] would change the app-shell call signature for no behavioral difference"
+    )]
     pub fn enqueue_pcm(&self, pcm: Vec<f32>) {
         if let Ok(mut queue) = self.queue.lock() {
             queue.push(&pcm);
         }
     }
 
+    /// Enqueue duck-exempt earcon PCM (contracts/earcon.md):
+    /// the procedural confirmation rides the same stream and
+    /// the same clock as speech, is mixed at FULL gain even
+    /// while the speech stream is ducked, files no
+    /// `AudioFocusRequest`, and never advances the position
+    /// bookmark (the clock counts speech samples only).
+    ///
+    /// The caller (the T029 trigger path) drops and re-fires
+    /// the confirmation when a pause stands; a pause or stop
+    /// through [`pause`](Self::pause) / [`stop`](Self::stop)
+    /// stands the short mix down with the speech queue.
+    pub fn enqueue_earcon(&self, pcm: &[f32]) {
+        if let Ok(mut queue) = self.queue.lock() {
+            queue.push_short_mix(pcm);
+        }
+    }
+
     /// Buffered sample count not yet consumed by the stream.
     #[must_use]
     pub fn buffered_samples(&self) -> usize {
-        self.queue.lock().map(|q| q.len()).unwrap_or(0)
+        self.queue.lock().map_or(0, |q| q.len())
+    }
+
+    /// The resident buffer state (FR-017): the pre-roll depth against
+    /// the bound it never exceeds, plus the samples dropped beyond it
+    /// — the source of the diagnostic buffer-state entry
+    /// (`contracts/diagnostic-trace.md`).
+    #[must_use]
+    pub fn buffer_state(&self) -> BufferState {
+        self.queue
+            .lock()
+            .map_or(BufferState::EMPTY, |queue| BufferState {
+                buffered_secs: queue.speech.buffered_secs(),
+                cap_secs: MAX_PREROLL_SECS,
+                dropped_samples: queue.speech.dropped_samples(),
+            })
+    }
+
+    /// Set the output gain factor (the FR-013 duck actuator).
+    ///
+    /// Every factor in `[0.0, 1.0]` — including silence `0.0`,
+    /// the nominal duck factor (`0.20`) and full gain (`1.0`)
+    /// — is accepted and scales every subsequently consumed
+    /// sample, including audio already queued. A rejected
+    /// factor leaves the previous gain untouched.
+    ///
+    /// # Errors
+    ///
+    /// [`BackendError::InvalidGain`] carrying the offending
+    /// factor when it is negative, above `1.0`, infinite, or
+    /// `NaN` — or when the queue lock is poisoned (unreachable
+    /// while panics are denied); the previous gain stands in
+    /// every rejection case.
+    pub fn set_gain(&self, factor: f32) -> Result<(), BackendError> {
+        self.queue
+            .lock()
+            .map_or(Err(BackendError::InvalidGain(factor)), |mut queue| {
+                queue.set_gain(factor)
+            })
+    }
+
+    /// The currently applied output gain: full gain (`1.0`) on
+    /// a fresh backend, otherwise the last accepted
+    /// [`set_gain`](Self::set_gain) factor, echoed exactly.
+    #[must_use]
+    pub fn gain(&self) -> f32 {
+        self.queue.lock().map_or(FULL_GAIN, |queue| queue.gain())
     }
 
     /// Start (or resume) playback.
@@ -261,7 +601,9 @@ impl CpalBackend {
             let _ignored = stream.pause();
         }
         if let Ok(mut queue) = self.queue.lock() {
-            queue.samples.clear();
+            // The short mix stands down with the speech queue: a
+            // stop or pause drops any standing confirmation.
+            queue.clear();
         }
         if let Ok(mut clock) = self.position_clock.lock() {
             *clock = PositionClock::new(0.0);
@@ -274,8 +616,24 @@ impl CpalBackend {
     pub fn position_secs(&self) -> f64 {
         self.position_clock
             .lock()
-            .map(|clock| clock.position_secs())
-            .unwrap_or(0.0)
+            .map_or(0.0, |clock| clock.position_secs())
+    }
+
+    /// Whether every enqueued speech sample has been consumed by
+    /// the stream — the end-of-document drain signal (F1).
+    ///
+    /// The play path enqueues the whole document's PCM in one
+    /// call before the stream starts, so an empty speech queue
+    /// with a non-zero audible position means the stream consumed
+    /// everything enqueued. A fresh backend (nothing played,
+    /// position at zero) and a stopped one (queue dropped,
+    /// position reset together) read `false`; a paused backend
+    /// keeps its unconsumed samples and reads `false` too. The
+    /// earcon short mix never counts: the drain is about the
+    /// speech queue the position clock advances on.
+    #[must_use]
+    pub fn is_drained(&self) -> bool {
+        drained(self.buffered_samples(), self.position_secs())
     }
 
     /// The stream sample rate (always the declared rate).
@@ -293,20 +651,37 @@ impl Drop for CpalBackend {
     }
 }
 
+/// The drain predicate [`CpalBackend::is_drained`] pins: an empty
+/// speech queue after audible progress. Both needles are
+/// load-bearing — the empty queue alone also matches a fresh or
+/// stopped backend, and the non-zero position alone matches a
+/// paused-at-progress one.
+#[must_use]
+fn drained(buffered_samples: usize, position_secs: f64) -> bool {
+    buffered_samples == 0 && position_secs > 0.0
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::focus::DUCK_GAIN;
 
+    // Exact-value contract: the queue copies samples verbatim along the empty and unity paths and
+    // every literal is an exact binary fraction, so the buffer must match bit-for-bit; a tolerance
+    // would admit a corrupted sample
     #[test]
     fn an_empty_queue_yields_silence_and_zero_consumed() {
         let mut queue = SampleQueue::default();
-        assert!(queue.is_empty());
+        assert_eq!(queue.len(), 0);
         let mut out = [1.0_f32; 4];
         let consumed = queue.consume_into(&mut out);
         assert_eq!(consumed, 0);
         assert_eq!(out, [0.0; 4]);
     }
 
+    // Exact-value contract: the queue copies samples verbatim along the empty and unity paths and
+    // every literal is an exact binary fraction, so the buffer must match bit-for-bit; a tolerance
+    // would admit a corrupted sample
     #[test]
     fn queued_samples_come_out_fifo_with_silence_tail() {
         let mut queue = SampleQueue::default();
@@ -316,9 +691,12 @@ mod tests {
         let consumed = queue.consume_into(&mut out);
         assert_eq!(consumed, 3);
         assert_eq!(out, [0.5, -0.25, 0.125, 0.0, 0.0]);
-        assert!(queue.is_empty());
+        assert_eq!(queue.len(), 0);
     }
 
+    // Exact-value contract: the queue copies samples verbatim along the empty and unity paths and
+    // every literal is an exact binary fraction, so the buffer must match bit-for-bit; a tolerance
+    // would admit a corrupted sample
     #[test]
     fn consumption_shorter_than_queued_leaves_the_rest() {
         let mut queue = SampleQueue::default();
@@ -328,6 +706,213 @@ mod tests {
         assert_eq!(consumed, 2);
         assert_eq!(out, [1.0, 2.0]);
         assert_eq!(queue.len(), 2);
+    }
+
+    #[test]
+    fn an_empty_queue_without_progress_is_not_drained() {
+        // The fresh backend and the stopped one both read
+        // `(empty, 0.0)`: nothing consumed yet, and a stop must
+        // never look like an end-of-document drain.
+        assert!(
+            !drained(0, 0.0),
+            "no audible progress yet — not an end-of-document drain"
+        );
+    }
+
+    #[test]
+    fn buffered_samples_hold_the_drain_back() {
+        assert!(
+            !drained(5, 3.0),
+            "unconsumed speech keeps the drain signal false"
+        );
+    }
+
+    #[test]
+    fn an_empty_queue_after_progress_is_drained() {
+        assert!(
+            drained(0, 10.36),
+            "an emptied speech queue after audible progress is the drain"
+        );
+    }
+
+    // Exact-value contract: the default gain must be exactly FULL_GAIN; == pins the 1.0 default and
+    // a tolerance would admit drift
+    #[test]
+    fn a_fresh_queue_reads_full_gain() {
+        let queue = SampleQueue::default();
+        assert_eq!(queue.gain(), FULL_GAIN);
+    }
+
+    // Exact-value contract: the queue copies samples verbatim along the empty and unity paths and
+    // every literal is an exact binary fraction, so the buffer must match bit-for-bit; a tolerance
+    // would admit a corrupted sample
+    #[test]
+    fn unity_gain_leaves_samples_bit_identical() {
+        let mut queue = SampleQueue::default();
+        queue.push(&[0.5, -0.25, 0.125]);
+        let mut out = [0.0_f32; 5];
+        let consumed = queue.consume_into(&mut out);
+        assert_eq!(consumed, 3);
+        assert_eq!(out, [0.5, -0.25, 0.125, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn duck_gain_scales_audible_samples_within_epsilon() {
+        let mut queue = SampleQueue::default();
+        assert!(queue.set_gain(DUCK_GAIN).is_ok());
+        queue.push(&[1.0, -0.5, 0.25]);
+        let mut out = [0.0_f32; 5];
+        let consumed = queue.consume_into(&mut out);
+        assert_eq!(consumed, 3);
+        let expected = [0.2_f32, -0.1, 0.05, 0.0, 0.0];
+        for (index, (got, want)) in out.iter().zip(expected.iter()).enumerate() {
+            let drift = (*got - *want).abs();
+            assert!(
+                drift <= 1e-6,
+                "sample {index} drifted by {drift}: got {got}, want {want}"
+            );
+        }
+    }
+
+    // Exact-value contract: the queue copies samples verbatim along the empty and unity paths and
+    // every literal is an exact binary fraction, so the buffer must match bit-for-bit; a tolerance
+    // would admit a corrupted sample
+    #[test]
+    fn duck_gain_leaves_silence_silent() {
+        let mut queue = SampleQueue::default();
+        assert!(queue.set_gain(DUCK_GAIN).is_ok());
+        let mut out = [1.0_f32; 4];
+        let consumed = queue.consume_into(&mut out);
+        assert_eq!(consumed, 0);
+        assert_eq!(out, [0.0; 4]);
+    }
+
+    // Exact-value contract: boundary gains must echo bit-for-bit and rejections must leave the
+    // stored gain bit-for-bit intact; == pins the echo/unchanged laws and a tolerance would admit
+    // drift
+    #[test]
+    fn boundary_gains_are_accepted_and_echoed() {
+        let mut queue = SampleQueue::default();
+        for factor in [0.0_f32, DUCK_GAIN, FULL_GAIN] {
+            assert!(
+                queue.set_gain(factor).is_ok(),
+                "gain factor {factor} inside [0.0, 1.0] was rejected"
+            );
+            assert_eq!(
+                queue.gain(),
+                factor,
+                "gain did not echo the accepted factor {factor}"
+            );
+        }
+    }
+
+    // Exact-value contract: a rejection must leave the stored gain bit-for-bit intact; == pins the
+    // unchanged law and a tolerance would admit drift
+    #[test]
+    fn invalid_gains_are_rejected_with_gain_unchanged() {
+        let mut queue = SampleQueue::default();
+        assert!(queue.set_gain(0.5).is_ok());
+        for factor in [
+            -1.0_f32,
+            -10.0,
+            1.000_001,
+            10.0,
+            f32::INFINITY,
+            f32::NEG_INFINITY,
+            f32::NAN,
+        ] {
+            assert!(
+                matches!(queue.set_gain(factor), Err(BackendError::InvalidGain(_))),
+                "gain factor {factor} outside [0.0, 1.0] was not rejected with the named InvalidGain error"
+            );
+            assert_eq!(
+                queue.gain(),
+                0.5,
+                "a rejected gain factor {factor} moved the stored gain"
+            );
+        }
+    }
+
+    #[test]
+    fn rejection_carries_the_offending_factor() {
+        let mut queue = SampleQueue::default();
+        assert!(
+            matches!(
+                queue.set_gain(-0.5),
+                Err(BackendError::InvalidGain(got)) if (got + 0.5).abs() <= f32::EPSILON
+            ),
+            "rejection did not carry the offending factor"
+        );
+        assert!(
+            matches!(
+                queue.set_gain(f32::NAN),
+                Err(BackendError::InvalidGain(got)) if got.is_nan()
+            ),
+            "NaN rejection did not carry the offending factor"
+        );
+    }
+
+    // Exact-value contract: the bound is the plan's 60 s and the single
+    // PREROLL_CAP_SECS the pre-roll ring and the pipeline-side buffer already
+    // share; == pins the exact value and a tolerance would admit drift
+    #[test]
+    fn the_bound_is_the_single_preroll_cap() {
+        assert_eq!(MAX_PREROLL_SECS, 60.0);
+        assert_eq!(MAX_PREROLL_SECS, crate::position::PREROLL_CAP_SECS);
+    }
+
+    // Exact-value contract: the engine rate is the declared 22 050 Hz; == pins
+    // the exact value and a tolerance would admit drift
+    #[test]
+    fn the_engine_rate_is_the_declared_rate() {
+        assert_eq!(ENGINE_RATE_HZ, f64::from(DeclaredFormat::SAMPLE_RATE));
+    }
+
+    // Exact-value contract: the sample bound is the seconds bound at the
+    // declared rate — 60 s x 22 050 Hz = 1 323 000 samples; == pins the exact
+    // integer and a tolerance would admit drift
+    #[test]
+    fn the_sample_bound_is_the_seconds_bound_at_the_declared_rate() {
+        assert_eq!(MAX_PREROLL_SAMPLES, 1_323_000);
+    }
+
+    #[test]
+    fn the_resident_window_holds_at_most_the_bound() {
+        let mut queue = ResidentQueue::new();
+        let chunk = vec![0.5_f32; MAX_PREROLL_SAMPLES + 1_000];
+        queue.push(&chunk);
+        assert_eq!(queue.len(), MAX_PREROLL_SAMPLES);
+        assert_eq!(queue.buffered_secs(), 60.0);
+        assert_eq!(queue.dropped_samples(), 1_000);
+    }
+
+    #[test]
+    fn the_drop_keeps_the_head_of_the_window() {
+        let mut queue = ResidentQueue::new();
+        // The audio at the head: the next audible sample.
+        queue.push(&[1.0, 2.0, 3.0]);
+        // A chunk that overruns the window: its tail falls beyond the
+        // bound and is dropped; its head joins the window.
+        let overrun = vec![0.0_f32; MAX_PREROLL_SAMPLES + 10];
+        queue.push(&overrun);
+
+        assert_eq!(queue.len(), MAX_PREROLL_SAMPLES);
+        // The head survived: the reading stays audibly contiguous from
+        // the play head.
+        let head: Vec<f32> = queue.samples().iter().copied().take(3).collect();
+        assert_eq!(head, vec![1.0, 2.0, 3.0]);
+        // Only the audio beyond the window was dropped: the chunk
+        // carried the bound plus ten, and the window had three free
+        // places for it.
+        assert_eq!(queue.dropped_samples(), 13);
+    }
+
+    #[test]
+    fn an_empty_window_reports_the_empty_buffer_state() {
+        let state = BufferState::EMPTY;
+        assert_eq!(state.buffered_secs, 0.0);
+        assert_eq!(state.cap_secs, MAX_PREROLL_SECS);
+        assert_eq!(state.dropped_samples, 0);
     }
 
     #[test]

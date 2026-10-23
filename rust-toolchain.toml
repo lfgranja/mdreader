@@ -1,0 +1,35 @@
+# rust-toolchain.toml — mdreader
+#
+# The workspace TRACKS the `stable` channel. It does NOT pin a compiler
+# version. Policy and rationale: `.specify/memory/constitution.md`,
+# "Technology Stack" -> "Toolchain" (constitution v1.10.0).
+#
+# Why the channel is named here even though it floats:
+#   - the lint set is part of the rigour contract (constitution "Rust
+#     Code Rigor"), and a lint set that depends on the HOST's rustup
+#     default is not deterministic (Principle V);
+#   - naming the channel makes the tracked toolchain a property of the
+#     repository rather than of the machine that happens to run the
+#     build — this machine carries 1.94.0, 1.98.0 and nightly
+#     alongside `stable`, so the rustup default can differ per host;
+#   - `components` names the two tools the gates need on this channel:
+#     rustfmt (gate 1) and clippy (the lint-compliance pass).
+#
+# Why no version is pinned:
+#   - a hard version pin freezes the compiler AND the lint set, so new
+#     lint coverage never arrives and a "green" tree is green only
+#     against a frozen toolchain;
+#   - it would force a download of that exact toolchain on any host
+#     that lacks it, and it would sit in tension with Principle IV's
+#     latest-stable posture;
+#   - `stable` can never contradict the MSRV floor (1.85 for workspace
+#     code, rustc >= 1.88 for the full build): `stable` only rises.
+#
+# The drift a version pin appears to prevent is instead handled by the
+# recorded policy: a toolchain bump is EXPECTED to move the lint set,
+# and a lint-compliance pass (`cargo clippy --workspace --all-targets
+# -- -D warnings`, exit 0) is REQUIRED before the tree is re-attested.
+
+[toolchain]
+channel = "stable"
+components = ["rustfmt", "clippy"]

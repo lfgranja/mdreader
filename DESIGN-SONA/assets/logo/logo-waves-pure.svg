@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <defs>
+    <style>
+      .w-blue   { stroke: #8FD8E8; stroke-width: 6; stroke-linecap: round; fill: none; }
+      .w-green  { stroke: #5AD6A8; stroke-width: 6; stroke-linecap: round; fill: none; }
+      .w-purple { stroke: #B9A6F5; stroke-width: 6; stroke-linecap: round; fill: none; }
+    </style>
+  </defs>
+
+  <!-- Três Ondas Senoidais Fluindo Livremente (Tríade Sona) -->
+  <!-- Onda Azul -->
+  <path d="M 18 38 C 34 26, 42 46, 58 38 C 70 32, 78 44, 82 40" class="w-blue"/>
+
+  <!-- Onda Verde -->
+  <path d="M 15 50 C 30 40, 45 60, 60 50 C 72 42, 80 54, 85 50" class="w-green"/>
+
+  <!-- Onda Roxa -->
+  <path d="M 18 62 C 34 74, 42 54, 58 62 C 70 68, 78 56, 82 60" class="w-purple"/>
+</svg>

@@ -38,7 +38,7 @@ replay after kill ≤30 s (FR-004).
 |---|---|---|
 | key `fingerprint` | `[u8; 32]` | blake3 of document bytes |
 | `offset_secs` | `f64` | last spoken position |
-| `first_yield_ms` | `u64` unix-ms | start of continuous non-advancing interval; basis for 5%-of-pause rewind (FR-015), never reset at supersede |
+| `first_yield_ms` | `u64` unix-ms | start of continuous non-advancing interval; basis for 5%-of-pause rewind (FR-015), never reset at supersede | **Non-normative accounting detail (`REWIND_FRACTION=0.05`)** — used only for internal accounting / `first_yield_ms` computation; not a spec-level metric |
 | `end_kind` | `SessionEnd` | `paused` ⇒ FR-032c deliberate offer, `interrupted` ⇒ FR-032d explicit-resume; `stopped\|completed` delete the entry |
 
 Cleared only by Stop or document end. Unreachable hash (edited content) ⇒ no offer.

@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <defs>
+    <style>
+      .bg { fill: #0B0F1A; }
+      .chamber { stroke: #F2F0E6; stroke-width: 5; stroke-linecap: round; fill: none; }
+      .w-blue   { stroke: #8FD8E8; stroke-width: 4.5; stroke-linecap: round; fill: none; }
+      .w-green  { stroke: #5AD6A8; stroke-width: 4.5; stroke-linecap: round; fill: none; }
+      .w-purple { stroke: #B9A6F5; stroke-width: 4.5; stroke-linecap: round; fill: none; }
+      .pulse { fill: #8FD8E8; }
+    </style>
+  </defs>
+
+  <!-- Fundo OLED Dark Sona -->
+  <rect width="100" height="100" class="bg" rx="22"/>
+
+  <!-- Câmara de Helmholtz / Ressonador Esférico Aberto (Marfim #F2F0E6) -->
+  <!-- Arco circular aberto na lateral direita (de 60 deg a 300 deg) -->
+  <path d="M 40 24 A 28 28 0 1 0 40 76" class="chamber"/>
+
+  <!-- Ponto Nodal de Origem / Pulso Acústico Interno -->
+  <circle cx="30" cy="50" r="4.5" class="pulse"/>
+
+  <!-- Feixe de Três Ondas Emergentes (Abertura em Leque Harmônico) -->
+  <!-- Onda 1: Superior (Azul Turquesa - Foco) -->
+  <path d="M 42 42 C 54 34, 68 30, 84 28" class="w-blue"/>
+
+  <!-- Onda 2: Central (Verde Jade - Cura) -->
+  <path d="M 46 50 C 58 50, 70 50, 86 50" class="w-green"/>
+
+  <!-- Onda 3: Inferior (Roxo Ametista - Ritmo) -->
+  <path d="M 42 58 C 54 66, 68 70, 84 72" class="w-purple"/>
+</svg>

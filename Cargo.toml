@@ -1,10 +1,10 @@
 [workspace]
-members = ["crates/player", "crates/session", "crates/diag", "crates/engine-core", "crates/doc-structure", "crates/adapter-synthesis"]
-exclude = ["src-tauri"]
+members = ["crates/player", "crates/session", "crates/diag", "crates/engine-core", "crates/doc-structure", "crates/adapter-synthesis", "src-tauri"]
+exclude = []
 resolver = "3"
 
 [workspace.dependencies]
-proptest = "1.6.0"
+proptest = "1.12.0"
 tempfile = "3.14.0"
 jsonschema = "0.29.0"
 serde = { version = "1.0.215", features = ["derive"] }
@@ -12,6 +12,8 @@ serde_json = "1.0.132"
 thiserror = "1.0.69"
 tracing = "0.1.41"
 clap = { version = "4.5.36", features = ["derive"] }
+base64 = "0.22"
+hex = "0.4"
 
 [workspace.lints.rust]
 unsafe_code = "deny"
@@ -23,8 +25,8 @@ unused_results = "deny"
 [workspace.lints.clippy]
 all = "deny"
 pedantic = "deny"
-nursery = "warn"
-cargo = "warn"
+nursery = { level = "warn", priority = -1 }
+cargo = { level = "warn", priority = -1 }
 unwrap_used = "deny"
 expect_used = "deny"
 panic = "deny"
@@ -38,3 +40,13 @@ allow_attributes = "deny"
 allow_attributes_without_reason = "deny"
 wildcard_dependencies = "deny"
 multiple_crate_versions = "deny"
+
+# Exceptions Log entry 12 (PROVISIONAL): vendored `sherpa-onnx-sys` carrying the
+# single-line build-dependency fix zip 2 -> 9, which clears RUSTSEC-2026-0367 /
+# 0368 / 0369 (fixed only in zip >= 9). Upstream fix proposed as
+# k2-fsa/sherpa-onnx#4059; not yet released. Remove this stanza together with
+# `vendor/sherpa-onnx-sys/` when a release ships the fix — the vendored
+# directory's PROVENANCE.md carries the sha256, the diff and the exit
+# condition.
+[patch.crates-io]
+sherpa-onnx-sys = { path = "vendor/sherpa-onnx-sys" }

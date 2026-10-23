@@ -20,7 +20,7 @@
 //! `tests/prop_chunk_refined.rs`) emit ATX `#` headings
 //! only, so four constructs are completely unobserved:
 //! setext headings (a title line over a `=====` or `-----`
-//! underline), `#` lines inside fenced code blocks (``` or
+//! underline), `#` lines inside fenced code blocks (three backticks or
 //! ~~~), list items (`- item`, `1. item`) and block
 //! quotes (`> text`). Under the §2.1 rule 1 line scan,
 //! setext headings, list items and block quotes are
@@ -99,7 +99,6 @@ const fn is_paragraph(kind: BoundaryKind) -> bool {
 /// words, free of leading and trailing whitespace (so
 /// exact non-blank-line losslessness holds at the default
 /// budget).
-#[must_use]
 fn text_line_strategy() -> impl Strategy<Value = String> {
     proptest::collection::vec(
         prop_oneof![
@@ -177,7 +176,7 @@ fn assert_universal_invariants(source: &str, segments: &[DocumentSegment], max_b
         );
         assert_eq!(
             segment.byte_length(),
-            segment.content.as_bytes().len(),
+            segment.content.len(),
             "byte_length() must equal the content's UTF-8 byte count"
         );
         let range = segment.source_range;
@@ -234,7 +233,7 @@ fn setext_headings_are_paragraphs_not_headings() {
     }
 }
 
-/// A `#`-prefixed line inside a fenced code block (``` or
+/// A `#`-prefixed line inside a fenced code block (three backticks or
 /// ~~~) opens a heading block under `API_CONTRACT.md`
 /// §2.1 rule 1: the line scan is not fence-aware, so a
 /// fenced code comment is narrated as a heading block and
@@ -536,10 +535,7 @@ proptest! {
                 "segment of {} bytes exceeds the {MAX_CHUNK_BYTES} byte budget",
                 segment.byte_length()
             );
-            prop_assert_eq!(
-                segment.byte_length(),
-                segment.content.as_bytes().len()
-            );
+            prop_assert_eq!(segment.byte_length(), segment.content.len());
         }
 
         // Rule 9 — 0-based, strictly increasing by exactly 1.
@@ -597,8 +593,7 @@ proptest! {
         // member (e.g. `Sentence`) would not compile.
         for segment in &segments {
             match segment.boundary_kind {
-                BoundaryKind::Paragraph => {}
-                BoundaryKind::Heading => {}
+                BoundaryKind::Paragraph | BoundaryKind::Heading => {}
             }
         }
 
@@ -678,10 +673,7 @@ proptest! {
                 "segment of {} bytes exceeds the {max_bytes} byte budget",
                 segment.byte_length()
             );
-            prop_assert_eq!(
-                segment.byte_length(),
-                segment.content.as_bytes().len()
-            );
+            prop_assert_eq!(segment.byte_length(), segment.content.len());
             prop_assert_eq!(segment.segment_index, expected_index);
             expected_index = expected_index.saturating_add(1);
             let range = segment.source_range;
@@ -729,7 +721,7 @@ proptest! {
 /// each one an ATX heading block (1–6 `#` plus 0..=2
 /// absorbed body lines), a setext heading pair (a title
 /// over a `=====`/`-----` underline), a fenced code block
-/// (``` or ~~~, with content lines that may themselves
+/// (three backticks or ~~~, with content lines that may themselves
 /// begin with `#`, `-`, `>`, `1.` or nothing), a run of
 /// unordered or ordered list items, a block-quote run, a
 /// multi-byte Portuguese paragraph, or an occasional empty
@@ -775,7 +767,6 @@ proptest! {
 /// hard-split path is still exercised in this file by the
 /// random-budget property below, whose budgets start at
 /// 4 bytes.
-#[must_use]
 fn mixed_document_strategy() -> impl Strategy<Value = String> {
     // An ATX heading block: 1–6 `#`, a space, a title,
     // then 0..=2 non-blank body lines absorbed into the
@@ -856,10 +847,12 @@ fn mixed_document_strategy() -> impl Strategy<Value = String> {
                     block.push('\n');
                 }
                 if ordered {
-                    block.push_str(&format!("{}. {item}", index + 1));
+                    block.push_str(&(index + 1).to_string());
+                    block.push_str(". ");
                 } else {
-                    block.push_str("- {item}");
+                    block.push_str("- ");
                 }
+                block.push_str(item);
             }
             block
         });
@@ -900,7 +893,6 @@ fn mixed_document_strategy() -> impl Strategy<Value = String> {
 /// (character-safe hard split, hard bound, losslessness)
 /// are jointly unsatisfiable, so the bound is a
 /// precondition that holds from this floor upward.
-#[must_use]
 fn mixed_document_and_budget_strategy() -> impl Strategy<Value = (String, usize)> {
     (mixed_document_strategy(), 4usize..=MAX_CHUNK_BYTES)
 }

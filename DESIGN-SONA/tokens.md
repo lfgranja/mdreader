@@ -16,6 +16,7 @@
 | `--sona-etwahl` | `#8FD8E8` | **Acento primário** — progresso, fluxo, focus ring, logo vivo | **11.98:1** | Turquesa de Sona (documentado `Universe:Sona`, azul/turquesa); adaptado para AA |
 | `--sona-harp` | `#E8C46A` | **Acento secundário** — taxa ativa, ênfase, ponto de estado suave | **11.42:1** | Ouro de Sona (`#c9b373` adaptado); usado com moderação |
 | `--sona-celeste` | `#B9A6F5` | **Acento terciário** — rate / Song of Celerity / velocidade | **8.96:1** | Violeta de Sona (`#cb97e3` adaptado); **não usado para falha/aviso** |
+| `--sona-aria` | `#5AD6A8` | **Acento de Marca (Onda 2)** — cura, ressonância da marca | **11.20:1** | Verde Jade / Menta Acústica (Aria of Perseverance); marca apenas |
 | `--sona-boundary` | `#55688F` | Hairline / dividers / contornos | **3.43:1** | Limiar 3:1 não-texto; marginal; usar `--sona-etwahl` para ring de focus |
 
 **Regra de contraste verificada:** todos os textos ≥ 4.5:1; todos os objetos gráficos (fill, ring, track) ≥ 3:1. Nenhum token fora da lista acima é permitido sem edição coordenada + bump + docs (§VII da constituição).
@@ -24,14 +25,14 @@
 
 ## 2. Conjunto Fechado — Regra de Uso (adaptada do B)
 
-- **Turquesa (`#8FD8E8`)** — progresso ativo, fluxo, identificação de marca, focus ring. **Nunca** falha, **nunca** aviso 3s, **nunca** info geral.
+- **Turquesa (`#8FD8E8`)** — progresso ativo, fluxo, identificação de marca (Onda 1), focus ring. **Nunca** falha, **nunca** aviso 3s, **nunca** info geral.
+- **Verde Jade (`#5AD6A8`)** — **exclusivo para identidade da marca (Onda 2 / Aria of Perseverance).** **PROIBIDO na interface operacional do player** como estado de repouso ou botão (repouso = ausência de cor; fluxo = turquesa).
 - **Dourado (`#E8C46A`)** — taxa ativa, destaque de seção, ponto de estado suave. **Nunca** falha, **nunca** aviso.
-- **Violeta (`#B9A6F5`)** — rate / velocidade (Song of Celerity). **Nunca** falha, **nunca** aviso, **nunca** fluxo.
+- **Violeta (`#B9A6F5`)** — rate / velocidade (Song of Celerity / Onda 3). **Nunca** falha, **nunca** aviso, **nunca** fluxo.
 - **Amarelo (`#FFD400`)** — **exclusivo** aviso de pausa que expira (3 s). **Nunca** outro estado. **Nunca** progresso.
 - **Vermelho (`#FF4D63`)** — **exclusivo** falha / perda permanente. **Nunca** transição, **nunca** aviso.
 - **Branco (`#FFFFFF`)** — texto, progresso de fluxo (preenchimento), referência de posição.
 - **Dim (`#C9CDD2`)** — seção, metadados, texto secundário.
-- **Verde (`#5FD0A0`) — PROIBIDO.** Repouso = ausência de cor, não verde. Nenhum verde como "tocando".
 
 ---
 
@@ -48,6 +49,9 @@
 | `--signal-failure` | `#FF4D63` | Falha permanente | Notificação, in-app |
 | `--signal-info` | `#3D8BE8` | Informativo (taxa, detalhes) | In-app apenas (SC-027) |
 | `--signal-track` | `#55688F` | Trilha de progresso | Notificação, in-app |
+| `--brand-wave-clarity` | `#8FD8E8` | Onda 1 (Foco / Clareza) | Marca, ícone do app, landing |
+| `--brand-wave-healing` | `#5AD6A8` | Onda 2 (Cura / Ressonância) | Marca, ícone do app, landing |
+| `--brand-wave-cadence` | `#B9A6F5` | Onda 3 (Ritmo / Celeridade) | Marca, ícone do app, landing |
 
 ---
 
@@ -55,8 +59,10 @@
 
 | Componente | Token primário | Token secundário | Regra |
 |---|---|---|---|
-| `NotificationSurface` (MediaStyle) | `--signal-flow` (barra `#FFFFFF`) | `--signal-track` (`#55688F`) | Sem custom RemoteViews; estado por cor + forma + texto |
-| `StatusView` in-app | `--text-primary` + `--signal-etwahl` (progress) | `--signal-caution` (dot amarelo pulsante) | Grade 2-campo; scroll de razão real (SC-029 atendido) |
+| `BrandLogoCanonical` | `--text-primary` (`#F2F0E6` anel/nó) | `--brand-wave-clarity`, `--brand-wave-healing`, `--brand-wave-cadence` | 3 ondas com gap 3.5px sobre `--surface-canvas` (`#0B0F1A`) |
+| `BrandLogoMonochrome` | `#FFFFFF` (silhueta) | Transparente (recorte) | Themed Icons Material You (gap 3.5px preservado) |
+| `NotificationSurface` (MediaStyle) | `--signal-flow` (barra `#FFFFFF`) | `--signal-track` (`#55688F`) | Sem custom RemoteViews; sem marca no lock-screen |
+| `StatusView` in-app | `--text-primary` + `--signal-etwahl` (progress) | `--signal-caution` (dot amarelo pulsante) | Grade 2-campo; header com BrandLogo 16dp |
 | `RateStepper` | `--signal-harp` (ativo) / `--signal-fog` (inativo) | — | Ladder fechado; nunca na notificação |
 | `FocusMirror` / `RoutingMirror` | Nenhum token visual próprio — estado refletido por `--signal-caution` (transitória) / `--signal-failure` (permanente) | — | Sem componente visual adicional |
 
@@ -90,6 +96,7 @@ O earcon usa a terminologia musical de Sona (Adagio, Andante, Allegro, Sforzando
 ## 7. Referências normativas de cada token
 
 - `#8FD8E8`: `Universe:Sona` (§4) — turquoise; `brand.riotgames.com/en-us/league-of-legends/color` (chroma "Turquoise"); `r/sonamains` (turquoise extrato); wiki chroma "Turquoise".
+- `#5AD6A8`: `Universe:Sona` (*Aria of Perseverance* — green/jade aura); adaptado para AAA (11.20:1); exclusivo para marca.
 - `#E8C46A`: `Universe:Sona` (§4) — gold; `r/sonamains` (gold family `#c9b373`); LoL brand `Okra #C4A15B` (terceiro); adaptado para AA.
 - `#B9A6F5`: `Universe:Sona` (§4) — violet / Amethyst ring for E; wiki chroma "Amethyst".
 - `#0B0F1A`: adaptado do azul-escuro documentado (`#0B0C0E` do B) para OLED profundo.

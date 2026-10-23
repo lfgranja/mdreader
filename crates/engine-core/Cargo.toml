@@ -1,7 +1,13 @@
 [package]
 name = "engine-core"
+license = "MIT"
 version = "0.1.0"
 edition = "2024"
+description = "Engine-neutral synthesis core: closed-set vocabulary, engine trait, handoff format, and stand-in engines."
+repository = "https://github.com/mdreader/mdreader"
+readme = "README.md"
+keywords = ["tts", "synthesis", "engine", "audio"]
+categories = ["multimedia::audio"]
 
 [dependencies]
 thiserror = { workspace = true }
@@ -12,6 +18,19 @@ clap = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
 proptest = { workspace = true }
+
+# US1 contract test target (T022): Cargo does not
+# auto-discover tests under `tests/contract/`, so the
+# target is wired here — the same pattern the `player`
+# crate uses for its `tests/contract/` and
+# `tests/integration/` targets.
+[[test]]
+name = "test_engine_handoff_us1"
+path = "tests/contract/test_engine_handoff_us1.rs"
+
+[[test]]
+name = "test_standin_conformance_us5"
+path = "tests/contract/test_standin_conformance_us5.rs"
 
 [lints]
 workspace = true

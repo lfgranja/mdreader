@@ -199,7 +199,7 @@ proptest! {
         );
         let named = matches!(
             result,
-            Err(EngineError::RateMismatch) | Err(EngineError::ChannelMismatch)
+            Err(EngineError::RateMismatch | EngineError::ChannelMismatch)
         );
         prop_assert!(
             named,

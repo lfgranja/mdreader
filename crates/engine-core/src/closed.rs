@@ -42,7 +42,8 @@ pub enum PlaybackRate {
     R1_5,
     /// `1.75×`.
     R1_75,
-    /// `2.0×` — the pitch-tolerance reference rung (±3 cents,
+    /// `2.0×` — the pitch-tolerance reference rung (within
+    /// [`crate::format::PITCH_TOLERANCE_CENTS`], SC-015,
     /// contracts/engine-handoff.md).
     R2_0,
     /// `4.0×` — the fastest declared rung.
@@ -270,7 +271,7 @@ pub enum EngineError {
     #[serde(rename = "rate_mismatch")]
     RateMismatch,
     /// The delivered channel count deviates from the declared mono
-    /// handoff shape (FR-033) — never a silent downmix.
+    /// handoff shape (FR-019, FR-035) (FR-033, superseded by FR-019) — never a silent downmix.
     #[serde(rename = "channel_mismatch")]
     ChannelMismatch,
     /// The audio device refused the playback request.

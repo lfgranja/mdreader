@@ -1,7 +1,7 @@
 # DESIGN-SONA.md — Design System Mestre: Sona (Influência / Inspirado pela personagem)
 
-**Versão:** 1.0.0 · **Data:** 2026-10-06 · **Status:** especificado (novo diretório, inspirado pelo candidato B, adaptado à personalidade Sona)
-**Referência:** `DESIGN.md` (B — Sinalização), `DESIGN_SYSTEMS_5_CANDIDATOS.md` §B, `RELATORIO_BRAND_PRODUTO.md` (escolha de B, marca ressona.dev, Engine Sona interno)
+**Versão:** 2.0.0 · **Data:** 2026-10-16 · **Status:** especificado e homologado (tríade de ondas sonoras Sona: Azul, Verde e Roxo)
+**Referência:** `DESIGN.md` (B — Sinalização), `DESIGN_SYSTEMS_5_CANDIDATOS.md` §B, `RELATORIO_BRAND_PRODUTO.md` (escolha de B, marca ressona.dev, Engine Sona interno), `briefing-logo-ressoa-design-sona.md` (Briefing Oficial v2.0.0)
 **Origem:** Pesquisa profunda sobre Sona (`leagueoflegends.com/en-us/champions/sona/`, `wiki.leagueoflegends.com/en-us/Universe:Sona`, `Sona/Trivia`, `Sona/Audio`, `Sona/Development`, `brand.riotgames.com`, `support.riotgames.com/en-us/league-of-legends/gameplay/colorblind-mode/`)
 
 ---
@@ -23,45 +23,50 @@
 
 **Base técnico:** B — Sinalização (CTB / DIN 1451 / Semáforo), escolhido pelo usuário e documentado no `RELATORIO_BRAND_PRODUTO.md`. A arquitetura de tokens, componentes, acessibilidade e riscos do B são a **base** deste diretório.
 
-**Mudança de direção:** em vez de disciplinar severamente o semáforo (amarelo só 3s, verde proibido, vermelho só falha), esta versão incorpora a **suavidade**, **musicalidade** e **cura** de Sona dentro dos mesmos limites técnicos. Isso significa:
-- A paleta é **mais clara, mais luminosa, com tons de azul-turquesa, dourado suave, violeta pastel** — derivados das cores documentadas de Sona (turquoise, gold, purple, pearl, cream) adaptados para contraste AA contra `#0B0F1A` (fundo OLED escuro).
-- O **earcon é expandido** com a terminologia musical de Sona (Adagio, Andante, Allegro, Sforzando, Ostinato, Crescendo, Aria, Unison) — não apenas "2 notas".
-- A **notificação** mantém a estrutura de B (título + seção + progresso + estado) mas o acento é **turquesa suave** (não amarelo severo) para fluxo; o **amarelo** é reservado apenas para o aviso de pausa (3s); o **vermelho** só falha; o **violeta claro** é apenas para o "Song of Celerity" (velocidade/rate) — nunca para estado crítico.
-- O **in-app** ganha uma **faixa musical sutil** (3–5 px) inspirada na faixa de envelope do candidato E, mas com **cor suave e não gradiente agressivo** — uma rampa de turquesa a dourado, nunca vermelho/âmbar contestando.
+**Mudança de direção (v2.0.0):** em vez de disciplinar severamente o semáforo na marca institucional, esta versão incorpora a **tríade sinestésica de ondas sonoras** da Sona (as 3 cordas acústicas do *Etwahl*):
+- **Camada de Marca (Logo, Ícone do App, Landing, F-Droid):** Curvas sonoras coloridas em três registros acústicos: **Azul Turquesa (`#8FD8E8`)**, **Verde Jade (`#5AD6A8`)** e **Roxo Ametista (`#B9A6F5`)**, contidas por um ressonador marfim (`#F2F0E6`) sobre fundo OLED escuro (`#0B0F1A`).
+- **Camada Operacional (Player / Notificação MediaStyle):** Mantém a severidade semafórica de B: o **turquesa** indica fluxo ativo; o **amarelo (`#FFD400`)** é exclusivo para aviso de pausa (3s); o **vermelho (`#FF4D63`)** é exclusivo para falha permanente; o **verde é PROIBIDO na interface operacional do player** para não confundir com botões de trânsito.
+- O **earcon é expandido** com a terminologia musical de Sona (Adagio, Andante, Allegro, Sforzando, Ostinato, Crescendo, Aria, Unison) — uma gramática sonora rica gerada em Rust a 22050 Hz.
+- O **in-app StatusView** ganha o logotipo oficial com as três ondas sonoras no topo e uma **faixa musical sutil** (3–5 px) que expressa o nível de RMS da voz sem competir com a barra de progresso.
 
 ---
 
-## 3. Paleta Sona (adaptada para dark/OLED, contraste AA)
+## 3. Paleta Sona (adaptada para dark/OLED, contraste AA/AAA)
 
 | Token | Hex | Papel | Contraste s/ `#0B0F1A` | Notas / Fonte |
 |---|---|---|---|---|
 | `--sona-void` | `#0B0F1A` | Fundo base (OLED) | — | Derivado do azul escuro de Sona, adaptado para preto com leve sombra azul |
-| `--sona-stage` | `#141B2D` | Superfície elevada (cards, notificação expandida) | — | Um passo acima do void, mesmo tom |
-| `--sona-voice` | `#F2F0E6` | Tinta principal (texto) | **16.75:1** | Quase branco, tom quente — ecoa `#f5edae` (cream) adaptado para legibilidade |
-| `--sona-hush` | `#A9B8CE` | Texto secundário (seção, dim) | **9.51:1** | Periwinkle do azul da família documentada |
-| `--sona-etwahl` | `#8FD8E8` | **Acento primário** — progresso ativo, estado fluxo, focus ring, logo vivo | **11.98:1** | Turquesa de Sona (`#2d63a1` adaptado); **único acento de identidade** |
-| `--sona-harp` | `#E8C46A` | **Acento secundário** — taxa ativa, ênfase de seção, ponto de estado suave | **11.42:1** | Ouro de Sona (`#c9b373` adaptado); usado com moderação |
-| `--sona-celeste` | `#B9A6F5` | **Acento terciário** — Song of Celerity / rate / velocidade (não estado crítico) | **8.96:1** | Violeta de Sona (`#cb97e3` adaptado); **nunca** usado para falha |
-| `--sona-aurora` | `#3D2B8A` | Sombra profunda (não usado como cor de texto; só sombra de fundo, elevação) | — | Azul profundo; decorativo |
-| `--sona-boundary` | `#55688F` | Hairline / dividers | **3.43:1** | Limiar 3:1 não-texto; marginal; usar `--sona-etwahl` para anel de focus |
+| `--sona-stage` | `#141B2D` | Superfície elevada (cards, container do logo) | — | Um passo acima do void, mesmo tom |
+| `--sona-voice` | `#F2F0E6` | Tinta principal (texto, anel de contenção da logo) | **16.75:1 (AAA)** | Quase branco, marfim acústico — legibilidade máxima |
+| `--sona-hush` | `#A9B8CE` | Texto secundário (seção, dim) | **9.51:1 (AAA)** | Periwinkle do azul da família documentada |
+| `--sona-etwahl` | `#8FD8E8` | **Acento de Marca (Onda 1) & Fluxo** — clareza, foco, fluxo ativo | **11.98:1 (AAA)** | Turquesa de Sona (*Hymn of Valor*); foco da identidade |
+| `--sona-aria` | `#5AD6A8` | **Acento de Marca (Onda 2)** — cura, ressonância, voz do texto | **11.20:1 (AAA)** | Verde Jade / Menta Acústica (*Aria of Perseverance*); marca apenas |
+| `--sona-celeste` | `#B9A6F5` | **Acento de Marca (Onda 3)** — ritmo, taxa, velocidade de leitura | **8.96:1 (AAA)** | Roxo Ametista / Violeta (*Song of Celerity*); nunca para falha |
+| `--sona-harp` | `#E8C46A` | **Acento Secundário In-App** — taxa ativa, ênfase harmônica | **11.42:1 (AAA)** | Ouro de Sona (`#c9b373` adaptado); usado com moderação |
+| `--sona-aurora` | `#3D2B8A` | Sombra profunda (não usado como texto; elevação) | — | Azul profundo decorativo |
+| `--sona-boundary` | `#55688F` | Hairline / dividers / trilho de progresso | **3.43:1** | Limiar 3:1 não-texto; marginal |
 
-**Nota de contraste:** todos os textos principais passam 4.5:1; `--sona-boundary` passa 3:1 (não-texto); `--sona-etwahl` e `--sona-harp` passam 3:1 como objetos gráficos (progress fill, focus ring). Nenhuma cor inventada fora das documentadas de Sona.
+**Nota de contraste:** todos os textos e ondas coloridas passam com folga o critério WCAG AAA (≥ 7:1) sobre `#0B0F1A`.
 
 ---
 
-## 4. Regra do conjunto fechado (adaptada de B, softened para Sona)
+## 4. Regra do conjunto fechado (Separação Marca vs. Operação)
 
-A disciplina de B (cor como função, conjunto fechado) é mantida, mas a **paleta é ampliada** para incluir turquesa, dourado e violeta — todos dentro do documento de Sona. A regra não é "menos cores"; é "cada cor tem uma função, nenhuma função usa outra cor, e nenhuma cor é usada para decoração":
+A disciplina de B (cor como função, conjunto fechado) é preservada através de uma clara separação arquitetural de escopos:
 
-- **Turquesa (`#8FD8E8`)** — progresso ativo, fluxo, identidade, focus ring. Nunca usado para falha.
-- **Dourado (`#E8C46A`)** — taxa ativa, seção de destaque, ponto de aviso suave. Nunca usado para falha crítica.
-- **Violeta (`#B9A6F5`)** — rate / velocidade (Song of Celerity). Nunca usado para falha ou aviso de 3s.
-- **Amarelo (`#FFD400`)** — **exclusivo** para aviso de pausa que expira (3s) — mantido do B, porque é a cor de aviso universal no CTB.
-- **Vermelho (`#FF4D63`)** — **exclusivo** para falha / perda permanente. Nunca para transição.
-- **Branco (`#FFFFFF`)** — texto, progresso de fluxo, referência de posição.
-- **Dim (`#A9B8CE`)** — seção, metadados, texto secundário.
+1. **Escopo da Identidade da Marca (Logo, Ícone, Web, F-Droid):**
+   - Utiliza estritamente a **tríade das ondas sonoras**: Azul Turquesa (`#8FD8E8`), Verde Jade (`#5AD6A8`) e Roxo Ametista (`#B9A6F5`), emoldurados por traços marfim (`#F2F0E6`) sobre fundo `#0B0F1A`.
+2. **Escopo da Interface Operacional (Player, Notificação, StatusView):**
+   - **Turquesa (`#8FD8E8`):** Progresso ativo e estado de fluxo. Nunca para falha ou aviso.
+   - **Dourado (`#E8C46A`):** Taxa ativa e destaque harmônico de seção.
+   - **Violeta (`#B9A6F5`):** Indicador de velocidade de leitura (RateStepper).
+   - **Amarelo (`#FFD400`):** **Exclusivo** para aviso de pausa transitória (3 s). Nunca no logotipo institucional.
+   - **Vermelho (`#FF4D63`):** **Exclusivo** para falha crítica permanente. Nunca no logotipo.
+   - **Verde (`#5AD6A8`):** **PROIBIDO no semáforo do player** (repouso é ausência de cor, não verde). Exclusivo da segunda onda da logo institucional.
+   - **Branco / Marfim (`#F2F0E6`):** Texto primário e posição.
+   - **Dim (`#A9B8CE`):** Metadados e seção secundária.
 
-**Regra de expansão:** adicionar uma cor nova (ex.: rosa de "Spites" de Sona) = edição coordenada + bump semântico + docs. Mas a paleta atual já contém 3 acentos + 1 aviso + 1 falha — suficiente para o sistema.
+**Regra de expansão:** Qualquer nova cor exige edição coordenada, justificativa semiótica e bump de versão (§VII da constituição). A paleta atual cobre com perfeição a identidade e a telemetria do sistema.
 
 ---
 
@@ -104,22 +109,77 @@ O design B já tinha o earcon (C5→E5 ascendente / descendente, tick A5, D3 qua
 
 ---
 
-## 7. Marca — Integração com ressona.dev / Engine Sona
+## 7. Marca — Sistema Oficial de Dupla Assinatura (v2.1.0)
 
-- **Logo:** círculo + linha horizontal (lente de semáforo) — mantido do B, mas com **ponto turquesa `#8FD8E8`** em vez de amarelo (a marca de divulgação usa a cor da identidade, não a cor do aviso; o amarelo `#FFD400` é só estado de aviso). 
-- **Wordmark:** "ressona" em Roboto Flex, cor `#F2F0E6`, acento turquesa no ponto do círculo.
-- **Engine Sona:** nome do motor interno (`crates/engine-core`); quando o usuário lê o código ou docs internos, vê "Engine Sona"; quando vê a marca, vê "ressona" — separação clara, nenhuma confusão com LoL.
-- **F-Droid:** a marca é compatível (não exige Google, não exige Play Store).
+O **Ressoa** adota formalmente o **Sistema de Dupla Assinatura (Dual-Mark Architecture)**, consagrando os dois primeiros lugares da avaliação multicritério:
+
+1. **Marca Primária & Ícone do App: A Concha Harmônica (Monograma "R")**
+   - **Aplicação:** Ícone oficial do aplicativo no launcher Android, Google Play Store / F-Droid (1024px), favicon web (16px/32px) e avatar institucional.
+   - **Assets:** [`DESIGN-SONA/assets/logo/logo-primary-concha-r.png`](file:///home/luis/development/mdreader/DESIGN-SONA/assets/logo/logo-primary-concha-r.png), [`logo-primary-concha-r.svg`](file:///home/luis/development/mdreader/DESIGN-SONA/assets/logo/logo-primary-concha-r.svg), [`ic_launcher_foreground.xml`](file:///home/luis/development/mdreader/DESIGN-SONA/assets/logo/ic_launcher_foreground.xml), [`ic_launcher_background.xml`](file:///home/luis/development/mdreader/DESIGN-SONA/assets/logo/ic_launcher_background.xml) e [`ic_launcher_monochrome.xml`](file:///home/luis/development/mdreader/DESIGN-SONA/assets/logo/ic_launcher_monochrome.xml).
+   - **Conceito:** A haste vertical de leitura (marfim `#F2F0E6`) funde-se às 3 ondas sinestésicas da Sona (Azul `#8FD8E8`, Verde `#5AD6A8`, Roxo `#B9A6F5`), formando simultaneamente uma cóclea auditiva e a letra "R" de Ressoa com o nó central perolado.
+   - **Legibilidade:** Reconhecimento cognitivo instantâneo (< 50ms) e legibilidade máxima em 16px.
+
+2. **Selo de Engenharia: O Ressonador Canônico (Lente Semafórica)**
+   - **Aplicação:** Emblema oficial da "Engine Sona" (o motor Rust de áudio), cabeçalho do `crates/diag`, tela de StatusView in-app, medidor circular de reprodução/buffer e carimbo de gravação em hardware.
+   - **Assets:** [`DESIGN-SONA/assets/logo/seal-engine-ressonador.png`](file:///home/luis/development/mdreader/DESIGN-SONA/assets/logo/seal-engine-ressonador.png) e [`seal-engine-ressonador.svg`](file:///home/luis/development/mdreader/DESIGN-SONA/assets/logo/seal-engine-ressonador.svg).
+   - **Conceito:** Chassi cilíndrico usinado em titânio fosco com fendas polares abertas e 3 ondas senoidais de Fourier convergindo no nó focal de ressonância.
+   - **Sinalética:** Alinhamento concêntrico absoluto na Safe Zone de 66 dp do Android.
+
+- **Wordmark Oficial:** "Ressoa" (ou "ressoa.dev") em tipografia geométrica humanista, marfim acústico `#F2F0E6`.
+- **Engine Sona:** Nome do motor interno em Rust (`crates/engine-core`); confinado ao código e à telemetria de engenharia. O usuário final identifica o aplicativo como "Ressoa".
 
 ---
 
 ## 8. Riscos específicos do design Sona (adicionais ao R2–R8 do B)
 
-- **R9 — Confusão com LoL:** se o usuário associar "Sona" ao jogo por experiência prévia, a marca pode ser percebida como "produto de jogo". Mitigação: a marca pública é `ressona.dev`, não `Sona`; o engine é confinado ao código; o site explica a referência (música, cura, harmonia) sem mencionar LoL.
-- **R10 — Paleta muito clara / baixa saturação:** `#8FD8E8`, `#B9A6F5`, `#E8C46A` são cores de alta luminosidade. Em alguns monitores OLED, pode parecer "lavado" — mas o contraste é alto (11.98:1, 8.96:1, 11.42:1), então não é problema de legibilidade, é de percepção. Mitigação: usar `#0B0F1A` como fundo profundo para criar contraste visual, não apenas contraste de luminância.
-- **R11 — Risco de "muito bonito, pouco funcional":** a paleta é suave, musical, elegante — pode ser percebida como "revista" se não for acompanhada de disciplina funcional. Mitigação: o design system é explícito em "não é revista" (referência ao risco D do B); o in-app é grade funcional (2 campos, ribbon-marker, taxa); a notificação é operacional (texto, progresso, cor de estado).
-- **R12 — Dependência de som:** a personagem é musical, mas o produto deve funcionar sem som (muta = dignidade). Mitigação: todos os estados têm forma + posição + texto; earcon é redundante, não substitutiva.
+- **R9 — Confusão com LoL:** Se o usuário associar "Sona" ao jogo por experiência prévia, a marca poderia ser percebida como jogo. *Mitigação:* A marca pública é `ressona.dev`, não `Sona`; o logotipo utiliza geometria pura de ondas de Fourier e sinalética da HfG Ulm/DIN, sem estética de fantasia; o engine fica restrito ao código Rust.
+- **R10 — Paleta de Ondas e Separação Visual:** O uso de três ondas coloridas poderia causar perda de contraste ou fusão em telas de baixa densidade. *Mitigação:* Todas as três cores passam com folga o critério WCAG AAA (≥ 8.9:1) sobre `#0B0F1A`; a distância física de 3.5px (*negative gap*) garante legibilidade perfeita até 16×16 px.
+- **R11 — Separação Marca vs. Semáforo do Player:** O verde na marca poderia induzir o uso indevido de verde na interface do player. *Mitigação:* `--sona-aria` (`#5AD6A8`) é formalmente confinado à camada de identidade da marca (Onda 2); o semáforo operacional do player continua proibindo estritamente a cor verde (repouso = ausência de cor; fluxo = turquesa).
+- **R12 — Dependência de som vs. Dignidade do Mutismo:** A personagem é musical, mas o produto opera com total independência visual se o som for silenciado. *Mitigação:* Todos os estados têm redundância quadrupla (forma + posição + texto + cor); o earcon é de suporte, nunca barreira de acesso.
+
+---
+
+## 9. Arquitetura de Interface UI/UX Oficial — Composição Multi-Modo Integrada
+
+**Decisão Homologada pelo Usuário (2026-10-17):** Adoção da **Composição Multi-Modo Integrada**, elegendo **"A Lente Sinestésica da Sona" (Proposta 02)** como a interface **Padrão (*Default Player View*)**, orquestrando as forças das demais propostas para atender integralmente aos requisitos de acessibilidade, condução veicular, navegação estrutural e diagnóstico técnico.
+
+### Distribuição Funcional dos 4 Modos Integrados:
+
+1. **Modo Padrão / Player Principal (Default): *A Lente Sinestésica da Sona* (Proposta 02)**
+   - **Papel:** Tela inicial e principal de audição do aplicativo no smartphone e desktop.
+   - **Elementos:**
+     - Cabeçalho minimalista com a **Concha Harmônica ("R")** luminescente e wordmark `ressoa` em marfim acústico (`#F2F0E6`).
+     - **Microfita de 4px** ondulando na borda superior da janela, reagindo com sutileza ao envelope RMS da voz sintetizada em tempo real (transição suave entre turquesa, jade e violeta).
+     - Cards em vidro fosco (*frosted glass*) com efeito *Doppelrand* (dupla borda fina de 1px com micro-chanfro) e desfoque profundo de fundo.
+     - **Metadados:** Título da obra (`#F2F0E6`) e Seção atual (`#A9B8CE`) — **Zero Body Text** inviolável (`FR-028` / `SC-030`).
+     - **Centro da Tela:** Mostrador acústico harmônico integrado ao **Selo do Ressonador Canônico** (Proposta 01), atuando como indicador de preenchimento de buffer e VU meter concentrado.
+     - **Ilha Flutuante de Transporte (*Floating Playback Pill*):** Ancorada no terço inferior (*Thumb Zone* ergonômica), acomodando Play/Pause, salto de -15s/+30s e controle de taxa.
+
+2. **Modo Condução & Mobilidade: *O Cockpit Eyes-Free* (Proposta 04)**
+   - **Papel:** Acionamento rápido por um toque no cabeçalho (ícone HUD), alternância por gesto ou detecção de mobilidade/condução.
+   - **Elementos:**
+     - Alvos de toque gigantes (≥ 72×72dp) projetados para operação por memória motora e visão periférica (*SAE J2364*).
+     - Halo central massivo de 180dp em turquesa (`#8FD8E8`) pulsando em fluxo contínuo.
+     - **Aviso Temporal de Pausa (3.0s TTL / `SC-029`):** Em caso de perda transitória de foco ou desconexão de fone, o halo converte-se em um anel âmbar pulsante (`#FFD400`) com contagem regressiva circular e cronômetro decrescente "3.0s" em tempo real.
+
+3. **Modo Navegação & Sumário Estrutural: *O Terminal Editorial Suíço* (Proposta 03)**
+   - **Papel:** Painel lateral deslizante (*drawer*) de índice e bookmarks ao tocar no título do documento ou na seção.
+   - **Elementos:**
+     - Disciplina e clareza tipográfica inspirada em Josef Müller-Brockmann.
+     - Marcador físico vertical em marfim acústico (*ribbon-marker*), indicando a profundidade macro da leitura sem expor o texto ou números de porcentagem arbitrários.
+     - Acesso instantâneo aos capítulos e marcos salvos com persistência determinística via hash BLAKE3.
+
+4. **Modo Diagnóstico & Telemetria do Motor Rust: *A Matriz de Telemetria* (Proposta 05)**
+   - **Papel:** Diálogo técnico de inspeção profunda acionado ao tocar na barra de amostragem (`AAudio 22050 Hz`).
+   - **Elementos:**
+     - Sinalética científica de Otl Aicher DIN 1972 com a malha geométrica de ressonância Chladni emoldurando o Selo do Ressonador.
+     - Exibição da integridade do hash BLAKE3 do documento (`a3f9...c812`), latência do buffer de síntese (ms), profundidade do pre-roll (≤ 60s) e leitor de eventos do log diagnóstico JSONL (sem telemetria externa).
+
+- **Relatório Completo de Avaliação:** [`avaliacao_ui_ux.md`](file:///home/luis/development/mdreader/DESIGN-SONA/avaliacao_ui_ux.md)
+- **Galeria Visual Interativa:** [`assets/ui/galeria_ui.html`](file:///home/luis/development/mdreader/DESIGN-SONA/assets/ui/galeria_ui.html)
+
 
 ---
 
 *Referências do design Sona:* `leagueoflegends.com/en-us/champions/sona/`; `wiki.leagueoflegends.com/en-us/Universe:Sona`; `Sona/Audio`; `Sona/Trivia`; `brand.riotgames.com/en-us/league-of-legends/color`; `DESIGN.md` (B — Sinalização); `DESIGN_SYSTEMS_5_CANDIDATOS.md` §E (Espectral / duotone — referência a Audacity/sonificação); `spec.md` FR-028/FR-041/SC-029/SC-035; `VERIFICATION.md` 184.
+

@@ -1,0 +1,10 @@
+[package]
+name = "cleanroom-core"
+version = "0.1.0"
+edition = "2024"
+description = "Cleanroom core: invariant generators and property-based test utilities for readability constraints."
+repository = "https://github.com/mdreader/mdreader"
+readme = "README.md"
+
+[dependencies]
+proptest = { workspace = true }

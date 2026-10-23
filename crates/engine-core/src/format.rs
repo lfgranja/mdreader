@@ -1,9 +1,11 @@
 //! The declared engine→shell handoff format (T015).
 //!
 //! The numeric values are fixed by the specification, not
-//! by implementation (contracts/engine-handoff.md, FR-033):
+//! by implementation (contracts/engine-handoff.md, FR-019)
+//! (FR-033, superseded by FR-019):
 //! planning owns stream negotiation against them and never
-//! substitutes (FR-033, FR-035, SC-034). Rust owns the
+//! substitutes (FR-019, FR-035, SC-034)
+//! (FR-033, superseded by FR-019). Rust owns the
 //! synthesis and PCM playback; an engine delivers audio in
 //! exactly this shape, already resampled — the shell only
 //! converts to the device format.
@@ -11,8 +13,8 @@
 use crate::closed::EngineError;
 
 /// The declared engine→shell handoff format: mono `f32`
-/// PCM at exactly `22050` Hz (FR-033,
-/// contracts/engine-handoff.md).
+/// PCM at exactly `22050` Hz (FR-019,
+/// contracts/engine-handoff.md) (FR-033, superseded by FR-019).
 ///
 /// The associated constants are the single declaration of
 /// the shape; the handoff check ([`check_handoff`]) and
@@ -32,8 +34,22 @@ impl DeclaredFormat {
     pub const SAMPLE_WIDTH_BITS: u16 = 32;
 }
 
+/// The single contract pitch tolerance: `50` cents
+/// (SC-015, contracts/engine-handoff.md).
+///
+/// The pitch shift of the delivered audio stays within
+/// this bound of the source across all seven rate rungs,
+/// including the `2.0×`→`4.0×` pair; a deviation beyond
+/// it is a named [`EngineError::RateMismatch`]. The
+/// engine trait ([`crate::trait_::Engine::set_rate`]),
+/// both stand-in engines, and the pitch-invariance
+/// property (`tests/prop_pitch.rs`) all derive their
+/// conformance from this constant, so the bound cannot
+/// drift between declaration and enforcement.
+pub const PITCH_TOLERANCE_CENTS: u32 = 50;
+
 /// Check an engine-delivered audio format against the
-/// declared handoff shape (FR-033, FR-035).
+/// declared handoff shape (FR-019, FR-035) (FR-033, superseded by FR-019).
 ///
 /// The check fails closed: any deviation in rate, channel
 /// count, or sample width is surfaced as a named
@@ -135,7 +151,7 @@ mod tests {
             assert!(
                 matches!(
                     result,
-                    Err(EngineError::RateMismatch) | Err(EngineError::ChannelMismatch)
+                    Err(EngineError::RateMismatch | EngineError::ChannelMismatch)
                 ),
                 "width {width} bits was not surfaced as a named error"
             );

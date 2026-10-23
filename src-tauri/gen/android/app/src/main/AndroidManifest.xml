@@ -1,15 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- FR-015 / Principle IX (pure-offline): the build declares
+         NO android.permission.INTERNET. A declared permission is a
+         capability the platform grants before any code runs, so
+         its absence is the strongest available statement that the
+         app holds no network capability at all (T106). The
+         webview serves the bundled frontend from the app's own
+         assets — no request ever leaves the device. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <!-- FR-021: notification is a declared, revocable consent —
+         the permission-state gate (T030b) observes its
+         granted/denied state and routes denial to the
+         in-app statement, never to silent playback loss. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <!-- AndroidTV support -->
     <uses-feature android:name="android.software.leanback" android:required="false" />
 
     <application
+        android:name=".ShellApplication"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:theme="@style/Theme.src_tauri"

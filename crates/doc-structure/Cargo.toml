@@ -1,7 +1,22 @@
 [package]
 name = "doc-structure"
+license = "MIT"
 version = "0.1.0"
 edition = "2024"
+description = "Document structure parsing: heading extraction and content-offset mapping."
+repository = "https://github.com/mdreader/mdreader"
+readme = "README.md"
+keywords = ["document", "parsing", "headings", "structure"]
+categories = ["text-processing"]
+
+[dependencies]
+clap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
 
 [lints]
 workspace = true

@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 781291bb2e59488d4ad35633600975518fbf7eeafca09e8a49cc7f8aa3e73464 # shrinks to (fp, pos, interval_s) = ([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 246, 5, 240, 37, 22, 37, 112, 0, 73, 215, 217, 48, 113, 102, 43, 46, 26, 211], StoredPosition { offset_secs: 1112.25, first_yield_ms: 50376, end_kind: Interrupted }, 23.0)
+cc 0b379b287ff4f252fff8fe47cc9165d0e3a5ac4226603616937df051d2c80fe9 # shrinks to (fp, base_pos, events) = ([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15, 101, 168, 27, 14, 83, 86, 32, 176, 183, 64, 112, 190, 135, 118, 226, 235, 171, 176, 100], StoredPosition { offset_secs: 1886.75, first_yield_ms: 2681472, end_kind: Completed }, [FocusLoss, StopThenDelete, SectionChange, Pause])

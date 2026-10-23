@@ -1,11 +1,17 @@
 [package]
 name = "player"
+license = "MIT"
 version = "0.1.0"
 edition = "2024"
+description = "Audio playback engine: transport, position, buffering, pre-roll, and rate management over the engine-core contract."
+repository = "https://github.com/mdreader/mdreader"
+readme = "README.md"
+keywords = ["audio", "playback", "tts", "engine"]
+categories = ["multimedia::audio"]
 
 [dependencies]
 cpal = "0.18.2"
-adapter-synthesis = { path = "../adapter-synthesis" }
+diag = { path = "../diag" }
 doc-structure = { path = "../doc-structure" }
 engine-core = { path = "../engine-core" }
 thiserror = { workspace = true }
@@ -25,8 +31,64 @@ ndk = "0.9"
 [dev-dependencies]
 proptest = { workspace = true }
 tempfile = { workspace = true }
+# The headings provider type the section-boundary
+# skip resolves through (T020 / T013): the crate
+# depends on it already, and the property test
+# constructs the same Heading values a parsed
+# document supplies.
+doc-structure = { path = "../doc-structure" }
+# Direct redb access for the bookmark round-trip tests
+# (session::BOOKMARKS is a redb table; the crate itself does not
+# re-export the redb types the round-trip needs).
+redb = "2.6.0"
 session = { path = "../session" }
-diag = { path = "../diag" }
+adapter-synthesis = { path = "../adapter-synthesis" }
+
+[[test]]
+name = "test_focus_duck_pause_us2"
+path = "tests/integration/test_focus_duck_pause_us2.rs"
+
+[[test]]
+name = "test_session_recovery_us1"
+path = "tests/integration/test_session_recovery_us1.rs"
+
+[[test]]
+name = "test_focus_intents_us2"
+path = "tests/contract/test_focus_intents_us2.rs"
+
+[[test]]
+name = "test_external_start_us1"
+path = "tests/integration/test_external_start_us1.rs"
+
+[[test]]
+name = "prop_routing"
+path = "tests/prop_routing.rs"
+
+[[test]]
+name = "test_routing_us3"
+path = "tests/integration/test_routing_us3.rs"
+
+[[test]]
+name = "test_removal_signals_us3"
+path = "tests/contract/test_removal_signals_us3.rs"
+
+[[test]]
+name = "test_lockscreen_us4"
+path = "tests/integration/test_lockscreen_us4.rs"
+
+[[test]]
+name = "test_shell_ipc_us4"
+path = "tests/contract/test_shell_ipc_us4.rs"
+
+[[test]]
+name = "test_failover_us5"
+path = "tests/integration/test_failover_us5.rs"
+
+# US4/US5 root-level targets (prop_surface, prop_idle_drain)
+# auto-discover; session/diag/engine-core root tests
+# auto-discover in their own crates
+# the files — wiring a missing path breaks every workspace
+# build (this commit's first attempt proved it).
 
 [lints]
 workspace = true

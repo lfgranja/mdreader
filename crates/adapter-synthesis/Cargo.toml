@@ -5,6 +5,7 @@ edition = "2024"
 description = "FR-024 synthesis adapter: offline_default tier (sherpa-onnx + Piper pt-BR), declared against the engine-core contract shapes."
 license = "MIT"
 repository = "https://github.com/mdreader/mdreader"
+readme = "README.md"
 keywords = ["tts", "synthesis", "adapter", "text-to-speech"]
 categories = ["multimedia::audio", "text-processing"]
 

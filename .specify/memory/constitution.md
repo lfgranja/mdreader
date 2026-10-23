@@ -1,6 +1,544 @@
 <!--
   SYNC IMPACT REPORT
   ===================
+  Amended: 2026-10-21
+  Version change: 1.11.0 -> 1.12.0
+
+  Bump rationale: MINOR. One governance record is RETIRED: the
+  PROVISIONAL waiver of RUSTSEC-2026-0381 (Exceptions Log entry 13).
+  No principle is added, removed or redefined, no existing MUST is
+  weakened, and no gate threshold or lint level is changed. Not PATCH
+  (new governance content plus the retirement of an exception record),
+  not MAJOR (no principle change, no MUST weakened).
+
+  What changed:
+    - Exceptions Log entry 13 RETIRED: RUSTSEC-2026-0381 / CVE-2026-111943
+      is now listed by the RustSec database as `unaffected =
+      ["= 0.26.11"]` for `webpki-roots`. Upstream reclassified the shim
+      as a compatibility wrapper: `webpki-roots` 0.26.11 ships NO trust
+      anchors of its own (`pub use parent::TLS_SERVER_ROOTS;`), while
+      `webpki-roots` 1.0.10 HAS removed the distrusted `emSign ECC Root
+      CA - G3` root (the advisory's own text: "Version 1.0.10+ removes
+      this root"). The patched set is `>= 1.0.10`; the 0.26 line has NO
+      patched release, and every `ureq` 2.x requires `webpki-roots
+      ^0.26` (only `ureq >= 3.1.0` requires `^1.0.0`). The 0.26.11 node
+      is therefore version-flagged while bundling nothing. Reachability:
+      build-time only -- `adapter-synthesis` -> `sherpa-onnx` 1.13.8 ->
+      vendored `sherpa-onnx-sys` 1.13.8 (build-dependency `ureq` 2.12) ->
+      `ureq` 2.12.1 -> `webpki-roots` 0.26.11; nothing from `ureq`,
+      `rustls-webpki` or `webpki-roots` links into any shipped artifact.
+      Risk accepted as build-time-only supply-chain surface: the trust
+      anchors in use are already patched at 1.0.10, and the residual is a
+      version-number artifact of a shim. Mechanical form (what makes this
+      waiver version-bound): `scripts/verify.sh` gate 5 asserted that the
+      lockfile's `webpki-roots` version set was exactly `{0.26.11,
+      1.0.10}`; any other version -- an unpatched 1.x, a reappearance of
+      an unpatched 0.26.x, or the shim leaving the graph -- FAILS the
+      gate, so the waiver could not silently widen. Tooling form: a
+      `[[advisories.ignore]]` block for RUSTSEC-2026-0381 in `deny.toml`,
+      plus `[advisories] ignore = ["RUSTSEC-2026-0381"]` in a new
+      repo-root `.cargo/audit.toml` -- gate 5 runs BOTH `cargo deny
+      check advisories` and `cargo audit`, and each tool reads its own
+      ignore file. PROVISIONAL -- exit condition: the `webpki-roots`
+      0.26 shim leaving the graph, i.e. the vendored `sherpa-onnx-sys`
+      build-dependency moving to `ureq` 3.x (which requires
+      `webpki-roots ^1.0.0`), or upstream publishing a 0.26.x release
+      carrying the removal; then delete both ignore records and this
+      entry. Re-evaluate whenever `webpki-roots` or `ureq` changes
+      version in the lockfile.
+    - `deny.toml`: the `[[advisories.ignore]]` block for RUSTSEC-2026-0381
+      is deleted (the gate now fails closed if the advisory is active,
+      but the advisory is now `unaffected` for 0.26.11, so nothing
+      matches).
+    - `.cargo/audit.toml`: deleted entirely (it contained only the
+      `ignore = ["RUSTSEC-2026-0381"]` line).
+    - `scripts/verify.sh` gate 5: the hard-coded `webpki-roots`
+      version-set assertion (`{0.26.11, 1.0.10}`) is removed. With the
+      waiver retired, `cargo deny check advisories` and `cargo audit`
+      enforce the supply-chain policy directly. An unpatched `webpki-roots`
+      version in the graph WOULD fail the gate, so it cannot silently
+      widen.
+
+  Modified constraints:
+    - Exceptions Log: entry 13 deleted.
+    - deny.toml: the `[[advisories.ignore]]` block for
+      RUSTSEC-2026-0381 deleted.
+    - .cargo/audit.toml: deleted (it contained only the ignore block
+      for this advisory).
+    - scripts/verify.sh: gate 5 no longer hard-codes the
+      `{0.26.11, 1.0.10}` version set; `cargo deny check advisories` and
+      `cargo audit` enforce the supply-chain policy directly.
+    - Everything else: no principle, no MUST, no gate threshold, no
+      lint level is modified.
+
+  Principles modified: none.
+  Sections added: none.
+  Sections removed: none.
+  Renamed sections: none.
+
+  Deferred / non-constitution:
+    - None. Entry 13's exit condition (the `webpki-roots` 0.26 shim
+      leaving the graph) is satisfied: the RustSec database now lists
+      0.26.11 as unaffected, confirming the shim carries no trust
+      anchors and the 1.x line has removed the distrusted root. No new
+      Exceptions Log entry is required.
+
+  Source evidence: `.cargo/advisory-db/crates/webpki-roots/RUSTSEC-2026-0381.md`
+  (unchanged: `unaffected = ["= 0.26.11"]`, `date = "2026-10-19"`,
+  `patched = [">= 1.0.10"]`); `cargo deny check advisories` on this
+  workspace (2026-10-21): `advisories ok` with the entry-13 ignore block
+  removed; `cargo audit` without the `.cargo/audit.toml` ignore: exit 0
+  (only the two pre-existing allowed warnings, unrelated).
+-->
+
+  Bump rationale: MINOR. One governance record is CORRECTED: the
+  Verification Gates paragraph that described the mechanical form of
+  the lint-compliance pass as unwired now states the state that holds
+  since T138. No principle is added, removed or redefined, no existing
+  MUST is weakened, and no lint level, gate threshold or constraint is
+  changed. Not PATCH (the record of what gate 4 mechanically enforces
+  changes materially and a prior amendment's deferred item is
+  superseded, which is not a wording, typo or non-semantic
+  refinement), not MAJOR (no principle change, no MUST weakened).
+
+  What changed:
+    - Verification Gates: the paragraph that began "The mechanical
+      form is not wired yet" is replaced. It now states that
+      `scripts/verify.sh` gate 4 runs the lint-compliance pass itself
+      -- `cargo clippy --workspace --all-targets -- -D warnings` -- as
+      a fail-closed step (`running 4 lint-drift-clippy`, then a `fail`
+      on a non-zero exit, then `pass 4 lint-drift-clippy`), so the lint
+      SET is enforced by the gate itself and not only by the manual
+      pre-attestation pass. The gate keeps checking the declared lint
+      LEVELS as well: the clippy step is an ADDITION, not a
+      replacement. The requirement that the moved lints are resolved in
+      code -- never by weakening a lint level, never by a blanket
+      `#[allow]`, never by an unreasoned `#[expect]` -- is unchanged
+      and is retained.
+    - Verification Gates, gate-4 row of the gate table: the row now
+      names the clippy step the gate runs, so the table and the
+      paragraph agree.
+    - The v1.10.0 report's "Deferred / non-constitution" bullet, which
+      carried the same statement in the present tense, is marked
+      SUPERSEDED with a pointer to this report. The historical text
+      beneath the marker is preserved: it remains a true record of
+      what the v1.10.0 amendment itself did (it deliberately touched
+      no gate script).
+    - Provenance of the stale text: it was introduced by the v1.10.0
+      toolchain-policy amendment (commit 43df07c, "docs(constitution):
+      record the toolchain-stability policy"), which declined to touch
+      a gate script for scope discipline and recorded the deferral
+      explicitly. The deferral was discharged MECHANICALLY by T138,
+      not by another policy change.
+
+  Modified constraints:
+    - Verification Gates: the lint-compliance mechanical-enforcement
+      paragraph, and the gate-4 row of the gate table.
+    - Nothing else: no principle, no MUST, no lint level, no gate
+      threshold and no Exceptions Log entry is modified.
+
+  Principles modified: none.
+  Sections added: none.
+  Sections removed: none.
+  Renamed sections: none.
+
+  Deferred / non-constitution:
+    - No Exceptions Log entry: this is not a deviation from the
+      reference stack.
+    - The lint-compliance pass is still REQUIRED before a tree is
+      re-attested after a toolchain bump. It is now ALSO a gate: the
+      gate enforces the pass, it does not replace it, and the
+      obligation is unchanged.
+    - Reversal, stated so the owner can execute it: replace the
+      Verification Gates paragraph beginning "The mechanical form is
+      now wired" with the v1.10.0 text, verbatim -- "The mechanical
+      form is not wired yet: `scripts/verify.sh` gate 4 today checks
+      the declared lint levels and does not itself invoke clippy, so
+      the pass is an attestation-time obligation, run by hand. Wiring
+      clippy into gate 4 would make it mechanical; until it does, the
+      clause above is what stands between a green attestation and a
+      silently drifted lint set. This clause is reversible by deleting
+      this paragraph -- no other gate, principle or constraint depends
+      on it." Restore the gate-4 table row's "Command" cell to "root
+      deny-tables intact; `[lints] workspace = true` in every member",
+      delete the SUPERSEDED marker from the v1.10.0 report, and
+      restore the footer to `**Version**: 1.10.0` (the "Last Amended"
+      date and this report header stay as they are). Reversing this
+      RECORD does not un-wire the gate: the mechanical enforcement
+      lives in `scripts/verify.sh` (commit d23942b), and undoing that
+      is `git revert d23942b`, not an edit to this file.
+
+  Source evidence: commit d23942b ("fix(004): T138 gate the
+  lint-compliance pass in verify.sh") wires the pass into gate 4 as
+  step (d). The step is named `lint-drift-clippy` and is fail-closed:
+  `running 4 lint-drift-clippy`; `if ! cargo clippy --workspace
+  --all-targets -- -D warnings; then fail "gate-4 lint-drift: cargo
+  clippy --workspace --all-targets -- -D warnings failed (the
+  lint-compliance pass must exit 0; resolve the moved lints in code,
+  never by weakening a lint level, a blanket #[allow] or an unreasoned
+  #[expect])"; fi`; `pass 4 lint-drift-clippy`. The pre-existing checks
+  of gate 4 -- (a) `[lints] workspace = true` in every member manifest,
+  (b) the pinned lint-level set, (c) the intact
+  `[workspace.dependencies]` table -- are unchanged, so the clippy step
+  is an addition, not a replacement. Negative control (run on a COPY
+  of the repository; the real tree was never modified): a `println!`
+  injected into `crates/doc-structure/src/lib.rs` trips the denied
+  `clippy::print_stdout`; the copy's `verify.sh` exits 1 with
+  "verify.sh: FAIL: gate-4 lint-drift: cargo clippy --workspace
+  --all-targets -- -D warnings failed"; the copy was reverted and
+  deleted. Positive control: `bash scripts/verify.sh` exits 0 and gate
+  4 reports the clippy step. The stale sentence being corrected is
+  the one this report's "What changed" section quotes; its origin is
+  the v1.10.0 report's "Deferred / non-constitution" bullet and the
+  Verification Gates paragraph of the same amendment (commit 43df07c).
+-->
+<!--
+  SYNC IMPACT REPORT
+  ===================
+  Amended: 2026-10-21
+  Version change: 1.9.0 -> 1.10.0
+
+  Bump rationale: MINOR. One governance clause is added (the
+  toolchain-stability policy) and one new repo-root file is added
+  (`rust-toolchain.toml`, naming the tracked channel). No principle
+  is added, removed or redefined, no existing MUST is weakened, and
+  the MSRV floor (1.85 for workspace code, rustc >= 1.88 for the
+  full build) is unchanged. Not PATCH (new governance content), not
+  MAJOR (no principle change).
+
+  What changed:
+    - Technology Stack gains a "Toolchain" entry: the workspace
+      TRACKS the `stable` channel and does NOT pin a compiler
+      version. The MSRV line stays the compatibility floor and is
+      stated as such; the tracked channel can never contradict a
+      floor, because `stable` only rises. A toolchain bump is
+      EXPECTED to move the lint set, and a lint-compliance pass is
+      REQUIRED before the tree is re-attested. The moved lints are
+      resolved in code -- never by weakening a lint level, never by
+      a blanket suppression.
+    - Verification Gates gains a clause beside gate 4: a passing
+      tree can become a failing one with NO source change, because
+      the lint set moves with the toolchain. The lint-compliance
+      pass is the required response, and it is the deterministic-gate
+      concern Principle V exists for.
+    - New repo-root `rust-toolchain.toml`: `channel = "stable"` plus
+      `components = ["rustfmt", "clippy"]`. No version is pinned, so
+      the file cannot contradict the MSRV relationship and cannot
+      force a download of an exact toolchain on a host that lacks it.
+
+  Modified constraints:
+    - Technology Stack: new "Toolchain" entry.
+    - Verification Gates: new clause beside gate 4.
+    - rust-toolchain.toml: new file (repo root).
+
+  Principles modified: none.
+  Sections added: none.
+  Sections removed: none.
+  Renamed sections: none.
+
+  Deferred / non-constitution:
+    - SUPERSEDED by v1.11.0 (2026-10-21). The mechanical form of the
+      lint-compliance pass IS now wired into `scripts/verify.sh` gate
+      4 as a fail-closed step (T138, commit d23942b): gate 4 runs
+      `cargo clippy --workspace --all-targets -- -D warnings` and
+      FAILS the gate when it does not exit 0. The bullet below is
+      preserved as the historical record of what THIS amendment did
+      (it deliberately touched no gate script); its present-tense
+      statement describes the state as of v1.10.0.
+    - The mechanical form of the lint-compliance pass is NOT wired
+      into `scripts/verify.sh`: gate 4 still checks the declared lint
+      levels only and does not invoke clippy, so the pass is an
+      attestation-time obligation, run by hand. Wiring clippy into
+      gate 4 is a separate change and was deliberately NOT made here
+      (scope discipline: this amendment is a policy record plus one
+      new toolchain file, and no gate script was touched).
+    - No Exceptions Log entry: this is not a deviation from the
+      reference stack. `~/development/MDMV/projetos/crsdd-fabro`
+      carries no `rust-toolchain.toml` and pins no compiler either;
+      it records the toolchain it verified against (rustc 1.98.1) as
+      documentation, which is the practice adopted here.
+    - Reversal, stated so the owner can execute it: delete the
+      "Toolchain" entry from the Technology Stack, delete the clause
+      beside gate 4 in the Verification Gates, and delete the
+      repo-root `rust-toolchain.toml`. No other governance rule
+      depends on any of the three, and the MSRV floor is untouched
+      either way.
+
+  Source evidence: the `stable` toolchain was replaced on
+  2026-10-20 22:19 (rustc 1.98.1 -> 1.99.1, clippy 0.1.98 ->
+  0.1.99) and the repository pinned no rust-toolchain.toml, so the
+  lint set moved under a byte-identical source tree: 86
+  `unfulfilled_lint_expectations` (clippy 0.1.99 no longer lints the
+  `==` that `assert_eq!`/`assert_ne!` generate inside their own
+  macro expansion, so the `#[expect(clippy::float_cmp)]` attributes
+  could no longer be fulfilled) plus 13 `clippy::assert_is_empty`.
+  `cargo clippy --workspace --all-targets -- -D warnings` exited
+  101 while `scripts/verify.sh` still exited 0, because clippy is
+  supplementary to gates 1-8. T136 repaired it in code with no lint
+  level weakened, no new suppression and no behaviour change
+  (commits 8f12acf, 3b642d8, 0756fc3); T137 records the policy.
+-->
+<!--
+  SYNC IMPACT REPORT
+  ===================
+  Amended: 2026-10-20
+  Version change: 1.8.0 -> 1.9.0
+
+  Bump rationale: MINOR. One governance record is added
+  (Exceptions Log entry 13, the PROVISIONAL waiver of
+  RUSTSEC-2026-0381 for the `webpki-roots` 0.26 shim).
+  No principle is added, removed or redefined, no
+  existing MUST is weakened, and there is no
+  architecture reversal. Not PATCH (new governance
+  content), not MAJOR (no principle change).
+
+  What changed:
+    - Exceptions Log entry 13 APPENDED (PROVISIONAL):
+      advisory RUSTSEC-2026-0381 / CVE-2026-111943
+      (2026-10-19) is waived for `webpki-roots 0.26.11`.
+      The flagged node is a pure semver shim — it ships
+      NO trust anchors of its own (`pub use
+      parent::TLS_SERVER_ROOTS;`) — while the anchors
+      actually in use come from `webpki-roots` 1.0.10,
+      which HAS removed the distrusted `emSign ECC Root
+      CA - G3` root. Build-time only; nothing from the
+      `ureq` / `rustls` chain links into any shipped
+      artifact.
+    - The waiver is version-bound: `scripts/verify.sh`
+      gate 5 gains an assertion that the lockfile's
+      `webpki-roots` version set is exactly
+      `{0.26.11, 1.0.10}`. Any other version fails the
+      gate, so the waiver cannot silently widen.
+    - `deny.toml` gains a `[[advisories.ignore]]` block
+      for RUSTSEC-2026-0381.
+    - A new repo-root `.cargo/audit.toml` gains
+      `[advisories] ignore = ["RUSTSEC-2026-0381"]`.
+      Gate 5 runs BOTH `cargo deny check advisories` and
+      `cargo audit`, and each tool reads its own ignore
+      file.
+
+  Modified constraints:
+    - Exceptions Log: entry 13 appended.
+    - deny.toml: new `[[advisories.ignore]]` block.
+    - .cargo/audit.toml: new file (repo root).
+    - scripts/verify.sh: gate 5 gains the `webpki-roots`
+      version-set assertion.
+
+  Principles modified: none.
+  Sections added: none.
+  Sections removed: none.
+  Renamed sections: none.
+
+  Deferred / non-constitution:
+    - The `ureq` 3.x migration of the vendored
+      `sherpa-onnx-sys` is NOT bundled into this waiver:
+      every `ureq` 2.x requires `webpki-roots ^0.26`
+      and only `ureq >= 3.1.0` requires `^1.0.0`, so
+      moving that vendored crate's build-dependency is a
+      SECOND deviation in it, requiring its own
+      Exceptions Log entry and its own amendment.
+    - Entry 13's exit condition: the `webpki-roots` 0.26
+      shim leaving the graph — the vendored
+      `sherpa-onnx-sys` build-dependency moving to
+      `ureq` 3.x, or upstream publishing a 0.26.x
+      release carrying the removal.
+    - Re-evaluation trigger: whenever `webpki-roots` or
+      `ureq` changes version in the lockfile.
+
+  Source evidence: RUSTSEC-2026-0381 (CVE-2026-111943,
+  dated 2026-10-19, category crypto-failure, patched set
+  `>= 1.0.10`; advisory text: "Version 1.0.10+ removes
+  this root"), from the RustSec advisory database.
+  Lockfile path, as reported by `cargo deny check
+  advisories` (2026-10-20): `adapter-synthesis` ->
+  `sherpa-onnx` 1.13.8 -> vendored `sherpa-onnx-sys`
+  1.13.8 (build) -> `ureq` 2.12.1 -> `webpki-roots`
+  0.26.11. Shim fact: `webpki-roots` 0.26.11's ONLY
+  dependency is `[dependencies.parent] version = "1"
+  package = "webpki-roots"` and its `src/lib.rs` is
+  `pub use parent::TLS_SERVER_ROOTS;` — it bundles no
+  roots of its own. Removal fact: `webpki-roots` 1.0.9's
+  `src/lib.rs` carries "emSign ECC Root CA - G3";
+  1.0.10's does not. Tool results (2026-10-20, before
+  the ignore records): `cargo deny check advisories`
+  reports exactly this one vulnerability, and
+  `cargo audit` reports the same one vulnerability
+  (1 vulnerability, 2 allowed warnings) — each is
+  silenced by its own tool's ignore record.
+-->
+<!--
+  SYNC IMPACT REPORT
+  ===================
+  Amended: 2026-10-16
+  Version change: 1.7.0 -> 1.8.0
+
+  Bump rationale: MINOR. One Licence Policy admission is
+  added (bzip2-1.0.6, a permissive no-copyleft licence).
+  No principle is added, removed or redefined and no
+  existing MUST is weakened. Not PATCH (new governance
+  content), not MAJOR (no principle change).
+
+  What changed:
+    - Licence Policy: bzip2-1.0.6 admitted to the closed
+      allow list. Reason: the vendored `sherpa-onnx-sys`
+      build-dependency `zip` 9 (entry 12) carries `bzip2` in
+      its default feature set, resolving through `bzip2` 0.6
+      to `libbz2-rs-sys` (`license = "bzip2-1.0.6"`). The
+      licence is permissive (no copyleft; notice-and-
+      attribution conditions only) and build-time-only
+      (nothing from `zip` links into shipped artifacts).
+      Admitted now because the upstream fix keeps the
+      default feature set, so the crate returns to the
+      graph after entry 12's exit.
+
+  Modified constraints:
+    - Licence Policy: bzip2-1.0.6 admitted.
+    - deny.toml: licenses allow gains "bzip2-1.0.6".
+    - vendor/sherpa-onnx-sys/PROVENANCE.md: the licence
+      implication of the zip 9 default feature set recorded.
+
+  Principles modified: none.
+  Sections added: none.
+  Sections removed: none.
+  Renamed sections: none.
+
+  Deferred / non-constitution:
+    - none. Entry 12's exit condition is unchanged.
+
+  Source evidence: `cargo deny check advisories licenses
+  bans sources` (2026-10-16) — the pre-admission run
+  rejected exactly one licence (libbz2-rs-sys 0.2.5,
+  `license = "bzip2-1.0.6"`, reached as a build-dependency
+  of zip 9.0.4 through the vendored sherpa-onnx-sys,
+  entry 12); the post-admission run is green on all four
+  checks.
+-->
+<!--
+  SYNC IMPACT REPORT
+  ===================
+  Amended: 2026-10-16
+  Version change: 1.6.1 -> 1.7.0
+
+  Bump rationale: MINOR. One governance record retires
+  (Exceptions Log entry 11, its PROVISIONAL zip waiver now
+  discharged by a mechanical fix) and one is added (entry 12,
+  the vendored sherpa-onnx-sys override); the Technology Stack
+  MSRV line is refined. No principle is added, removed or
+  redefined, and no existing MUST is weakened. Not PATCH (new
+  governance content plus the retirement of an exception
+  record), not MAJOR (no principle change, no architecture
+  reversal).
+
+  What changed:
+    - Exceptions Log entry 11 DELETED: RUSTSEC-2026-0367 /
+      0368 / 0369 leave the dependency graph. The remediation
+      in place instead of the waiver: `[patch.crates-io]`
+      redirects `sherpa-onnx-sys` to a vendored copy of the
+      published 1.13.8 crate carrying the single-line
+      `zip = "9"` build-dependency fix; the lock resolves
+      zip 9.0.4; the three deny.toml ignore blocks are
+      deleted in the same commit. Upstream PR
+      k2-fsa/sherpa-onnx#4059 stays open for the eventual
+      crates.io release.
+    - Exceptions Log entry 12 APPENDED (PROVISIONAL): the
+      vendored override deviates from the crates.io-only
+      source rule of the supply-chain gate and is recorded as
+      accepted risk (build-time-only; provenance recorded).
+    - Technology Stack: the Rust MSRV line now scopes 1.85 to
+      workspace code and states the build-time requirement of
+      rustc >= 1.88 while `zip` 9 sits in the build graph.
+
+  Modified constraints:
+    - Exceptions Log: entry 11 deleted; entry 12 appended.
+    - deny.toml: the three `[[advisories.ignore]]` blocks for
+      the zip advisories deleted (advisories no longer present
+      in the graph).
+    - Cargo.toml (root): new `[patch.crates-io]` stanza — the
+      mechanical form of entry 12.
+    - Technology Stack MSRV line refined (build-time 1.88).
+    - Vendored tree added: `vendor/sherpa-onnx-sys/` with
+      `PROVENANCE.md` (sha256, one-line diff, exit condition).
+
+  Principles modified: none.
+  Sections added: none.
+  Sections removed: none.
+  Renamed sections: none.
+
+  Deferred / non-constitution:
+    - Upstream PR k2-fsa/sherpa-onnx#4059 remains open; when a
+      release carrying the fix lands, entry 12's own exit
+      condition applies (bump `crates/adapter-synthesis`,
+      delete the vendored tree + patch stanza + entry 12).
+
+  Source evidence: Cargo.lock zip 9.0.4 resolved through the
+  `sherpa-onnx-sys` path patch (source-crate sha256
+  14bbeabb73f73f1c1f4a278af0ee9ae90a19f9727482027047fb9422fa14f8fe,
+  recorded in vendor/sherpa-onnx-sys/PROVENANCE.md);
+  `cargo deny check advisories` -> "advisories ok" with the
+  three ignore blocks deleted (2026-10-16); commits 2177c67
+  (vendor), 02164b6 (patch + lock), and the governance commit
+  recording this report.
+-->
+<!--
+  SYNC IMPACT REPORT
+  ===================
+  Amended: 2026-10-12
+  Version change: 1.4.0 -> 1.5.0
+
+  Bump rationale: MINOR. Two governance records are added,
+  neither of which adds, removes, or redefines a principle
+  or weakens a MUST: (1) the Licence Policy admits
+  CDLA-Permissive-2.0 — a permissive data license under
+  which webpki-roots (transitive via the rustls/webpki
+  chain the HTTPS client requires) ships Mozilla's CA root
+  certificates as data; the admission extends an existing
+  policy list with the same class of permissive data
+  license already admitted (CC0-1.0, CC-BY-4.0); (2)
+  Exceptions Log entry 10 waives advisory RUSTSEC-2024-0370
+  (proc-macro-error 1.0.4, unmaintained, no known
+  vulnerability, no CVE) — a compile-time-only proc-macro
+  dependency of tauri's Linux gtk chain, none of whose
+  code is linked into any shipped artifact. The Apache-2.0
+  WITH LLVM-exception entry in deny.toml is a pure sync
+  of the existing policy wording (the policy already
+  admitted "Apache-2.0 (with LLVM exception)"; deny.toml
+  lacked the exact SPDX expression). Reversible by deleting
+  the licence sentence, the log entry, and the ignore
+  block. Not MAJOR (no principle change, no MUST weakened),
+  not PATCH (new governance content).
+
+  Modified constraints:
+    - Licence Policy: CDLA-Permissive-2.0 admitted to the
+      closed allow list, with the webpki-roots data-license
+      justification.
+    - Exceptions Log: entry 10 appended (advisory waiver).
+    - deny.toml: licenses allow gains "Apache-2.0 WITH
+      LLVM-exception" (sync) and "CDLA-Permissive-2.0"
+      (new admission); advisories gain the RUSTSEC-2024-0370
+      ignore block mirroring entry 10.
+
+  Principles modified: none.
+  Sections added: none (one policy sentence, one log entry).
+  Sections removed: none.
+  Renamed sections: none.
+
+  Deferred / non-constitution:
+    - The stale footer version (1.3.0) is corrected to
+      1.5.0 in the same commit; the 1.4.0 amendment had
+      left it unsynced.
+    - Re-evaluation trigger for entry 10: when tauri
+      drops the proc-macro-error dependency.
+
+  Source evidence: cargo deny check advisories licenses
+  bans sources output on this workspace (2026-10-12):
+  target-lexicon-0.12.16 "Apache-2.0 WITH LLVM-exception"
+  rejected; webpki-roots 0.26.11 / 1.0.9
+  "CDLA-Permissive-2.0" rejected; proc-macro-error
+  1.0.4 RUSTSEC-2024-0370 unmaintained advisory.
+-->
+<!--
+  SYNC IMPACT REPORT
+  ===================
   Amended: 2026-10-10
   Version change: 1.3.0 -> 1.4.0
 
@@ -453,7 +991,29 @@ provider — while admitting that one endpoint has no contract behind it.
 ## Additional Constraints
 
 ### Technology Stack
-- **Language**: Rust, Edition 2024, MSRV 1.85 (inherited from the reference stack)
+- **Language**: Rust, Edition 2024, MSRV 1.85 for workspace code (inherited from the reference
+  stack); the full build additionally requires rustc >= 1.88 — the `zip` 9 build-script dependency
+  of `sherpa-onnx-sys` (Exceptions Log entry 12)
+- **Toolchain**: the workspace **tracks the `stable` channel** and does **not** pin a compiler
+  version. `rust-toolchain.toml` names that channel and the components the gates need
+  (`rustfmt`, `clippy`), so the toolchain the gates run under is a property of the repository
+  rather than of the host's rustup default, which may be an older pinned toolchain (this host
+  carries 1.94.0, 1.98.0 and nightly alongside `stable`). The **MSRV line above is the
+  compatibility floor and is unchanged by this clause** — it states the oldest compiler the
+  workspace supports (1.85 for workspace code, rustc >= 1.88 for the full build), not the
+  compiler the workspace builds with; a tracked `stable` channel can never contradict a floor,
+  because `stable` only rises. A toolchain bump on the tracked channel is **expected to move the
+  lint set**: a new clippy release may add a lint, change a lint's reach, or retire one, so a
+  tree that was green can become red with **no source change at all**. Every toolchain bump
+  therefore requires a **lint-compliance pass** before the tree is re-attested — see
+  "Verification Gates". The moved lints are resolved **in code**, never by weakening a lint level
+  in `Cargo.toml` or `clippy.toml` and never by a blanket suppression (Rust Code Rigor). A hard
+  version pin is deliberately **not** adopted: it would freeze the compiler *and* the lint set, so
+  new lint coverage would never arrive and a "green" tree would be green only against a frozen
+  toolchain; it would also force a download of that exact toolchain on any host that lacks it,
+  and it would sit in tension with Principle IV's latest-stable posture. This clause is
+  reversible by deleting this entry, deleting the repo-root `rust-toolchain.toml`, and adopting a
+  hard version pin instead — no other governance rule changes.
 - **Build**: Cargo workspace; every member crate declares `[lints] workspace = true`
 - **App shell**: Tauri **2.12.1** (latest stable on the 2.x line as of 2026-10-01).
   `3.0.0-alpha.3` is available and is **not** to be taken: Principle IV permits pre-release only
@@ -501,10 +1061,22 @@ project" question, and removal requires the same test. `sherpa-onnx`, `ort`, `es
 the sanctioned protocol client for this project.
 
 ### Licence Policy
-Copyleft is **permitted**. `deny.toml` allows MIT, Apache-2.0 (with LLVM exception), BSD-2/3,
-ISC, Zlib, MPL-2.0, Unicode-3.0, GPL-3.0, LGPL-3.0, AGPL-3.0, CC0-1.0, and CC-BY-4.0. Copyleft is
+Copyleft is **permitted**. `deny.toml` allows MIT, Apache-2.0 (with LLVM exception),
+CDLA-Permissive-2.0, BSD-2/3, ISC, Zlib, bzip2-1.0.6, MPL-2.0, Unicode-3.0, GPL-3.0,
+LGPL-3.0, AGPL-3.0, CC0-1.0, and CC-BY-4.0. Copyleft is
 admitted because `espeak-ng` is GPL-3.0 and is linked by `sherpa-onnx`; excluding it would have
-excluded the working offline engine.
+excluded the working offline engine. CDLA-Permissive-2.0 is admitted because
+`webpki-roots` (transitive via the rustls/webpki chain the HTTPS client requires)
+ships Mozilla's CA root certificates as data under it — a permissive data-sharing
+license with no copyleft and no attribution obligation beyond the license notice,
+consistent with the permissive data licenses already admitted (CC0-1.0, CC-BY-4.0);
+the crate is data, not executable logic. bzip2-1.0.6 is admitted because
+`libbz2-rs-sys` — reached as `zip` 9's `bzip2` default feature, the vendored
+`sherpa-onnx-sys` build-dependency (Exceptions Log entry 12) — carries no copyleft
+and only notice-and-attribution conditions, and the crate is build-time only;
+nothing from `zip` links into shipped artifacts. The admission outlives entry 12:
+the upstream fix (PR #4059) bumps the dependency version only, default features
+kept.
 
 **Two axes, not one.** Crate licence and model-weight licence are audited separately, because
 they are different obligations. A permissive engine does not make its weights distributable:
@@ -668,12 +1240,46 @@ Exit status is zero if and only if every gate passes.
 | 1 | format | `cargo fmt --all -- --check` | rustfmt-clean |
 | 2 | tests | `cargo nextest run --workspace` | unit, integration, E2E |
 | 3 | documentation | `cargo doc --workspace --no-deps` | public API documented |
-| 4 | lint-drift | root deny-tables intact; `[lints] workspace = true` in every member | rigour not quietly weakened |
+| 4 | lint-drift | root deny-tables intact; `[lints] workspace = true` in every member; `cargo clippy --workspace --all-targets -- -D warnings` exits 0 (fail-closed step `lint-drift-clippy`) | rigour not quietly weakened; the lint SET is clean under the tracked toolchain, so a toolchain bump that moves it fails the gate; the lint-compliance pass below is REQUIRED before re-attestation |
 | 5 | supply-chain | `cargo deny check advisories licenses bans sources` + `cargo audit` | Principle IV |
 | 6 | deny-list | no denied crate in any manifest or in `Cargo.lock` | Principle IV |
 | 7 | closed-set | no `_ =>` in `crates/*/src/` | Principle VII |
 | 8 | pipeline | byte-budget test under 5,000 bytes/request; SSML capability declared per adapter; sentence-level alignment exercised | Principles VI, X |
 | 9 | android-build | `cargo tauri android build --target aarch64` | the app actually compiles for the device |
+
+**A toolchain bump moves the lint set, and the tree must be re-earned.** Gate 4 checks the lint
+*levels* declared in the root `[workspace.lints]` tables, and those do not move with the
+toolchain. The lint *set* — which lints exist, and which code they reach — does. A `stable`
+release can add a lint (`clippy::assert_is_empty`), change a lint's reach (clippy 0.1.99 stopped
+linting the `==` that `assert_eq!` generates inside its own macro expansion), or retire one, so
+**a tree that passed every gate can fail with no source change at all**. That is the
+deterministic-gate concern Principle V exists for, and it has exactly one required response: on
+every toolchain bump, a **lint-compliance pass** (`cargo clippy --workspace --all-targets -- -D
+warnings`, exit 0) MUST run and MUST be clean **before the tree is re-attested**. The pass
+resolves the moved lints **in code** — never by weakening a lint level in `Cargo.toml` or
+`clippy.toml`, never by a blanket `#[allow]`, and never by an `#[expect]` without a written
+reason (Rust Code Rigor). The recorded instance is the 2026-10-20 `stable` bump (rustc 1.98.1 ->
+1.99.1, clippy 0.1.98 -> 0.1.99), which turned a byte-identical tree red with 86
+`unfulfilled_lint_expectations` and 13 `clippy::assert_is_empty` diagnostics; T136 repaired it in
+code and T137 records the policy. Gate 5 is unaffected by the movement of the lint set, and the
+tracked channel cannot break it either: the build-time floor it depends on (rustc >= 1.88, the
+`zip` 9 build dependency of `sherpa-onnx-sys`) is a floor that `stable` only rises above.
+
+The mechanical form is now wired: `scripts/verify.sh` gate 4 runs the lint-compliance pass itself —
+`cargo clippy --workspace --all-targets -- -D warnings` — as a fail-closed step (`running 4
+lint-drift-clippy`, then `fail` on a non-zero exit, then `pass 4 lint-drift-clippy`), so the lint
+*set* is enforced by the gate itself, not only by the manual pre-attestation pass: a `stable` bump
+that moves the lint set now fails a deterministic gate (Principle V) instead of depending on a
+person remembering to run the pass. The step fails closed — a missing toolchain, a clippy that
+cannot run and a non-zero exit are all a FAILED gate, never a skipped one; there is no `|| true`,
+no "the tool is missing -> pass" branch and no skip flag. The gate keeps checking the declared lint
+levels as well — the clippy step is an addition, not a replacement — and the moved lints are
+resolved **in code**, never by weakening a lint level in `Cargo.toml` or `clippy.toml`, never by a
+blanket `#[allow]`, and never by an `#[expect]` without a written reason (Rust Code Rigor). Wired
+in T138 (commit `d23942b`); verified by a negative control on a copy of the tree, where a
+`println!` injected into `crates/doc-structure/src/lib.rs` trips the denied `clippy::print_stdout`
+and the copy's `verify.sh` exits 1. This paragraph records the state; the enforcement itself lives
+in `scripts/verify.sh` gate 4, and deleting this paragraph changes no gate, principle or constraint.
 
 Gate 9 exists because gates 1–8 are all satisfiable on a host that cannot produce an Android
 artifact, which would let a workspace pass every deterministic check while having no working app.
@@ -717,6 +1323,40 @@ drift. Each was authorized by the sole maintainer on 2026-10-01.
    constraint section added). Source evidence: specs/002-fr-024-synthesis-adapter/
    DEPENDENCY_PORTABILITY_RESEARCH.md (4 threads, cited, 2026-10-10); B2
    repair commits `a90d2b6`, `42b59d7`, `286009e` on 001-android-media-shell.
+10. **`proc-macro-error` advisory waived (RUSTSEC-2024-0370, 2026-10-12)** —
+    deviates from the advisory-free supply-chain gate (Principle IV). Author:
+    maintainer (2026-10-12), accepted in the commit that records it. Reason:
+    `proc-macro-error` 1.0.4 is a compile-time-only proc-macro dependency of
+    tauri's Linux gtk chain (via gtk-rs build machinery); none of its code is
+    linked into any shipped artifact — proc macros execute at compile time only.
+    The advisory is "unmaintained" status (maintainer unreachable, no commits
+    for 2 years, no releases for 4 years) with no known vulnerability and no
+    CVE; the crate's API is frozen; removal requires forking tauri's gtk chain.
+    Risk accepted as compile-time-only supply-chain surface. Re-evaluate when
+    tauri drops the dependency. Mechanical form: `[[advisories.ignore]]` in
+    `deny.toml` with the id and this reason.
+
+12. **`sherpa-onnx-sys` vendored override (zip 9, 2026-10-16)** — deviates from the
+    crates.io-only source rule of the supply-chain gate (Principle IV). Author:
+    maintainer (2026-10-16), accepted in the commit that records it — a human
+    decision on the flagged crate, and not a substitution: the vendored tree is the
+    same crate name and version (1.13.8) from the crates.io artifact, not a
+    lookalike. Reason: the published `sherpa-onnx-sys` 1.13.8 pins the vulnerable
+    `zip 2.x` (the now-retired entry 11); the fix is verified source-compatible
+    (`DOCS_RS=1 cargo check`, exit 0), proposed upstream, and not yet released —
+    waiting would leave RUSTSEC-2026-0367 / 0368 / 0369 in the graph. Mechanical
+    form: a vendored copy of the published crate at `vendor/sherpa-onnx-sys/` with
+    exactly one line changed in its manifest (`zip` 2 -> 9, a build-dependency),
+    wired via `[patch.crates-io]` in the root `Cargo.toml`; the source `.crate`
+    sha256, the diff and the exit condition are in
+    `vendor/sherpa-onnx-sys/PROVENANCE.md`. Risk accepted as build-time-only: `zip`
+    is a build-script dependency of the sys crate and nothing from it links into
+    shipped artifacts. Build-time note: `zip` 9 needs rustc >= 1.88 (Technology
+    Stack MSRV line). PROVISIONAL — exit condition: a released `sherpa-onnx`
+    shipping `zip >= 9`; then bump the dependency in
+    `crates/adapter-synthesis/Cargo.toml`, delete `vendor/sherpa-onnx-sys/` and the
+    `[patch.crates-io]` stanza, and delete this entry.
+
 
 Any new deviation is added here in the same commit that introduces it, and is treated as a
 minor amendment.
@@ -758,4 +1398,4 @@ Where this constitution and a convenience conflict, this constitution wins and t
 either changed or proposed as an amendment. Where this constitution and the reference stack
 conflict, the maintainer decides, and the decision is logged.
 
-**Version**: 1.3.0 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-06
+**Version**: 1.12.0 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-21

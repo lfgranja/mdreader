@@ -14,7 +14,7 @@
 //! mono-f32-at-22050-Hz assumption is validated by the
 //! `format_check` mechanism, with `RateMismatch`/`ChannelMismatch`
 //! specified for every deviation). All invariants below are normative
-//! per **API_CONTRACT §6** (frozen interface) and §0 global rules.
+//! per **`API_CONTRACT` §6** (frozen interface) and §0 global rules.
 //!
 //! These tests bind to the frozen contract, not to the current stub:
 //! `check_delivery` and the `DECLARED_*` constants do not exist yet
@@ -47,7 +47,7 @@ use adapter_synthesis::format_check::{
     DECLARED_CHANNELS, DECLARED_RATE_HZ, DECLARED_WIDTH_BITS, check_delivery, check_format,
 };
 
-/// Half a sample — the delivery length tolerance (API_CONTRACT §6:
+/// Half a sample — the delivery length tolerance (`API_CONTRACT` §6:
 /// `check_delivery` compares `pcm_sample_count` against
 /// `(duration_ms / 1000.0) * DECLARED_RATE_HZ` "with a half-sample
 /// tolerance, because `duration_ms` is a derived `f64`").
@@ -73,7 +73,7 @@ const ENGINE_ERRORS: [(EngineError, &str); 7] = [
 /// this test target's build, which makes "exactly the seven
 /// members, no `Other`/`Unknown`" mechanically decidable
 /// (Principle VII; `constitution.md` §Closed Sets).
-fn wire_name(error: EngineError) -> &'static str {
+const fn wire_name(error: EngineError) -> &'static str {
     match error {
         EngineError::Unreachable => "engine_unreachable",
         EngineError::InitFailed => "engine_init_failed",
@@ -86,15 +86,19 @@ fn wire_name(error: EngineError) -> &'static str {
 }
 
 /// Whether `pcm_sample_count` agrees with `duration_ms` at the
-/// declared rate within half a sample (API_CONTRACT §6; CHK007:
+/// declared rate within half a sample (`API_CONTRACT` §6; CHK007:
 /// `pcm_data.len() == (duration_ms / 1000.0) * 22050.0`). The
 /// comparison goes through `f64::total_cmp` into the `Ordering`
 /// domain so no floating-point comparison operator appears in this
 /// file — `clippy::float_cmp` is denied workspace-wide (pedantic)
-/// and this crate carries no lint suppressions (API_CONTRACT §0
+/// and this crate carries no lint suppressions (`API_CONTRACT` §0
 /// rule 3).
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the buffer length is bounded at 1 000 000 samples — far below f64's exact-integer range (2^53); the cast converts exactly"
+)]
 fn agrees_within_half_sample(pcm_sample_count: usize, duration_ms: f64) -> bool {
-    let expected_samples = (duration_ms / 1000.0) * DECLARED_RATE_HZ as f64;
+    let expected_samples = (duration_ms / 1000.0) * f64::from(DECLARED_RATE_HZ);
     let deviation = (pcm_sample_count as f64 - expected_samples).abs();
     !matches!(deviation.total_cmp(&HALF_SAMPLE), Ordering::Greater)
 }
@@ -145,7 +149,7 @@ proptest! {
             prop_assert!(
                 matches!(
                     result,
-                    Err(EngineError::RateMismatch) | Err(EngineError::ChannelMismatch)
+                    Err(EngineError::RateMismatch | EngineError::ChannelMismatch)
                 ),
                 "a deviation of ({rate_hz}, {channels}, {width_bits}) must \
                  name RateMismatch or ChannelMismatch — never Ok, never any \
@@ -165,7 +169,7 @@ fn exactly_the_declared_shape_is_ok() {
     );
 }
 
-/// Condition→variant table row 1 (API_CONTRACT §6; data-model E2):
+/// Condition→variant table row 1 (`API_CONTRACT` §6; data-model E2):
 /// a rate deviation alone — with channels and width at their
 /// declared values — names `RateMismatch`, never `Ok` and never
 /// any other member. Representative values include the bounds
@@ -181,7 +185,7 @@ fn a_rate_deviation_alone_names_rate_mismatch() {
     }
 }
 
-/// Condition→variant table row 2 (API_CONTRACT §6; data-model E2):
+/// Condition→variant table row 2 (`API_CONTRACT` §6; data-model E2):
 /// a channel-count deviation alone — with rate and width at their
 /// declared values — names `ChannelMismatch`, never `Ok` and never
 /// any other member. A stereo delivery is never a silent downmix
@@ -199,7 +203,7 @@ fn a_channel_deviation_alone_names_channel_mismatch() {
     }
 }
 
-/// Condition→variant table row 3 (API_CONTRACT §6; data-model E2):
+/// Condition→variant table row 3 (`API_CONTRACT` §6; data-model E2):
 /// a sample-width deviation alone — with rate and channels at their
 /// declared values — names `RateMismatch`: the closed set names no
 /// width-specific variant, so a non-`f32` width surfaces under the
@@ -260,6 +264,10 @@ proptest! {
     /// API_CONTRACT §6). The perturbation is scaled hundredths of a
     /// sample, so it stays strictly inside the half-sample tolerance
     /// despite floating-point round-trip error.
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "the strategy bounds the buffer length at 1 000 000 samples and the perturbation at ±1.50 samples — both far below f64's exact-integer range (2^53); every cast converts exactly"
+    )]
     #[test]
     fn a_length_within_half_a_sample_of_the_duration_is_accepted(
         pcm_sample_count in 0usize..=1_000_000,
@@ -267,7 +275,7 @@ proptest! {
     ) {
         let perturbation = perturbation_samples as f64 / 100.0;
         let duration_ms =
-            (pcm_sample_count as f64 + perturbation) / DECLARED_RATE_HZ as f64 * 1000.0;
+            (pcm_sample_count as f64 + perturbation) / f64::from(DECLARED_RATE_HZ) * 1000.0;
         let result = check_delivery(
             DECLARED_RATE_HZ,
             DECLARED_CHANNELS,
@@ -286,6 +294,10 @@ proptest! {
     /// with the duration by strictly more than half a sample is
     /// `RateMismatch` (CHK007; API_CONTRACT §6). The perturbation is
     /// strictly beyond ±0.5 of a sample.
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "the strategy bounds the buffer length at 1 000 000 samples and the perturbation at ±1.50 samples — both far below f64's exact-integer range (2^53); every cast converts exactly"
+    )]
     #[test]
     fn a_length_more_than_half_a_sample_off_the_duration_is_a_rate_mismatch(
         pcm_sample_count in 0usize..=1_000_000,
@@ -293,7 +305,7 @@ proptest! {
     ) {
         let perturbation = perturbation_samples as f64 / 100.0;
         let duration_ms =
-            (pcm_sample_count as f64 + perturbation) / DECLARED_RATE_HZ as f64 * 1000.0;
+            (pcm_sample_count as f64 + perturbation) / f64::from(DECLARED_RATE_HZ) * 1000.0;
         let result = check_delivery(
             DECLARED_RATE_HZ,
             DECLARED_CHANNELS,
@@ -305,7 +317,7 @@ proptest! {
     }
 }
 
-/// Shape is checked before length (API_CONTRACT §6: "Verify a
+/// Shape is checked before length (`API_CONTRACT` §6: "Verify a
 /// delivered sample buffer: shape first, then that the buffer
 /// length matches the declared rate"). A wrong rate with a length
 /// that is perfectly consistent with the duration still names the

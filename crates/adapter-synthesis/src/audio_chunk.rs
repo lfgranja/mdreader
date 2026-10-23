@@ -99,7 +99,7 @@ pub struct AudioChunk {
     /// [`DECLARED_CHANNELS`] (mono). A deviation is
     /// refused as [`DeliveryError::Format`] naming
     /// [`EngineError::ChannelMismatch`] — never a silent
-    /// downmix (R2; FR-033).
+    /// downmix (R2; FR-019) (FR-033, superseded by FR-019).
     pub channels: u16,
     /// The delivered duration, in milliseconds — DERIVED
     /// as `pcm_data.len() / rate_hz * 1000` (data-model

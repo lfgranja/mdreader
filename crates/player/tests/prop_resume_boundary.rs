@@ -232,17 +232,25 @@ impl DeliveryLog {
     }
 
     /// The player's snapshot of the last delivered chunk.
-    fn last_chunk(&self) -> Option<&AudioChunk> {
+    const fn last_chunk(&self) -> Option<&AudioChunk> {
         self.last_chunk.as_ref()
     }
 }
 
 /// Positions on the exact quarter-second grid `k × 0.25` ∈ [0, 3600].
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the strategy bounds the value at 14 400 quarter-seconds (2^12), far below f64's exact-integer range (2^53); the grid position converts exactly"
+)]
 fn position_strategy() -> impl Strategy<Value = f64> {
     (0u64..=14_400).prop_map(|quarters| quarters as f64 * 0.25)
 }
 
 /// Paused durations `d` ∈ [0, 7200] s as exact centisecond multiples.
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the strategy bounds the value at 720 000 centiseconds (< 2^20), far below f64's exact-integer range (2^53); the pause duration converts exactly"
+)]
 fn paused_duration_strategy() -> impl Strategy<Value = f64> {
     (0u64..=720_000).prop_map(|centis| centis as f64 / 100.0)
 }
@@ -269,6 +277,10 @@ fn split_kind_strategy() -> impl Strategy<Value = BoundaryKind> {
 /// boundaries — sorted by position and deduplicated with the FR-024a
 /// precedence already applied at coincident positions (a paragraph/heading
 /// boundary survives where a sentence boundary shares its position).
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the strategy bounds every position at 14 400 quarter-seconds (2^12), far below f64's exact-integer range (2^53); the boundary positions convert exactly"
+)]
 fn mixed_boundaries_strategy() -> impl Strategy<Value = Vec<ResumeBoundary>> {
     proptest::collection::vec((0u64..=14_400, boundary_kind_strategy()), 0..=32).prop_map(
         |mut entries| {
@@ -291,7 +303,7 @@ fn mixed_boundaries_strategy() -> impl Strategy<Value = Vec<ResumeBoundary>> {
 /// paragraph/heading boundary outranks a sentence boundary sharing its
 /// position, so the dedup in [`mixed_boundaries_strategy`] keeps the
 /// paragraph/heading boundary.
-fn kind_rank(kind: BoundaryKind) -> u8 {
+const fn kind_rank(kind: BoundaryKind) -> u8 {
     match kind {
         BoundaryKind::Paragraph | BoundaryKind::Heading => 0,
         BoundaryKind::Sentence => 1,
@@ -348,7 +360,7 @@ fn segment_sequence_strategy() -> impl Strategy<Value = Vec<DocumentSegment>> {
                 };
                 cursor += length;
                 DocumentSegment {
-                    blake3_hash: format!("{:032x}", index),
+                    blake3_hash: format!("{index:032x}"),
                     source_range,
                     boundary_kind: kind,
                     byte_length,
@@ -363,6 +375,10 @@ fn segment_sequence_strategy() -> impl Strategy<Value = Vec<DocumentSegment>> {
 /// linkage already satisfied — the chunk's `source_range_ref` references
 /// the segment's `source_range`, the chunk is mono `f32` at the declared
 /// 22050 Hz, and the pre-roll is bounded at 60 s (FR-015a).
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the strategy bounds the buffer at 2 205 samples and the start byte below 15 000, far below f64's exact-integer range (2^53); the derived duration converts exactly"
+)]
 fn delivery_strategy() -> impl Strategy<Value = (DocumentSegment, AudioChunk)> {
     (
         0u32..=8_000,
@@ -381,14 +397,14 @@ fn delivery_strategy() -> impl Strategy<Value = (DocumentSegment, AudioChunk)> {
                 let rate_hz = DeclaredFormat::SAMPLE_RATE;
                 (
                     DocumentSegment {
-                        blake3_hash: format!("{:032x}", start),
+                        blake3_hash: format!("{start:032x}"),
                         source_range,
                         boundary_kind: kind,
                         byte_length,
                         segment_index: 0,
                     },
                     AudioChunk {
-                        duration_ms: pcm_data.len() as f64 / rate_hz as f64 * 1000.0,
+                        duration_ms: pcm_data.len() as f64 / f64::from(rate_hz) * 1000.0,
                         pcm_data,
                         rate_hz,
                         channels: DeclaredFormat::CHANNELS,
@@ -420,14 +436,10 @@ fn cap_point(yield_position: f64) -> f64 {
 
 /// The greatest boundary at or before the cursor, or `None` when no
 /// boundary precedes the cursor.
-#[expect(
-    clippy::float_cmp,
-    reason = "boundary positions and cursors are exact binary fractions on the quarter-second grid, so <= and > are the correct comparisons; a tolerance would admit an off-boundary snap"
-)]
 fn greatest_boundary_at_or_before(cursor: f64, boundaries: &[f64]) -> Option<f64> {
     let mut best: Option<f64> = None;
     for &boundary in boundaries {
-        if boundary <= cursor && best.map_or(true, |previous| boundary > previous) {
+        if boundary <= cursor && best.is_none_or(|previous| boundary > previous) {
             best = Some(boundary);
         }
     }
@@ -437,15 +449,8 @@ fn greatest_boundary_at_or_before(cursor: f64, boundaries: &[f64]) -> Option<f64
 /// Whether a sentence boundary sits strictly inside a paragraph/heading:
 /// the greatest eligible boundary at or before it is strictly earlier, so
 /// the sentence boundary falls between two paragraph/heading splits.
-#[expect(
-    clippy::float_cmp,
-    reason = "boundary positions are exact binary fractions on the quarter-second grid, so < is the correct comparison; a tolerance would admit a sentence boundary coincident with its paragraph boundary as 'inside'"
-)]
 fn is_strictly_inside_paragraph(at_secs: f64, eligible: &[f64]) -> bool {
-    match greatest_boundary_at_or_before(at_secs, eligible) {
-        Some(boundary) => boundary < at_secs,
-        None => false,
-    }
+    greatest_boundary_at_or_before(at_secs, eligible).is_some_and(|boundary| boundary < at_secs)
 }
 
 /// The expected snap result, derived from the specification rather than
@@ -454,10 +459,6 @@ fn is_strictly_inside_paragraph(at_secs: f64, eligible: &[f64]) -> bool {
 /// otherwise — the cap takes precedence over the zero-mid-word rule
 /// (FR-015). The cap point is measured from `basis` — the yield position
 /// in the composed resume flow, the cursor itself for a direct snap.
-#[expect(
-    clippy::float_cmp,
-    reason = "boundary positions, cursors and cap points are exact binary fractions on the quarter-second grid, so >= is the correct comparison; a tolerance would admit an off-boundary snap or a cap violation"
-)]
 fn expected_snap(cursor: f64, basis: f64, boundaries: &[f64]) -> f64 {
     let floor = (basis - REWIND_CAP_SECS).max(0.0);
     match greatest_boundary_at_or_before(cursor, boundaries) {
@@ -482,6 +483,10 @@ fn resume_point(yield_position: f64, paused_duration: f64, boundaries: &[ResumeB
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "quarter-second grid positions, yields, pauses and cap points are exact binary fractions; == is the correct assertion and a tolerance would admit an off-boundary snap"
+    )]
     #[test]
     fn given_any_cursor_and_paragraph_heading_splits_when_snapping_then_the_greatest_boundary_at_or_before_the_cursor_wins(
         (cursor, boundaries) in (position_strategy(), mixed_boundaries_strategy())
@@ -513,6 +518,10 @@ proptest! {
         );
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "quarter-second grid positions, yields, pauses and cap points are exact binary fractions; == is the correct assertion and a tolerance would admit an off-boundary snap"
+    )]
     #[test]
     fn given_a_sentence_boundary_falling_inside_a_paragraph_when_computing_the_resume_point_then_the_paragraph_boundary_takes_precedence(
         (yield_position, paused_duration, boundaries) in
@@ -570,6 +579,10 @@ proptest! {
         );
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "quarter-second grid positions, yields, pauses and cap points are exact binary fractions; == is the correct assertion and a tolerance would admit an off-boundary snap"
+    )]
     #[test]
     fn given_an_empty_boundary_list_when_snapping_then_the_resume_lands_at_the_cap_point(
         (yield_position, paused_duration) in (position_strategy(), paused_duration_strategy())
@@ -596,6 +609,10 @@ proptest! {
         );
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "quarter-second grid positions, yields, pauses and cap points are exact binary fractions; == is the correct assertion and a tolerance would admit an off-boundary snap"
+    )]
     #[test]
     fn given_a_single_boundary_exactly_at_the_cursor_when_snapping_then_the_boundary_is_returned(
         (yield_position, paused_duration) in
@@ -620,6 +637,10 @@ proptest! {
         );
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "quarter-second grid positions, yields, pauses and cap points are exact binary fractions; == is the correct assertion and a tolerance would admit an off-boundary snap"
+    )]
     #[test]
     fn given_a_paragraph_longer_than_the_rewind_cap_when_snapping_then_the_resume_lands_at_the_cap_point(
         (yield_position, paused_duration) in (position_strategy(), paused_duration_strategy())
@@ -645,6 +666,10 @@ proptest! {
         );
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "quarter-second grid positions, yields, pauses and cap points are exact binary fractions; == is the correct assertion and a tolerance would admit an off-boundary snap"
+    )]
     #[test]
     fn given_a_paused_duration_when_rewinding_then_the_cursor_is_five_percent_capped_at_thirty_seconds_and_the_yield_is_preserved(
         (yield_position, paused_duration) in
@@ -810,10 +835,8 @@ proptest! {
 /// Boundary case: an empty boundary list with the cursor inside the first
 /// 30 seconds of the document snaps to exactly 0.0 — there is no boundary
 /// to land on, and the cap point is the floor.
-#[expect(
-    clippy::float_cmp,
-    reason = "the boundary values 12.0 and 0.0 are exact binary fractions on the quarter-second grid; == is the correct assertion and a tolerance would admit an off-boundary snap"
-)]
+// Exact-value contract: the boundary values 12.0 and 0.0 are exact binary fractions on the
+// quarter-second grid; == is the correct assertion and a tolerance would admit an off-boundary snap
 #[test]
 fn given_no_boundaries_and_a_cursor_within_the_first_thirty_seconds_when_snapping_then_the_resume_is_zero()
  {
@@ -827,10 +850,8 @@ fn given_no_boundaries_and_a_cursor_within_the_first_thirty_seconds_when_snappin
 
 /// Boundary case: a single boundary exactly at the cursor is returned
 /// as-is — the greatest-boundary-at-or-before lookup is inclusive.
-#[expect(
-    clippy::float_cmp,
-    reason = "the boundary values 25.0 and 0.0 are exact binary fractions on the quarter-second grid; == is the correct assertion and a tolerance would admit an off-boundary snap"
-)]
+// Exact-value contract: the boundary values 25.0 and 0.0 are exact binary fractions on the
+// quarter-second grid; == is the correct assertion and a tolerance would admit an off-boundary snap
 #[test]
 fn given_a_single_boundary_at_the_cursor_when_snapping_then_the_boundary_is_returned() {
     let clock = PositionClock::new(25.0);
@@ -845,10 +866,9 @@ fn given_a_single_boundary_at_the_cursor_when_snapping_then_the_boundary_is_retu
 /// Boundary case: the 5% rewind saturates at the 30-second cap, and the
 /// snap of a paragraph longer than the cap lands at the cap point — total
 /// backward movement is exactly 30 s, never more (FR-015).
-#[expect(
-    clippy::float_cmp,
-    reason = "the boundary values 3600.0, 3570.0, 30.0 and 0.0 are exact binary fractions and 0.05 × 7200.0 caps at exactly 30.0, so == is the correct assertion; a tolerance would admit an off-boundary rewind or a cap violation"
-)]
+// Exact-value contract: the boundary values 3600.0, 3570.0, 30.0 and 0.0 are exact binary fractions
+// and 0.05 × 7200.0 caps at exactly 30.0, so == is the correct assertion; a tolerance would admit
+// an off-boundary rewind or a cap violation
 #[test]
 fn given_a_rewind_saturating_at_the_cap_when_snapping_then_total_backward_is_exactly_thirty_seconds()
  {

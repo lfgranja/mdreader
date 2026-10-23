@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <defs>
+    <style>
+      .bg { fill: #0B0F1A; }
+      .w-blue   { stroke: #8FD8E8; stroke-width: 5.5; stroke-linecap: round; fill: none; }
+      .w-green  { stroke: #5AD6A8; stroke-width: 5.5; stroke-linecap: round; fill: none; }
+      .w-purple { stroke: #B9A6F5; stroke-width: 5.5; stroke-linecap: round; fill: none; }
+      .node-b { fill: #8FD8E8; }
+      .node-g { fill: #5AD6A8; }
+      .node-p { fill: #B9A6F5; }
+    </style>
+  </defs>
+
+  <!-- Fundo OLED Dark Sona -->
+  <rect width="100" height="100" class="bg" rx="22"/>
+
+  <!-- As Três Fitas Acústicas do Etwahl fluindo livremente -->
+  <!-- Onda 1: Azul Turquesa (Foco & Frequência Alta) -->
+  <path d="M 16 34 C 32 20, 44 46, 58 35 C 70 26, 78 40, 84 34" class="w-blue"/>
+  <circle cx="16" cy="34" r="3" class="node-b"/>
+  <circle cx="84" cy="34" r="3" class="node-b"/>
+
+  <!-- Onda 2: Verde Jade (Cura & Frequência Média) -->
+  <path d="M 14 50 C 30 36, 42 62, 56 50 C 70 39, 80 56, 86 50" class="w-green"/>
+  <circle cx="14" cy="50" r="3.2" class="node-g"/>
+  <circle cx="86" cy="50" r="3.2" class="node-g"/>
+
+  <!-- Onda 3: Roxo Ametista (Celeridade & Frequência Baixa) -->
+  <path d="M 16 66 C 32 80, 44 54, 58 65 C 70 74, 78 60, 84 66" class="w-purple"/>
+  <circle cx="16" cy="66" r="3" class="node-p"/>
+  <circle cx="84" cy="66" r="3" class="node-p"/>
+</svg>

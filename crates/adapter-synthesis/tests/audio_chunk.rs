@@ -133,7 +133,7 @@
 //! one-to-one to `AudioChunk.pcm_data` when the delivery
 //! unit lands. Since T044 the engine is bound
 //! (`sherpa-onnx` 1.13.8 driving the embedded Piper
-//! pt-BR `faber` voice — API_CONTRACT.md §7, commit
+//! pt-BR `faber` voice — `API_CONTRACT.md` §7, commit
 //! `ee95b2d`), so a well-formed segment synthesizes to a
 //! real, non-empty, mono-`f32` buffer at the declared
 //! 22 050 Hz and the test's `Ok` arm carries the real
@@ -232,8 +232,11 @@ proptest! {
         pcm_data in proptest::collection::vec(any::<f32>(), 1usize..=2_048usize),
     ) {
         let sample_count = pcm_data.len();
-        let duration_ms =
-            pcm_data.len() as f64 / f64::from(DECLARED_RATE_HZ) * 1000.0;
+        #[expect(
+            clippy::cast_precision_loss,
+            reason = "the strategy bounds the buffer at 2 048 samples, far below f64's exact-integer range (2^53) — the cast is lossless"
+        )]
+        let duration_ms = pcm_data.len() as f64 / f64::from(DECLARED_RATE_HZ) * 1000.0;
         prop_assert_eq!(
             check_delivery(
                 DECLARED_RATE_HZ,
@@ -262,8 +265,11 @@ proptest! {
     fn a_sample_count_at_scale_derives_a_duration_the_gate_accepts(
         sample_count in 1usize..=1_000_000usize,
     ) {
-        let duration_ms =
-            sample_count as f64 / f64::from(DECLARED_RATE_HZ) * 1000.0;
+        #[expect(
+            clippy::cast_precision_loss,
+            reason = "the strategy bounds the sample count at 1 000 000, far below f64's exact-integer range (2^53) — the cast is lossless"
+        )]
+        let duration_ms = sample_count as f64 / f64::from(DECLARED_RATE_HZ) * 1000.0;
         prop_assert_eq!(
             check_delivery(
                 DECLARED_RATE_HZ,
@@ -296,7 +302,15 @@ proptest! {
         sample_count in 1usize..=1_000_000usize,
         perturbation_samples in 51i64..=150i64,
     ) {
+        #[expect(
+            clippy::cast_precision_loss,
+            reason = "the strategy bounds the perturbation at ±150 centi-samples, far below f64's exact-integer range (2^53) — the cast is lossless"
+        )]
         let perturbation = perturbation_samples as f64 / 100.0;
+        #[expect(
+            clippy::cast_precision_loss,
+            reason = "the strategy bounds the sample count at 1 000 000, far below f64's exact-integer range (2^53) — the cast is lossless"
+        )]
         let duration_ms = (sample_count as f64 + perturbation)
             / f64::from(DECLARED_RATE_HZ)
             * 1000.0;
@@ -330,7 +344,15 @@ proptest! {
         sample_count in 1usize..=1_000_000usize,
         perturbation_samples in -49i64..=49i64,
     ) {
+        #[expect(
+            clippy::cast_precision_loss,
+            reason = "the strategy bounds the perturbation at ±49 centi-samples, far below f64's exact-integer range (2^53) — the cast is lossless"
+        )]
         let perturbation = perturbation_samples as f64 / 100.0;
+        #[expect(
+            clippy::cast_precision_loss,
+            reason = "the strategy bounds the sample count at 1 000 000, far below f64's exact-integer range (2^53) — the cast is lossless"
+        )]
         let duration_ms = (sample_count as f64 + perturbation)
             / f64::from(DECLARED_RATE_HZ)
             * 1000.0;
@@ -522,6 +544,10 @@ proptest! {
                         "pcm_data must be non-empty: an empty delivery is \
                          a corrupt synthesis result (adapter-handoff §2.1)"
                     );
+                    #[expect(
+                        clippy::cast_precision_loss,
+                        reason = "the strategy bounds the document at a few kB of text, so the segment buffers stay far below f64's exact-integer range (2^53) — the cast is lossless"
+                    )]
                     let duration_ms = pcm_data.len() as f64
                         / f64::from(DECLARED_RATE_HZ)
                         * 1000.0;
@@ -649,10 +675,7 @@ proptest! {
             "a non-empty document yields at least one segment"
         );
         for segment in &segments {
-            let expected_position = match segment.resume_point {
-                Some(resume_point) => resume_point,
-                None => segment.source_range,
-            };
+            let expected_position = segment.resume_point.unwrap_or(segment.source_range);
             match synthesize(segment) {
                 Ok(_pcm_data) => {
                     // The chunk's source_range_ref echo is

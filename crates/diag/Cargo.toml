@@ -1,9 +1,16 @@
 [package]
 name = "diag"
+license = "MIT"
 version = "0.1.0"
 edition = "2024"
+description = "Diagnostic record: append-only JSONL logging with privacy-preserving field constraints."
+repository = "https://github.com/mdreader/mdreader"
+readme = "README.md"
+keywords = ["diagnostics", "logging", "jsonl"]
+categories = ["development-tools::debugging"]
 
 [dependencies]
+engine-core = { path = "../engine-core" }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

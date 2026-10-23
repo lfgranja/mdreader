@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mdreader.local/schemas/diagnostic-record.json",
+  "title": "Session Diagnostic Record event (004 FR-017; wire-identical to 001 FR-039/FR-039b/FR-040)",
+  "description": "One JSONL line per event. Event contents are kinds, positions and failure names — never document text. Trim/gap markers keep absences visible. Wire values are snake_case per crates/diag/src/writer.rs serde rename_all (Rust variants PascalCase; see diagnostic-trace.md naming note). EventKind is exactly nine kinds; 004 per-section/per-rate/buffer/latency coverage rides as data inside those kinds via detail keys, not new kinds. transport (five values) is the diag wire layer (001 FR-020 lineage), distinct from the 004 surface payload transport (playing|paused|stopped per contracts/surface.md). error (seven values) is the EngineError wire taxonomy; the 004 closed-8 product reasons map N:1 onto it per research.md R5 (DecodeFailed rides Unreachable; diag detail carries decode_failed).",
+  "type": "object",
+  "required": ["v", "ts_ms", "kind", "position_secs"],
+  "properties": {
+    "v": { "const": 1 },
+    "ts_ms": { "type": "integer", "minimum": 0 },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "session_start",
+        "session_end",
+        "transport_change",
+        "focus_transition",
+        "output_device",
+        "failure",
+        "refusal",
+        "trim",
+        "gap"
+      ]
+    },
+    "position_secs": { "type": "number", "minimum": 0 },
+    "transport": {
+      "type": "string",
+      "enum": ["playing", "paused", "stopped", "completed", "interrupted"]
+    },
+    "session_end_reason": {
+      "type": "string",
+      "enum": ["paused", "stopped", "completed", "interrupted"]
+    },
+    "supersedes_ts_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "focus": {
+      "type": "string",
+      "enum": ["duckable_transient", "silence_demanding", "permanent_loss", "regained"]
+    },
+    "device": {
+      "type": "object",
+      "required": ["direction", "device_id"],
+      "properties": {
+        "direction": { "enum": ["appeared", "disappeared"] },
+        "device_id": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "error": {
+      "type": "string",
+      "enum": [
+        "engine_unreachable",
+        "engine_init_failed",
+        "rate_mismatch",
+        "channel_mismatch",
+        "device_refused",
+        "device_lost",
+        "start_refused"
+      ]
+    },
+    "engine": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Engine identifier. With engine_tier=test_double this MUST be one of the two declared stand-ins (standin_a, standin_b) and is exempt from constitution registry resolution (lineage: 002 FR-023c/SC-057; 004 uses offline_default only)."
+    },
+    "engine_tier": {
+      "enum": [
+        "offline_default",
+        "cloud_default",
+        "cloud_escalation",
+        "test_double",
+        "evaluated_fallback"
+      ],
+      "description": "Closed tier. Fallback order is ascending: offline_default < cloud_default < cloud_escalation < test_double < evaluated_fallback, so the Edge endpoint stays last and is never a default. test_double is admissible only while no non-test_double adapter is registered (lineage: 002 FR-024; 004 uses offline_default only)."
+    },
+    "detail": { "type": "string", "maxLength": 200, "pattern": "^[A-Za-z0-9_]+=[A-Za-z0-9_.+\\-]+( [A-Za-z0-9_]+=[A-Za-z0-9_.+\\-]+)*$" },
+    "trim": {
+      "type": "object",
+      "required": ["dropped_events", "cutoff_ts_ms"],
+      "properties": {
+        "dropped_events": { "type": "integer", "minimum": 1 },
+        "cutoff_ts_ms": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "allOf": [
+    {
+      "if": { "required": ["engine"] },
+      "then": { "required": ["engine_tier"] }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "trim" } } },
+      "then": { "required": ["trim"] }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "session_end" } } },
+      "then": {
+        "required": ["transport", "session_end_reason"],
+        "properties": { "transport": { "enum": ["paused", "stopped", "completed", "interrupted"] } }
+      }
+    },
+    {
+      "if": { "properties": { "kind": { "enum": ["failure", "refusal"] } } },
+      "then": { "required": ["error"] }
+    }
+  ],
+  "additionalProperties": false
+}

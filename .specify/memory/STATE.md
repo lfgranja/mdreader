@@ -1,5 +1,94 @@
 # Session state — 004-ressoa-dogfood-build (shell bring-up wave)
 
+> **RESUME POINT (2026-10-24) — 005-adopt-design-sona, clarify run 5 (batch mode).**
+> User-directed protocol again (2 background agents per candidate: code dive +
+> research note; batch answers at the end). 3 candidates (E1–E3). Today's date
+> for all registrations: 2026-10-24.
+> (a) Integrated autonomously (evidence-converged, veto reversers recorded in
+> each bullet): **E1** — `--sona-etwahl` = FOCUS RING (`:focus-visible` on
+> enumerated interactive controls); the «fluxo ativo» role is RESERVED
+> non-painted for the full Lente; edits: FR-001 role map, US3 narrative
+> («turquesa para o anel de foco»), SC-001 item (iii) exclusivity (off-role
+> `#8FD8E8` paint = fail), batch-Q1 task gained item (5) (the 7 stale
+> etwahl-progress rows: `tokens.md:16/:28/:47/:65`, `components.md:17`,
+> `DESIGN-SONA.md:60/:85`, `preview.html:238`), C1 record annotated. Evidence:
+> 0 occurrences of `#8FD8E8`/`etwahl` in audited files; 0 `:focus-visible` in
+> `status_view.html`; recipe is the design dir's own (`tokens.md:20`).
+> **E2** — CLOSED MOTION RULE: the indeterminate sliding pill (C5) is the ONLY
+> continuous motion on the driving surface and freezes at a visible track
+> position under `prefers-reduced-motion: reduce`; new SC-001 item (v) host
+> check (media query present, zeros `animation`/`transform`, no new paint/element);
+> SC-007 gains the freeze leg («Remover animações» on, announcements unchanged
+> 10/10); FR-008 carries the rule clause; SC-006 pointer includes (iv)+(v).
+> Yellow pulse TTL-bounded (3 s), failure = static red (no pulse), banner
+> slide one-shot ≤200 ms, no other continuous loop. WCAG 2.2.2 strict reading
+> + SCR40/C39 OS-setting as the sanctioned mechanism; census-clean (zero
+> painted pixels). Historical note: the pulsing yellow dot does NOT exist in
+> shipped code yet (US1 AC2 is the first implementation).
+> Research notes: `specs/005-adopt-design-sona/research/clarify-e{1,2}-*.md`.
+> (b) RESOLVED — maintainer ACCEPTED the recommendation ("accept the
+> recommendations", 2026-10-24), batch E option A: **E3** — SC-002
+> haptic side-channel disposition. DIVE FINDING (unchanged): haptics are DORMANT in the
+> shipped binary (Rust always publishes `haptic=None` — `lib.rs:6047`; the
+> 7-pattern table + `VibratorManager` in `MediaMirror.kt` never fire; no app
+> off-switch; system haptic-feedback setting does NOT gate direct
+> VibratorManager calls). Research: cross-modal redundancy fuses/confounds
+> audio identification (Brewster segregation doctrine; ISO 7731 unimodal
+> unit-of-test; two-pulse discrimination peaks at 50–700 ms ISI vs the 20 ms
+> shipped gap; 10/15 ms buzzes below the ~50 ms perceivable floor).
+> `research/clarify-e3-sc002-haptic-side-channel.md`.
+> **INTEGRATED:** SC-002 haptic-disposition clause (audio gate sound-only;
+> app haptics inert; administrator no-buzz check at the pilot; the haptic
+> half stays in 004's T051-04 sounds-off condition, never this gate),
+> B1 record annotated (patterns = Kotlin render table, UNWIRED —
+> `haptic=None` published), Clarifications bullet E3, research-note
+> correction addendum. ALL of E1–E3 resolved — spec is plan-ready.
+> (c) Eliminated pre-spawn by direct evidence (never became candidates):
+> DESIGN-SONA has NO haptic prescriptions (all «vibração» hits are visual
+> metaphor) and NO soundscape/ambient audio content → Option A scope + closed
+> inventory already govern; `--sona-hush` `#A9B8CE` = shipped section color
+> (bit-exact, no reconciliation needed).
+> Checklist re-validated after E3: 16/16 → 16/16, no marker changes. Spec is
+> plan-ready. PLAN run complete (2026-10-24, same session): `plan.md` from
+> the template (Summary / Technical Context / Constitution Check PASS — no
+> violations, no Complexity rows / Project Structure / Post-Design re-check)
+> + `research.md` (R1–R13) + `data-model.md` (SonaToken 10-member lexicon,
+> SurfaceInventory, NotificationSurface, EarconConfirmation 7 confirmations,
+> RateLadder, ProgressIndication, MovementSpec, HapticDisposition, §VII diag
+> extension, DesignDirState, ContrastPair) + `contracts/` {status-surface,
+> earcon-mapping, surface-audit} + `quickstart.md` (host gates via the new
+> `surface-audit` checks + device trials incl. the SC-002 protocol and the
+> SC-007 freeze leg). `hooks: {}` — skipped per rules. Working tree still
+> UNCOMMITTED (clarify + plan artifacts). NEXT: `/speckit.tasks`.
+
+> **RESUME POINT (2026-10-24) — 005-adopt-design-sona, clarify run 4 (batch mode).**
+> Ran with the user-directed protocol (2 background agents per candidate: code
+> dive + research note; batch answers at the end). 5 candidates (D1–D5), ALL
+> RESOLVED. (a) Integrated autonomously (evidence-converged): D1 — restyle is
+> COLOR-ONLY (typography/spacing = design-dir prose, not `--sona-*` tokens;
+> FR-001 clause + Session bullet); D4 — launcher icon explicitly OUT of scope
+> (brand surface; regen-clobber; zero driving impact; Assumptions bullet).
+> (b) Maintainer ACCEPTED the recommendations ("accept the recommendations")
+> for the batch and all three were integrated in the same run: D2 — admit
+> `#FFD400` `--signal-caution` / `#FF4D63` `--signal-failure` as role-locked
+> signal paints (audited hex set 8→10; presence off-role = violation; never
+> adjacent, 2.25:1; FR-001 + SC-001 + clarif bullet; values match shipped
+> `status_view.html:29-30,179-180`; design-dir errata `tokens.md:48` /
+> `components.md:18` ride the batch-Q1 DESIGN-SONA maintenance task); D3 —
+> FR-009 truncate/replace «latest wins» sub-rule (earcon↔earcon; additive mix
+> stays earcon↔narration-only; system Ostinato/Sforzando interrupt; typed
+> truncation diagnostic counter; `short_mix` stays single-channel) + SC-002
+> rapid-sequence sub-test (2–3 heterogeneous actions in 100–150 ms); D5 — the
+> value-blind promise is now VERIFIED: SC-001 item (iv) semantics inventory
+> (aria-labels, role="progressbar"+valuenow/valuetext, hidden role="status"
+> live region for the ladder value, dots stay aria-hidden, reason banner
+> re-typed from mismatched alert+polite to status) + NEW SC-007 TalkBack
+> device trial (10/10 announcements; the spec's 7th success criterion).
+> Research notes: `specs/005-adopt-design-sona/research/clarify-d{1..5}-*.md`.
+> Checklist re-validated: 16/16 → 16/16, no marker changes. Spec is
+> plan-ready. NEXT: `/speckit.plan`.
+
+
 > **RESUME POINT (2026-10-22) — read this first.** Phase 17 is COMPLETE
 > (T140–T163, all committed) and the final verification has RE-ATTESTED the
 > tree at `9501bba` ("test(004): T163 model the FR-007 five-second cue in the

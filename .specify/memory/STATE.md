@@ -1,5 +1,89 @@
 # Session state — 004-ressoa-dogfood-build (shell bring-up wave)
 
+> **RESUME POINT (2026-10-24) — 005-adopt-design-sona, Phase 1 (Setup) COMPLETE (T001–T003).**
+> Branch `005-adopt-design-sona` cut at dev HEAD `226c06c`
+> (`226c06cdd211d5541f85926aa0e131ac12cc6f84`). T001 deviation disclosed: the
+> tree was DIRTY at branch creation (33 pending clarify/plan/assessment
+> artifacts from clarify runs + plan were never committed) — remediated ON the
+> branch by 33 per-file commit-hook commits (tasks.md `edf6190` first, with
+> the two pending refinements + the US3 parallel-example paths corrected to
+> the child-module layout; then spec/plan/research/data-model/quickstart/3
+> contracts/checklist; 20 clarify research notes; 5 assessment records; then
+> memory `cdad44d`), giving the clean tree the task requires before the
+> baseline measurement.
+>
+> **T002 baseline — three runs, all recorded** (`/home/luis/development/.mdreader-005-tr/logs/`):
+> (1) run 1 (`baseline-2026-10-24.log`) RED at gate-5: gates 1–4 PASS,
+> cargo deny advisories named RUSTSEC-2026-0385 (`ctutils` 0.4.3 via digest
+> 0.11.3 ← hmac/sha1/sha2/pbkdf2 ← zip 9.0.5 ← (build) sherpa-onnx-sys).
+> Provenance verified: NO lockfile commits since `9501bba` — the RED is a
+> newly published advisory, not a tree change (zip 9.0.5 entered at
+> `ea59333`, the latest-stable refresh). Fix `0c2b6a7`:
+> `cargo update -p ctutils` → 0.4.5 (single package; 42 unchanged; fail-
+> forward per constitution IV — no waiver, no auto-substitute; deny all-ok
+> + audit 2 allowed warnings). (2) run 2 (`…-run2.log`): gate-5 green, then
+> `verify.sh` died with a bash syntax error at :335 — an ORPHANED `fi`
+> leftover from `8635535` (T164 waiver retirement), latent because the
+> Oct-22 green runs predate that commit and run 1 aborted before the parser
+> reached the line. Fix `9b9a539`: delete the stray token (`bash -n` clean;
+> diff vs 9501bba = exactly the 57-line waiver removal, nothing else).
+> (3) run 3 (`…-run3.log`) **GREEN, VERIFY_EXIT=0**: gate-1 format PASS ·
+> gate-2 tests PASS (906 tests run: 906 passed, 2 skipped — the same
+> inventory as the 004 attestation) · gate-3 documentation PASS · gate-4
+> lint-drift-clippy PASS · gate-4 lint-drift PASS · gate-5 supply-chain
+> PASS · gate-6 deny-list PASS · gate-7 closed-set PASS · gate-8-shell
+> PASS · gate-8-full DEFERRED (owner=synthesis) — never a pass. Run 3 is
+> the recorded green baseline of the feature.
+>
+> **T003 anchor audit — 19/19 PASS** (explore agent, per-anchor evidence):
+> `enqueue_earcon` backtaint :511, FIFO `push_short_mix` :288-290
+> (consume_into :318-342 pops front in lockstep with speech = the residual
+> FIFO serialization D3 cites); `EarconKind` :10-26 with 7 variants
+> (Play/Pause/SkipFwd/SkipBack/Warning/Failure/RateStep); `EventKind`
+> :66/:69-88 exactly nine (SessionStart/SessionEnd/TransportChange/
+> FocusTransition/OutputDevice/Failure/Refusal/Trim/Gap), no catch-all;
+> status_view.html anchors all present (slates :21-22, white fill :26,
+> --warning/--failure :29-30, shimmer gradient :400, @keyframes
+> indeterminate :748-752, rgba tints :179-180, reasonBanner alert+polite
+> :252 same element, «Seção: —» :234, speedDots aria-hidden :245,
+> #progress :249 NO aria attrs, ZERO :focus-visible, ZERO
+> prefers-reduced-motion, `infinite` only :402); status_view.rs 534 lines
+> pure render; MediaMirror.kt constants block :701-744 (DISPLACED from the
+> tasks' :728-743 citation) with PROGRESS_FILL=0xFFFFFFFF :728 +
+> setContentText guard :1419; frontendDist "../dist" :6; verify.sh +
+> expected-tests.txt (99 lines, no surface_audit/earcon_burst entries);
+> logo-primary-concha-r.svg census-clean (0× #B9A6F5, 0× #5AD6A8);
+> tokens.md §1 ledger :10-20 with harp #E8C46A :17; 004 contracts
+> earcon.md/surface.md present; DESIGN-SONA CHANGELOG.md/VERSION ABSENT
+> (as T014 expects); src-tauri/build.rs exists (auto-detected); NO
+> surface_audit module yet; backend.rs has one #[cfg(test)] mod :664,
+> proptest dev-dep :32 (not yet imported in src); constitution v1.12.0
+> confirmed; diag contract_schema + prop_no_prose live under
+> crates/diag/tests/ (writer.rs and scan.rs have NO inline tests).
+>
+> **Task-level bugs / adjudications recorded (dispatch inputs):**
+> (i) T007(i)'s literal set claim is UNSATISFIABLE over contract A1#3's
+> pinned slice :728-743 even post-T008 — that slice permanently carries the
+> two admitted --signal-* tokens (FFD400 :736, FF4D63 :743) and the accent
+> usage site (:1407 setColor(DESIGN_SONA_TITLE)) is OUTSIDE it; the ONLY
+> DESIGN_SONA_ usage in MediaMirror.kt is :1407 (FILL/WARNING/FAILURE/
+> SECTION/TRACK are declared but UNWIRED). Adjudication (contract wins):
+> the accent twin asserts the fill token == ledger --sona-voice (C1:
+> literal-white veto = today's NAMED RED) plus non-signal declared/used
+> hexes ⇒ exactly {F2F0E6}, with FFD400/FF4D63 recognized as sanctioned
+> --signal-* declarations; repeat verbatim in T007's commit summary.
+> (ii) T005/T006's «Taxa: 1.0×» bench leak is ABSENT from the shipped
+> dist/index.html (offline-synth bench, 4 948 B) — the S2 byte-identity
+> mandate stands; the Taxa rationale no longer binds to present content.
+> (iii) T011/T012 edit points: writer.rs has no inline tests — the
+> contract_schema twins live in crates/diag/tests/. (iv) T021's
+> versionFooter citation: the id exists only at :254 (:223 is the
+> .version-footer class rule).
+>
+> NEXT: Phase 2 (T004 audit scaffolding → T005 RED served-identity → T006
+> wiring), then the [P] agent waves (Agent B: accent.rs + MediaMirror.kt ·
+> Agent C: crates/player + crates/diag).
+
 > **RESUME POINT (2026-10-24) — 005-adopt-design-sona, clarify run 5 (batch mode).**
 > User-directed protocol again (2 background agents per candidate: code dive +
 > research note; batch answers at the end). 3 candidates (E1–E3). Today's date

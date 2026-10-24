@@ -332,7 +332,6 @@ if ! cargo audit; then
   fail "gate-5 supply-chain: cargo audit failed"
 fi
 
-fi
 pass 5 supply-chain
 
 # =============================================================================

@@ -59,6 +59,13 @@ pub enum BackendError {
     #[error("gain must be within [0.0, 1.0], got {0}")]
     InvalidGain(f32),
 }
+/// SCAFFOLD (ADR-002 §VII diagnostic extension; template source: docs/adr/adr-002-diag-§VII.md + existing backend.rs):
+/// Typed event kinds EarconTruncation / EarconEmissionFailure; closed 11-member set; zero catch-all.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DiagnosticEventKind {
+    EarconTruncation,
+    EarconEmissionFailure { error: String },
+}
 
 /// The resident pre-roll bound, in seconds (FR-018; `plan.md:25`).
 ///

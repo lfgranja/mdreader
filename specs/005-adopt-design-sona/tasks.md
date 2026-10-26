@@ -60,6 +60,9 @@ Amendment to the existing implemented workspace (branches off `dev`, which carri
 
 **Checkpoint**: Foundation ready — audit scaffolding + ledger consumer exist; served-identity twin green. User-story RED waves below may now start.
 - [ ] **T006b [DEFERRED]** SC-001 device-leg deferred (`spec.md:155`; owner=`device-build`; host 10-member D2 census complete via T004/T005/T016 — gate determinístico); no silent pass; marker only — no enum / no `_ =>` / no `Other`; hook per file if remediated (remediation B4/D1 confirmed 2026-10-26).
+- [ ] **T006c [DEFERRED]** SC-002 device-leg deferred (`spec.md:156`; owner=`device-build`; 7-type blind-test ≥15 trials/type, confusion-matrix CSV, haptic line E3; gate 8/9); marker only.
+- [ ] **T006d [DEFERRED]** SC-007 device-leg deferred (`spec.md:161`; owner=`device-build`; freeze `animation-play-state: paused` + visible offset, trigger toggle, 10/10 announcements; S5/clarify-f2); marker only.
+- [ ] **T006e [DEFERRED]** SC-003 device-leg deferred (`spec.md:157`; owner=`device-build`; notification purity 10/10 zero leaks; complements T007/T008); marker only.
 ---
 
 ## Phase 3: User Story 1 — Identidade visual/sonora da notificação (Priority: P1) 🎯 MVP
@@ -74,6 +77,8 @@ Amendment to the existing implemented workspace (branches off `dev`, which carri
 
 ### Implementation for User Story 1
 
+- [NOTE] FR-006 mute → T011/T030 §3.4; FR-007 no-logo structural by T007/T008.
+- [NOTE] SC-003 deferred T006e (added); SC-004 T030 §3.4; SC-005 tagged on T010 (≤100ms host) + T030 §3.5.
 - [ ] T008 [US1] Update the `MediaMirror.kt` constants block `:728-743`: replace `DESIGN_SONA_PROGRESS_FILL = 0xFFFFFFFF` with `0xFFF2F0E6` and the comment «fill = `--sona-voice` — registro 2026-10-24, C1; contract "progress white" superseded»; retag the block's KDoc to the canonical token names (`--sona-voice`, `--signal-caution`, `--signal-failure`). NO other Kotlin change — declarative mirror stays (SC-035), no manifest/permission change (D4 exclusion intact). GREEN T007. Commit via hook
 
 **Checkpoint**: US1 host leg green — the MediaStyle block paints exactly `#F2F0E6`; no off-set paint. Device inspection (SC-003) belongs to Phase 8 (device-build owner).

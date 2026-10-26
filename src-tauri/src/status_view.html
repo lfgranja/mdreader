@@ -18,19 +18,19 @@
          already uses), NOT the reserved failure red: a red Stop
          button paints a failure state the control never means
          (T104, contracts/surface.md "red #FF4D63 failure-only"). */
-      --bg: #0f172a;
-      --surface: #1e293b;
+      --bg: #0B0F1A; /* --sona-void (S3 slates #0f172a REPLACED) */
+      --surface: #141B2D; /* --sona-stage (S3 raised surface) */
       --title: #F2F0E6;
       --section: #A9B8CE;
       --progress-bg: #55688F;
       --progress-fill: #ffffff;
-      --accent: #2563eb;
+      --accent: #8FD8E8; /* --sona-etwahl (primary accent; ONLY focus/progress per S3) */
       --muted: #94a3b8;
       --warning: #FFD400;
       --failure: #FF4D63;
       --radius: 16px;
-      --btn-primary: #2563eb;
-      --btn-primary-hover: #1d4ed8;
+      --btn-primary: #8FD8E8; /* --sona-etwahl (focus/progress only; never failure/warning) */
+      --btn-primary-hover: #6AB8D0;
       --btn-secondary: #334155;
       --btn-stop: #55688F;
       --btn-stop-hover: #475569;
@@ -228,7 +228,7 @@
     }
 <!-- SCAFFOLD (template: status-surface.md S3-S5 + existing status_view.html; NOT production): token/aria/movement -->
 <meta name="design-sona-scaffold" content="status-view-restyle-v2.2.0">
-<style id="sona-scaffold-tokens">:root{--sona-void:#0B0F1A;--sona-etwahl:#8FD8E8;--signal-caution:#FFD400;--signal-failure:#FF4D63;}@media(prefers-reduced-motion:reduce){.pill{animation-play-state:paused!important}}</style>
+<style id="sona-scaffold-tokens">:root{--sona-void:#0B0F1A;--sona-stage:#141B2D;--sona-etwahl:#8FD8E8;--signal-caution:#FFD400;--signal-failure:#FF4D63;}@media(prefers-reduced-motion:reduce){.pill{animation-play-state:paused!important}}</style>
 <div aria-hidden="true" id="scaffold-inventory" data-elements="9"></div>
 </head>
 <body>
@@ -250,7 +250,7 @@
   </div>
 
   <div id="progress"><div id="progressFill"></div></div>
-  <div id="progressLabel" aria-live="off"></div>
+  <div id="progressLabel" role="status" aria-live="polite" aria-atomic="true"></div>
 
   <div class="reason-banner" id="reasonBanner" role="alert" aria-live="polite"></div>
 

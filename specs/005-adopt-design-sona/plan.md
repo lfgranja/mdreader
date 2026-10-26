@@ -26,7 +26,7 @@ Adopt the DESIGN-SONA design system v2.2.0 (pinned tag `design-sona-v2.2.0`, Opt
 
 **Constraints**: Closed hex set auditable by census (10 members; out-of-role paint = violation class); no numeric rate painted anywhere on the driving surface (value-blind, FR-012/004 purity); jade never paints the player; single-column geometry preserved (no 62%/38% restructure this feature); excluded screens unreachable; launcher icon explicitly out of scope (D4); `status_view.html` must be the actually-rendered surface or the device legs of SC-001/SC-006 cannot pass; pt-BR only; zero egress.
 
-**Scale/Scope**: 2 surfaces redone in tokens; ~10–15 new host tests + 4–5 verify.sh checks; 1 design-dir alignment task; 1 packaging wiring; no screen additions; device trials are the only non-host acceptance legs (mirroring 004's T051 posture).
+**Scale/Scope**: 2 surfaces redone in tokens; 10-member closed hex (8 `--sona-*` + `--signal-caution` `#FFD400` + `--signal-failure` `#FF4D63`) audited by census; ~11–15 new host tests (C-H1..H9 + latency oracle + burst) + 4–5 verify.sh checks; 1 design-dir alignment task; 1 packaging wiring; no screen additions; device trials are the only non-host acceptance legs (mirroring 004's T051 posture).
 
 ## Constitution Check
 

@@ -47,6 +47,10 @@ PINNED_TARGETS="$(mktemp)"
 trap 'rm -f "$LIVE_TARGETS" "$PINNED_TARGETS"' EXIT
 
 # =============================================================================
+# SCAFFOLD (template: contracts/surface-audit.md A2 + quickstart.md; source: existing verify.sh):
+# Ordered C-H1..C-H9 host-check sequence (hex census → role → accent-only → inventory → aria → movement → contrast → served-identity → short-mix/oracle ≤100ms).
+# Fail-closed: missing auditee = FAIL; contract_schema exactly 11 kinds; zero catch-all; never skip.
+echo "scaffold-verify-sh: C-H ordering anchored; production checks deferred to T027/T031"
 # Gate 1 — format: rustfmt-clean.
 # =============================================================================
 running 1 format

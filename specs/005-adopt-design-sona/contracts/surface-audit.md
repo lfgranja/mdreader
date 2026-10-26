@@ -39,3 +39,8 @@ Files must NOT be silently added: the list itself fails if an audited location d
 ## A4. Whitelist discipline (no-weakening rule)
 
 The auditee list and the allowed hex set are data owned by this contract + `data-model.md`. Loosening them is a coordinated contract edit (same discipline as closed sets), not a script tweak. A failure is never silenced by deleting an auditee or an assertion — the rule resolves in the audited file: never weaken the gate to go green.
+
+## F. FR-006 / FR-007 — Design-SONA surface contract (remediated 2026-10-26, commit 81a9987 / follow-up)
+- FR-006 (sound accessibility): Pre = audio path available / mute state indeterminate; Post = sound plays regardless of mute; Invariant = earcon never blocks access (redundancy, not barrier).
+- FR-007 (notification purity): Pre = MediaStyle notification / lock-screen render; Post = NO brand logo / sound-wave glyph shown; Invariant = accent-only (`#F2F0E6`) + title + progress; logo waves vetoed (FR-028/FR-029).
+- Verification: host census of hex values (10 members); device leg deferred (gate-9 / SC-003 mirror).

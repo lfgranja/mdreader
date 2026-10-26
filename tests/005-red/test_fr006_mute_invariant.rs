@@ -1,5 +1,5 @@
 // RED — FR-006 mute/dignity invariant (earcon plays regardless of mute state)
-// Contract: contracts/surface.md L69-70 + contracts/earcon.md (mute/DND covered)
+// Contract: specs/004-ressoa-dogfood-build/contracts/surface.md L69-70 + specs/004-ressoa-dogfood-build/contracts/earcon.md (mute/DND covered)
 use proptest::prelude::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -1,5 +1,5 @@
 //! RED — Finding A5: FR-006 / FR-007 missing RED (no pre/post conditions, no contract reference).
-//! TDD: fails until each FR has RED + links to contracts/surface.md / contracts/notification.md.
+//! TDD: fails until each FR has RED + links to specs/004-ressoa-dogfood-build/contracts/surface.md / contracts/notification.md.
 
 #[test]
 fn fr006_fr007_have_red_and_contract_ref() {

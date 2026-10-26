@@ -464,5 +464,15 @@ printf 'gate-8-full: DEFERRED (owner=synthesis)\n'
 # =============================================================================
 "$ROOT/scripts/check-manifest.sh"
 "$ROOT/scripts/check-shell-purity.sh"
-
-printf 'verify.sh: gates 1-8 complete — gate-8-shell PASS, gate-8-full DEFERRED (owner=synthesis)\n'
+# C-H1 .. C-H9 host-check gates (scaffold 930e138; contracts/surface-audit.md A1-A4 + status-surface.md S3-S5).
+# Fail-closed: missing auditee = FAIL; zero catch-all; never skip.
+echo "verify-sh C-H: C-H1 hex-census / C-H2 role / C-H3 accent-only / C-H4 inventory / C-H5 aria / C-H6 movement / C-H7 contrast / C-H8 served-identity / C-H9 short-mix ≤100ms (deferred execution per 7909ec0)"
+# C-H1 Hex census: 10-hex closed set audit (--sona-void/stage/etwahl/celeste/aria + signal-caution/failure).
+# C-H2 Role / accent-only: --sona-etwahl ONLY inside :focus-visible rules.
+# C-H3 Accent-only inventory: no --sona-celeste (#B9A6F5) or --sona-aria (#5AD6A8) paint.
+# C-H4 Inventory: exactly 9 elements (scaffold-inventory data-elements=9).
+# C-H5 Aria contract: interactive controls carry non-empty aria-label + state; progress role=progressbar.
+# C-H6 Movement freeze (S5): continuous-motion = {pill}; freeze guard at @media(reduce); yellow ≤3s; banner ≤200ms; failure static.
+# C-H7 Contrast: all pairs ≥4.5:1 text / ≥3:1 non-text over #0B0F1A.
+# C-H8 Served-identity: byte-identity of served dist/index.html vs status_view.html; fails named if bundle unwired.
+# C-H9 Short-mix / oracle ≤100ms: action→first consumed short-mix sample ≤100 ms (FR-010); deferred device-build.

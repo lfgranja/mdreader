@@ -12,7 +12,7 @@ Adopt the DESIGN-SONA design system v2.2.0 (pinned tag `design-sona-v2.2.0`, Opt
 
 **Language/Version**: Rust, Edition 2024, MSRV 1.85 workspace / rustc ≥1.88 build-floor (unchanged); tracked `stable` channel via `rust-toolchain.toml`. Kotlin only in the existing thin shell, and only for constants — no new logic.
 
-**Primary Dependencies**: **NONE NEW**. Existing: `tauri` 2.12.1; `crates/player` (`earcon.rs` grammar, `backend.rs` short-mix channel + `enqueue_earcon`); `src-tauri` (`status_view.rs`, `status_view.html` restyle target, `lib.rs` mirror publisher — `haptic=None` stays, and `tauri.conf.json` `frontendDist` wiring); `android-shell/…/MediaMirror.kt` (MediaStyle constants — accent already `#F2F0E6`; `:730-743` stays declarative); `DESIGN-SONA/` dir (v2.2.0 normalization); `scripts/verify.sh` (new host checks). Authorities referenced directly from contracts: `specs/004-ressoa-dogfood-build/contracts/earcon-mapping.md` E1–E7, `contracts/status-surface.md` S1–S7 / A1–A4, `contracts/surface-audit.md` A1–A4 — not copied; earlier `earcon.md`/`surface.md` references corrected to current filenames.
+**Primary Dependencies**: **NONE NEW**. Existing: `tauri` 2.12.1; `crates/player` (`earcon.rs` grammar, `backend.rs` short-mix channel + `enqueue_earcon`); `src-tauri` (`status_view.rs`, `status_view.html` restyle target, `lib.rs` mirror publisher — `haptic=None` stays, and `tauri.conf.json` `frontendDist` wiring); `android-shell/…/MediaMirror.kt` (MediaStyle constants — accent already `#F2F0E6`; `:730-743` stays declarative); `DESIGN-SONA/` dir (v2.2.0 normalization); `scripts/verify.sh` (new host checks). Authorities referenced directly from contracts: `specs/005-adopt-design-sona/contracts/earcon-mapping.md` E1–E7, `contracts/status-surface.md` S1–S7 / A1–A4, `contracts/surface-audit.md` A1–A4 — not copied; earlier `earcon.md`/`surface.md` (004 authorities) remain the grammar/surface base and are referenced via full path `specs/004-ressoa-dogfood-build/contracts/{earcon.md,surface.md}`.rface.md` references corrected to current filenames.
 
 **Storage**: N/A — no new storage. `redb` bookmarks/settings untouched; the diagnostic JSONL record gains typed event kinds only through a **coordinated §VII extension** documented in `docs/adr/adr-002-diag-§VII.md` (EarconTruncation, EarconEmissionFailure; coordinated edits: `writer.rs` + `scan.rs` + `contract_schema` update + `crates/diag/CHANGELOG.md` + `VERSION` note; T012); no catch-all, no silent branch.
 
@@ -70,6 +70,7 @@ specs/005-adopt-design-sona/
 ```text
 src-tauri/src/status_view.html      # The single in-app surface of record — token/role/aria/movement restyle target
 src-tauri/src/status_view.rs        # Host logic for the view (element inventory + wiring hooks)
+src-tauri/src/surface_audit.rs      # Host audit scaffolding (T004) — closed auditee resolver + C-H1..C-H8 twins
 src-tauri/tauri.conf.json           # Packaging: served bundle must BE the restyled surface (frontendDist wiring)
 crates/player/src/backend.rs        # enqueue_earcon: truncate/substitute «latest wins» + typed burst/failure counters
 crates/player/src/earcon.rs         # Grammar asserts for the new event kinds (band/duration unchanged)

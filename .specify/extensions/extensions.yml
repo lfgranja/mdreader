@@ -1,0 +1,32 @@
+# .specify/extensions/extensions.yml — feature 005-adopt-design-sona prerequisites
+# Verified: 2026-10-26 (P3)
+feature: 005-adopt-design-sona
+host:
+  value: Linux x64
+  verified: true
+  gate: T028
+  note: uname -m = x86_64; host determinism confirmed for token-only restyle census.
+device:
+  value: Android API 29+
+  verified: false
+  gate: T029-T031 (deferred — owner=device-build)
+  justification: No Android device present (no /system/build.prop, no /dev/android); device leg of SC-001 / SC-006 deferred per finding A7 / SC-001 deferred device. Will verify when device-build delivers.
+gates:
+  - T028 (host / determinism)
+  - T029 (device presence / build)
+  - T030 (token-only restyle / census)
+  - T031 (contract alignment / drift correction)
+extensions:
+  registered: none
+  justification: >-
+    No plugin or API extensions required for token-only restyle of the
+    MediaStyle notification + in-app StatusView. Surface restyle works via
+    DESIGN-SONA token substitution (FR-001, FR-003, SC-001) in existing
+    Rust/HTML pipeline; no external SDK, accessibility-service, or media
+    framework extension needed. Extensions.yml documented rather than
+    omitted per constitution / Finding A8.
+prerequisites_documented: true
+notes: >-
+  Contract drift corrected (A6): spec.md now references contracts/earcon-mapping.md
+  and contracts/surface-audit.md (file names preferred); contracts/status-surface.md
+  unchanged. RED tests contract_drift_red.rs + extensions_empty_red.rs pass.

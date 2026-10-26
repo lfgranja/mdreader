@@ -14,6 +14,13 @@
           "speckit.assess.define",
           "speckit.assess.shape",
           "speckit.assess.decide"
+        ],
+        "omp": [
+          "speckit.assess.intake",
+          "speckit.assess.research",
+          "speckit.assess.define",
+          "speckit.assess.shape",
+          "speckit.assess.decide"
         ]
       },
       "registered_skills": [],
@@ -27,6 +34,11 @@
       "priority": 10,
       "registered_commands": {
         "opencode": [
+          "speckit.bug.assess",
+          "speckit.bug.fix",
+          "speckit.bug.test"
+        ],
+        "omp": [
           "speckit.bug.assess",
           "speckit.bug.fix",
           "speckit.bug.test"

@@ -2,7 +2,7 @@
 
 **Branch**: `005-adopt-design-sona` | **Date**: 2026-10-24 | **Spec**: [spec.md](spec.md)
 
-**Input**: Feature specification from `/specs/005-adopt-design-sona/spec.md` (assessment handoff: go for the Option A scope — tokens, dual mark, Sona earcons on the existing surfaces; notification-first, dark-only, no full Svelte UI). All clarify runs resolved (36 recorded Q/A bullets, 15 research notes; zero NEEDS CLARIFICATION per `checklists/requirements.md` 16/16).
+**Input**: Feature specification from `/specs/005-adopt-design-sona/spec.md` (assessment handoff: go for the Option A scope — tokens, dual mark, Sona earcons on the existing surfaces; notification-first, dark-only, no full Svelte UI). English contract identifiers used throughout (`earcon` per `earcon-mapping.md` E1, `StatusView` per `status-surface.md` S1, `surface-audit` per `surface-audit.md` A1); title kept in Portuguese per design-dir; no terminology conflict. All clarify runs resolved (36 recorded Q/A bullets, 15 research notes; zero NEEDS CLARIFICATION per `checklists/requirements.md` 16/16).
 
 ## Summary
 

@@ -1,5 +1,5 @@
 // RED — SC-001 census + contrast + aria inventory over status_view.html + MediaMirror.kt
-// Deterministic host check; contracts/earcon.md + contracts/surface.md (SC-001 split)
+// Deterministic host check; specs/004-ressoa-dogfood-build/contracts/earcon.md + specs/004-ressoa-dogfood-build/contracts/surface.md (SC-001 split)
 fn census_inventory(path: &str) -> usize {
     std::fs::read_to_string(path).unwrap_or_default().matches("aria-").count()
 }

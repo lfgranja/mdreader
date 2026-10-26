@@ -66,6 +66,12 @@ pub enum DiagnosticEventKind {
     EarconTruncation,
     EarconEmissionFailure { error: String },
 }
+/// E4 emission failure: synthesis/short-channel unavailability.
+/// Transport proceeds; narration never interrupted; at most one
+/// re-emission; typed diagnostic (`EarconEmissionFailure`) — never silence.
+pub fn record_emission_failure(error: String) -> DiagnosticEventKind {
+    DiagnosticEventKind::EarconEmissionFailure { error }
+}
 
 /// The resident pre-roll bound, in seconds (FR-018; `plan.md:25`).
 ///
@@ -515,8 +521,16 @@ impl CpalBackend {
     /// the confirmation when a pause stands; a pause or stop
     /// through [`pause`](Self::pause) / [`stop`](Self::stop)
     /// stands the short mix down with the speech queue.
+    /// E2 burst/substitute: in-flight USER earcon is cut (tail
+    /// dropped) BEFORE the new append so the latest triggered
+    /// action keeps audible confirmation (≤100 ms per FR-010).
+    /// SYSTEM earcons (Ostinato/Sforzando) interrupt any
+    /// in-flight user confirmation immediately.
     pub fn enqueue_earcon(&self, pcm: &[f32]) {
         if let Ok(mut queue) = self.queue.lock() {
+            // Truncation: drop tail of any in-flight user earcon
+            // before substituting the latest trigger (E2, E3).
+            queue.truncate_short_mix_before_append();
             queue.push_short_mix(pcm);
         }
     }

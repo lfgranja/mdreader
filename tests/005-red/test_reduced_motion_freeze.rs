@@ -1,5 +1,5 @@
 // RED — reduced-motion freeze: animation/transform zero when prefers-reduced-motion: reduce
-// Contract: spec FR-008 (reduced Lente) / contracts/surface.md
+// Contract: spec FR-008 (reduced Lente) / specs/004-ressoa-dogfood-build/contracts/surface.md
 fn animation_transform_for_reduced() -> &'static str {
     "transform: scale(1.05); animation: pulse 2s infinite" // RED: violation present
 }

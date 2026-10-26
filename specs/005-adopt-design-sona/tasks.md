@@ -283,3 +283,5 @@ Agent C: T009, T010, T011, T012, T013               # burst/oracle/diag kinds (U
 - **closed-set discipline** (§VII): `EventKind` closed at exactly eleven; `EarconKind` untouched (004 grammar owns pitches); the audited hex set stays 10 + ledger harp; every addition = coordinated edit + version bump + docs
 - Commit every file edit via `scripts/commit-hook.sh` (rule 4); subagent waves pay each file closure immediately — the hook is the arbiter of the clean delta
 - Stop at any checkpoint to validate the story independently; every story's host legs are runnable without a device
+
+- [NOTE] A10 (remediation, 2026-10-26): F3 empty-slot glyph + aria-label="Sem título"; F4 static red banner (reason_ttl_ms=null, one-shot <=200ms, no timer) — link to SC-006/SC-005 device trials. See spec.md F3/F4 (2026-10-24, F1-F4).

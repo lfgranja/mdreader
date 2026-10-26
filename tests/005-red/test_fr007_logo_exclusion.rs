@@ -1,5 +1,5 @@
 // RED — FR-007 notification logo/brand exclusion from notification surfaces
-// Contract: contracts/surface.md L71 (no brand logo / sound-wave in MediaStyle/lock-screen)
+// Contract: specs/004-ressoa-dogfood-build/contracts/surface.md L71 (no brand logo / sound-wave in MediaStyle/lock-screen)
 fn notification_surface_has_logo(path: &str) -> bool {
     let content = std::fs::read_to_string(path).unwrap_or_default();
     content.contains("logo") || content.contains("brand") || content.contains("sound-wave")

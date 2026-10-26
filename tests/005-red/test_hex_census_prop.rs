@@ -1,5 +1,5 @@
 // RED — closed hex census invariant (10 members: 8 sona + 2 signals)
-// Contract: contracts/earcon.md + specs/005-adopt-design-sona/spec.md (FR-012/SC-001)
+// Contract: specs/004-ressoa-dogfood-build/contracts/earcon.md + specs/005-adopt-design-sona/spec.md (FR-012/SC-001)
 // Before any implementation: must FAIL (no closed set defined in host files).
 use proptest::prelude::*;
 

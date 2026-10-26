@@ -43,7 +43,7 @@ Then on-device glance: the app's in-app screen IS the restyled StatusView (the s
 
 **3.1 SC-003 — notification purity (10/10 inspections).** Start playback, lock, inspect: only título + seção atual + progresso; accent = marfim only; no body text / rate / voice / mark; warning state renders the static reason line + Ostinato with 3 s TTL (transient-loss exercise: place a call or navigate prompt — the reason line expires, playback behavior per 004).
 
-**3.2 SC-001 visual purity trial.** Drive the surface through determinate AND indeterminate progress; confirm colors match `data-model.md` §SonaToken (text marfim, section periwinkle, track/track fill, gold dot on the ladder, cautions at 3 s pulses, failure static red); no third color anywhere; single column; no excluded screen reachable (try back/links — nothing opens).
+**3.2 SC-001 visual purity trial (also serves SC-001 device leg — deferred, owner=device-build per A2 remediation).** Drive the surface through determinate AND indeterminate progress; confirm colors match `data-model.md` §SonaToken (text marfim, section periwinkle, track/track fill, gold dot on the ladder, cautions at 3 s pulses, failure static red); no third color anywhere; single column; no excluded screen reachable (try back/links — nothing opens).
 
 **3.3 SC-002 — blind-test protocol (the human gate; do NOT skip).**
 1. Device on a rigid mount; the media speaker is the gate channel (parked car); system assistant/UI sounds silenced — the MEDIA channel stays ON; hands off the device body after start (haptic-disposition line of `contracts/earcon-mapping.md` E6).

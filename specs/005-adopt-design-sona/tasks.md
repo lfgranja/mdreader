@@ -59,8 +59,7 @@ Amendment to the existing implemented workspace (branches off `dev`, which carri
 - [ ] T006 Implement S2 packaging wiring: make the packaged app actually serve `src-tauri/src/status_view.html` as the bundle entry — build-time copy `status_view.html` → `dist/index.html` (a `src-tauri/build.rs` step, or the repo's existing packaging script — whichever keep the twin green on every build); `src-tauri/tauri.conf.json` `frontendDist` stays `../dist` (or is repointed consistently — either way T005 must pass byte-identity). «The bench `dist/index.html` content may remain as a fallback only if it does not leave the audited surface unserved» — it leaves it unserved as the default route, so the bench page is REPLACED; with it dies the numeric-rate bench leak «Taxa: 1.0×» (data-model §SurfaceInventory dead-removal list). Update the `src-tauri/src/status_view.rs` doc-header to declare the wiring. GREEN T005 (C-H8, missing-bundle case exercises only the DEFERRED branch). Commit via hook per file
 
 **Checkpoint**: Foundation ready — audit scaffolding + ledger consumer exist; served-identity twin green. User-story RED waves below may now start.
-- [ ] **T006b [DEFERRED]** SC-001 device-leg deferred (`spec.md:159`; owner=`device-build`); host 10-member D2 census complete via T004/T005/T016; no silent pass; marker only — no enum / no `_ =>` / no `Other`; hook per file if remediated.
-
+- [ ] **T006b [DEFERRED]** SC-001 device-leg deferred (`spec.md:155`; owner=`device-build`; host 10-member D2 census complete via T004/T005/T016 — gate determinístico); no silent pass; marker only — no enum / no `_ =>` / no `Other`; hook per file if remediated (remediation B4/D1 confirmed 2026-10-26).
 ---
 
 ## Phase 3: User Story 1 — Identidade visual/sonora da notificação (Priority: P1) 🎯 MVP

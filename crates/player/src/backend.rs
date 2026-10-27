@@ -59,17 +59,30 @@ pub enum BackendError {
     #[error("gain must be within [0.0, 1.0], got {0}")]
     InvalidGain(f32),
 }
-/// SCAFFOLD (ADR-002 §VII diagnostic extension; template source: docs/adr/adr-002-diag-§VII.md + existing backend.rs):
-/// Typed event kinds EarconTruncation / EarconEmissionFailure; closed 11-member set; zero catch-all.
+/// SCAFFOLD (ADR-002 §VII diagnostic extension).
+///
+/// Template source: `docs/adr/adr-002-diag-§VII.md` + existing `backend.rs`.
+/// Typed event kinds `EarconTruncation` / `EarconEmissionFailure`;
+/// closed 11-member set; zero catch-all.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DiagnosticEventKind {
+    /// Truncation of an in-flight user earcon's tail before the
+    /// latest trigger (E2 "latest wins"); counted once per
+    /// truncation in the diag record (`EarconTruncation`).
     EarconTruncation,
-    EarconEmissionFailure { error: String },
+    /// Typed emission-failure event (E4): synthesis error or
+    /// short-channel unavailability; `error` carries the
+    /// typed reason; the transport action still proceeds.
+    EarconEmissionFailure {
+        /// Typed reason for the emission failure.
+        error: String,
+    },
 }
 /// E4 emission failure: synthesis/short-channel unavailability.
 /// Transport proceeds; narration never interrupted; at most one
 /// re-emission; typed diagnostic (`EarconEmissionFailure`) — never silence.
-pub fn record_emission_failure(error: String) -> DiagnosticEventKind {
+#[must_use]
+pub const fn record_emission_failure(error: String) -> DiagnosticEventKind {
     DiagnosticEventKind::EarconEmissionFailure { error }
 }
 
@@ -300,6 +313,18 @@ impl SampleQueue {
     /// stream, never scaled by the duck actuator.
     fn push_short_mix(&mut self, pcm: &[f32]) {
         self.short_mix.extend(pcm.iter().copied());
+    }
+
+    /// Truncate the tail of any in-flight earcon (short-mix
+    /// buffer) BEFORE appending the latest trigger — E2
+    /// "latest wins": the remaining unplayed samples of the
+    /// previous confirmation are dropped so the new action's
+    /// first sample is the next consumed one (≤100 ms,
+    /// FR-010). The short-mix buffer holds only earcon PCM,
+    /// so clearing it never touches speech or the position
+    /// clock.
+    fn truncate_short_mix_before_append(&mut self) {
+        self.short_mix.clear();
     }
 
     /// The currently applied output gain.

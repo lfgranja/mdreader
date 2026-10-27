@@ -63,7 +63,7 @@ pub enum DiagError {
     Serialize(#[from] serde_json::Error),
 }
 
-/// The closed event-kind set: exactly nine kinds.
+/// The closed event-kind set: exactly eleven kinds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EventKind {
@@ -85,6 +85,12 @@ pub enum EventKind {
     Trim,
     /// A storage-exhaustion gap marker.
     Gap,
+    /// A truncation of an in-flight user earcon (latest-wins, E2.2);
+    /// carries the truncation counter (data-model §DiagnosticEvent).
+    EarconTruncation,
+    /// A typed emission-failure event (synthesis error / short channel
+    /// unavailable); carries the required `error` field (E4).
+    EarconEmissionFailure,
 }
 
 /// The closed transport-state set (FR-020): exactly five states.

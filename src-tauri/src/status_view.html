@@ -249,10 +249,9 @@
     <button class="secondary speed-btn" id="btnRateUp" aria-label="Aumentar velocidade">+</button>
   </div>
 
-  <div id="progress"><div id="progressFill"></div></div>
+  <div id="progress" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-valuetext="velocidade 1,0"><div id="progressFill"></div></div>
   <div id="progressLabel" role="status" aria-live="polite" aria-atomic="true"></div>
-
-  <div class="reason-banner" id="reasonBanner" role="alert" aria-live="polite"></div>
+  <div class="reason-banner" id="reasonBanner" role="status"></div>
 
   <div class="version-footer" id="versionFooter"></div>
 </div>

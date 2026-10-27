@@ -93,7 +93,7 @@ pub mod surface;
 /// reason with its expiry — through the T065 getters alone,
 /// with no playback logic and no second string definition.
 pub mod status_view;
-
+pub mod surface_audit;
 /// The engine-failure surface (T078).
 ///
 /// The named failure + alternatives rendering, conforming to

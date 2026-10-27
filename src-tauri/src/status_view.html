@@ -14,7 +14,7 @@
          the contract is prohibited and appears nowhere on this
          surface. The
          Stop CONTROL carries the neutral progress tone #55688F
-         (hover #475569 — the same neutral the secondary hover
+         (hover #55688F — the same neutral the secondary hover
          already uses), NOT the reserved failure red: a red Stop
          button paints a failure state the control never means
          (T104, contracts/surface.md "red #FF4D63 failure-only"). */
@@ -29,11 +29,11 @@
       --signal-caution: #FFD400;
       --signal-failure: #FF4D63;
       --radius: 16px;
-      --btn-primary: #8FD8E8; /* --sona-etwahl (focus/progress only; never failure/warning) */
-      --btn-primary-hover: #6AB8D0;
-      --btn-secondary: #334155;
+      --btn-primary: var(--sona-etwahl); /* --sona-etwahl (focus/progress only; never failure/warning) */
+      --btn-primary-hover: var(--sona-etwahl);
+      --btn-secondary: #55688F;
       --btn-stop: #55688F;
-      --btn-stop-hover: #475569;
+      --btn-stop-hover: #55688F;
     }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
     body {
@@ -54,7 +54,7 @@
       padding: 2rem 1rem;
     }
     .card {
-      background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+      background: linear-gradient(180deg, #141B2D 0%, #0B0F1A 100%);
       border: 1px solid rgba(255,255,255,0.08);
       border-radius: var(--radius);
       padding: 2rem;
@@ -103,11 +103,11 @@
     }
     button:active { transform: scale(0.97); }
     button:disabled { opacity: 0.5; cursor: not-allowed; }
-    button.primary { background: var(--btn-primary); color: white; }
+    button.primary { background: var(--btn-primary); color: var(--sona-void); }
     button.primary:hover:not(:disabled) { background: var(--btn-primary-hover); }
-    button.secondary { background: var(--btn-secondary); color: white; }
-    button.secondary:hover:not(:disabled) { background: #475569; }
-    button.stop { background: var(--btn-stop); color: white; }
+    button.secondary { background: var(--btn-secondary); color: var(--sona-voice); }
+    button.secondary:hover:not(:disabled) { background: #55688F; }
+    button.stop { background: var(--btn-stop); color: var(--sona-voice); }
     button.stop:hover:not(:disabled) { background: var(--btn-stop-hover); }
     .speed-control {
       display: flex;
@@ -173,11 +173,10 @@
       font-size: .85rem;
       font-weight: 500;
       display: none;
-      animation: slideIn .2s ease;
     }
     .reason-banner.visible { display: block; }
-    .reason-banner.warning { background: rgba(255, 212, 0, 0.15); border: 1px solid var(--warning); color: var(--warning); }
-    .reason-banner.failure { background: rgba(255, 77, 99, 0.15); border: 1px solid var(--failure); color: var(--failure); }
+    .reason-banner.warning { background: transparent; border: 1px solid var(--signal-caution); color: var(--signal-caution); animation: slideIn .2s ease; }
+    .reason-banner.failure { background: transparent; border: 1px solid var(--signal-failure); color: var(--signal-failure); animation: none; }
     /* FR-009: the resume offer — the visual dialog of the in-app
        route. The DESIGN-SONA tokens are the ones the card paints
        (title #F2F0E6, section #A9B8CE, the neutral progress tone
@@ -188,7 +187,7 @@
       width: min(420px, calc(100vw - 2rem));
       border: 1px solid rgba(255,255,255,0.08);
       border-radius: var(--radius);
-      background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+      background: linear-gradient(180deg, #141B2D 0%, #0B0F1A 100%);
       color: var(--title);
       padding: 2rem;
       box-shadow: 0 20px 60px rgba(0,0,0,0.6);
@@ -222,19 +221,20 @@
     @keyframes slideIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
     .version-footer {
       font-size: .7rem;
-      color: #64748b;
+      color: #A9B8CE;
       margin-top: 1rem;
       text-align: center;
     }
 <!-- SCAFFOLD (template: status-surface.md S3-S5 + existing status_view.html; NOT production): token/aria/movement -->
 <meta name="design-sona-scaffold" content="status-view-restyle-v2.2.0">
-<style id="sona-scaffold-tokens">:root{--sona-void:#0B0F1A;--sona-stage:#141B2D;--sona-etwahl:#8FD8E8;--signal-caution:#FFD400;--signal-failure:#FF4D63;}@media(prefers-reduced-motion:reduce){.pill{animation-play-state:paused!important}}</style>
+<style id="sona-scaffold-tokens">:root{--sona-void:#0B0F1A;--sona-stage:#141B2D;--sona-etwahl:#8FD8E8;--signal-caution:#FFD400;--signal-failure:#FF4D63;}@media(prefers-reduced-motion:reduce){.pill{animation-play-state: paused !important; transform: translateX(0); opacity: 1;}}</style>
 <div aria-hidden="true" id="scaffold-inventory" data-elements="9"></div>
 </head>
 <body>
 <div class="card">
+  <img id="headerMark" src="DESIGN-SONA/assets/logo/logo-primary-concha-r.svg" alt="Concha Harmônica R" width="32" height="32">
   <h1 id="documentTitle"></h1>
-  <div class="subtitle" id="sectionTitle">Seção: —</div>
+  <div class="subtitle" id="sectionTitle" aria-label="Sem título">Seção: —</div>
 
   <div class="controls" id="transportControls">
     <button class="secondary" id="btnSkipBack" aria-label="Retroceder">⏪</button>
@@ -250,6 +250,7 @@
   </div>
 
   <div id="progress" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-valuetext="velocidade 1,0"><div id="progressFill"></div></div>
+  <div class="sr-only" role="status" aria-live="polite" id="liveRegion"></div>
   <div id="progressLabel" role="status" aria-live="polite" aria-atomic="true"></div>
   <div class="reason-banner" id="reasonBanner" role="status"></div>
 
@@ -380,6 +381,7 @@
       els.sectionTitle.textContent = `Seção: ${state.sectionTitle}`;
     } else {
       els.sectionTitle.textContent = 'Seção: —';
+      els.sectionTitle.setAttribute('aria-label', 'Sem título');
     }
   }
 

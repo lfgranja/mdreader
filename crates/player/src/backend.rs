@@ -31,6 +31,7 @@ use thiserror::Error;
 use tracing::{error, info, instrument};
 
 use crate::focus::FULL_GAIN;
+use crate::earcon::EarconKind;
 use crate::position::PositionClock;
 
 /// Errors from the CPAL backend.
@@ -290,6 +291,11 @@ struct SampleQueue {
     /// audible speech, so it can never advance the position
     /// bookmark.
     short_mix: VecDeque<f32>,
+    /// The kind of the earcon currently in the short-mix buffer
+    /// (if any), so a SYSTEM earcon can interrupt a USER one
+    /// but a USER trigger never interrupts an in-flight SYSTEM
+    /// confirmation (E2.3).
+    short_mix_kind: Option<EarconKind>,
 }
 
 impl Default for SampleQueue {
@@ -298,6 +304,7 @@ impl Default for SampleQueue {
             speech: ResidentQueue::new(),
             gain: FULL_GAIN,
             short_mix: VecDeque::new(),
+            short_mix_kind: None,
         }
     }
 }
@@ -311,8 +318,9 @@ impl SampleQueue {
     /// Append duck-exempt earcon PCM to the short-mix buffer
     /// (contracts/earcon.md): mixed at full gain on the same
     /// stream, never scaled by the duck actuator.
-    fn push_short_mix(&mut self, pcm: &[f32]) {
+    fn push_short_mix(&mut self, kind: EarconKind, pcm: &[f32]) {
         self.short_mix.extend(pcm.iter().copied());
+        self.short_mix_kind = Some(kind);
     }
 
     /// Truncate the tail of any in-flight earcon (short-mix
@@ -325,6 +333,7 @@ impl SampleQueue {
     /// clock.
     fn truncate_short_mix_before_append(&mut self) {
         self.short_mix.clear();
+        self.short_mix_kind = None;
     }
 
     /// The currently applied output gain.
@@ -376,6 +385,9 @@ impl SampleQueue {
                 (None, None) => *slot = 0.0,
             }
         }
+        if self.short_mix.is_empty() {
+            self.short_mix_kind = None;
+        }
         speech_consumed
     }
 
@@ -386,6 +398,7 @@ impl SampleQueue {
     fn clear(&mut self) {
         self.speech.clear();
         self.short_mix.clear();
+        self.short_mix_kind = None;
     }
 
     /// Buffered speech sample count.
@@ -551,12 +564,20 @@ impl CpalBackend {
     /// action keeps audible confirmation (≤100 ms per FR-010).
     /// SYSTEM earcons (Ostinato/Sforzando) interrupt any
     /// in-flight user confirmation immediately.
-    pub fn enqueue_earcon(&self, pcm: &[f32]) {
+    pub fn enqueue_earcon(&self, kind: EarconKind, pcm: &[f32]) {
         if let Ok(mut queue) = self.queue.lock() {
-            // Truncation: drop tail of any in-flight user earcon
-            // before substituting the latest trigger (E2, E3).
-            queue.truncate_short_mix_before_append();
-            queue.push_short_mix(pcm);
+            let incoming_system = matches!(kind, EarconKind::Warning | EarconKind::Failure);
+            let in_flight_system = queue
+                .short_mix_kind
+                .map(|k| matches!(k, EarconKind::Warning | EarconKind::Failure))
+                .unwrap_or(false);
+            if incoming_system {
+                queue.truncate_short_mix_before_append();
+                queue.push_short_mix(kind, pcm);
+            } else if !in_flight_system {
+                queue.truncate_short_mix_before_append();
+                queue.push_short_mix(kind, pcm);
+            }
         }
     }
 

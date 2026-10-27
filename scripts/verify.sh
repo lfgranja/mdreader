@@ -116,6 +116,18 @@ fi
 pass 2 tests
 
 # =============================================================================
+# Surface-audit gate (005): C-H1..C-H9 host checks.
+# =============================================================================
+running surface-audit "C-H1..C-H9"
+if ! cargo nextest run --workspace -E 'test(surface_audit)' ; then
+  fail "surface-audit: surface_audit twins failed"
+fi
+if ! cargo nextest run --workspace -E 'test(earcon)' ; then
+  fail "surface-audit: earcon twins failed"
+fi
+pass surface-audit "C-H1..C-H9"
+
+# =============================================================================
 # Gate 3 — documentation: the public API documents.
 # =============================================================================
 running 3 documentation

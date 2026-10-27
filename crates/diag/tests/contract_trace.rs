@@ -69,6 +69,8 @@ fn required_event_kinds_present() {
             EventKind::Refusal => "refusal",
             EventKind::Trim => "trim",
             EventKind::Gap => "gap",
+            EventKind::EarconTruncation => "earcon_truncation",
+            EventKind::EarconEmissionFailure => "earcon_emission_failure",
         })
         .collect();
     assert!(

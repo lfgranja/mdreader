@@ -18,16 +18,16 @@
          already uses), NOT the reserved failure red: a red Stop
          button paints a failure state the control never means
          (T104, contracts/surface.md "red #FF4D63 failure-only"). */
-      --bg: #0B0F1A; /* --sona-void (S3 slates #0f172a REPLACED) */
-      --surface: #141B2D; /* --sona-stage (S3 raised surface) */
-      --title: #F2F0E6;
-      --section: #A9B8CE;
-      --progress-bg: #55688F;
-      --progress-fill: #ffffff;
-      --accent: #8FD8E8; /* --sona-etwahl (primary accent; ONLY focus/progress per S3) */
-      --muted: #94a3b8;
-      --warning: #FFD400;
-      --failure: #FF4D63;
+      --sona-void: #0B0F1A;
+      --sona-stage: #141B2D;
+      --sona-voice: #F2F0E6;
+      --sona-etwahl: #8FD8E8;
+      --sona-hush: #A9B8CE;
+      --sona-harp: #E8C46A;
+      --sona-celeste: #B9A6F5;
+      --sona-boundary: #55688F;
+      --signal-caution: #FFD400;
+      --signal-failure: #FF4D63;
       --radius: 16px;
       --btn-primary: #8FD8E8; /* --sona-etwahl (focus/progress only; never failure/warning) */
       --btn-primary-hover: #6AB8D0;
@@ -141,7 +141,7 @@
       transition: background .15s, transform .15s;
     }
     .speed-dot.active {
-      background: var(--progress-fill);
+      background: var(--sona-voice);
       transform: scale(1.25);
     }
     #progress {
@@ -155,7 +155,7 @@
     #progress-fill {
       height: 100%;
       width: 0%;
-      background: var(--progress-fill);
+      background: var(--sona-voice);
       border-radius: 3px;
       transition: width .3s ease;
     }
@@ -400,14 +400,14 @@
     } else if (state.progress.kind === 'indeterminate') {
       // Indeterminate: show subtle animation
       els.progressFill.style.width = '0%';
-      els.progressFill.style.background = 'linear-gradient(90deg, transparent, var(--progress-fill), transparent)';
+      els.progressFill.style.background = 'linear-gradient(90deg, transparent, var(--sona-voice), transparent)';
       els.progressFill.style.backgroundSize = '200% 100%';
       els.progressFill.style.animation = 'indeterminate 1.5s infinite';
       els.progressLabel.textContent = '';
       return;
     }
     els.progressFill.style.width = `${pct}%`;
-    els.progressFill.style.background = 'var(--progress-fill)';
+    els.progressFill.style.background = 'var(--sona-voice)';
     els.progressFill.style.animation = 'none';
     els.progressLabel.textContent = state.progressLabel || '';
   }

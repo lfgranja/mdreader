@@ -12,7 +12,10 @@ mod tests {
         let text = fs::read_to_string(&kt).unwrap_or_default();
         // Extract the constants block slice (approx :728-743).
         let start = text.find("DESIGN_SONA_PROGRESS_FILL").unwrap_or(0);
-        let end = text[start..].find("}\n").map(|i| start + i + 1).unwrap_or(start + 300);
+        let end = text[start..]
+            .find("}\n")
+            .map(|i| start + i + 1)
+            .unwrap_or(start + 300);
         let block = &text[start..end.min(text.len())];
         let mut vals = Vec::new();
         let mut i = 0;
@@ -59,7 +62,10 @@ mod tests {
             }
         }
         // Pre-existing fix recorded (A4, 2026-10-27): 0xFFF2F0E6 already present.
-        assert!(!vals.contains(&"0xFFFFFFFF".to_string()), "C1 veto: 0xFFFFFFFF must not appear");
+        assert!(
+            !vals.contains(&"0xFFFFFFFF".to_string()),
+            "C1 veto: 0xFFFFFFFF must not appear"
+        );
         assert!(!vals.is_empty(), "accent block non-empty");
     }
 }

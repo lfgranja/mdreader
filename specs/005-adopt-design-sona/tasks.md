@@ -325,6 +325,16 @@ Agent C: T009, T010, T011, T012, T013               # burst/oracle/diag kinds (U
 
 ---
 
+---
+
+## Phase 10: Convergence — post-remediation audit (T202/T203/T210 + surface-audit twins)
+
+- [ ] **T216 [HIGH] Wave 3 · T021 inventory — `display:none` active-state flagged by C-H4 audit** — `surface_audit::inventory::tests::surface_audit_element_inventory` fails at `inventory.rs:45` (`!scrubbed...contains("display:none")` → "C-H4: structural dead removal left a display:none corpse"); evidence: line 175 `.reason-banner { display: none; }` (active banner hidden by default; `.visible` at 178 sets `display: block`; not a dead removal). Contract `contracts/status-surface.md` S4: dead removals structural (element deleted, never `display:none`); `.reason-banner` is live (reason line with 3 s TTL, static failure, banner `slideIn`). Fix: either (a) confirm active-state permitted + document in audit exception, or (b) replace CSS with `visibility: hidden` / DOM-absence mechanism so `display:none` never appears; either way the audit twin must pass. Status: PARTIAL (test failure; source behavior correct per S4/S5). Evidence: `grep -n 'display: none' src-tauri/src/status_view.html` = 175; `grep -n 'data-elements=' src-tauri/src/status_view.html` = 232 (9 elements, correct); `surface_audit/inventory.rs:45`. Next: align inventory test with active-banner state or adjust CSS; do not delete banner.
+
+- [ ] **T217 [MEDIUM] Wave 5 · T201 gate rerun** — `scripts/verify.sh` requires T210 `aarch64` artifact (build env unavailable: `ANDROID_HOME=` empty, SDK NONE) + full `cargo nextest` pass (interrupted by SIGTERM at adapter-synthesis test; not feature failure). Full gate-0 exit 0 blocked externally. Evidence: `timeout 180 bash scripts/verify.sh` interrupted; `ls src-tauri/target/*/aarch64/*.apk` NONE; `cargo fmt` clean (`ad1c165`). Status: DEFERRED (owner=build-env + device). Next: install Android SDK + export `ANDROID_HOME`; rerun `cargo tauri android build`; rerun full `verify.sh`; record exit.
+
+---
+
 ### MEDIUM (observation / deferred / non-blocking — document, do not block attestation)
 
 - [ ] **T211 [MEDIUM] Wave 1 · A3 byte-identity — `dist/index.html` (7689 B) is bench page, not source** — not a source error; indicates T006 packaging not done; once T200 remediated, bench removed. Evidence: `ls -la src-tauri/dist/index.html`. Status: OBSERVED (resolves with T200). Next: T006 build step.

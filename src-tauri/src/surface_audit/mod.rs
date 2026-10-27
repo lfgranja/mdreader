@@ -77,3 +77,5 @@ pub fn resolve_all(manifest_dir: &Path) -> Result<Vec<(Auditee, PathBuf)>, Strin
 }
 
 pub mod served_identity;
+
+pub mod accent;

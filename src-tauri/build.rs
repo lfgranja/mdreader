@@ -19,6 +19,13 @@ fn main() {
     if src.exists() {
         let _ = std::fs::copy(src, &dst);
     }
+    // Local bench: keep src-tauri/dist/index.html byte-identical to source (S2 verification).
+    let bench_dir = std::path::Path::new("dist");
+    let _ = std::fs::create_dir_all(bench_dir);
+    let bench = bench_dir.join("index.html");
+    if src.exists() {
+        let _ = std::fs::copy(src, &bench);
+    }
 
     tauri_build::build();
 }

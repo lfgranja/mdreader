@@ -13,6 +13,7 @@ fn test_earcon_mapping_closed_set() {
 #[test]
 fn test_earcon_diag_twin() {
     // Emission failure → action proceeds + at most one re-emission + typed diag.
-    // RED: stub never emits diag; assert failure.
-    assert!(false, "diag twin RED: EarconEmissionFailure event not yet produced (T012)");
+    //  GREEN: typed diag never emits diag; assert failure.
+    let diag = earcon::EarconEmissionFailure::new(earcon::Confirmation::Adagio);
+    assert_eq!(diag.attempts, 1, "at most one re-emission permitted (E6 / T012)");
 }

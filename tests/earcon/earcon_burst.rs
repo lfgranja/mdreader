@@ -11,7 +11,7 @@ fn prop_earcon_burst_latest_wins() {
         results.push(earcon::enqueue_earcon(earcon::Confirmation::Adagio));
     }
     // RED: stub returns false for all → failure.
-    assert!(results.iter().any(|r| *r), "burst latest-wins: at least one emission must succeed (RED)");
+    assert!(results.iter().all(|r| *r), "burst latest-wins: all emissions succeed (GREEN T012)");
 }
 
 #[test]

@@ -214,17 +214,17 @@ Phase 1 (Setup) ──► Phase 2 (Foundational / BLOCKING) ──► Phase 3 (U
 
 ## Phase 8: Convergence
 
-- [ ] T046 CRITICAL: Remove painted numeric rate display (#rateValue/.rate-value) and all '×' strings from status_view.html per FR-003/SC-001 rate-blind invariant (contradicts). Keep positional dots only.
-- [ ] T047 CRITICAL: Ensure headerMark uses DESIGN-SONA/assets/headers/concha-harmonica-r.svg (Concha Harmônica R) per SC-001 (missing).
-- [ ] T048 Verify decorative wave pseudo-element .card::before with waves-top.svg and aria-hidden present per FR-001/SC-001 (check).
-- [ ] T049 Ensure title card uses metadata_title.unwrap_or(filename) with empty-state '—' + .sr-only 'Sem título' and role='region' aria-label per FR-002 (check).
-- [ ] T050 Add/confirm prefers-reduced-motion guards for decorative/progress/banner per FR-004/SC-004 (missing).
-- [ ] T051 Review/reconcile canvas waveform (#waveform) and repeat button added by 007: if outside 006 scope, remove or justify per plan scope (unrequested).
+- [x] T046 CRITICAL: Remove painted numeric rate display (#rateValue/.rate-value) and all '×' strings from status_view.html per FR-003/SC-001 rate-blind invariant (contradicts). Keep positional dots only.
+- [x] T047 CRITICAL: Ensure headerMark uses DESIGN-SONA/assets/headers/concha-harmonica-r.svg (Concha Harmônica R) per SC-001 (missing).
+- [x] T048 Verify decorative wave pseudo-element .card::before with waves-top.svg and aria-hidden present per FR-001/SC-001 (check).
+- [x] T049 Ensure title card uses metadata_title.unwrap_or(filename) with empty-state '—' + .sr-only 'Sem título' and role='region' aria-label per FR-002 (check).
+- [x] T050 Add/confirm prefers-reduced-motion guards for decorative/progress/banner per FR-004/SC-004 (missing).
+- [x] T051 Review/reconcile canvas waveform (#waveform) and repeat button added by 007: if outside 006 scope, remove or justify per plan scope (unrequested).
 
 
 ## Phase 9: Convergence
 
-- [ ] T052 CRITICAL: Remove painted numeric rate display (#rateValue/.rate-value) and all '×' strings from status_view.html per FR-003/SC-001 rate-blind invariant (contradicts). Keep positional dots only.
-- [ ] T053 HIGH: Ensure headerMark uses DESIGN-SONA/assets/headers/concha-harmonica-r.svg (Concha Harmônica R) per SC-001 (missing).
-- [ ] T054 MEDIUM: Review/reconcile canvas waveform (#waveform) added by 007 — if outside 006 scope remove or justify per plan (unrequested).
-- [ ] T055 MEDIUM: Review/reconcile repeat button (btnRepeat) added by 007 — if outside 006 scope remove or justify per plan (unrequested).
+- [x] T052 CRITICAL: Remove painted numeric rate display (#rateValue/.rate-value) and all '×' strings from status_view.html per FR-003/SC-001 rate-blind invariant (contradicts). Keep positional dots only.
+- [x] T053 HIGH: Ensure headerMark uses DESIGN-SONA/assets/headers/concha-harmonica-r.svg (Concha Harmônica R) per SC-001 (missing).
+- [x] T054 MEDIUM: Review/reconcile canvas waveform (#waveform) added by 007 — if outside 006 scope remove or justify per plan (unrequested).
+- [x] T055 MEDIUM: Review/reconcile repeat button (btnRepeat) added by 007 — if outside 006 scope remove or justify per plan (unrequested).

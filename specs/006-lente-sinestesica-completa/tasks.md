@@ -115,8 +115,8 @@ Phase 1 (Setup) ──► Phase 2 (Foundational / BLOCKING) ──► Phase 3 (U
 
 ### 4a. RED-phase regression tests
 
-- [ ] T022 [US2] [RED] Write `tests/us2_rate_blind.rs`: assert `.speed-dots` is positional only (no numeric label); assert `aria-valuetext` on `#progress` does not contain rate number; assert transport button `aria-label` unchanged. File: `tests/us2_rate_blind.rs`
-- [ ] T023 [US2] [RED] Write `tests/us2_banner_states.rs`: assert `.reason-banner` has static `animation:none` under failure (`#signal-failure` `#FF4D63`); assert `.reason-banner.warning` uses `#signal-caution` `#FFD400` with TTL (≤3s); assert no new `alert` / `assertive`; assert no auto-disappearing banner. File: `tests/us2_banner_states.rs`
+- [X] T022 [US2] [RED] Write `tests/us2_rate_blind.rs`: assert `.speed-dots` is positional only (no numeric label); assert `aria-valuetext` on `#progress` does not contain rate number; assert transport button `aria-label` unchanged. File: `tests/us2_rate_blind.rs`
+- [X] T023 [US2] [RED] Write `tests/us2_banner_states.rs`: assert `.reason-banner` has static `animation:none` under failure (`#signal-failure` `#FF4D63`); assert `.reason-banner.warning` uses `#signal-caution` `#FFD400` with TTL (≤3s); assert no new `alert` / `assertive`; assert no auto-disappearing banner. File: `tests/us2_banner_states.rs`
 
 > **TDD BLOCK**: T022, T023 must be written (RED) before T024, T025.
 
@@ -136,9 +136,9 @@ Phase 1 (Setup) ──► Phase 2 (Foundational / BLOCKING) ──► Phase 3 (U
 
 ### 5a. RED-phase purity / inventory / contract tests
 
-- [ ] T027 [US3] [RED] Write `tests/us3_notification_purity.rs`: assert notification payload (or `MediaMirror` output) contains exactly `--sona-voice` (`#F2F0E6`) accent color; assert no `text`/`body`/`rate`/`voice` fields; assert no `#B9A6F5` / `#5AD6A8` in notification style. File: `tests/us3_notification_purity.rs`
-- [ ] T028 [US3] [RED] Write `tests/us3_surface_inventory.rs`: scan `status_view.html` after all edits; assert `data-elements` count unchanged (9); assert no `display:none`; assert `.card::before`, `#headerMark`, `#documentTitle`, `.subtitle`, `.controls`, `.speed-control`, `#progress`, `.sr-only` live region, `.reason-banner`, `.version-footer` all visible (no hidden corpses). File: `tests/us3_surface_inventory.rs`
-- [ ] T029 [US3] [RED] Write `tests/us3_contract_audit.rs`: assert `contracts/status-surface.md` and `contracts/surface-audit.md` contain justification lines; assert `data-model.md` records no new token members; assert commit message references §VII for any token/contract change (verify via `git log --grep`). File: `tests/us3_contract_audit.rs`
+- [X] T027 [US3] [RED] Write `tests/us3_notification_purity.rs`: assert notification payload (or `MediaMirror` output) contains exactly `--sona-voice` (`#F2F0E6`) accent color; assert no `text`/`body`/`rate`/`voice` fields; assert no `#B9A6F5` / `#5AD6A8` in notification style. File: `tests/us3_notification_purity.rs`
+- [X] T028 [US3] [RED] Write `tests/us3_surface_inventory.rs`: scan `status_view.html` after all edits; assert `data-elements` count unchanged (9); assert no `display:none`; assert `.card::before`, `#headerMark`, `#documentTitle`, `.subtitle`, `.controls`, `.speed-control`, `#progress`, `.sr-only` live region, `.reason-banner`, `.version-footer` all visible (no hidden corpses). File: `tests/us3_surface_inventory.rs`
+- [X] T029 [US3] [RED] Write `tests/us3_contract_audit.rs`: assert `contracts/status-surface.md` and `contracts/surface-audit.md` contain justification lines; assert `data-model.md` records no new token members; assert commit message references §VII for any token/contract change (verify via `git log --grep`). File: `tests/us3_contract_audit.rs`
 
 > **TDD BLOCK**: T027–T029 must be written (RED) before T030–T032.
 

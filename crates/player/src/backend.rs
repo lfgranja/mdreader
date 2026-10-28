@@ -403,7 +403,7 @@ impl SampleQueue {
             self.short_mix_kind = None;
         }
         let rms = if count > 0 {
-            (sum_sq / count as f64).sqrt() as f32
+            ((sum_sq / count as f64).sqrt()) as f32
         } else {
             0.0
         };

@@ -210,3 +210,13 @@ Phase 1 (Setup) ──► Phase 2 (Foundational / BLOCKING) ──► Phase 3 (U
 - [X] T043 Update `.card` `aria-label` dynamically from `documentTitle` in `renderDocumentTitle()` (fallback "Lente Sinestésica") per FR-002 / SC-002 / CHK041 (partial)
 - [X] T044 Remove duplicate `#B9A6F5` celeste declaration from one `:root` block (keep scaffold tokens) per C-H1 / S3 (partial)
 - [X] T045 Fix false-positive RED tests: `census_banned_celeste_absent` (allow celeste in token declaration, flag duplicates), `no_infinite_loops_in_css` (allow indeterminate progress as sole continuous motion per S5), `us1_speed_dots_no_numeric_rate` (exclude LADDER constant array), `us2_banner_no_autodismiss_failure` (fix split logic to isolate failure branch) (partial)
+
+
+## Phase 8: Convergence
+
+- [ ] T046 CRITICAL: Remove painted numeric rate display (#rateValue/.rate-value) and all '×' strings from status_view.html per FR-003/SC-001 rate-blind invariant (contradicts). Keep positional dots only.
+- [ ] T047 CRITICAL: Ensure headerMark uses DESIGN-SONA/assets/headers/concha-harmonica-r.svg (Concha Harmônica R) per SC-001 (missing).
+- [ ] T048 Verify decorative wave pseudo-element .card::before with waves-top.svg and aria-hidden present per FR-001/SC-001 (check).
+- [ ] T049 Ensure title card uses metadata_title.unwrap_or(filename) with empty-state '—' + .sr-only 'Sem título' and role='region' aria-label per FR-002 (check).
+- [ ] T050 Add/confirm prefers-reduced-motion guards for decorative/progress/banner per FR-004/SC-004 (missing).
+- [ ] T051 Review/reconcile canvas waveform (#waveform) and repeat button added by 007: if outside 006 scope, remove or justify per plan scope (unrequested).

@@ -65,15 +65,17 @@ Como sistema, deve manter invariante: notificação permanece accent-only, close
 - **FR-005**: Static assets preferred (SVG/CSS); CSS animations allowed with reduced-motion guard; no scripts/foreignObject. Glassmorphism may use `rgba()`/`rgb()` alpha variants for translucency, with base colors as verbatim SonaToken members (S3 amended).
 - **FR-006**: Notification remains accent-only (no body/rate/voice/mark) — unchanged from 006.
 - **FR-007**: Update contracts if tokens/layout change; maintain surface count = 2; expand token set (jade, celeste) with §VII justification.
-- **FR-008**: Waveform visualizer must be reactive to playback state via true RMS: AtomicF32 in audio callback (`consume_into`), throttled IPC channel (~20 Hz), canvas/SVG bar visualization. Graceful degradation: static waveform placeholder if RMS unavailable. No allocation on hot path.
+- **FR-008**: Waveform visualizer must be reactive to playback state via true RMS: AtomicF32 in audio callback (`consume_into`), throttled IPC channel (~20 Hz), canvas-based smooth ribbon visualization (4-6 translucent bezier curves in teal→jade→violet, mirrored around center axis, white progress line + circular playhead). Graceful degradation: static waveform placeholder if RMS unavailable. No allocation on hot path. Cap 30 fps on mobile, pause on visibilitychange.
 - **FR-009**: Glassmorphism via `backdrop-filter: blur(24px)` + translucent overlay (verbatim token + opacity property). Fallback to solid `--sona-stage` if unsupported. Reduced-motion guard applies.
 - **FR-010**: Glow/neon effects via `box-shadow` on header mark (`0 0 20px var(--sona-etwahl)`) and waveform baseline (`0 0 10px var(--sona-harp)`). Subtle, 2 elements max. Reduced-motion guard applies.
+- **FR-011**: Repeat button restarts the current section from the beginning. Reuses existing skip/section logic. Earcon: reuse "skip back" earcon. New interactive element added to inventory (update C-H4).
 
 ### Key Entities
 
 - **LenteCompleta**: Visual configuration for complete design (waves, title card, waveform, layout, glassmorphism, glow) on StatusView.
 - **TitleCard**: Metadata-driven card with fallback to filename; empty state handling; glassmorphism styling.
-- **WaveformVisualizer**: Reactive audio visualization (RMS-based, requires engine instrumentation).
+- **WaveformVisualizer**: Reactive audio visualization (RMS-based, canvas smooth ribbons, requires engine instrumentation).
+- **RepeatControl**: Restarts current section. Reuses skip/section logic. New interactive element (inventory update required).
 - **SonaToken (expanded)**: 12+ members (original 10 + jade #5AD6A8 + celeste #B9A6F5 promoted to painted).
 
 ## Success Criteria
@@ -91,7 +93,7 @@ Como sistema, deve manter invariante: notificação permanece accent-only, close
 
 - Constitution v2.0.0 (amended 2026-10-28) permits: design-token expansion (jade, celeste), supplementary visual elements (waveform, glassmorphism, glow), extra controls.
 - Token set expanded from 10 to 12+ members (jade #5AD6A8, celeste #B9A6F5 promoted to painted).
-- Waveform visualizer requires RMS instrumentation in the Rust engine (new capability, not currently implemented).
+- Waveform visualizer requires RMS instrumentation in the Rust engine (new capability): AtomicF32 in audio callback, throttled IPC channel (~20 Hz), canvas rendering. Performance: cap 30 fps on mobile, pause on visibilitychange, freeze under reduced-motion.
 - Glassmorphism requires `backdrop-filter` support (available in modern webviews).
 - Notification remains accent-only (SC-003 unchanged).
 - Surface count remains 2 (StatusView + notification) — new elements are within StatusView, not new surfaces.
@@ -112,3 +114,9 @@ Como sistema, deve manter invariante: notificação permanece accent-only, close
 - Q: Numeric rate display location → A: Paint numeric rate in speed-control area — add a text element next to the dots showing `1.25×`. Amend contracts S4/S10 to allow painted numeric rate in the speed-control area only. Update tests to permit the sanctioned element.
 - Q: Wave ribbon implementation technique → A: CSS-animated SVG — use existing `waves-top.svg` as base, add CSS keyframes for subtle flowing animation (translate/opacity, ≤400ms, no infinite loop beyond S5 limit). Guard with `@media(reduce)`. Moderate effort, good fidelity, S3-compliant.
 - Q: Glow/neon scope and intensity → A: Glow on logo + waveform baseline only — `box-shadow: 0 0 20px var(--sona-etwahl)` on header mark and `box-shadow: 0 0 10px var(--sona-harp)` on waveform baseline. Subtle, proposal-aligned. 2 elements max.
+
+
+### Session 2026-10-28 (second pass)
+
+- Q: Waveform visualization style — bars vs. smooth ribbons → A: Smooth ribbons (match proposal) — canvas-based with bezier curves, 4-6 translucent layers in teal/purple, mirrored around center axis, white progress line + circular playhead. Most faithful to proposal. Requires canvas rendering + RMS data. Moderate complexity.
+- Q: Repeat button behavior → A: Repeat current section — pressing repeat restarts the current section from the beginning. Uses existing skip/section logic. Earcon: reuse "skip back" earcon or add a new one. Moderate complexity.

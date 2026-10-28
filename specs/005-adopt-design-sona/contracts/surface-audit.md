@@ -44,3 +44,12 @@ The auditee list and the allowed hex set are data owned by this contract + `data
 - FR-006 (sound accessibility): Pre = audio path available / mute state indeterminate; Post = sound plays regardless of mute; Invariant = earcon never blocks access (redundancy, not barrier).
 - FR-007 (notification purity): Pre = MediaStyle notification / lock-screen render; Post = NO brand logo / sound-wave glyph shown; Invariant = accent-only (`#F2F0E6`) + title + progress; logo waves vetoed (FR-028/FR-029).
 - Verification: host census of hex values (10 members); device leg deferred (gate-9 / SC-003 mirror).
+
+## A5. 006 — Lente Sinestésica Completa verification (added 2026-10-27)
+
+- **Wave render**: `.card::before` pseudo-element present with `background-image` pointing to `waves-top.svg`; `aria-hidden="true"` on decorative container; graceful degradation (token-color background if SVG fails); freeze `animation:none !important; transform:none !important` under reduce (CHK079/095).
+- **Title card aria inventory**: `.card` `role="region"` + `aria-label` (documentTitle or "Lente Sinestésica"); empty-state `.sr-only` == "Sem título"; decorative `aria-hidden`; focus order unchanged; no alert/assertive misuse (CHK041).
+- **Reduced-motion freeze**: `#progress-fill`, `.reason-banner.warning`, `.card::before` all `animation:none !important` under reduce; no `infinite` loops; freeze at failure/concurrent state; no auto-resume (CHK046/098).
+- **No dead elements**: zero `display:none` corpses; `data-elements="9"` unchanged; `.card::before`, `#headerMark`, `#documentTitle`, `.subtitle`, `.controls`, `.speed-control`, `#progress`, `.sr-only`, `.reason-banner`, `.version-footer` all visible (CHK079/093).
+- **Notification purity**: accent-only `#F2F0E6`; no body/rate/voice/mark; no `#B9A6F5`/`#5AD6A8` in notification style (SC-003, CHK020).
+- **Contract update workflow**: verified per §VII (3-file + source + commit justification + C-H1/C-H4 + no token creep) — see status-surface.md §S11.

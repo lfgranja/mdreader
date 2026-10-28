@@ -34,3 +34,32 @@ Continuous motion set = {pill}; the pill carries a `@media (prefers-reduced-moti
 ## S7. Change discipline
 
 Any element addition, token addition, or motion addition = coordinated edit to this contract + `data-model.md` + the spec (§VII discipline, semver treatment at release) — never an in-place convenience.
+
+## S8. Decorative wave pseudo-element (006 — Lente Sinestésica Completa)
+
+`.card::before` renders the decorative wave via static SVG (`DESIGN-SONA/assets/waves/waves-top.svg`) as `background-image`. Rules:
+- Static SVG preferred (no animated SVG); subtle animation (opacity/translate≤10px/scale≤1.05, duration ≤250ms/≤400ms) permitted ONLY outside `@media(prefers-reduced-motion:reduce)`; freeze (`animation:none !important; transform:none !important`) inside reduce (SC-004, clarification Q3 / Option C).
+- Decorative container carries `aria-hidden="true"` (C-H5); never announces; never interactive.
+- Graceful degradation: if SVG fails to load, pseudo-element keeps token-color background (`--sona-stage`/`--sona-void`); layout preserved; no alert; SC-003 accent-only notification unchanged (CHK079/095).
+- No new surface; no new token member (reuse only — S3). If unavoidable, justify per §VII + record in `DESIGN-SONA/tokens.md` + commit message (T040).
+
+## S9. Title card region
+
+`.card` is `role="region"` with `aria-label` populated from `documentTitle` (metadata_title) or fallback `"Lente Sinestésica"`. Title binding: `metadata_title.unwrap_or(filename)` (FR-002 / data-model.md TitleCard). Empty state renders `—` + `<span class="sr-only">Sem título</span>`. Long filenames: `overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0` (Option C). Acceptance criteria (CHK041): (i) role present; (ii) aria-label equality; (iii) empty-state sr-only; (iv) decorative aria-hidden; (v) focus order unchanged (`:focus-visible` `--sona-etwahl`).
+
+## S10. Refined controls (US2)
+
+Controls remain functional with complete visual: transport + stop buttons (focus rings `--sona-etwahl`), `.speed-control` rate dots positional only (no numeric rate painted — value-blindness invariant S4), `.progress` bar (`role="progressbar"`, `aria-valuetext` positional, not numeric rate), `.reason-banner` fixed-height (static failure `#FF4D63`, TTL warning `#FFD400` ≤3s, no alert/assertive). No new interactive elements (CHK019/020).
+
+## S11. Contract update workflow (§VII)
+
+Any element/token/motion addition = coordinated edit:
+1. Edit `contracts/status-surface.md` + `contracts/surface-audit.md` + `data-model.md` (3-file) + source (`status_view.html`/`status_view.rs`).
+2. Justify per proposal alignment (non-normative) + token reuse (no new members unless unavoidable).
+3. Atomic conventional commit with detailed edit summary (rule 4); reference §VII.
+4. Verify C-H4 (byte-identical S2, no dead `display:none`), C-H1 (hex census), no token creep (SC-007).
+5. If unavoidable addition: record in `DESIGN-SONA/tokens.md` + commit + re-run T033–T039 (T040).
+
+## S12. Assumption (token set)
+
+Token set unchanged (10 members, `data-model.md` §SonaToken); additions only if unavoidable per §VII (constitution: version + reason + risk in commit). Decorative wave uses existing palette only (no new members expected — CHK073 sound + validation clause). Surface count = 2 (StatusView + notification) — S1 preserved (CHK025/026).

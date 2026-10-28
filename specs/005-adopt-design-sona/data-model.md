@@ -109,4 +109,32 @@ Transport state machine, interruption classes, dismissal, session-end reasons: U
 
 ## Validation rules (traceability quick-tab)
 
+## 006 — Lente Sinestésica Completa (added 2026-10-27)
+
+### TitleCard
+
+| Field | Type | Rule |
+|---|---|---|
+| `title` | `String` | `metadata_title.unwrap_or(filename)` (FR-002). Empty metadata → `"—"` + `<span class="sr-only">Sem título</span>`. |
+| `hasTitle` | `bool` | true iff metadata_title is Some. |
+| `ariaLabel` | `Option<String>` | populated from documentTitle or fallback `"Lente Sinestésica"` (CHK041). |
+
+Constraints: long filenames use `overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0` (Option C). Decorative wave `aria-hidden="true"`; focus order unchanged; no new interactive elements.
+
+### LenteCompleta flags
+
+| Flag | Rule |
+|---|---|
+| waves enabled | decorative `.card::before` renders static SVG + subtle animation only outside reduce (CHK079/095). |
+| animations guarded | `@media(prefers-reduced-motion:reduce)` freezes wave/progress/banner (CHK046/098). |
+| reduced-motion | freeze at load + dynamic toggle; no auto-resume (SC-006, clarification Q3). |
+
+### Assumption log (CHK073)
+
+- Token set unchanged (10 members, §SonaToken). Additions only if unavoidable per §VII (constitution: version + reason + risk in commit; record in `DESIGN-SONA/tokens.md` + contracts update + re-run T033–T039).
+- Decorative wave uses existing palette only (no new members expected).
+- Surface count = 2 (StatusView + notification) — S1 preserved.
+- Metadata availability validated via upstream `metadata_title.unwrap_or(filename)` flow (T002 / status_view.rs). Empty-state covered (`—` + `.sr-only`).
+- Single-column layout preserved; decorative wave preserves space; overflow handled (CHK025/026).
+
 FR-001→SonaToken/SurfaceInventory · FR-002→NotificationSurface · FR-003/FR-009→EarconConfirmation (+DiagnosticEvent) · FR-004→header mark/host-only triad · FR-005/FR-006→SonaToken + MovementSpec/HapticDisposition set · FR-007→NotificationSurface (no mark) · FR-008→SurfaceInventory (single-column preserved; stamps + dead removals) · FR-010→EarconConfirmation latency · SC-001→census/contrast/inventory/aria/movement · SC-002→EarconConfirmation protocol + HapticDisposition · SC-005→latency oracle · SC-006→census + triad placement · SC-007→live region + freeze leg.

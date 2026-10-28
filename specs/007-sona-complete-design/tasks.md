@@ -27,9 +27,9 @@
 **Purpose**: Confirm toolchain, feature branch, and baseline green.
 
 - [x] T070 Verify feature branch `007-sona-complete-design` checked out and working tree clean (`git status`)
-- [ ] T071 [P] Verify baseline gates green: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo nextest run --workspace`
+- [x] T071 [P] Verify baseline gates green: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo nextest run --workspace`
 - [x] T072 [P] Confirm `crates/player`, `src-tauri` compile: `cargo build -p player`, `cargo build -p src-tauri`.
-- [ ] T073 [P] Review amended contracts in `specs/007-sona-complete-design/contracts/` and `data-model.md` for scope accuracy before implementation
+- [x] T073 [P] Review amended contracts in `specs/007-sona-complete-design/contracts/` and `data-model.md` for scope accuracy before implementation
 
 **Checkpoint**: Baseline green; no regressions introduced by planning artifacts.
 
@@ -47,8 +47,8 @@
 - [x] T077 Add dedicated throttled RMS IPC channel in `src-tauri/src/lib.rs`: `tauri::ipc::Channel<f32>`; publish at ~20 Hz with last-wins coalescing; skip publishes while `document.hidden`. Unit test: coalescing drops intermediate values.
 - [x] T078 [P] Add `#waveform` canvas element skeleton to `src-tauri/src/status_view.html` (aria-hidden, 388×80 CSS px default) — no rendering logic yet. Host test: element present in inventory.
 - [x] T079 [P] Scaffold property-based test module for waveform invariants in `tests/waveform_props.rs` (proptest): layer count ∈ [4,6], per-layer opacity ∈ [0.1,0.5], opacity ramp monotonic non-decreasing back→front, DPR ∈ [1,2], fps cap ≥ 33.33 ms interval.
-- [ ] T080 Create RED-phase host test file `tests/waveform_canvas_inventory.rs` asserting canvas element present, aria-hidden, and `#progress` retained (must FAIL until T078+). Mark blocking.
-- [ ] T081 Create RED-phase host test file `tests/rms_channel.rs` asserting RMS field in mirror payload / dedicated channel (must FAIL until T077). Mark blocking.
+- [x] T080 Create RED-phase host test file `tests/waveform_canvas_inventory.rs` asserting canvas element present, aria-hidden, and `#progress` retained (must FAIL until T078+). Mark blocking.
+- [x] T081 Create RED-phase host test file `tests/rms_channel.rs` asserting RMS field in mirror payload / dedicated channel (must FAIL until T077). Mark blocking.
 
 **Checkpoint**: Foundation ready — RMS plumbing + IPC channel + canvas skeleton + RED tests in place. All RED tests must FAIL before proceeding.
 
@@ -62,11 +62,11 @@
 
 ### Tests for US1 (TDD RED phase — write FIRST, must FAIL before implementation) ⚠️
 
-- [ ] T082 [P] [US1] Host test `tests/visual_ux_census.rs`: hex census over `status_view.html` allows jade/celeste only in sanctioned scopes (waveform ribbon draw + decorative wave); rate/title/notification/glow must not contain jade/celeste. Property test: for every hex occurrence, scope tuple ∈ allowlist.
-- [ ] T083 [P] [US1] Host test `tests/glassmorphism_contract.rs`: assert `backdrop-filter: blur(24px)` present, overlay `rgba(20,27,45,0.65)`, Doppelrand borders, solid `--sona-stage` fallback. Must FAIL initially.
-- [ ] T084 [P] [US1] Host test `tests/glow_scope.rs`: assert glow `box-shadow` only on header mark and waveform baseline with alpha 0.20 (band 0.15–0.25); no other elements. Must FAIL initially.
-- [ ] T085 [P] [US1] Host test `tests/decorative_wave.rs`: assert `wave-subtle` one-shot ≤400 ms, base opacity 0.80, peak 0.90, reduced-motion `animation: none; opacity: 0.80`. Must FAIL initially.
-- [ ] T086 [P] [US1] Host test `tests/overflow_empty_title.rs`: assert long-filename overflow rules and empty-state glyph `—` + `.sr-only` "Sem título". Must FAIL initially.
+- [x] T082 [P] [US1] Host test `tests/visual_ux_census.rs`: hex census over `status_view.html` allows jade/celeste only in sanctioned scopes (waveform ribbon draw + decorative wave); rate/title/notification/glow must not contain jade/celeste. Property test: for every hex occurrence, scope tuple ∈ allowlist.
+- [x] T083 [P] [US1] Host test `tests/glassmorphism_contract.rs`: assert `backdrop-filter: blur(24px)` present, overlay `rgba(20,27,45,0.65)`, Doppelrand borders, solid `--sona-stage` fallback. Must FAIL initially.
+- [x] T084 [P] [US1] Host test `tests/glow_scope.rs`: assert glow `box-shadow` only on header mark and waveform baseline with alpha 0.20 (band 0.15–0.25); no other elements. Must FAIL initially.
+- [x] T085 [P] [US1] Host test `tests/decorative_wave.rs`: assert `wave-subtle` one-shot ≤400 ms, base opacity 0.80, peak 0.90, reduced-motion `animation: none; opacity: 0.80`. Must FAIL initially.
+- [x] T086 [P] [US1] Host test `tests/overflow_empty_title.rs`: assert long-filename overflow rules and empty-state glyph `—` + `.sr-only` "Sem título". Must FAIL initially.
 
 **Checkpoint (RED)**: All US1 tests written and FAILING. Do not proceed to implementation until confirmed failing.
 
@@ -91,14 +91,14 @@
 
 ### Tests for US2 (TDD RED phase — write FIRST, must FAIL before implementation) ⚠️
 
-- [ ] T093 [P] [US2] Host test `tests/rms_instrumentation.rs`: assert `AtomicF32` RMS in `SampleQueue::consume_into`, no allocation on hot path, known sine block → expected RMS. Property test: RMS ∈ [0,1] for any input. Must FAIL initially.
-- [ ] T094 [P] [US2] Host test `tests/rms_channel.rs`: assert dedicated throttled channel ~20 Hz, last-wins coalescing, skip while hidden. Must FAIL initially.
-- [ ] T095 [P] [US2] Host test `tests/waveform_canvas.rs`: assert canvas `aria-hidden="true"`, no `role="img"`, smooth ribbons (5 layers, bezier CP, opacity ramp), integrated playhead (center line + knob), no knob in indeterminate. Must FAIL initially.
-- [ ] T096 [P] [US2] Host test `tests/progress_integration.rs`: assert `#progress` sr-only `role="progressbar"` with `aria-valuenow/min/max/valuetext`, updated by `renderProgress()`; live region populated on ≥5% delta or state transition. Must FAIL initially.
-- [ ] T097 [P] [US2] Host test `tests/repeat_control.rs`: assert repeat button present, `aria-label="Repetir seção"`, restarts current section, earcon = SkipBack (Allegro-trás), haptic id 4. Must FAIL initially.
-- [ ] T098 [P] [US2] Host test `tests/numeric_rate.rs`: assert painted numeric rate `1.25×` in speed-control area only; `aria-valuetext` retains positional descriptor. Must FAIL initially.
-- [ ] T099 [P] [US2] Host test `tests/waveform_performance.rs`: assert 30 fps cap (33.33 ms gate), pause on `visibilitychange`, freeze under reduced motion, DPR cap 2×, static placeholder fallback, 0 heap allocations per redraw. Must FAIL initially.
-- [ ] T100 [P] [US2] Property-based test `tests/waveform_props.rs` (proptest): layer count ∈ [4,6]; per-layer opacity ∈ [0.1,0.5] and monotonic non-decreasing; DPR ∈ [1,2]; fps interval ≥ 33.33 ms; RMS ∈ [0,1]. Must FAIL initially.
+- [x] T093 [P] [US2] Host test `tests/rms_instrumentation.rs`: assert `AtomicF32` RMS in `SampleQueue::consume_into`, no allocation on hot path, known sine block → expected RMS. Property test: RMS ∈ [0,1] for any input. Must FAIL initially.
+- [x] T094 [P] [US2] Host test `tests/rms_channel.rs`: assert dedicated throttled channel ~20 Hz, last-wins coalescing, skip while hidden. Must FAIL initially.
+- [x] T095 [P] [US2] Host test `tests/waveform_canvas.rs`: assert canvas `aria-hidden="true"`, no `role="img"`, smooth ribbons (5 layers, bezier CP, opacity ramp), integrated playhead (center line + knob), no knob in indeterminate. Must FAIL initially.
+- [x] T096 [P] [US2] Host test `tests/progress_integration.rs`: assert `#progress` sr-only `role="progressbar"` with `aria-valuenow/min/max/valuetext`, updated by `renderProgress()`; live region populated on ≥5% delta or state transition. Must FAIL initially.
+- [x] T097 [P] [US2] Host test `tests/repeat_control.rs`: assert repeat button present, `aria-label="Repetir seção"`, restarts current section, earcon = SkipBack (Allegro-trás), haptic id 4. Must FAIL initially.
+- [x] T098 [P] [US2] Host test `tests/numeric_rate.rs`: assert painted numeric rate `1.25×` in speed-control area only; `aria-valuetext` retains positional descriptor. Must FAIL initially.
+- [x] T099 [P] [US2] Host test `tests/waveform_performance.rs`: assert 30 fps cap (33.33 ms gate), pause on `visibilitychange`, freeze under reduced motion, DPR cap 2×, static placeholder fallback, 0 heap allocations per redraw. Must FAIL initially.
+- [x] T100 [P] [US2] Property-based test `tests/waveform_props.rs` (proptest): layer count ∈ [4,6]; per-layer opacity ∈ [0.1,0.5] and monotonic non-decreasing; DPR ∈ [1,2]; fps interval ≥ 33.33 ms; RMS ∈ [0,1]. Must FAIL initially.
 
 **Checkpoint (RED)**: All US2 tests written and FAILING. Do not proceed to implementation until confirmed failing.
 
@@ -125,8 +125,8 @@
 
 ### Tests for US3 (TDD RED phase — write FIRST, must FAIL before implementation) ⚠️
 
-- [ ] T109 [P] [US3] Host test `tests/chroma_scoped.rs`: assert celeste/jade appear only in sanctioned scopes (waveform ribbon draw code + decorative wave CSS/SVG); rate/title/notification/glow must not contain them. Property test: every hex occurrence's scope tuple ∈ allowlist. Must FAIL initially.
-- [ ] T110 [P] [US3] Host test `tests/surface_inventory_count.rs`: assert `data-elements="10"` and 10-element inventory present; no `display:none` corpses. Must FAIL initially.
+- [x] T109 [P] [US3] Host test `tests/chroma_scoped.rs`: assert celeste/jade appear only in sanctioned scopes (waveform ribbon draw code + decorative wave CSS/SVG); rate/title/notification/glow must not contain them. Property test: every hex occurrence's scope tuple ∈ allowlist. Must FAIL initially.
+- [x] T110 [P] [US3] Host test `tests/surface_inventory_count.rs`: assert `data-elements="10"` and 10-element inventory present; no `display:none` corpses. Must FAIL initially.
 - [x] T111 [P] [US3] Host test `tests/aria_inventory_007.rs` + `tests/notification_purity.rs`: assert canvas `aria-hidden`, `#progress` sr-only progressbar, live region, no `role="img"`, notification accent-only (MediaStyle block contains only `#F2F0E6`, no structural change). Must FAIL initially.
 - [x] T112 [P] [US3] Host test `tests/movement_census_007.rs`: assert ≤1 continuous loop (pill only), no new `@keyframes` for waveform, reduced-motion guard on canvas. Must FAIL initially.
 - [x] T113 [P] [US3] Host test `tests/byte_identity_007.rs`: assert SHA-256 of `status_view.html` == served bundle hash + file size. Must FAIL initially.

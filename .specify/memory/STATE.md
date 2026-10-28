@@ -372,3 +372,4 @@ governance) · `9208578` (v1.8.0 bzip2-1.0.6 admission).
   Assets PNG e SVG gerados via Storytold (PhotoCraft + VectorCraft + FigCraft).
 
 
+T028: gate-9 build artifact confirmed: app-universal-release.apk (118MB, aarch64)

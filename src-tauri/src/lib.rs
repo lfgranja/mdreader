@@ -86,6 +86,11 @@ pub mod shell_jni;
 /// through these getters — never a second definition.
 pub mod surface;
 
+/// The engine-failure surface (T078).
+///
+/// The named failure + alternatives rendering, conforming to
+/// the T065 reason shapes.
+pub mod failure;
 /// The minimal in-app status view (T065b).
 ///
 /// The read-only render of the stored `last_rate`, the
@@ -94,11 +99,6 @@ pub mod surface;
 /// with no playback logic and no second string definition.
 pub mod status_view;
 pub mod surface_audit;
-/// The engine-failure surface (T078).
-///
-/// The named failure + alternatives rendering, conforming to
-/// the T065 reason shapes.
-pub mod failure;
 
 /// The append-only diagnostic record (FR-017 / T097).
 ///

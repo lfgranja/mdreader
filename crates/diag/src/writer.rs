@@ -86,7 +86,7 @@ pub enum EventKind {
     /// A storage-exhaustion gap marker.
     Gap,
     /// A truncation of an in-flight user earcon (latest-wins, E2.2);
-    /// carries the truncation counter (data-model §DiagnosticEvent).
+    /// carries the truncation counter (data-model §`DiagnosticEvent`).
     EarconTruncation,
     /// A typed emission-failure event (synthesis error / short channel
     /// unavailable); carries the required `error` field (E4).

@@ -579,10 +579,7 @@ impl CpalBackend {
     /// consumed yet.
     #[must_use]
     pub fn rms(&self) -> f32 {
-        self.queue
-            .lock()
-            .map(|q| q.rms())
-            .unwrap_or(0.0)
+        self.queue.lock().map_or(0.0, |q| q.rms())
     }
 
     /// Enqueue duck-exempt earcon PCM (contracts/earcon.md):

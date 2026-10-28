@@ -3525,6 +3525,7 @@ pub mod commands {
             "stop" => Ok(BridgeAction::Verb(ShellVerb::Stop)),
             "skip_forward5s" => Ok(BridgeAction::Verb(ShellVerb::SkipForward)),
             "skip_back5s" => Ok(BridgeAction::Verb(ShellVerb::SkipBackward)),
+            "repeat_section" => Ok(BridgeAction::Verb(ShellVerb::SkipBackward)),
             "rate_up" => Ok(BridgeAction::Verb(ShellVerb::RateUp)),
             "rate_down" => Ok(BridgeAction::Verb(ShellVerb::RateDown)),
             "cycle_voice_next" => Ok(BridgeAction::Verb(ShellVerb::CycleVoiceNext)),

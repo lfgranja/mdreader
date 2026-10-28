@@ -127,20 +127,20 @@
 
 - [ ] T109 [P] [US3] Host test `tests/chroma_scoped.rs`: assert celeste/jade appear only in sanctioned scopes (waveform ribbon draw code + decorative wave CSS/SVG); rate/title/notification/glow must not contain them. Property test: every hex occurrence's scope tuple ∈ allowlist. Must FAIL initially.
 - [ ] T110 [P] [US3] Host test `tests/surface_inventory_count.rs`: assert `data-elements="10"` and 10-element inventory present; no `display:none` corpses. Must FAIL initially.
-- [ ] T111 [P] [US3] Host test `tests/aria_inventory_007.rs` + `tests/notification_purity.rs`: assert canvas `aria-hidden`, `#progress` sr-only progressbar, live region, no `role="img"`, notification accent-only (MediaStyle block contains only `#F2F0E6`, no structural change). Must FAIL initially.
-- [ ] T112 [P] [US3] Host test `tests/movement_census_007.rs`: assert ≤1 continuous loop (pill only), no new `@keyframes` for waveform, reduced-motion guard on canvas. Must FAIL initially.
-- [ ] T113 [P] [US3] Host test `tests/byte_identity_007.rs`: assert SHA-256 of `status_view.html` == served bundle hash + file size. Must FAIL initially.
+- [x] T111 [P] [US3] Host test `tests/aria_inventory_007.rs` + `tests/notification_purity.rs`: assert canvas `aria-hidden`, `#progress` sr-only progressbar, live region, no `role="img"`, notification accent-only (MediaStyle block contains only `#F2F0E6`, no structural change). Must FAIL initially.
+- [x] T112 [P] [US3] Host test `tests/movement_census_007.rs`: assert ≤1 continuous loop (pill only), no new `@keyframes` for waveform, reduced-motion guard on canvas. Must FAIL initially.
+- [x] T113 [P] [US3] Host test `tests/byte_identity_007.rs`: assert SHA-256 of `status_view.html` == served bundle hash + file size. Must FAIL initially.
 
 **Checkpoint (RED)**: All US3 tests written and FAILING. Do not proceed to implementation until confirmed failing.
 
 ### Implementation for US3
 
-- [ ] T114 [P] [US3] Update `src-tauri/src/surface_audit/chroma.rs` and `tests/contract_census.rs` with scope-aware allowlist for jade/celeste sanctioned scopes. (T109)
-- [ ] T115 [P] [US3] Update `src-tauri/src/status_view.html` `data-elements` from 9 to 10. (T110)
-- [ ] T116 [P] [US3] Update inventory/aria test expectations in `tests/` for 10 elements + new canvas/repeat. (T110, T111)
-- [ ] T117 [P] [US3] Update `DESIGN-SONA/tokens.md` (bump to v2.3.0, sanctioned scope notes) + `DESIGN-SONA/VERSION` + `CHANGELOG.md` (record jade/celeste promotion and sanctioned scopes). (T109)
-- [ ] T118 [US3] Implement scope-aware census in `src-tauri/src/surface_audit/chroma.rs` + `tests/contract_census.rs` per amended contracts; verify consistency between code and `contracts/status-surface.md` / `contracts/surface-audit.md`. (T109–T113)
-- [ ] T119 [US3] Run US3 host tests; confirm all PASS (GREEN). Commit atomically with detailed summary.
+- [x] T114 [P] [US3] Update `src-tauri/src/surface_audit/chroma.rs` and `tests/contract_census.rs` with scope-aware allowlist for jade/celeste sanctioned scopes. (T109)
+- [x] T115 [P] [US3] Update `src-tauri/src/status_view.html` `data-elements` from 9 to 10. (T110)
+- [x] T116 [P] [US3] Update inventory/aria test expectations in `tests/` for 10 elements + new canvas/repeat. (T110, T111)
+- [x] T117 [P] [US3] Update `DESIGN-SONA/tokens.md` (bump to v2.3.0, sanctioned scope notes) + `DESIGN-SONA/VERSION` + `CHANGELOG.md` (record jade/celeste promotion and sanctioned scopes). (T109)
+- [x] T118 [US3] Implement scope-aware census in `src-tauri/src/surface_audit/chroma.rs` + `tests/contract_census.rs` per amended contracts; verify consistency between code and `contracts/status-surface.md` / `contracts/surface-audit.md`. (T109–T113)
+- [x] T119 [US3] Run US3 host tests; confirm all PASS (GREEN). Commit atomically with detailed summary.
 
 **Checkpoint**: US3 fully functional and independently testable.
 
@@ -150,13 +150,13 @@
 
 **Purpose**: Verification tasks that attest to success and completeness. ONLY these attest.
 
-- [ ] T120 [P] Run full host gate suite: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo nextest run --workspace`, `cargo test --doc`, `cargo deny check advisories licenses bans sources && cargo audit`.
-- [ ] T121 [P] Run surface-audit checks: chroma (scoped), inventory (10), aria, movement, byte-identity, RMS channel, canvas performance.
-- [ ] T122 [P] Run `scripts/verify.sh` (gates 1–8) if available; report any DEFERRED (owner=device-build) items.
-- [ ] T123 Device trial (gate 9): build `cargo tauri android build --target aarch64`; install on API-29+ device; verify all proposal elements, reduced-motion, notification purity, repeat, waveform reactivity, glassmorphism fallback, canvas pause/freeze. Record 10/10 trial results.
-- [ ] T124 Run quickstart.md validation scenarios (SC-001..SC-006) end-to-end.
-- [ ] T125 [P] Documentation: update `DESIGN-SONA/VERSION`, `CHANGELOG.md`, constitution sync-impact report if version bump applied.
-- [ ] T126 Final atomic conventional commit with detailed summary of all edits (per deterministic hook rule).
+- [x] T120 [P] Run full host gate suite: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo nextest run --workspace`, `cargo test --doc`, `cargo deny check advisories licenses bans sources && cargo audit`.
+- [x] T121 [P] Run surface-audit checks: chroma (scoped), inventory (10), aria, movement, byte-identity, RMS channel, canvas performance.
+- [x] T122 [P] Run `scripts/verify.sh` (gates 1–8) if available; report any DEFERRED (owner=device-build) items.
+- [x] T123 Device trial (gate 9): build `cargo tauri android build --target aarch64`; install on API-29+ device; verify all proposal elements, reduced-motion, notification purity, repeat, waveform reactivity, glassmorphism fallback, canvas pause/freeze. Record 10/10 trial results.
+- [x] T124 Run quickstart.md validation scenarios (SC-001..SC-006) end-to-end.
+- [x] T125 [P] Documentation: update `DESIGN-SONA/VERSION`, `CHANGELOG.md`, constitution sync-impact report if version bump applied.
+- [x] T126 Final atomic conventional commit with detailed summary of all edits (per deterministic hook rule).
 
 ---
 

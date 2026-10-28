@@ -24,13 +24,12 @@
       --sona-etwahl: #8FD8E8;
       --sona-hush: #A9B8CE;
       --sona-harp: #E8C46A;
-      --sona-celeste: #B9A6F5;
       --sona-boundary: #55688F;
       --signal-caution: #FFD400;
       --signal-failure: #FF4D63;
       --radius: 16px;
-      --btn-primary: var(--sona-etwahl); /* --sona-etwahl (focus/progress only; never failure/warning) */
-      --btn-primary-hover: var(--sona-etwahl);
+      --btn-primary: var(--sona-hush); /* was --sona-etwahl; changed per Constitution S3 (token only in :focus-visible) */
+      --btn-primary-hover: var(--sona-hush);
       --btn-secondary: #55688F;
       --btn-stop: #55688F;
       --btn-stop-hover: #55688F;
@@ -132,6 +131,11 @@
     button.secondary:hover:not(:disabled) { background: #55688F; }
     button.stop { background: var(--btn-stop); color: var(--sona-voice); }
     button.stop:hover:not(:disabled) { background: var(--btn-stop-hover); }
+    /* Focus ring: --sona-etwahl ONLY in :focus-visible (Constitution S3) */
+    button:focus-visible {
+      outline: 2px solid var(--sona-etwahl);
+      outline-offset: 2px;
+    }
     .speed-control {
       display: flex;
       align-items: center;
@@ -417,6 +421,8 @@
     // name ever reaches a user-visible surface (naming
     // boundary, T047).
     els.documentTitle.textContent = state.title || '';
+    const card = document.querySelector('.card');
+    if (card) card.setAttribute('aria-label', state.title || 'Lente Sinestésica');
   }
 
   function renderProgress() {

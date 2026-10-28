@@ -205,8 +205,8 @@ Phase 1 (Setup) ──► Phase 2 (Foundational / BLOCKING) ──► Phase 3 (U
 
 ## Phase 7: Convergence
 
-- [ ] T041 Add `:focus-visible` CSS rules with `--sona-etwahl` outline for all 6 interactive controls (btnSkipBack, btnPlayPause, btnStop, btnSkipForward, btnRateDown, btnRateUp) per SC-002 / FR-001 / Constitution S3 (missing)
-- [ ] T042 Remove `--btn-primary: var(--sona-etwahl)` usage outside `:focus-visible` (Constitution S3 MUST violation — token appears only in `:focus-visible`) (contradicts)
-- [ ] T043 Update `.card` `aria-label` dynamically from `documentTitle` in `renderDocumentTitle()` (fallback "Lente Sinestésica") per FR-002 / SC-002 / CHK041 (partial)
-- [ ] T044 Remove duplicate `#B9A6F5` celeste declaration from one `:root` block (keep scaffold tokens) per C-H1 / S3 (partial)
-- [ ] T045 Fix false-positive RED tests: `census_banned_celeste_absent` (allow celeste in token declaration, flag duplicates), `no_infinite_loops_in_css` (allow indeterminate progress as sole continuous motion per S5), `us1_speed_dots_no_numeric_rate` (exclude LADDER constant array), `us2_banner_no_autodismiss_failure` (fix split logic to isolate failure branch) (partial)
+- [X] T041 Add `:focus-visible` CSS rules with `--sona-etwahl` outline for all 6 interactive controls (btnSkipBack, btnPlayPause, btnStop, btnSkipForward, btnRateDown, btnRateUp) per SC-002 / FR-001 / Constitution S3 (missing)
+- [X] T042 Remove `--btn-primary: var(--sona-etwahl)` usage outside `:focus-visible` (Constitution S3 MUST violation — token appears only in `:focus-visible`) (contradicts)
+- [X] T043 Update `.card` `aria-label` dynamically from `documentTitle` in `renderDocumentTitle()` (fallback "Lente Sinestésica") per FR-002 / SC-002 / CHK041 (partial)
+- [X] T044 Remove duplicate `#B9A6F5` celeste declaration from one `:root` block (keep scaffold tokens) per C-H1 / S3 (partial)
+- [X] T045 Fix false-positive RED tests: `census_banned_celeste_absent` (allow celeste in token declaration, flag duplicates), `no_infinite_loops_in_css` (allow indeterminate progress as sole continuous motion per S5), `us1_speed_dots_no_numeric_rate` (exclude LADDER constant array), `us2_banner_no_autodismiss_failure` (fix split logic to isolate failure branch) (partial)

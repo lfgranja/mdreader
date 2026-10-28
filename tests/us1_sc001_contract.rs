@@ -44,10 +44,21 @@ fn us1_no_excluded_paints() {
 #[test]
 fn us1_speed_dots_no_numeric_rate() {
     let html = std::fs::read_to_string("src-tauri/src/status_view.html").unwrap_or_default();
-    // speed-dots contains no text numerals (positional only)
-    let dots_section = html.split("speed-dots").nth(1).unwrap_or("");
-    assert!(!dots_section.contains("1.0") && !dots_section.contains("1.25"),
-        ".speed-dots must be positional only (no numeric rate) (C-H3)");
+    // speed-dots renders only span dots (positional); numeric rate must not be painted.
+    // The LADDER constant array in JS is not rendered — exclude it from the check.
+    // The speed-dots div must have no text content (positional dots only).
+    // Check the div element itself, not surrounding CSS/JS.
+    assert!(html.contains("<div class=\"speed-dots\"") || html.contains("class=\"speed-dots\""),
+        ".speed-dots element must exist (C-H3)");
+    // The div must be empty (no painted numerals inside)
+    // Find the actual HTML div (not CSS), which has no text content.
+    let html_marker = "speed-dots\" id=\"speedDots\"";
+    let div_start = html.find(html_marker).unwrap_or(0);
+    let div_content = &html[div_start..];
+    let div_end = div_content.find("</div>").unwrap_or(div_content.len());
+    let inner = &div_content[..div_end];
+    assert!(!inner.contains("1.0") && !inner.contains("1.25") && !inner.contains("2.0"),
+        ".speed-dots must be positional only (no numeric rate painted) (C-H3)");
 }
 
 #[test]

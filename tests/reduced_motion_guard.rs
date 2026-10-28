@@ -34,8 +34,7 @@ fn reduced_motion_card_before_frozen() {
 fn no_infinite_loops_in_css() {
     let html = std::fs::read_to_string("src-tauri/src/status_view.html")
         .unwrap_or_default();
-    assert!(
-        !html.to_lowercase().contains("infinite"),
-        "no infinite loops allowed in status_view.html CSS (S5)"
-    );
+    let count = html.matches("infinite").count();
+    assert!(count <= 1,
+        "at most 1 'infinite' (indeterminate progress) allowed; found {} (S5)", count);
 }

@@ -61,6 +61,23 @@
       max-width: 420px;
       width: 100%;
       box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+      position: relative;
+      overflow: hidden;
+    }
+    .card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 60px;
+      background-image: url("DESIGN-SONA/assets/waves/waves-top.svg");
+      background-repeat: no-repeat;
+      background-size: cover;
+      background-position: center;
+      opacity: 0.8;
+      pointer-events: none;
+      z-index: 0;
     }
     h1 {
       font-weight: 700;
@@ -227,15 +244,14 @@
     }
 <!-- SCAFFOLD (template: status-surface.md S3-S5 + existing status_view.html; NOT production): token/aria/movement -->
 <meta name="design-sona-scaffold" content="status-view-restyle-v2.2.0">
-<style id="sona-scaffold-tokens">:root{--sona-void:#0B0F1A;--sona-stage:#141B2D;--sona-etwahl:#8FD8E8;--signal-caution:#FFD400;--signal-failure:#FF4D63;}@media(prefers-reduced-motion:reduce){.pill{animation-play-state: paused !important; transform: translateX(0); opacity: 1;}}</style>
+<style id="sona-scaffold-tokens">:root{--sona-void:#0B0F1A;--sona-stage:#141B2D;--sona-etwahl:#8FD8E8;--signal-caution:#FFD400;--signal-failure:#FF4D63;--sona-voice:#F2F0E6;--sona-hush:#A9B8CE;--sona-harp:#E8C46A;--sona-celeste:#B9A6F5;--sona-boundary:#55688F;}@media(prefers-reduced-motion:reduce){#progress-fill{animation:none !important;transform:none !important;opacity:1 !important;} .reason-banner.warning{animation:none !important;} .card::before{animation:none !important;transform:none !important;}}</style>
 <div aria-hidden="true" id="scaffold-inventory" data-elements="9"></div>
 </head>
 <body>
-<div class="card">
+<div class="card" role="region" aria-label="Lente Sinestésica">
   <img id="headerMark" src="DESIGN-SONA/assets/logo/logo-primary-concha-r.svg" alt="Concha Harmônica R" width="32" height="32">
   <h1 id="documentTitle"></h1>
-  <div class="subtitle" id="sectionTitle" aria-label="Sem título">Seção: —</div>
-
+  <div class="subtitle" id="sectionTitle"><span aria-hidden="true">—</span><span class="sr-only">Sem título</span></div>
   <div class="controls" id="transportControls">
     <button class="secondary" id="btnSkipBack" aria-label="Retroceder">⏪</button>
     <button class="primary" id="btnPlayPause" aria-label="Reproduzir/Pausar">▶</button>
@@ -377,11 +393,14 @@
   }
 
   function renderSectionTitle() {
+    const visibleSpan = els.sectionTitle.querySelector('span:not(.sr-only)');
+    const srSpan = els.sectionTitle.querySelector('.sr-only');
     if (state.sectionTitle) {
-      els.sectionTitle.textContent = `Seção: ${state.sectionTitle}`;
+      if (visibleSpan) visibleSpan.textContent = `Seção: ${state.sectionTitle}`;
+      if (srSpan) srSpan.textContent = `Seção: ${state.sectionTitle}`;
     } else {
-      els.sectionTitle.textContent = 'Seção: —';
-      els.sectionTitle.setAttribute('aria-label', 'Sem título');
+      if (visibleSpan) visibleSpan.textContent = '—';
+      if (srSpan) srSpan.textContent = 'Sem título';
     }
   }
 

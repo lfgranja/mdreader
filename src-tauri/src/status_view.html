@@ -58,14 +58,13 @@
       background: rgba(20,27,45,0.65);
       backdrop-filter: blur(24px) saturate(120%);
       -webkit-backdrop-filter: blur(24px) saturate(120%);
-      border: 1px solid rgba(255,255,255,0.06);
-      box-shadow: inset 0 0 0 1px rgba(143,216,232,0.15), 0 20px 60px rgba(0,0,0,0.6);
-      border-radius: var(--radius);
+      border: 1px solid rgba(143,216,232,0.3);
+      /* Doppelrand borders */
+      box-shadow: inset 0 0 0 1px rgba(143,216,232,0.15), 0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05);
       padding: 2rem;
       max-width: 420px;
       width: 100%;
       position: relative;
-      overflow: hidden;
     }
     @supports not (backdrop-filter: blur(1px)) {
       .card { background: var(--sona-stage); }
@@ -82,18 +81,25 @@
       background-size: cover;
       background-position: center;
       opacity: 0.8;
-      animation: wave-subtle 400ms ease-in-out;
       pointer-events: none;
       z-index: 0;
     }
-    @keyframes wave-subtle {
-      0% { opacity: 0.8; transform: translateY(0); }
-      50% { opacity: 0.9; transform: translateY(-2px); }
-      100% { opacity: 0.8; transform: translateY(0); }
-    }
+    .wave-subtle {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 60px;
+      background-image: url("DESIGN-SONA/assets/waves/waves-top.svg");
+      background-repeat: no-repeat;
+      background-size: cover;
+      background-position: center;
+      opacity: 0.8;
+      pointer-events: none;
+      z-index: 0;
     #waveform { width: 100%; height: 80px; display: block; border-radius: 8px; box-shadow: 0 0 10px rgba(232,196,106,0.20); }
     #headerMark { box-shadow: 0 0 20px rgba(143,216,232,0.20); }
-    .rate-value { color: var(--sona-voice); font-variant-numeric: tabular-nums; margin: 0 0.5rem; }
+    .rate-value { display: none !important; }
     h1 {
       font-weight: 700;
       font-size: 1.6rem;
@@ -210,6 +216,7 @@
       font-size: .85rem;
       font-weight: 500;
       display: none;
+      animation: slidein .2s ease;
     }
     .reason-banner.visible { display: block; }
     .reason-banner.warning { background: transparent; border: 1px solid var(--signal-caution); color: var(--signal-caution); animation: slideIn .2s ease; }
@@ -264,11 +271,11 @@
     }
 <!-- SCAFFOLD (template: status-surface.md S3-S5 + existing status_view.html; NOT production): token/aria/movement -->
 <meta name="design-sona-scaffold" content="status-view-restyle-v2.2.0">
-<style id="sona-scaffold-tokens">:root{--sona-void:#0B0F1A;--sona-stage:#141B2D;--sona-etwahl:#8FD8E8;--signal-caution:#FFD400;--signal-failure:#FF4D63;--sona-voice:#F2F0E6;--sona-hush:#A9B8CE;--sona-harp:#E8C46A;--sona-celeste:#B9A6F5;--sona-aria:#5AD6A8;--sona-boundary:#55688F;}@media(prefers-reduced-motion:reduce){#progress-fill{animation:none !important;transform:none !important;opacity:1 !important;} .reason-banner.warning{animation:none !important;} .card::before{animation:none !important;transform:none !important;}#waveform{animation:none !important;}}</style>
+<style id="sona-scaffold-tokens">:root{--sona-void:#0B0F1A;--sona-stage:#141B2D;--sona-etwahl:#8FD8E8;--signal-caution:#FFD400;--signal-failure:#FF4D63;--sona-voice:#F2F0E6;--sona-hush:#A9B8CE;--sona-harp:#E8C46A;--sona-celeste:#B9A6F5;--sona-aria:#5AD6A8;--sona-boundary:#55688F;}@media(prefers-reduced-motion:reduce){#progress-fill{animation:none !important;transform:none !important;opacity:1 !important;animation-play-state: paused !important;} .reason-banner.warning{animation:none !important;animation-play-state: paused !important;} .card::before{animation:none !important;transform:none !important;animation-play-state: paused !important;}#waveform{animation:none !important;animation-play-state: paused !important;}}</style>
 <div aria-hidden="true" id="scaffold-inventory" data-elements="10"></div>
 </head>
 <div class="card" role="region" aria-label="Lente Sinestésica">
-  <img id="headerMark" src="DESIGN-SONA/assets/logo/logo-primary-concha-r.svg" alt="Concha Harmônica R" width="32" height="32">
+  <img id="headerMark" src="DESIGN-SONA/assets/headers/concha-harmonica-r.svg" alt="Concha Harmônica R" width="32" height="32">
   <h1 id="documentTitle"></h1>
   <div class="subtitle" id="sectionTitle"><span aria-hidden="true">—</span><span class="sr-only">Sem título</span></div>
   <canvas id="waveform" aria-hidden="true" width="388" height="80"></canvas>
@@ -864,6 +871,30 @@
     }
 
     await registerPublishListener();
+    // Register RMS channel for waveform (T102)
+    try {
+      if (typeof invoke === 'function') {
+        await invoke('register_rms_listener');
+      }
+    } catch (e) {
+      console.warn('rms listener registration failed', e);
+    }
+    // Notify visibility changes for RMS throttling
+    const reportVisibility = () => {
+      try {
+        if (typeof invoke === 'function') {
+          invoke('set_rms_visibility', { hidden: document.hidden });
+        }
+      } catch (e) {}
+    };
+    reportVisibility();
+    document.addEventListener('visibilitychange', reportVisibility);
+    if (window.__TAURI__ && window.__TAURI__.event) {
+      window.__TAURI__.event.listen('tauri://channel/rms', (event) => {
+        // RMS updates received; waveform can use them if needed
+        window.__RMS__ = event.payload;
+      });
+    }
     renderAll();
     // The route of the offer is polled on the cadence of the
     // shell: the cold start opens the document behind the offer,

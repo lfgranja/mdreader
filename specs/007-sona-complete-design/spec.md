@@ -24,7 +24,7 @@ Como usuário em uso (condução/olhar periférico), quero ver o design completo
 
 **Why this priority**: Entrega visual completa da proposta original, sem exclusões.
 
-**Independent Test**: Open app, verify all proposal elements present: wave ribbons, glassmorphism card, waveform visualizer, numeric rate `1.25×`, repeat button, glow effects.
+- **Independent Test**: Open app, verify all proposal visual elements present: wave ribbons (teal→jade→violet), glassmorphism card, glow/neon effects, decorative wave, title card with metadata/filename fallback, empty-state glyph. (Numeric rate display and repeat control are validated under US2.)
 
 **Acceptance Scenarios**:
 
@@ -57,18 +57,17 @@ Como sistema, deve manter invariante: notificação permanece accent-only, close
 ## Requirements
 
 ### Functional Requirements
-
 - **FR-001**: Apply complete SONA design to single StatusView: decorative wave ribbons (teal-to-violet, glassmorphism), title card (frosted translucent), waveform visualizer (reactive), refined controls (repeat, prev, play, next, speed with numeric rate), glow/neon effects — respecting amended constitution (v2.0.0).
 - **FR-002**: Title card must use upstream authority `metadata_title.unwrap_or(filename)`; empty state glyph `—` with `aria-label="Sem título"`.
 - **FR-003**: Rate displays numeric value (`1.25×`) painted in the speed-control area next to positional dots; value-blind constraint amended to allow painted numeric rate in speed-control area only. `aria-valuetext` retains positional descriptor.
 - **FR-004**: Respect reduced-motion: provide reduced-motion guard for all decorative animations; maintain S5 (≤1 continuous loop, or justify additional loops).
 - **FR-005**: Static assets preferred (SVG/CSS); CSS animations allowed with reduced-motion guard; no scripts/foreignObject. Glassmorphism may use `rgba()`/`rgb()` alpha variants for translucency, with base colors as verbatim SonaToken members (S3 amended).
 - **FR-006**: Notification remains accent-only (no body/rate/voice/mark) — unchanged from 006.
-- **FR-007**: Update contracts if tokens/layout change; maintain surface count = 2; expand token set (jade, celeste) with §VII justification.
-- **FR-008**: Waveform visualizer must be reactive to playback state via true RMS: AtomicF32 in audio callback (`consume_into`), throttled IPC channel (~20 Hz), canvas-based smooth ribbon visualization (4-6 translucent bezier curves in teal→jade→violet, mirrored around center axis, white progress line + circular playhead). Graceful degradation: static waveform placeholder if RMS unavailable. No allocation on hot path. Cap 30 fps on mobile, pause on visibilitychange.
-- **FR-009**: Glassmorphism via `backdrop-filter: blur(24px)` + translucent overlay (verbatim token + opacity property). Fallback to solid `--sona-stage` if unsupported. Reduced-motion guard applies.
-- **FR-010**: Glow/neon effects via `box-shadow` on header mark (`0 0 20px var(--sona-etwahl)`) and waveform baseline (`0 0 10px var(--sona-harp)`). Subtle, 2 elements max. Reduced-motion guard applies.
-- **FR-011**: Repeat button restarts the current section from the beginning. Reuses existing skip/section logic. Earcon: reuse "skip back" earcon. New interactive element added to inventory (update C-H4).
+- **FR-007**: Update contracts if tokens/layout change; maintain surface count = 2 (surfaces) and inventory count = 10 (elements); expand token set (jade, celeste) with §VII justification.
+- **FR-008**: Waveform visualizer reactive via true RMS: AtomicF32 in audio callback (`consume_into`), throttled IPC channel (~20 Hz, last-wins coalescing), canvas smooth ribbons (5 layers, cubic-bezier control points at 1/3 & 2/3 width, per-layer opacity 0.15/0.20/0.25/0.30/0.35, mirrored on center axis; color→layer: teal→jade→violet; white 1 px center line at 0.90 opacity + 6 px circular playhead). Canvas `aria-hidden="true"`; progress via parallel sr-only `#progress` progressbar + live region. IPC-event-driven redraw (no rAF loop); 30 fps cap via 33.33 ms gate (`performance.now()`); pause on `visibilityState === 'hidden'` (resume with one fresh frame); freeze (static snapshot) under reduced motion and on dynamic toggle; DPR backing store capped at `min(devicePixelRatio,2)` with fallback to 1; static SVG/CSS placeholder (388×80 CSS px, 30% opacity teal on `--sona-stage`, no animation) if RMS/canvas unavailable. No allocation on hot path (0 heap allocations per redraw, verified via DevTools). Graceful degradation: static placeholder or `#progress` bar.
+- **FR-009**: Glassmorphism via `backdrop-filter: blur(24px) saturate(120%)` + translucent overlay `rgba(20,27,45,0.65)` (verbatim `--sona-stage` base at 65% alpha; Doppelrand borders: outer `1px rgba(255,255,255,0.06)`, inner `1px rgba(143,216,232,0.15)`). Fallback to solid `--sona-stage` if unsupported. Reduced-motion guard applies. (S3 alpha-variant rule per FR-005.)
+- **FR-010**: Glow/neon via `box-shadow` on header mark (`0 0 20px rgba(143,216,232,0.20)`) and waveform baseline (`0 0 10px rgba(232,196,106,0.20)`). Alpha band 0.15–0.25 (0.20 default); never above 0.30. Subtle, 2 elements max. Reduced-motion guard applies (glow retained static; any pulsing disabled).
+- **FR-011**: Repeat button restarts the current section from the beginning. Reuses existing skip/section logic. Earcon: reuse "skip back" earcon. New interactive element added to inventory (update C-H4). Keyboard: native `<button>`, tab order repeat→prev→play→next→speed, Enter/Space activation, no traps; focus ring `--sona-etwahl` ≥2 CSS px.
 
 ### Key Entities
 
@@ -92,7 +91,7 @@ Como sistema, deve manter invariante: notificação permanece accent-only, close
 ## Assumptions
 
 - Constitution v2.0.0 (amended 2026-10-28) permits: design-token expansion (jade, celeste), supplementary visual elements (waveform, glassmorphism, glow), extra controls.
-- Token set expanded from 10 to 12+ members (jade #5AD6A8, celeste #B9A6F5 promoted to painted).
+- Token set expanded from 10 to 12+ members (jade #5AD6A8, celeste #B9A6F5 promoted to painted) with sanctioned scopes: jade in waveform-ribbon middle layers + brand-layer assets; celeste in waveform-ribbon violet layers + decorative-wave violet stops. Rate stays `--sona-harp` (gold). Requires coordinated §VII edit to contracts.
 - Waveform visualizer requires RMS instrumentation in the Rust engine (new capability): AtomicF32 in audio callback, throttled IPC channel (~20 Hz), canvas rendering. Performance: cap 30 fps on mobile, pause on visibilitychange, freeze under reduced-motion.
 - Glassmorphism requires `backdrop-filter` support (available in modern webviews).
 - Notification remains accent-only (SC-003 unchanged).
@@ -105,6 +104,10 @@ Como sistema, deve manter invariante: notificação permanece accent-only, close
 - Reduced-motion dynamic toggle: freeze all decorative/progress/banner animations at load and after OS-level toggle.
 - Waveform failure: if RMS data unavailable, show static waveform placeholder or hide gracefully.
 - Glassmorphism fallback: if `backdrop-filter` unsupported, fall back to solid `--sona-stage` background.
+- Waveform canvas fallback: if canvas/RMS unavailable, hide canvas and show `#progress` bar; never leave empty region.
+- Indeterminate progress: no playhead knob drawn; omit `aria-valuenow`; announce "carregando" once via live region.
+- Canvas redraw is IPC-event-driven (no rAF loop); under reduced motion draw static snapshot; pause on `visibilitychange` (resume with one fresh frame); DPR backing store capped at 2×.
+- Aria update gap: `renderProgress()` must set `#progress` `aria-valuenow`/`aria-valuetext` (currently static defaults) and populate `#liveRegion` on meaningful changes (≥5% delta or state transition).
 ## Clarifications
 
 ### Session 2026-10-28
@@ -120,3 +123,14 @@ Como sistema, deve manter invariante: notificação permanece accent-only, close
 
 - Q: Waveform visualization style — bars vs. smooth ribbons → A: Smooth ribbons (match proposal) — canvas-based with bezier curves, 4-6 translucent layers in teal/purple, mirrored around center axis, white progress line + circular playhead. Most faithful to proposal. Requires canvas rendering + RMS data. Moderate complexity.
 - Q: Repeat button behavior → A: Repeat current section — pressing repeat restarts the current section from the beginning. Uses existing skip/section logic. Earcon: reuse "skip back" earcon or add a new one. Moderate complexity.
+### Session 2026-10-28 (third pass — autonomous resolutions)
+
+- Q: Progress integration into waveform (integrated playhead vs separate progress bar) → A: Integrated playhead-in-waveform with parallel hidden progressbar — canvas is `aria-hidden="true"` decorative visualization; keep `#progress` as visually-hidden (not `display:none`) `role="progressbar"` carrying `aria-valuenow/min/max/valuetext`, updated by `renderProgress()`; playhead (white center axis + circular knob) drawn from progress percentage; no knob in indeterminate state; fallback shows bar if canvas unavailable. Preserves C-H5/SC-002; no new surface.
+- Q: Waveform redraw cadence and S5 loop budget → A: IPC-event-driven redraw — redraw canvas only on throttled RMS IPC updates (~20 Hz), NO self-running `requestAnimationFrame` loop, keeping continuous-motion set = {indeterminate pill} (S5). Cap canvas to 30 fps via 33.3 ms timestamp gate; pause on `visibilitychange` (resume with one fresh frame); freeze (static snapshot) under `prefers-reduced-motion: reduce` and on dynamic toggle; DPR backing store capped at 2×; static SVG/CSS placeholder if RMS unavailable. No new `@keyframes` for waveform.
+- Q: Repeat button earcon → A: Reuse existing skip-back earcon (Allegro-trás, 880→660 Hz, 40 ms) — repeat restarts current section from its beginning (backward repositioning to section boundary); no new `EarconKind`/haptic id; closed set unchanged; avoids 004 grammar amendment and blind-test re-validation.
+- Q: Waveform accessibility role → A: `aria-hidden="true"` on the canvas + parallel hidden progressbar (Option B) — canvas has no native semantics and cannot track dynamic progress; progress value exposed via `#progress` `role="progressbar"` + `aria-live="polite"` live region (ARIA25); `role="img"` on canvas rejected. JS must also fix latent gap: update `aria-valuenow`/`aria-valuetext` in `renderProgress()` (currently static) and populate live region on meaningful changes (≥5% delta or state transition).
+
+### Session 2026-10-28 (fourth pass — C1 resolution)
+
+- Q: Should the reactive waveform canvas ribbons paint jade (`#5AD6A8`) and celeste (`#B9A6F5`) to match the proposal's teal→jade→violet gradient, or stay reserved/brand-only (static SVG assets + canvas restricted to sanctioned paints)? → A: Option A — paint jade + celeste in the canvas ribbons (proposal-faithful). Amend C-H1/S3 so celeste paint is sanctioned only in waveform-ribbon violet layers + decorative-wave violet stops, and jade only in waveform-ribbon middle layers + brand-layer assets; banned elsewhere on the operational surface. Rate stays `--sona-harp` (gold); glassmorphism uses translucent overlays of existing tokens (no new paint); glow stays on logo + waveform baseline (2 elements max); notification stays accent-only. Requires coordinated §VII edit to `status-surface.md` S3, `data-model.md` §SonaToken, `surface-audit.md` C-H1, and chroma census scoping.
+

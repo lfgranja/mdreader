@@ -122,9 +122,9 @@ Phase 1 (Setup) ──► Phase 2 (Foundational / BLOCKING) ──► Phase 3 (U
 
 ### 4b. Implementation / verification
 
-- [ ] T024 [P] [US2] Confirm controls interactive: focus rings (`--sona-etwahl`) visible on `.primary`, `.secondary`, `.stop`; key order unchanged; no new focusable decorative elements. File: `src-tauri/src/status_view.html`
-- [ ] T025 [P] [US2] Confirm progressbar `aria-valuetext` remains positional (e.g., `"velocidade 1,0"` is position descriptor, not numeric rate mapping — verify no `1.25×` or `2.0` painted in `#progressLabel`). File: `src-tauri/src/status_view.html`
-- [ ] T026 [US2] Confirm notification / earcon unchanged: `MediaMirror.kt` (accent-only) not modified; no body/rate/voice/mark added; `earcon-mapping.md` unchanged except justification note if needed. File: `android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt` (read-only verification; edit only if regression found — justify per §VII)
+- [X] T024 [P] [US2] Confirm controls interactive: focus rings (`--sona-etwahl`) visible on `.primary`, `.secondary`, `.stop`; key order unchanged; no new focusable decorative elements. File: `src-tauri/src/status_view.html`
+- [X] T025 [P] [US2] Confirm progressbar `aria-valuetext` remains positional (e.g., `"velocidade 1,0"` is position descriptor, not numeric rate mapping — verify no `1.25×` or `2.0` painted in `#progressLabel`). File: `src-tauri/src/status_view.html`
+- [X] T026 [US2] Confirm notification / earcon unchanged: `MediaMirror.kt` (accent-only) not modified; no body/rate/voice/mark added; `earcon-mapping.md` unchanged except justification note if needed. File: `android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt` (read-only verification; edit only if regression found — justify per §VII)
 
 ---
 
@@ -144,8 +144,8 @@ Phase 1 (Setup) ──► Phase 2 (Foundational / BLOCKING) ──► Phase 3 (U
 
 ### 5b. Implementation / audit / commit
 
-- [ ] T030 [P] [US3] Update notification contract if needed (`contracts/status-surface.md` §S6): confirm accent-only (`#F2F0E6`); document that no new fields added. If no change, record "no change — verification only" with justification. File: `specs/005-adopt-design-sona/contracts/status-surface.md`
-- [ ] T031 [P] [US3] Remove dead CSS (C-H4): delete any `display:none` rules for removed elements; confirm `scaffold-inventory` count accurate; confirm byte-identical S2 check (no accidental content change in non-edited sections). File: `src-tauri/src/status_view.html`
+- [X] T030 [P] [US3] Update notification contract if needed (`contracts/status-surface.md` §S6): confirm accent-only (`#F2F0E6`); document that no new fields added. If no change, record "no change — verification only" with justification. File: `specs/005-adopt-design-sona/contracts/status-surface.md`
+- [X] T031 [P] [US3] Remove dead CSS (C-H4): delete any `display:none` rules for removed elements; confirm `scaffold-inventory` count accurate; confirm byte-identical S2 check (no accidental content change in non-edited sections). File: `src-tauri/src/status_view.html`
 - [ ] T032 [P] [US3] Atomic conventional commit per edit (repo root; files: `src-tauri/src/status_view.html`, `src-tauri/src/status_view.rs`, `specs/005-adopt-design-sona/contracts/status-surface.md`, `specs/005-adopt-design-sona/contracts/surface-audit.md`, `specs/005-adopt-design-sona/data-model.md`): `feat(006): decorative wave + title card + reduced-motion guard; contracts updated per §VII; token reuse justified; C-H1/C-H4 verified`. Each file edit requires its own commit with detailed summary (rule 4). Do NOT batch unrelated edits into one commit without detailed summary. File: repo root (commit messages)
 ---
 

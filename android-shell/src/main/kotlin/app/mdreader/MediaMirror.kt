@@ -721,11 +721,13 @@ class MediaMirror(
          *  the indication's track. */
         private const val DESIGN_SONA_PROGRESS_TRACK = 0xFF55688F.toInt()
 
-        /** DESIGN-SONA progress fill token (white) — the fill of
-         *  the progress indication (contracts/surface.md), the
-         *  same white the contract's progress token pair
-         *  names. */
-        private const val DESIGN_SONA_PROGRESS_FILL = 0xFFFFFFFF.toInt()
+        /** DESIGN-SONA progress fill token (`#F2F0E6` = `--sona-voice`) — the fill of
+         *  the progress indication (contracts/surface.md), retokenized from the
+         *  vetoed literal white `#FFFFFF` (C1: the literal-white reading is
+         *  vetoed; fill = `--sona-voice` — registro 2026-10-24, C1; contract
+         *  "progress white" superseded). Canonical token names:
+         *  `--sona-voice`, `--signal-caution`, `--signal-failure`. */
+        private const val DESIGN_SONA_PROGRESS_FILL = 0xFFF2F0E6.toInt()
 
         /** DESIGN-SONA warning token (`#FFD400`) — the warning
          *  banner ONLY (contracts/surface.md). Reserved: the

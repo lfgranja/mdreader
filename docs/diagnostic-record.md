@@ -21,7 +21,7 @@ makes the property set closed — an unknown key fails validation:
 - `v` — record version, `const` **1**
 - `ts_ms` — event timestamp, milliseconds since the Unix epoch
   (integer ≥ 0)
-- `kind` — one of the closed nine-member event-kind set
+- `kind` — one of the closed eleven-member event-kind set
 - `position_secs` — playback position in seconds (number ≥ 0)
 
 The closed event kinds (`diag::writer::EventKind`):
@@ -37,6 +37,8 @@ The closed event kinds (`diag::writer::EventKind`):
 | `refusal` | `error` |
 | `trim` | `trim` |
 | `gap` | — (storage-exhaustion marker) |
+| `earcon_truncation` | truncation counter (latest-wins, E2.2) |
+| `earcon_emission_failure` | `error` (typed emission failure, E4) |
 
 The closed value sets (wire-identical to the `engine_core::closed`
 registry — one list, never a second drifting list, FR-044):

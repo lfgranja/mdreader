@@ -14,6 +14,13 @@
           "speckit.assess.define",
           "speckit.assess.shape",
           "speckit.assess.decide"
+        ],
+        "omp": [
+          "speckit.assess.intake",
+          "speckit.assess.research",
+          "speckit.assess.define",
+          "speckit.assess.shape",
+          "speckit.assess.decide"
         ]
       },
       "registered_skills": [],
@@ -30,10 +37,29 @@
           "speckit.bug.assess",
           "speckit.bug.fix",
           "speckit.bug.test"
+        ],
+        "omp": [
+          "speckit.bug.assess",
+          "speckit.bug.fix",
+          "speckit.bug.test"
         ]
       },
       "registered_skills": [],
       "installed_at": "2026-10-01T09:33:06.883321+00:00"
+    },
+    "github": {
+      "version": "1.0.3",
+      "source": "local",
+      "manifest_hash": "sha256:a533b88a1888aa456167f9b4b6bcf956d5837dcb0e7bc7c6be31be8ae618bc38",
+      "enabled": true,
+      "priority": 10,
+      "registered_commands": {
+        "omp": [
+          "speckit.github.taskstoissues"
+        ]
+      },
+      "registered_skills": [],
+      "installed_at": "2026-10-27T00:44:07.515724+00:00"
     }
   }
 }

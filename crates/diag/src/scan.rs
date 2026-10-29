@@ -232,7 +232,9 @@ fn session_segments(events: &[RecordEvent]) -> Vec<(usize, usize)> {
             | EventKind::Failure
             | EventKind::Refusal
             | EventKind::Trim
-            | EventKind::Gap => {}
+            | EventKind::Gap
+            | EventKind::EarconTruncation
+            | EventKind::EarconEmissionFailure => {}
         }
     }
     if start < events.len() {

@@ -213,7 +213,9 @@ const fn is_retained_event(line: &RecordEvent) -> bool {
         | EventKind::FocusTransition
         | EventKind::OutputDevice
         | EventKind::Failure
-        | EventKind::Refusal => true,
+        | EventKind::Refusal
+        | EventKind::EarconTruncation
+        | EventKind::EarconEmissionFailure => true,
     }
 }
 

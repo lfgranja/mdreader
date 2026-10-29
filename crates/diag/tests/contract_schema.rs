@@ -65,7 +65,7 @@
 use jsonschema::Validator;
 use serde_json::{Value, json};
 
-use diag::writer::{DiagnosticWriter, RecordEvent};
+use diag::writer::{DiagnosticWriter, EventKind, RecordEvent};
 
 /// Path of the committed contract schema, relative to this crate
 /// (`crates/diag`), i.e. the workspace-root `specs/` tree.
@@ -283,4 +283,87 @@ fn the_contract_schema_declares_the_required_root_fields() -> Result<(), Box<dyn
         "a record without position_secs was accepted"
     );
     Ok(())
+}
+
+/// `EventKind` is the closed 11-member set mandated by feature 005:
+/// exactly eleven variants, no `Other`/`Unknown` catch-all, and every
+/// variant serializes to its `snake_case` wire string and round-trips.
+#[test]
+fn event_kind_has_exactly_eleven_variants_and_no_catch_all() {
+    // Exhaustive enumeration — adding/removing a variant breaks this
+    // array's length assertion, forcing a coordinated edit.
+    const ALL: [EventKind; 11] = [
+        EventKind::SessionStart,
+        EventKind::SessionEnd,
+        EventKind::TransportChange,
+        EventKind::FocusTransition,
+        EventKind::OutputDevice,
+        EventKind::Failure,
+        EventKind::Refusal,
+        EventKind::Trim,
+        EventKind::Gap,
+        EventKind::EarconTruncation,
+        EventKind::EarconEmissionFailure,
+    ];
+    assert_eq!(ALL.len(), 11, "EventKind must have exactly 11 variants");
+
+    // No catch-all naming: the debug strings must not contain "Other"
+    // or "Unknown".
+    for kind in ALL {
+        let name = format!("{kind:?}");
+        assert!(
+            !name.contains("Other") && !name.contains("Unknown"),
+            "EventKind must not carry an Other/Unknown variant, found {name}"
+        );
+    }
+}
+
+#[test]
+fn event_kind_serde_snake_case_round_trips_all_eleven() {
+    const ALL: [EventKind; 11] = [
+        EventKind::SessionStart,
+        EventKind::SessionEnd,
+        EventKind::TransportChange,
+        EventKind::FocusTransition,
+        EventKind::OutputDevice,
+        EventKind::Failure,
+        EventKind::Refusal,
+        EventKind::Trim,
+        EventKind::Gap,
+        EventKind::EarconTruncation,
+        EventKind::EarconEmissionFailure,
+    ];
+    let expected = [
+        "session_start",
+        "session_end",
+        "transport_change",
+        "focus_transition",
+        "output_device",
+        "failure",
+        "refusal",
+        "trim",
+        "gap",
+        "earcon_truncation",
+        "earcon_emission_failure",
+    ];
+    for (kind, wire) in ALL.iter().zip(expected.iter()) {
+        #[expect(
+            clippy::unwrap_used,
+            reason = "test-only: serialization of a derived enum cannot fail"
+        )]
+        let serialized = serde_json::to_string(kind).unwrap();
+        assert_eq!(serialized, format!("\"{wire}\""), "snake_case mismatch");
+        #[expect(
+            clippy::unwrap_used,
+            reason = "test-only: deserialization of just-serialized value cannot fail"
+        )]
+        let parsed: EventKind = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(parsed, *kind, "round-trip mismatch");
+    }
+}
+
+#[test]
+fn unknown_event_kind_fails_deserialization() {
+    let result = serde_json::from_str::<EventKind>("\"exploded\"");
+    assert!(result.is_err(), "unknown kind must fail deserialization");
 }

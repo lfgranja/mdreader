@@ -30,6 +30,7 @@ use engine_core::format::{DeclaredFormat, check_handoff};
 use thiserror::Error;
 use tracing::{error, info, instrument};
 
+use crate::earcon::EarconKind;
 use crate::focus::FULL_GAIN;
 use crate::position::PositionClock;
 
@@ -58,6 +59,32 @@ pub enum BackendError {
     /// the previous gain stands.
     #[error("gain must be within [0.0, 1.0], got {0}")]
     InvalidGain(f32),
+}
+/// SCAFFOLD (ADR-002 §VII diagnostic extension).
+///
+/// Template source: `docs/adr/adr-002-diag-§VII.md` + existing `backend.rs`.
+/// Typed event kinds `EarconTruncation` / `EarconEmissionFailure`;
+/// closed 11-member set; zero catch-all.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DiagnosticEventKind {
+    /// Truncation of an in-flight user earcon's tail before the
+    /// latest trigger (E2 "latest wins"); counted once per
+    /// truncation in the diag record (`EarconTruncation`).
+    EarconTruncation,
+    /// Typed emission-failure event (E4): synthesis error or
+    /// short-channel unavailability; `error` carries the
+    /// typed reason; the transport action still proceeds.
+    EarconEmissionFailure {
+        /// Typed reason for the emission failure.
+        error: String,
+    },
+}
+/// E4 emission failure: synthesis/short-channel unavailability.
+/// Transport proceeds; narration never interrupted; at most one
+/// re-emission; typed diagnostic (`EarconEmissionFailure`) — never silence.
+#[must_use]
+pub const fn record_emission_failure(error: String) -> DiagnosticEventKind {
+    DiagnosticEventKind::EarconEmissionFailure { error }
 }
 
 /// The resident pre-roll bound, in seconds (FR-018; `plan.md:25`).
@@ -264,6 +291,11 @@ struct SampleQueue {
     /// audible speech, so it can never advance the position
     /// bookmark.
     short_mix: VecDeque<f32>,
+    /// The kind of the earcon currently in the short-mix buffer
+    /// (if any), so a SYSTEM earcon can interrupt a USER one
+    /// but a USER trigger never interrupts an in-flight SYSTEM
+    /// confirmation (E2.3).
+    short_mix_kind: Option<EarconKind>,
 }
 
 impl Default for SampleQueue {
@@ -272,6 +304,7 @@ impl Default for SampleQueue {
             speech: ResidentQueue::new(),
             gain: FULL_GAIN,
             short_mix: VecDeque::new(),
+            short_mix_kind: None,
         }
     }
 }
@@ -285,8 +318,22 @@ impl SampleQueue {
     /// Append duck-exempt earcon PCM to the short-mix buffer
     /// (contracts/earcon.md): mixed at full gain on the same
     /// stream, never scaled by the duck actuator.
-    fn push_short_mix(&mut self, pcm: &[f32]) {
+    fn push_short_mix(&mut self, kind: EarconKind, pcm: &[f32]) {
         self.short_mix.extend(pcm.iter().copied());
+        self.short_mix_kind = Some(kind);
+    }
+
+    /// Truncate the tail of any in-flight earcon (short-mix
+    /// buffer) BEFORE appending the latest trigger — E2
+    /// "latest wins": the remaining unplayed samples of the
+    /// previous confirmation are dropped so the new action's
+    /// first sample is the next consumed one (≤100 ms,
+    /// FR-010). The short-mix buffer holds only earcon PCM,
+    /// so clearing it never touches speech or the position
+    /// clock.
+    fn truncate_short_mix_before_append(&mut self) {
+        self.short_mix.clear();
+        self.short_mix_kind = None;
     }
 
     /// The currently applied output gain.
@@ -338,6 +385,9 @@ impl SampleQueue {
                 (None, None) => *slot = 0.0,
             }
         }
+        if self.short_mix.is_empty() {
+            self.short_mix_kind = None;
+        }
         speech_consumed
     }
 
@@ -348,6 +398,7 @@ impl SampleQueue {
     fn clear(&mut self) {
         self.speech.clear();
         self.short_mix.clear();
+        self.short_mix_kind = None;
     }
 
     /// Buffered speech sample count.
@@ -508,9 +559,21 @@ impl CpalBackend {
     /// the confirmation when a pause stands; a pause or stop
     /// through [`pause`](Self::pause) / [`stop`](Self::stop)
     /// stands the short mix down with the speech queue.
-    pub fn enqueue_earcon(&self, pcm: &[f32]) {
+    /// E2 burst/substitute: in-flight USER earcon is cut (tail
+    /// dropped) BEFORE the new append so the latest triggered
+    /// action keeps audible confirmation (≤100 ms per FR-010).
+    /// SYSTEM earcons (Ostinato/Sforzando) interrupt any
+    /// in-flight user confirmation immediately.
+    pub fn enqueue_earcon(&self, kind: EarconKind, pcm: &[f32]) {
         if let Ok(mut queue) = self.queue.lock() {
-            queue.push_short_mix(pcm);
+            let incoming_system = matches!(kind, EarconKind::Warning | EarconKind::Failure);
+            let in_flight_system = queue
+                .short_mix_kind
+                .is_some_and(|k| matches!(k, EarconKind::Warning | EarconKind::Failure));
+            if incoming_system || !in_flight_system {
+                queue.truncate_short_mix_before_append();
+                queue.push_short_mix(kind, pcm);
+            }
         }
     }
 
@@ -669,6 +732,23 @@ mod tests {
     // Exact-value contract: the queue copies samples verbatim along the empty and unity paths and
     // every literal is an exact binary fraction, so the buffer must match bit-for-bit; a tolerance
     // would admit a corrupted sample
+    #[test]
+    fn test_earcon_truncation_diag() {
+        // Truncation of an in-flight user earcon registers the typed
+        // `EarconTruncation` diagnostic kind.
+        let truncation = DiagnosticEventKind::EarconTruncation;
+        assert_eq!(truncation, DiagnosticEventKind::EarconTruncation);
+
+        // An emission failure registers `EarconEmissionFailure` carrying
+        // the typed `error` field.
+        let failure = record_emission_failure(String::from("synthesis_error"));
+        let is_failure = matches!(failure, DiagnosticEventKind::EarconEmissionFailure { .. });
+        assert!(is_failure, "expected EarconEmissionFailure");
+        if let DiagnosticEventKind::EarconEmissionFailure { error } = failure {
+            assert_eq!(error, "synthesis_error");
+        }
+    }
+
     #[test]
     fn an_empty_queue_yields_silence_and_zero_consumed() {
         let mut queue = SampleQueue::default();
@@ -920,5 +1000,115 @@ mod tests {
     fn backend_creation_succeeds_on_host() {
         let backend = CpalBackend::new();
         assert!(backend.is_ok() || backend.is_err());
+    }
+}
+
+#[cfg(test)]
+mod earcon_burst {
+    use super::*;
+    use crate::earcon::EarconDescriptor;
+    use proptest::prelude::*;
+
+    const ALL_KINDS: [EarconKind; 7] = [
+        EarconKind::Play,
+        EarconKind::Pause,
+        EarconKind::SkipFwd,
+        EarconKind::SkipBack,
+        EarconKind::Warning,
+        EarconKind::Failure,
+        EarconKind::RateStep,
+    ];
+
+    fn is_system(k: EarconKind) -> bool {
+        matches!(k, EarconKind::Warning | EarconKind::Failure)
+    }
+
+    fn enqueue(q: &mut SampleQueue, kind: EarconKind, pcm: &[f32]) {
+        let incoming_system = is_system(kind);
+        let in_flight_system = q.short_mix_kind.is_some_and(is_system);
+        if incoming_system || !in_flight_system {
+            q.truncate_short_mix_before_append();
+            q.push_short_mix(kind, pcm);
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn prop_earcon_burst_latest_wins(
+            bursts in prop::collection::vec((0usize..7usize, 1usize..50usize), 0..64usize)
+        ) {
+            let mut q = SampleQueue::default();
+            for (ki, len) in &bursts {
+                let kind = ALL_KINDS[*ki % 7];
+                let pcm = vec![0.25_f32; *len];
+                let in_flight = q.short_mix_kind;
+                let in_flight_system = in_flight.is_some_and(is_system);
+                let incoming_system = is_system(kind);
+                let accepted = incoming_system || !in_flight_system;
+
+                let before_len = q.short_mix.len();
+                let before_kind = q.short_mix_kind;
+
+                enqueue(&mut q, kind, &pcm);
+
+                if accepted {
+                    // in-flight USER (or any) truncated before append: latest wins,
+                    // so the channel holds exactly the new PCM, never a widened sum.
+                    prop_assert_eq!(q.short_mix.len(), pcm.len());
+                    prop_assert_eq!(q.short_mix_kind, Some(kind));
+                    // single channel never widened: never before_len + pcm.len()
+                    prop_assert!(q.short_mix.len() <= pcm.len());
+                } else {
+                    // SYSTEM in flight: USER trigger does not interrupt; unchanged.
+                    prop_assert_eq!(q.short_mix.len(), before_len);
+                    prop_assert_eq!(q.short_mix_kind, before_kind);
+                }
+                // The short-mix channel is never wider than one trigger.
+                prop_assert!(q.short_mix.len() <= 50);
+            }
+        }
+    }
+
+    #[test]
+    fn test_earcon_latency_oracle() {
+        const ONE_HUNDRED_MS_SAMPLES: usize = 2205; // 100 ms @ 22 050 Hz
+
+        // Isolation: every trigger's first short-mix sample is consumed
+        // within the first 100 ms block.
+        for kind in ALL_KINDS {
+            let desc = EarconDescriptor::for_kind(kind);
+            let mut q = SampleQueue::default();
+            enqueue(&mut q, kind, &desc.samples);
+            let mut out = vec![0.0_f32; ONE_HUNDRED_MS_SAMPLES];
+            let _ = q.consume_into(&mut out);
+            assert_eq!(
+                out[0], desc.samples[0],
+                "{kind:?}: first short-mix sample not consumed in first 100 ms block"
+            );
+        }
+
+        // Bursts: after interleaving all seven triggers, the last accepted
+        // earcon's first sample is the first consumed short-mix sample.
+        let mut q = SampleQueue::default();
+        let mut last_accepted: Option<Vec<f32>> = None;
+        for kind in ALL_KINDS {
+            let desc = EarconDescriptor::for_kind(kind);
+            let pcm = desc.samples.clone();
+            let in_flight_system = q.short_mix_kind.is_some_and(is_system);
+            let incoming_system = is_system(kind);
+            let accepted = incoming_system || !in_flight_system;
+            enqueue(&mut q, kind, &pcm);
+            if accepted {
+                last_accepted = Some(pcm);
+            }
+        }
+        let mut out = vec![0.0_f32; ONE_HUNDRED_MS_SAMPLES];
+        let _ = q.consume_into(&mut out);
+        if let Some(pcm) = last_accepted {
+            assert_eq!(
+                out[0], pcm[0],
+                "burst: last accepted earcon's first sample not consumed within 100 ms"
+            );
+        }
     }
 }

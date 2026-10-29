@@ -1,5 +1,178 @@
 # Session state — 004-ressoa-dogfood-build (shell bring-up wave)
 
+> **RESUME POINT (2026-10-24) — 005-adopt-design-sona, Phase 1 (Setup) COMPLETE (T001–T003).**
+> Branch `005-adopt-design-sona` cut at dev HEAD `226c06c`
+> (`226c06cdd211d5541f85926aa0e131ac12cc6f84`). T001 deviation disclosed: the
+> tree was DIRTY at branch creation (33 pending clarify/plan/assessment
+> artifacts from clarify runs + plan were never committed) — remediated ON the
+> branch by 33 per-file commit-hook commits (tasks.md `edf6190` first, with
+> the two pending refinements + the US3 parallel-example paths corrected to
+> the child-module layout; then spec/plan/research/data-model/quickstart/3
+> contracts/checklist; 20 clarify research notes; 5 assessment records; then
+> memory `cdad44d`), giving the clean tree the task requires before the
+> baseline measurement.
+>
+> **T002 baseline — three runs, all recorded** (`/home/luis/development/.mdreader-005-tr/logs/`):
+> (1) run 1 (`baseline-2026-10-24.log`) RED at gate-5: gates 1–4 PASS,
+> cargo deny advisories named RUSTSEC-2026-0385 (`ctutils` 0.4.3 via digest
+> 0.11.3 ← hmac/sha1/sha2/pbkdf2 ← zip 9.0.5 ← (build) sherpa-onnx-sys).
+> Provenance verified: NO lockfile commits since `9501bba` — the RED is a
+> newly published advisory, not a tree change (zip 9.0.5 entered at
+> `ea59333`, the latest-stable refresh). Fix `0c2b6a7`:
+> `cargo update -p ctutils` → 0.4.5 (single package; 42 unchanged; fail-
+> forward per constitution IV — no waiver, no auto-substitute; deny all-ok
+> + audit 2 allowed warnings). (2) run 2 (`…-run2.log`): gate-5 green, then
+> `verify.sh` died with a bash syntax error at :335 — an ORPHANED `fi`
+> leftover from `8635535` (T164 waiver retirement), latent because the
+> Oct-22 green runs predate that commit and run 1 aborted before the parser
+> reached the line. Fix `9b9a539`: delete the stray token (`bash -n` clean;
+> diff vs 9501bba = exactly the 57-line waiver removal, nothing else).
+> (3) run 3 (`…-run3.log`) **GREEN, VERIFY_EXIT=0**: gate-1 format PASS ·
+> gate-2 tests PASS (906 tests run: 906 passed, 2 skipped — the same
+> inventory as the 004 attestation) · gate-3 documentation PASS · gate-4
+> lint-drift-clippy PASS · gate-4 lint-drift PASS · gate-5 supply-chain
+> PASS · gate-6 deny-list PASS · gate-7 closed-set PASS · gate-8-shell
+> PASS · gate-8-full DEFERRED (owner=synthesis) — never a pass. Run 3 is
+> the recorded green baseline of the feature.
+>
+> **T003 anchor audit — 19/19 PASS** (explore agent, per-anchor evidence):
+> `enqueue_earcon` backtaint :511, FIFO `push_short_mix` :288-290
+> (consume_into :318-342 pops front in lockstep with speech = the residual
+> FIFO serialization D3 cites); `EarconKind` :10-26 with 7 variants
+> (Play/Pause/SkipFwd/SkipBack/Warning/Failure/RateStep); `EventKind`
+> :66/:69-88 exactly nine (SessionStart/SessionEnd/TransportChange/
+> FocusTransition/OutputDevice/Failure/Refusal/Trim/Gap), no catch-all;
+> status_view.html anchors all present (slates :21-22, white fill :26,
+> --warning/--failure :29-30, shimmer gradient :400, @keyframes
+> indeterminate :748-752, rgba tints :179-180, reasonBanner alert+polite
+> :252 same element, «Seção: —» :234, speedDots aria-hidden :245,
+> #progress :249 NO aria attrs, ZERO :focus-visible, ZERO
+> prefers-reduced-motion, `infinite` only :402); status_view.rs 534 lines
+> pure render; MediaMirror.kt constants block :701-744 (DISPLACED from the
+> tasks' :728-743 citation) with PROGRESS_FILL=0xFFFFFFFF :728 +
+> setContentText guard :1419; frontendDist "../dist" :6; verify.sh +
+> expected-tests.txt (99 lines, no surface_audit/earcon_burst entries);
+> logo-primary-concha-r.svg census-clean (0× #B9A6F5, 0× #5AD6A8);
+> tokens.md §1 ledger :10-20 with harp #E8C46A :17; 004 contracts
+> earcon.md/surface.md present; DESIGN-SONA CHANGELOG.md/VERSION ABSENT
+> (as T014 expects); src-tauri/build.rs exists (auto-detected); NO
+> surface_audit module yet; backend.rs has one #[cfg(test)] mod :664,
+> proptest dev-dep :32 (not yet imported in src); constitution v1.12.0
+> confirmed; diag contract_schema + prop_no_prose live under
+> crates/diag/tests/ (writer.rs and scan.rs have NO inline tests).
+>
+> **Task-level bugs / adjudications recorded (dispatch inputs):**
+> (i) T007(i)'s literal set claim is UNSATISFIABLE over contract A1#3's
+> pinned slice :728-743 even post-T008 — that slice permanently carries the
+> two admitted --signal-* tokens (FFD400 :736, FF4D63 :743) and the accent
+> usage site (:1407 setColor(DESIGN_SONA_TITLE)) is OUTSIDE it; the ONLY
+> DESIGN_SONA_ usage in MediaMirror.kt is :1407 (FILL/WARNING/FAILURE/
+> SECTION/TRACK are declared but UNWIRED). Adjudication (contract wins):
+> the accent twin asserts the fill token == ledger --sona-voice (C1:
+> literal-white veto = today's NAMED RED) plus non-signal declared/used
+> hexes ⇒ exactly {F2F0E6}, with FFD400/FF4D63 recognized as sanctioned
+> --signal-* declarations; repeat verbatim in T007's commit summary.
+> (ii) T005/T006's «Taxa: 1.0×» bench leak is ABSENT from the shipped
+> dist/index.html (offline-synth bench, 4 948 B) — the S2 byte-identity
+> mandate stands; the Taxa rationale no longer binds to present content.
+> (iii) T011/T012 edit points: writer.rs has no inline tests — the
+> contract_schema twins live in crates/diag/tests/. (iv) T021's
+> versionFooter citation: the id exists only at :254 (:223 is the
+> .version-footer class rule).
+>
+> NEXT: Phase 2 (T004 audit scaffolding → T005 RED served-identity → T006
+> wiring), then the [P] agent waves (Agent B: accent.rs + MediaMirror.kt ·
+> Agent C: crates/player + crates/diag).
+
+> **RESUME POINT (2026-10-24) — 005-adopt-design-sona, clarify run 5 (batch mode).**
+> User-directed protocol again (2 background agents per candidate: code dive +
+> research note; batch answers at the end). 3 candidates (E1–E3). Today's date
+> for all registrations: 2026-10-24.
+> (a) Integrated autonomously (evidence-converged, veto reversers recorded in
+> each bullet): **E1** — `--sona-etwahl` = FOCUS RING (`:focus-visible` on
+> enumerated interactive controls); the «fluxo ativo» role is RESERVED
+> non-painted for the full Lente; edits: FR-001 role map, US3 narrative
+> («turquesa para o anel de foco»), SC-001 item (iii) exclusivity (off-role
+> `#8FD8E8` paint = fail), batch-Q1 task gained item (5) (the 7 stale
+> etwahl-progress rows: `tokens.md:16/:28/:47/:65`, `components.md:17`,
+> `DESIGN-SONA.md:60/:85`, `preview.html:238`), C1 record annotated. Evidence:
+> 0 occurrences of `#8FD8E8`/`etwahl` in audited files; 0 `:focus-visible` in
+> `status_view.html`; recipe is the design dir's own (`tokens.md:20`).
+> **E2** — CLOSED MOTION RULE: the indeterminate sliding pill (C5) is the ONLY
+> continuous motion on the driving surface and freezes at a visible track
+> position under `prefers-reduced-motion: reduce`; new SC-001 item (v) host
+> check (media query present, zeros `animation`/`transform`, no new paint/element);
+> SC-007 gains the freeze leg («Remover animações» on, announcements unchanged
+> 10/10); FR-008 carries the rule clause; SC-006 pointer includes (iv)+(v).
+> Yellow pulse TTL-bounded (3 s), failure = static red (no pulse), banner
+> slide one-shot ≤200 ms, no other continuous loop. WCAG 2.2.2 strict reading
+> + SCR40/C39 OS-setting as the sanctioned mechanism; census-clean (zero
+> painted pixels). Historical note: the pulsing yellow dot does NOT exist in
+> shipped code yet (US1 AC2 is the first implementation).
+> Research notes: `specs/005-adopt-design-sona/research/clarify-e{1,2}-*.md`.
+> (b) RESOLVED — maintainer ACCEPTED the recommendation ("accept the
+> recommendations", 2026-10-24), batch E option A: **E3** — SC-002
+> haptic side-channel disposition. DIVE FINDING (unchanged): haptics are DORMANT in the
+> shipped binary (Rust always publishes `haptic=None` — `lib.rs:6047`; the
+> 7-pattern table + `VibratorManager` in `MediaMirror.kt` never fire; no app
+> off-switch; system haptic-feedback setting does NOT gate direct
+> VibratorManager calls). Research: cross-modal redundancy fuses/confounds
+> audio identification (Brewster segregation doctrine; ISO 7731 unimodal
+> unit-of-test; two-pulse discrimination peaks at 50–700 ms ISI vs the 20 ms
+> shipped gap; 10/15 ms buzzes below the ~50 ms perceivable floor).
+> `research/clarify-e3-sc002-haptic-side-channel.md`.
+> **INTEGRATED:** SC-002 haptic-disposition clause (audio gate sound-only;
+> app haptics inert; administrator no-buzz check at the pilot; the haptic
+> half stays in 004's T051-04 sounds-off condition, never this gate),
+> B1 record annotated (patterns = Kotlin render table, UNWIRED —
+> `haptic=None` published), Clarifications bullet E3, research-note
+> correction addendum. ALL of E1–E3 resolved — spec is plan-ready.
+> (c) Eliminated pre-spawn by direct evidence (never became candidates):
+> DESIGN-SONA has NO haptic prescriptions (all «vibração» hits are visual
+> metaphor) and NO soundscape/ambient audio content → Option A scope + closed
+> inventory already govern; `--sona-hush` `#A9B8CE` = shipped section color
+> (bit-exact, no reconciliation needed).
+> Checklist re-validated after E3: 16/16 → 16/16, no marker changes. Spec is
+> plan-ready. PLAN run complete (2026-10-24, same session): `plan.md` from
+> the template (Summary / Technical Context / Constitution Check PASS — no
+> violations, no Complexity rows / Project Structure / Post-Design re-check)
+> + `research.md` (R1–R13) + `data-model.md` (SonaToken 10-member lexicon,
+> SurfaceInventory, NotificationSurface, EarconConfirmation 7 confirmations,
+> RateLadder, ProgressIndication, MovementSpec, HapticDisposition, §VII diag
+> extension, DesignDirState, ContrastPair) + `contracts/` {status-surface,
+> earcon-mapping, surface-audit} + `quickstart.md` (host gates via the new
+> `surface-audit` checks + device trials incl. the SC-002 protocol and the
+> SC-007 freeze leg). `hooks: {}` — skipped per rules. Working tree still
+> UNCOMMITTED (clarify + plan artifacts). NEXT: `/speckit.tasks`.
+
+> **RESUME POINT (2026-10-24) — 005-adopt-design-sona, clarify run 4 (batch mode).**
+> Ran with the user-directed protocol (2 background agents per candidate: code
+> dive + research note; batch answers at the end). 5 candidates (D1–D5), ALL
+> RESOLVED. (a) Integrated autonomously (evidence-converged): D1 — restyle is
+> COLOR-ONLY (typography/spacing = design-dir prose, not `--sona-*` tokens;
+> FR-001 clause + Session bullet); D4 — launcher icon explicitly OUT of scope
+> (brand surface; regen-clobber; zero driving impact; Assumptions bullet).
+> (b) Maintainer ACCEPTED the recommendations ("accept the recommendations")
+> for the batch and all three were integrated in the same run: D2 — admit
+> `#FFD400` `--signal-caution` / `#FF4D63` `--signal-failure` as role-locked
+> signal paints (audited hex set 8→10; presence off-role = violation; never
+> adjacent, 2.25:1; FR-001 + SC-001 + clarif bullet; values match shipped
+> `status_view.html:29-30,179-180`; design-dir errata `tokens.md:48` /
+> `components.md:18` ride the batch-Q1 DESIGN-SONA maintenance task); D3 —
+> FR-009 truncate/replace «latest wins» sub-rule (earcon↔earcon; additive mix
+> stays earcon↔narration-only; system Ostinato/Sforzando interrupt; typed
+> truncation diagnostic counter; `short_mix` stays single-channel) + SC-002
+> rapid-sequence sub-test (2–3 heterogeneous actions in 100–150 ms); D5 — the
+> value-blind promise is now VERIFIED: SC-001 item (iv) semantics inventory
+> (aria-labels, role="progressbar"+valuenow/valuetext, hidden role="status"
+> live region for the ladder value, dots stay aria-hidden, reason banner
+> re-typed from mismatched alert+polite to status) + NEW SC-007 TalkBack
+> device trial (10/10 announcements; the spec's 7th success criterion).
+> Research notes: `specs/005-adopt-design-sona/research/clarify-d{1..5}-*.md`.
+> Checklist re-validated: 16/16 → 16/16, no marker changes. Spec is
+> plan-ready. NEXT: `/speckit.plan`.
+
+
 > **RESUME POINT (2026-10-22) — read this first.** Phase 17 is COMPLETE
 > (T140–T163, all committed) and the final verification has RE-ATTESTED the
 > tree at `9501bba` ("test(004): T163 model the FR-007 five-second cue in the
@@ -199,3 +372,4 @@ governance) · `9208578` (v1.8.0 bzip2-1.0.6 admission).
   Assets PNG e SVG gerados via Storytold (PhotoCraft + VectorCraft + FigCraft).
 
 
+T028: gate-9 build artifact confirmed: app-universal-release.apk (118MB, aarch64)

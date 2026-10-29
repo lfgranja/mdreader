@@ -64,3 +64,16 @@ target/
 # Snapshots — repo-local snapshot content (device filesDir/snapshots never enters git)
 /snapshots/
 /snapshots/*
+
+# Android / Kotlin
+android-shell/build/
+android-shell/.gradle/
+*.class
+*.jar
+*.iml
+
+# Universal
+.idea/
+.vscode/
+.DS_Store
+*.env*

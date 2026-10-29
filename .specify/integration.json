@@ -1,15 +1,20 @@
 {
-  "version": "1.0.13",
+  "version": "1.2.3",
   "integration_state_schema": 1,
   "installed_integrations": [
-    "opencode"
+    "opencode",
+    "omp"
   ],
   "integration_settings": {
     "opencode": {
       "script": "sh",
       "invoke_separator": "."
+    },
+    "omp": {
+      "script": "sh",
+      "invoke_separator": "."
     }
   },
-  "integration": "opencode",
-  "default_integration": "opencode"
+  "integration": "omp",
+  "default_integration": "omp"
 }

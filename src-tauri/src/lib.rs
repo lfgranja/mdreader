@@ -188,6 +188,15 @@ pub struct AppState {
     /// first frontend listener registration, used to
     /// stream `MirrorState` snapshots (sanctioned
     /// Rust→frontend direction via `tauri::ipc::Channel`).
+    /// The Rust→frontend RMS channel (T102): throttled waveform
+    /// samples published at ~20 Hz via `tauri::ipc::Channel<f32>`.
+    pub(crate) rms_channel: Mutex<Option<tauri::ipc::Channel<f32>>>,
+    /// Last published RMS value for coalescing (last-wins).
+    pub(crate) last_rms: Mutex<f32>,
+    /// Whether the document/view is hidden (frontend signals; default false).
+    pub(crate) view_hidden: Mutex<bool>,
+    /// Monotonic timestamp of last RMS publish in milliseconds.
+    pub(crate) last_rms_publish_ms: Mutex<u64>,
     pub(crate) publish_channel: Mutex<Option<tauri::ipc::Channel<MirrorState>>>,
     /// The surface resolver for the current document (T133):
     /// holds the title, filename, and duration knowledge
@@ -261,6 +270,10 @@ impl std::fmt::Debug for AppState {
             .field("offer", &self.offer)
             .field("pending_open", &self.pending_open)
             .field("published_route", &self.published_route)
+            .field("rms_channel", &"<tauri::ipc::Channel<f32>>")
+            .field("last_rms", &self.last_rms)
+            .field("view_hidden", &self.view_hidden)
+            .field("last_rms_publish_ms", &self.last_rms_publish_ms)
             .field("publish_channel", &"<tauri::ipc::Channel<MirrorState>>")
             .field("surface_resolver", &self.surface_resolver)
             .field("headings", &self.headings)
@@ -361,6 +374,10 @@ impl AppState {
             offer: Mutex::new(session::offer::OfferMachine::new()),
             pending_open: Mutex::new(None),
             published_route: Mutex::new(None),
+            rms_channel: Mutex::new(None),
+            last_rms: Mutex::new(0.0f32),
+            view_hidden: Mutex::new(false),
+            last_rms_publish_ms: Mutex::new(0u64),
             publish_channel: Mutex::new(None),
             surface_resolver: Mutex::new(None),
             headings: Mutex::new(Vec::new()),
@@ -2578,6 +2595,10 @@ pub fn run() {
             offer: Mutex::new(session::offer::OfferMachine::new()),
             pending_open: Mutex::new(None),
             published_route: Mutex::new(None),
+            rms_channel: Mutex::new(None),
+            last_rms: Mutex::new(0.0f32),
+            view_hidden: Mutex::new(false),
+            last_rms_publish_ms: Mutex::new(0u64),
             publish_channel: Mutex::new(None),
             surface_resolver: Mutex::new(None),
             headings: Mutex::new(Vec::new()),
@@ -2666,6 +2687,39 @@ pub fn run() {
                 }
             });
 
+            // T102: throttled RMS channel (~20 Hz, last-wins coalescing,
+            // skip while hidden or no subscribers).
+            let app_handle_rms = app.app_handle().clone();
+            let _rms_task = tauri::async_runtime::spawn(async move {
+                let mut ticker = time::interval(Duration::from_millis(50)); // 20 Hz
+                loop {
+                    let _tick = ticker.tick().await;
+                    let app_state = app_handle_rms.state::<AppState>();
+                    // Skip if hidden
+                    let hidden = app_state.view_hidden.lock().map(|g| *g).unwrap_or(false);
+                    if hidden {
+                        continue;
+                    }
+                    // Check if channel registered
+                    let has_channel = app_state
+                        .rms_channel
+                        .lock()
+                        .map(|g| g.is_some())
+                        .unwrap_or(false);
+                    if !has_channel {
+                        continue;
+                    }
+                    // Get RMS from backend
+                    if let Some(rms) = get_backend_rms(&app_state) {
+                        // Update last_rms for coalescing
+                        if let Ok(mut lr) = app_state.last_rms.lock() {
+                            *lr = rms;
+                        }
+                        publish::publish_rms(&app_state, rms);
+                    }
+                }
+            });
+
             // The 500 ms playback-watch task (F1/F3): feeds the
             // session clock from the backend's audible clock,
             // republishes the mirror at consumed-unit crossings,
@@ -2715,7 +2769,9 @@ pub fn run() {
             commands::session_delete,
             commands::offer_route,
             commands::open_document,
-            publish::register_publish_listener
+            publish::register_publish_listener,
+            publish::register_rms_listener,
+            publish::set_rms_visibility,
         ])
         .run(tauri::generate_context!())
         .unwrap_or_else(|error| {
@@ -3525,6 +3581,7 @@ pub mod commands {
             "stop" => Ok(BridgeAction::Verb(ShellVerb::Stop)),
             "skip_forward5s" => Ok(BridgeAction::Verb(ShellVerb::SkipForward)),
             "skip_back5s" => Ok(BridgeAction::Verb(ShellVerb::SkipBackward)),
+            "repeat_section" => Ok(BridgeAction::Verb(ShellVerb::SkipBackward)),
             "rate_up" => Ok(BridgeAction::Verb(ShellVerb::RateUp)),
             "rate_down" => Ok(BridgeAction::Verb(ShellVerb::RateDown)),
             "cycle_voice_next" => Ok(BridgeAction::Verb(ShellVerb::CycleVoiceNext)),
@@ -6325,9 +6382,91 @@ pub mod publish {
         }
         Value::Object(obj)
     }
+    /// Register the frontend listener for RMS channel (T102).
+    #[tauri::command]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "Tauri's CommandArg extractor is implemented for State by value"
+    )]
+    pub fn register_rms_listener(
+        _app: AppHandle,
+        state: State<'_, AppState>,
+    ) -> Result<(), String> {
+        let channel = tauri::ipc::Channel::<f32>::new(|_| Ok(()));
+        let mut guard = state.rms_channel.lock().map_err(|e| e.to_string())?;
+        *guard = Some(channel);
+        drop(guard);
+        tracing::info!("rms channel registered");
+        Ok(())
+    }
+
+    /// Set RMS visibility/hidden state (T102). Frontend signals when hidden.
+    #[tauri::command]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "Tauri's CommandArg extractor is implemented for State by value"
+    )]
+    pub fn set_rms_visibility(
+        state: State<'_, AppState>,
+        hidden: bool,
+    ) -> Result<(), String> {
+        let mut guard = state.view_hidden.lock().map_err(|e| e.to_string())?;
+        *guard = hidden;
+        Ok(())
+    }
+
+    /// Publish RMS value with throttling (~20Hz), last-wins coalescing,
+    /// skip while hidden or no subscribers (T102).
+    pub fn publish_rms(state: &AppState, rms: f32) {
+        // Skip if hidden
+        if let Ok(hidden) = state.view_hidden.lock() {
+            if *hidden {
+                return;
+            }
+        }
+        // Check if channel registered
+        let channel = {
+            let guard = match state.rms_channel.lock() {
+                Ok(g) => g,
+                Err(_) => return,
+            };
+            match guard.as_ref() {
+                Some(c) => c.clone(),
+                None => return,
+            }
+        };
+        // Throttle to ~20Hz (50ms)
+        let now = crate::now_ms();
+        {
+            let mut last_pub = match state.last_rms_publish_ms.lock() {
+                Ok(g) => g,
+                Err(_) => return,
+            };
+            if now.saturating_sub(*last_pub) < 50 {
+                // Last-wins coalescing: update last_rms but don't publish yet
+                if let Ok(mut lr) = state.last_rms.lock() {
+                    *lr = rms;
+                }
+                return;
+            }
+            *last_pub = now;
+        }
+        // Publish (last-wins value)
+        let val = state.last_rms.lock().map(|v| *v).unwrap_or(rms);
+        let _ = channel.send(val);
+    }
+
 }
 
-/// T011 wiring tests: the 20 s heartbeat put and the
+/// Get RMS from backend if available.
+fn get_backend_rms(state: &AppState) -> Option<f32> {
+    if let Ok(guard) = state.backend.lock() {
+        if let Some(backend) = guard.as_ref() {
+            return Some(backend.rms());
+        }
+    }
+    None
+}
 /// event-durable pause writes share one real redb file
 /// (through [`AppState::test_state_with_bookmark_store`]),
 /// so every written row is read back through the store's

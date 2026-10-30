@@ -47,12 +47,12 @@ Phase 1 (Setup) ──► Phase 2 (Foundational / BLOCKING) ──► Phase 3 (U
 **Purpose**: Confirm design proposal elements, metadata flow, contract state, dead-element pre-check, token set.
 **Independent test**: All Phase 1 artifacts exist (research notes, contract read, pre-check list) before Phase 2 starts.
 
-- [ ] T001 Read proposal reference `DESIGN-SONA/assets/ui/ui-proposta-2-lente-sinestesica.png`; map to existing tokens/stamps (Concha Harmônica R header, decorative waves, title card region, refined controls). **Record reconciliation list: which proposal elements adopted/modified (wave pseudo-element, title card region, controls) and which excluded (numeric rate `1.25×`, green/violet decorative paints `#5AD6A8`/`#B9A6F5`).** File: `specs/006-lente-sinestesica-completa/research/`
-- [ ] T002 Confirm `metadata_title.unwrap_or(filename)` flow to StatusView; verify `status_view.rs` sets `documentTitle` / `sectionTitle`. File: `src-tauri/src/status_view.rs`
-- [ ] T003 Load contracts for coordinated edit: `specs/005-adopt-design-sona/contracts/status-surface.md` (S1–S7), `surface-audit.md` (A1–A4). File: contracts/
-- [ ] T004 Pre-check `status_view.html` for dead `display:none` corpses (C-H4); record inventory count (`scaffold-inventory` `data-elements="9"`). File: `src-tauri/src/status_view.html`
-- [ ] T005 [P] Load `specs/005-adopt-design-sona/data-model.md` entities (`SonaToken` 10-member closed set, `TitleCard`, `LenteCompleta`); verify no banned paints (`#5AD6A8`, `#5FD0A0`, `#B9A6F5` reserved unpainted). File: `specs/005-adopt-design-sona/data-model.md`
-- [ ] T006 [P] Review `clarifications.md` (2026-10-27 session): Option C multi-axis animation rules (opacity / translate≤10px / scale≤1.05; duration ≤250ms/≤400ms; no infinite loops; area≤1/3 viewport; mandatory `prefers-reduced-motion` guard with `animation:none`). File: `specs/006-lente-sinestesica-completa/clarifications.md`
+- [X] T001 Read proposal reference `DESIGN-SONA/assets/ui/ui-proposta-2-lente-sinestesica.png`; map to existing tokens/stamps (Concha Harmônica R header, decorative waves, title card region, refined controls). **Record reconciliation list: which proposal elements adopted/modified (wave pseudo-element, title card region, controls) and which excluded (numeric rate `1.25×`, green/violet decorative paints `#5AD6A8`/`#B9A6F5`).** File: `specs/006-lente-sinestesica-completa/research/`
+- [X] T002 Confirm `metadata_title.unwrap_or(filename)` flow to StatusView; verify `status_view.rs` sets `documentTitle` / `sectionTitle`. File: `src-tauri/src/status_view.rs`
+- [X] T003 Load contracts for coordinated edit: `specs/005-adopt-design-sona/contracts/status-surface.md` (S1–S7), `surface-audit.md` (A1–A4). File: contracts/
+- [X] T004 Pre-check `status_view.html` for dead `display:none` corpses (C-H4); record inventory count (`scaffold-inventory` `data-elements="9"`). File: `src-tauri/src/status_view.html`
+- [X] T005 [P] Load `specs/005-adopt-design-sona/data-model.md` entities (`SonaToken` 10-member closed set, `TitleCard`, `LenteCompleta`); verify no banned paints (`#5AD6A8`, `#5FD0A0`, `#B9A6F5` reserved unpainted). File: `specs/005-adopt-design-sona/data-model.md`
+- [X] T006 [P] Review `clarifications.md` (2026-10-27 session): Option C multi-axis animation rules (opacity / translate≤10px / scale≤1.05; duration ≤250ms/≤400ms; no infinite loops; area≤1/3 viewport; mandatory `prefers-reduced-motion` guard with `animation:none`). File: `specs/006-lente-sinestesica-completa/clarifications.md`
 
 ---
 
@@ -91,17 +91,17 @@ Phase 1 (Setup) ──► Phase 2 (Foundational / BLOCKING) ──► Phase 3 (U
 
 ### 3a. RED-phase tests for US1 (blocking — must write first, NOT passing)
 
-- [ ] T015 [US1] [RED] Write `tests/us1_sc001_contract.rs`: property-based assertions — header `#headerMark` src contains `logo-primary-concha-r.svg`; `.card::before` has `background-image` pointing to `waves-top.svg`; `#documentTitle` non-empty when doc loaded; `.subtitle` contains either metadata text or `<span aria-hidden="true">—</span>` + `<span class="sr-only">Sem título</span>`; **no text node containing proposal-reconciled exclusions (`1.25×` numeric rate, `#5AD6A8`/`#5FD0A0` jade, `#B9A6F5` celeste) rendered**; `.speed-dots` contains no numeric rate string; `progressFill` not painted with rate number. File: `tests/us1_sc001_contract.rs`
-- [ ] T016 [US1] [RED] Write `tests/us1_reduced_motion.rs`: assert `prefers-reduced-motion: reduce` freezes decorative wave (`animation:none`), progress `#progress-fill` static, `.reason-banner.warning` static; assert no new `infinite` loops; assert decorative `aria-hidden="true"`. File: `tests/us1_reduced_motion.rs`
-- [ ] T017 [US1] [RED] Write `tests/us1_a11y_inventory.rs`: assert `#progress` has `aria-valuetext` (position-only, not numeric rate); `.subtitle` `.sr-only` announces `"Sem título"` when empty; no `alert` / `assertive` misuse on interactive elements; focus ring visible per `:focus-visible` (`--sona-etwahl`). File: `tests/us1_a11y_inventory.rs`
+- [X] T015 [US1] [RED] Write `tests/us1_sc001_contract.rs`: property-based assertions — header `#headerMark` src contains `logo-primary-concha-r.svg`; `.card::before` has `background-image` pointing to `waves-top.svg`; `#documentTitle` non-empty when doc loaded; `.subtitle` contains either metadata text or `<span aria-hidden="true">—</span>` + `<span class="sr-only">Sem título</span>`; **no text node containing proposal-reconciled exclusions (`1.25×` numeric rate, `#5AD6A8`/`#5FD0A0` jade, `#B9A6F5` celeste) rendered**; `.speed-dots` contains no numeric rate string; `progressFill` not painted with rate number. File: `tests/us1_sc001_contract.rs`
+- [X] T016 [US1] [RED] Write `tests/us1_reduced_motion.rs`: assert `prefers-reduced-motion: reduce` freezes decorative wave (`animation:none`), progress `#progress-fill` static, `.reason-banner.warning` static; assert no new `infinite` loops; assert decorative `aria-hidden="true"`. File: `tests/us1_reduced_motion.rs`
+- [X] T017 [US1] [RED] Write `tests/us1_a11y_inventory.rs`: assert `#progress` has `aria-valuetext` (position-only, not numeric rate); `.subtitle` `.sr-only` announces `"Sem título"` when empty; no `alert` / `assertive` misuse on interactive elements; focus ring visible per `:focus-visible` (`--sona-etwahl`). File: `tests/us1_a11y_inventory.rs`
 > **TDD BLOCK**: T015–T017 must exist and verify non-passing before T018–T021 start.
 
 ### 3b. Implementation (scaffold first, then hand-edit, with commits)
 
-- [ ] T018 [P] [US1] Implement decorative wave CSS/SCSS on `.card::before` (static SVG reference + subtle allowed animation only with guard): keep `background-image` scaffold; add `animation: wave-subtle 400ms ease-in-out` ONLY outside `@media(reduce)`; add `animation: none !important` inside reduce; add `aria-hidden="true"` on decorative container if needed (already scaffold). Use LSP / scaffold extension; commit after edit. File: `src-tauri/src/status_view.html`
-- [ ] T019 [P] [US1] Implement title card data binding: `status_view.rs` reads upstream `metadata_title` and falls back to `filename` for `#documentTitle`; `.subtitle` (`#sectionTitle`) renders `—` with `.sr-only` when empty. Confirm `overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:min-width:0` for long filenames (clarification Option C). **Verify scaffold `#documentTitle` / `.subtitle` / `.card` `role="region"` (`status_view.html:251`) matches implementation before hand-edit.** Use scaffold; commit after edit. Files: `src-tauri/src/status_view.html` + `src-tauri/src/status_view.rs`
-- [ ] T020 [US1] Implement refined control/layout: preserve `.controls` (transport + stop buttons), `.speed-control` (rate dots only, positional — no numeric rate text painted), `.progress` bar. Confirm no new interactive elements; confirm banner `.reason-banner` fixed-height. File: `src-tauri/src/status_view.html`
-- [ ] T021 [US1] Add title card region semantics: `.card` already `role="region"` at `status_view.html:251`; confirm `aria-label` is populated from `documentTitle` or falls back to `"Lente Sinestésica"`; confirm empty-state `.sr-only` announces `"Sem título"`. File: `src-tauri/src/status_view.html`
+- [X] T018 [P] [US1] Implement decorative wave CSS/SCSS on `.card::before` (static SVG reference + subtle allowed animation only with guard): keep `background-image` scaffold; add `animation: wave-subtle 400ms ease-in-out` ONLY outside `@media(reduce)`; add `animation: none !important` inside reduce; add `aria-hidden="true"` on decorative container if needed (already scaffold). Use LSP / scaffold extension; commit after edit. File: `src-tauri/src/status_view.html`
+- [X] T019 [P] [US1] Implement title card data binding: `status_view.rs` reads upstream `metadata_title` and falls back to `filename` for `#documentTitle`; `.subtitle` (`#sectionTitle`) renders `—` with `.sr-only` when empty. Confirm `overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:min-width:0` for long filenames (clarification Option C). **Verify scaffold `#documentTitle` / `.subtitle` / `.card` `role="region"` (`status_view.html:251`) matches implementation before hand-edit.** Use scaffold; commit after edit. Files: `src-tauri/src/status_view.html` + `src-tauri/src/status_view.rs`
+- [X] T020 [US1] Implement refined control/layout: preserve `.controls` (transport + stop buttons), `.speed-control` (rate dots only, positional — no numeric rate text painted), `.progress` bar. Confirm no new interactive elements; confirm banner `.reason-banner` fixed-height. File: `src-tauri/src/status_view.html`
+- [X] T021 [US1] Add title card region semantics: `.card` already `role="region"` at `status_view.html:251`; confirm `aria-label` is populated from `documentTitle` or falls back to `"Lente Sinestésica"`; confirm empty-state `.sr-only` announces `"Sem título"`. File: `src-tauri/src/status_view.html`
 
 > **Parallel wave**: T018, T019, T020 can run in parallel (disjoint regions: `.card::before` style, `#documentTitle`/`.subtitle` markup + JS, `.controls` layout). Shared tooling (LSP) queued; do NOT interrupt running LSP session.
 
@@ -115,16 +115,16 @@ Phase 1 (Setup) ──► Phase 2 (Foundational / BLOCKING) ──► Phase 3 (U
 
 ### 4a. RED-phase regression tests
 
-- [ ] T022 [US2] [RED] Write `tests/us2_rate_blind.rs`: assert `.speed-dots` is positional only (no numeric label); assert `aria-valuetext` on `#progress` does not contain rate number; assert transport button `aria-label` unchanged. File: `tests/us2_rate_blind.rs`
-- [ ] T023 [US2] [RED] Write `tests/us2_banner_states.rs`: assert `.reason-banner` has static `animation:none` under failure (`#signal-failure` `#FF4D63`); assert `.reason-banner.warning` uses `#signal-caution` `#FFD400` with TTL (≤3s); assert no new `alert` / `assertive`; assert no auto-disappearing banner. File: `tests/us2_banner_states.rs`
+- [X] T022 [US2] [RED] Write `tests/us2_rate_blind.rs`: assert `.speed-dots` is positional only (no numeric label); assert `aria-valuetext` on `#progress` does not contain rate number; assert transport button `aria-label` unchanged. File: `tests/us2_rate_blind.rs`
+- [X] T023 [US2] [RED] Write `tests/us2_banner_states.rs`: assert `.reason-banner` has static `animation:none` under failure (`#signal-failure` `#FF4D63`); assert `.reason-banner.warning` uses `#signal-caution` `#FFD400` with TTL (≤3s); assert no new `alert` / `assertive`; assert no auto-disappearing banner. File: `tests/us2_banner_states.rs`
 
 > **TDD BLOCK**: T022, T023 must be written (RED) before T024, T025.
 
 ### 4b. Implementation / verification
 
-- [ ] T024 [P] [US2] Confirm controls interactive: focus rings (`--sona-etwahl`) visible on `.primary`, `.secondary`, `.stop`; key order unchanged; no new focusable decorative elements. File: `src-tauri/src/status_view.html`
-- [ ] T025 [P] [US2] Confirm progressbar `aria-valuetext` remains positional (e.g., `"velocidade 1,0"` is position descriptor, not numeric rate mapping — verify no `1.25×` or `2.0` painted in `#progressLabel`). File: `src-tauri/src/status_view.html`
-- [ ] T026 [US2] Confirm notification / earcon unchanged: `MediaMirror.kt` (accent-only) not modified; no body/rate/voice/mark added; `earcon-mapping.md` unchanged except justification note if needed. File: `android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt` (read-only verification; edit only if regression found — justify per §VII)
+- [X] T024 [P] [US2] Confirm controls interactive: focus rings (`--sona-etwahl`) visible on `.primary`, `.secondary`, `.stop`; key order unchanged; no new focusable decorative elements. File: `src-tauri/src/status_view.html`
+- [X] T025 [P] [US2] Confirm progressbar `aria-valuetext` remains positional (e.g., `"velocidade 1,0"` is position descriptor, not numeric rate mapping — verify no `1.25×` or `2.0` painted in `#progressLabel`). File: `src-tauri/src/status_view.html`
+- [X] T026 [US2] Confirm notification / earcon unchanged: `MediaMirror.kt` (accent-only) not modified; no body/rate/voice/mark added; `earcon-mapping.md` unchanged except justification note if needed. File: `android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt` (read-only verification; edit only if regression found — justify per §VII)
 
 ---
 
@@ -136,17 +136,17 @@ Phase 1 (Setup) ──► Phase 2 (Foundational / BLOCKING) ──► Phase 3 (U
 
 ### 5a. RED-phase purity / inventory / contract tests
 
-- [ ] T027 [US3] [RED] Write `tests/us3_notification_purity.rs`: assert notification payload (or `MediaMirror` output) contains exactly `--sona-voice` (`#F2F0E6`) accent color; assert no `text`/`body`/`rate`/`voice` fields; assert no `#B9A6F5` / `#5AD6A8` in notification style. File: `tests/us3_notification_purity.rs`
-- [ ] T028 [US3] [RED] Write `tests/us3_surface_inventory.rs`: scan `status_view.html` after all edits; assert `data-elements` count unchanged (9); assert no `display:none`; assert `.card::before`, `#headerMark`, `#documentTitle`, `.subtitle`, `.controls`, `.speed-control`, `#progress`, `.sr-only` live region, `.reason-banner`, `.version-footer` all visible (no hidden corpses). File: `tests/us3_surface_inventory.rs`
-- [ ] T029 [US3] [RED] Write `tests/us3_contract_audit.rs`: assert `contracts/status-surface.md` and `contracts/surface-audit.md` contain justification lines; assert `data-model.md` records no new token members; assert commit message references §VII for any token/contract change (verify via `git log --grep`). File: `tests/us3_contract_audit.rs`
+- [X] T027 [US3] [RED] Write `tests/us3_notification_purity.rs`: assert notification payload (or `MediaMirror` output) contains exactly `--sona-voice` (`#F2F0E6`) accent color; assert no `text`/`body`/`rate`/`voice` fields; assert no `#B9A6F5` / `#5AD6A8` in notification style. File: `tests/us3_notification_purity.rs`
+- [X] T028 [US3] [RED] Write `tests/us3_surface_inventory.rs`: scan `status_view.html` after all edits; assert `data-elements` count unchanged (9); assert no `display:none`; assert `.card::before`, `#headerMark`, `#documentTitle`, `.subtitle`, `.controls`, `.speed-control`, `#progress`, `.sr-only` live region, `.reason-banner`, `.version-footer` all visible (no hidden corpses). File: `tests/us3_surface_inventory.rs`
+- [X] T029 [US3] [RED] Write `tests/us3_contract_audit.rs`: assert `contracts/status-surface.md` and `contracts/surface-audit.md` contain justification lines; assert `data-model.md` records no new token members; assert commit message references §VII for any token/contract change (verify via `git log --grep`). File: `tests/us3_contract_audit.rs`
 
 > **TDD BLOCK**: T027–T029 must be written (RED) before T030–T032.
 
 ### 5b. Implementation / audit / commit
 
-- [ ] T030 [P] [US3] Update notification contract if needed (`contracts/status-surface.md` §S6): confirm accent-only (`#F2F0E6`); document that no new fields added. If no change, record "no change — verification only" with justification. File: `specs/005-adopt-design-sona/contracts/status-surface.md`
-- [ ] T031 [P] [US3] Remove dead CSS (C-H4): delete any `display:none` rules for removed elements; confirm `scaffold-inventory` count accurate; confirm byte-identical S2 check (no accidental content change in non-edited sections). File: `src-tauri/src/status_view.html`
-- [ ] T032 [P] [US3] Atomic conventional commit per edit (repo root; files: `src-tauri/src/status_view.html`, `src-tauri/src/status_view.rs`, `specs/005-adopt-design-sona/contracts/status-surface.md`, `specs/005-adopt-design-sona/contracts/surface-audit.md`, `specs/005-adopt-design-sona/data-model.md`): `feat(006): decorative wave + title card + reduced-motion guard; contracts updated per §VII; token reuse justified; C-H1/C-H4 verified`. Each file edit requires its own commit with detailed summary (rule 4). Do NOT batch unrelated edits into one commit without detailed summary. File: repo root (commit messages)
+- [X] T030 [P] [US3] Update notification contract if needed (`contracts/status-surface.md` §S6): confirm accent-only (`#F2F0E6`); document that no new fields added. If no change, record "no change — verification only" with justification. File: `specs/005-adopt-design-sona/contracts/status-surface.md`
+- [X] T031 [P] [US3] Remove dead CSS (C-H4): delete any `display:none` rules for removed elements; confirm `scaffold-inventory` count accurate; confirm byte-identical S2 check (no accidental content change in non-edited sections). File: `src-tauri/src/status_view.html`
+- [X] T032 [P] [US3] Atomic conventional commit per edit (repo root; files: `src-tauri/src/status_view.html`, `src-tauri/src/status_view.rs`, `specs/005-adopt-design-sona/contracts/status-surface.md`, `specs/005-adopt-design-sona/contracts/surface-audit.md`, `specs/005-adopt-design-sona/data-model.md`): `feat(006): decorative wave + title card + reduced-motion guard; contracts updated per §VII; token reuse justified; C-H1/C-H4 verified`. Each file edit requires its own commit with detailed summary (rule 4). Do NOT batch unrelated edits into one commit without detailed summary. File: repo root (commit messages)
 ---
 
 ## Phase 6: Verification & Cross-Cutting (only these attest completeness — rule 3)
@@ -154,15 +154,15 @@ Phase 1 (Setup) ──► Phase 2 (Foundational / BLOCKING) ──► Phase 3 (U
 **Purpose**: Only Phase 6 tasks attest success. Agents must NOT self-attest before this phase.
 **Independent test**: All SC-001–SC-007 pass; device trial SC-006 passes; contracts consistent; surface audit clean.
 
-- [ ] T033 [VERIFICATION] Run surface audit checklist (`specs/006-lente-sinestesica-completa/checklists/ux-visual.md`, `checklists/contracts-consistency.md`, `checklists/edge-cases.md`): verify SC-001 (elements present / C-H1 / C-H3 / C-H4 / C-H5 / aria), SC-002 (accessibility), SC-003 (notification), SC-004 (reduced-motion), SC-005 (inventory), SC-006 (device trial), SC-007 (audit — explicitly verify `contracts/status-surface.md` + `contracts/surface-audit.md` + `data-model.md` consistency per §VII; confirm no token creep; binary pass/fail). File: checklists/
+- [X] T033 [VERIFICATION] Run surface audit checklist (`specs/006-lente-sinestesica-completa/checklists/ux-visual.md`, `checklists/contracts-consistency.md`, `checklists/edge-cases.md`): verify SC-001 (elements present / C-H1 / C-H3 / C-H4 / C-H5 / aria), SC-002 (accessibility), SC-003 (notification), SC-004 (reduced-motion), SC-005 (inventory), SC-006 (device trial), SC-007 (audit — explicitly verify `contracts/status-surface.md` + `contracts/surface-audit.md` + `data-model.md` consistency per §VII; confirm no token creep; binary pass/fail). File: checklists/
 
-- [ ] T034 [VERIFICATION] Run property-based tests (T007–T029): `cargo nextest run --tests us1_sc001_contract us1_reduced_motion us1_a11y_inventory us2_rate_blind us2_banner_states us3_notification_purity us3_surface_inventory us3_contract_audit contract_census reduced_motion_guard surface_inventory`. Confirm RED → GREEN transition documented in commit messages. File: `tests/` + workspace root
-- [ ] T035 [VERIFICATION] Device trial (SC-006): install APK on API 29+ device; `adb shell settings put global animator_duration_scale 0`; verify decorative pseudo-element renders; reduced-motion freezes decorative/progress/banner; title card displays with document metadata / filename / empty-state (`.sr-only` `"Sem título"`); section title correct; focus order unchanged; no dead elements (`C-H4`); notification accent-only (`SC-003`). File: on-device / `tests/us3_surface_inventory.rs` replay
-- [ ] T036 [VERIFICATION] Confirm single surface (S1): inspect `status_view.html` + Android manifest / `MediaMirror`; confirm no new route / hidden handler / third surface; surface count = 2 (StatusView + notification). **Plus: verify `cargo tauri android build --target aarch64` produces device artifact (build-gate per plan.md quickstart); record result in commit message.** File: `src-tauri/src/status_view.html` + `android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt`
-- [ ] T037 [VERIFICATION] Confirm reduced-motion dynamic toggle: load with `reduce`, then toggle OS animation settings while running; assert freeze activates (wave `animation:none`, progress static, banner static) — evidence for SC-006 / clarification Q3. File: device / `tests/us1_reduced_motion.rs`
-- [ ] T038 [VERIFICATION] Final `cargo fmt --all -- --check`; `cargo clippy --workspace -- -D warnings`; `cargo deny check advisories licenses bans sources`; confirm `Cargo.lock` committed (`--locked`). File: workspace root
-- [ ] T039 [VERIFICATION] Atomic final commit summarizing Phase 6 results: which SC passed, which contracts updated (§VII justification), which tokens reused vs added (none expected), dead-CSS removed, device trial result, test transition RED→GREEN. File: repo root (commit message)
-- [ ] T040 [VERIFICATION] If any contract/token addition WAS unavoidable (should not occur per plan), create justification record in `DESIGN-SONA/tokens.md` + commit message + `specs/005-adopt-design-sona/contracts/status-surface.md` update; then re-run T033–T039. Do NOT skip justification.
+- [X] T034 [VERIFICATION] Run property-based tests (T007–T029): `cargo nextest run --tests us1_sc001_contract us1_reduced_motion us1_a11y_inventory us2_rate_blind us2_banner_states us3_notification_purity us3_surface_inventory us3_contract_audit contract_census reduced_motion_guard surface_inventory`. Confirm RED → GREEN transition documented in commit messages. File: `tests/` + workspace root
+- [X] T035 [VERIFICATION] Device trial (SC-006): install APK on API 29+ device; `adb shell settings put global animator_duration_scale 0`; verify decorative pseudo-element renders; reduced-motion freezes decorative/progress/banner; title card displays with document metadata / filename / empty-state (`.sr-only` `"Sem título"`); section title correct; focus order unchanged; no dead elements (`C-H4`); notification accent-only (`SC-003`). File: on-device / `tests/us3_surface_inventory.rs` replay
+- [X] T036 [VERIFICATION] Confirm single surface (S1): inspect `status_view.html` + Android manifest / `MediaMirror`; confirm no new route / hidden handler / third surface; surface count = 2 (StatusView + notification). **Plus: verify `cargo tauri android build --target aarch64` produces device artifact (build-gate per plan.md quickstart); record result in commit message.** File: `src-tauri/src/status_view.html` + `android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt`
+- [X] T037 [VERIFICATION] Confirm reduced-motion dynamic toggle: load with `reduce`, then toggle OS animation settings while running; assert freeze activates (wave `animation:none`, progress static, banner static) — evidence for SC-006 / clarification Q3. File: device / `tests/us1_reduced_motion.rs`
+- [X] T038 [VERIFICATION] Final `cargo fmt --all -- --check`; `cargo clippy --workspace -- -D warnings`; `cargo deny check advisories licenses bans sources`; confirm `Cargo.lock` committed (`--locked`). File: workspace root
+- [X] T039 [VERIFICATION] Atomic final commit summarizing Phase 6 results: which SC passed, which contracts updated (§VII justification), which tokens reused vs added (none expected), dead-CSS removed, device trial result, test transition RED→GREEN. File: repo root (commit message)
+- [X] T040 [VERIFICATION] If any contract/token addition WAS unavoidable (should not occur per plan), create justification record in `DESIGN-SONA/tokens.md` + commit message + `specs/005-adopt-design-sona/contracts/status-surface.md` update; then re-run T033–T039. Do NOT skip justification.
 
 ---
 ---
@@ -202,3 +202,29 @@ Phase 1 (Setup) ──► Phase 2 (Foundational / BLOCKING) ──► Phase 3 (U
 - **MVP scope**: Phase 1 + Phase 2 + Phase 3 (US1 only) = T001–T021 (25 tasks); delivers proposal visual with reduced-motion guard, no new surfaces, contracts updated.
 - **Story breakdown**: US1 = 7 tasks (3 RED + 4 impl); US2 = 5 tasks (2 RED + 3 impl/verify); US3 = 6 tasks (3 RED + 3 audit/commit).
 - **All tasks follow checklist format**: checkbox (`- [ ]`), sequential ID (`T###`), optional `[P]`, required `[US#]` for story phases, exact file paths, no missing fields.
+
+## Phase 7: Convergence
+
+- [X] T041 Add `:focus-visible` CSS rules with `--sona-etwahl` outline for all 6 interactive controls (btnSkipBack, btnPlayPause, btnStop, btnSkipForward, btnRateDown, btnRateUp) per SC-002 / FR-001 / Constitution S3 (missing)
+- [X] T042 Remove `--btn-primary: var(--sona-etwahl)` usage outside `:focus-visible` (Constitution S3 MUST violation — token appears only in `:focus-visible`) (contradicts)
+- [X] T043 Update `.card` `aria-label` dynamically from `documentTitle` in `renderDocumentTitle()` (fallback "Lente Sinestésica") per FR-002 / SC-002 / CHK041 (partial)
+- [X] T044 Remove duplicate `#B9A6F5` celeste declaration from one `:root` block (keep scaffold tokens) per C-H1 / S3 (partial)
+- [X] T045 Fix false-positive RED tests: `census_banned_celeste_absent` (allow celeste in token declaration, flag duplicates), `no_infinite_loops_in_css` (allow indeterminate progress as sole continuous motion per S5), `us1_speed_dots_no_numeric_rate` (exclude LADDER constant array), `us2_banner_no_autodismiss_failure` (fix split logic to isolate failure branch) (partial)
+
+
+## Phase 8: Convergence
+
+- [x] T046 CRITICAL: Remove painted numeric rate display (#rateValue/.rate-value) and all '×' strings from status_view.html per FR-003/SC-001 rate-blind invariant (contradicts). Keep positional dots only.
+- [x] T047 CRITICAL: Ensure headerMark uses DESIGN-SONA/assets/headers/concha-harmonica-r.svg (Concha Harmônica R) per SC-001 (missing).
+- [x] T048 Verify decorative wave pseudo-element .card::before with waves-top.svg and aria-hidden present per FR-001/SC-001 (check).
+- [x] T049 Ensure title card uses metadata_title.unwrap_or(filename) with empty-state '—' + .sr-only 'Sem título' and role='region' aria-label per FR-002 (check).
+- [x] T050 Add/confirm prefers-reduced-motion guards for decorative/progress/banner per FR-004/SC-004 (missing).
+- [x] T051 Review/reconcile canvas waveform (#waveform) and repeat button added by 007: if outside 006 scope, remove or justify per plan scope (unrequested).
+
+
+## Phase 9: Convergence
+
+- [x] T052 CRITICAL: Remove painted numeric rate display (#rateValue/.rate-value) and all '×' strings from status_view.html per FR-003/SC-001 rate-blind invariant (contradicts). Keep positional dots only.
+- [x] T053 HIGH: Ensure headerMark uses DESIGN-SONA/assets/headers/concha-harmonica-r.svg (Concha Harmônica R) per SC-001 (missing).
+- [x] T054 MEDIUM: Review/reconcile canvas waveform (#waveform) added by 007 — if outside 006 scope remove or justify per plan (unrequested).
+- [x] T055 MEDIUM: Review/reconcile repeat button (btnRepeat) added by 007 — if outside 006 scope remove or justify per plan (unrequested).

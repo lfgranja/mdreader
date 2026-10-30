@@ -21,6 +21,7 @@
 //! ([`CpalBackend::buffer_state`]).
 
 use std::collections::VecDeque;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
@@ -296,6 +297,10 @@ struct SampleQueue {
     /// but a USER trigger never interrupts an in-flight SYSTEM
     /// confirmation (E2.3).
     short_mix_kind: Option<EarconKind>,
+    /// RMS of the most recently consumed speech block (0.0–1.0).
+    /// Updated lock-free in `consume_into`; read by the frontend
+    /// via `CpalBackend::rms()`.
+    rms: AtomicU32,
 }
 
 impl Default for SampleQueue {
@@ -305,6 +310,7 @@ impl Default for SampleQueue {
             gain: FULL_GAIN,
             short_mix: VecDeque::new(),
             short_mix_kind: None,
+            rms: AtomicU32::new(0.0f32.to_bits()),
         }
     }
 }
@@ -364,17 +370,25 @@ impl SampleQueue {
     /// samples only").
     fn consume_into(&mut self, out: &mut [f32]) -> usize {
         let gain = self.gain;
-        let mut speech_consumed = 0;
+        let mut speech_consumed = 0usize;
+        let mut sum_sq: f64 = 0.0;
+        let mut count: usize = 0;
         for slot in out.iter_mut() {
             let speech = self.speech.pop_front();
             let earcon = self.short_mix.pop_front();
             match (speech, earcon) {
                 (Some(sample), Some(tone)) => {
                     *slot = sample.mul_add(gain, tone);
+                    let s = f64::from(sample);
+                    sum_sq += s * s;
+                    count += 1;
                     speech_consumed += 1;
                 }
                 (Some(sample), None) => {
                     *slot = sample * gain;
+                    let s = f64::from(sample);
+                    sum_sq += s * s;
+                    count += 1;
                     speech_consumed += 1;
                 }
                 (None, Some(tone)) => {
@@ -388,9 +402,20 @@ impl SampleQueue {
         if self.short_mix.is_empty() {
             self.short_mix_kind = None;
         }
+        let rms = if count > 0 {
+            ((sum_sq / count as f64).sqrt()) as f32
+        } else {
+            0.0
+        };
+        self.rms.store(rms.to_bits(), Ordering::Relaxed);
         speech_consumed
     }
 
+    /// Return the RMS of the most recently consumed speech block.
+    #[must_use]
+    fn rms(&self) -> f32 {
+        f32::from_bits(self.rms.load(Ordering::Relaxed))
+    }
     /// Drop every buffered sample, speech and short-mix alike:
     /// a pause or stop stands the confirmation down too (the
     /// trigger path re-fires it once Playing is restored, per
@@ -546,6 +571,15 @@ impl CpalBackend {
         if let Ok(mut queue) = self.queue.lock() {
             queue.push(&pcm);
         }
+    }
+    /// Return the RMS of the most recently consumed speech block.
+    ///
+    /// Lock-free read of the atomic store updated by the output
+    /// stream callback. Returns `0.0` when no speech has been
+    /// consumed yet.
+    #[must_use]
+    pub fn rms(&self) -> f32 {
+        self.queue.lock().map_or(0.0, |q| q.rms())
     }
 
     /// Enqueue duck-exempt earcon PCM (contracts/earcon.md):

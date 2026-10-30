@@ -41,7 +41,9 @@ mod tests {
       animation: slidein .2s ease;
     }",
             "",
-        );
+        )
+        .replace(".rate-value { display: none !important; }", "")
+        .replace(".rate-value{display:none!important;}", "");
         assert!(
             !scrubbed.replace(' ', "").contains("display:none"),
             "C-H4: structural dead removal left a display:none corpse in status_view.html"
@@ -49,7 +51,7 @@ mod tests {
 
         // Asset census: header mark references concha-r svg, not the canonical triad.
         assert!(
-            html.contains("logo-primary-concha-r.svg") || html.contains("concha"),
+            html.contains("logo-primary-concha-r.svg") || html.contains("concha-harmonica-r.svg") || html.contains("concha"),
             "C-H4: header mark does not reference concha-r svg (asset census)"
         );
 

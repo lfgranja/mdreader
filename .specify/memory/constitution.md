@@ -1,6 +1,57 @@
 <!--
   SYNC IMPACT REPORT
   ===================
+  Amended: 2026-10-28
+  Version change: 1.12.0 -> 2.0.0
+
+  Bump rationale: MAJOR. Two principles are redefined to enable the complete
+  SONA design (feature 006-lente-sinestesica-completa):
+    - Principle VII (Closed Sets): amended to allow design-token expansion
+      (jade #5AD6A8, celeste #B9A6F5) with justification, subject to coordinated
+      edit per §VII. Previously, the token set was implicitly fixed at 10 members.
+    - Principle VIII (Driving-First): amended to explicitly permit supplementary
+      visual elements (waveform visualizers, glassmorphism, glow/neon accents,
+      additional decorative controls) as long as they do not become required
+      interactions. Previously, only 2 surfaces were allowed with no supplementary
+      visual elements.
+  No MUST principle is weakened: Driving-First remains NON-NEGOTIABLE for required
+  interactions. Token expansion requires the same coordinated-edit procedure.
+  Not MINOR (principle redefinition, not just addition). Not PATCH (semantic change).
+
+  What changed:
+    - Principle VII: added "Design-token expansion" clause allowing new palette
+      entries with justification (coordinated edit, version bump, census update).
+      Reserved-unpainted tokens (celeste) may be promoted to painted status.
+    - Principle VIII: added "Supplementary visual elements" clause permitting
+      waveform visualizers, glassmorphism, glow/neon, decorative controls as
+      supplementary (non-required) elements. Must respect closed token set,
+      movement budget, and surface count limit.
+    - Additional Constraints: no new section added; existing sections unchanged.
+
+  Modified principles:
+    - VII. Closed Sets, No Catch-Alls -> VII. Closed Sets, No Catch-Alls (amended:
+      design-token expansion clause added)
+    - VIII. Driving-First (NON-NEGOTIABLE) -> VIII. Driving-First (NON-NEGOTIABLE)
+      (amended: supplementary visual elements clause added)
+
+  Added sections: none (amendments appended to existing principles)
+  Removed sections: none
+
+  Follow-up TODOs:
+    - Feature spec 006 must be amended to include excluded elements (numeric rate,
+      jade/celeste paints, waveform, glassmorphism, glow, extra controls).
+    - Contracts (status-surface.md, surface-audit.md) must be updated per §VII.
+    - Data model (SonaToken) must be expanded (10 -> 12+ members).
+    - RED tests (T007-T029) must be rewritten for new invariants.
+    - Implementation tasks (T018-T021, T024-T025, T030-T031) must be updated.
+    - Verification tasks (T033-T040) must be re-run.
+    - These are non-governance intents; see Next Actions.
+-->
+
+EOF
+<!--
+  SYNC IMPACT REPORT
+  ===================
   Amended: 2026-10-21
   Version change: 1.11.0 -> 1.12.0
 
@@ -919,6 +970,13 @@ semver bump, and a documentation update. The rationale is that a catch-all arm c
 unhandled condition into a silently wrong one, and in an app whose failure mode is "went quiet
 in the tunnel", a silent branch is worse than a failed build.
 
+**Design-token expansion (amended 2026-10-28, v2.0.0):** The closed token set (SonaToken) may be
+expanded to include additional palette entries (e.g., jade #5AD6A8, celeste #B9A6F5) when justified
+by a design proposal, subject to: (1) coordinated edit per §VII (spec + plan + tasks + code + docs),
+(2) version bump, (3) justification record in DESIGN-SONA/tokens.md + commit message, (4) census
+update (C-H1). The existing 10-member set is the baseline; additions are additive, not replacements.
+Reserved-unpainted tokens (celeste) may be promoted to painted status with justification.
+
 ### VIII. Driving-First (NON-NEGOTIABLE)
 The primary context is a moving vehicle. **No required interaction may demand looking at the
 screen.** Every operation reachable while driving — play, pause, resume, next section, previous
@@ -933,6 +991,15 @@ replaced so far either have no Android version, cannot read local files, or take
 start that they are already a distraction when they finally do. Driving-safety is therefore a
 functional requirement here, not a UX preference, and it is the reason the notification and
 media-session surface is built first rather than last.
+
+**Supplementary visual elements (amended 2026-10-28, v2.0.0):** Visual elements that are
+supplementary (not required for operation) are permitted on the in-app surface, including:
+waveform visualizers, glassmorphism effects, glow/neon accents, and additional decorative
+controls. These MUST NOT become required interactions (all operations remain eyes-free via
+notification/lock-screen). They MUST respect the closed token set (Principle VII) and the
+movement budget (≤1 continuous loop, reduced-motion guard). They MUST NOT introduce new
+surfaces (S1 = 2 surfaces max) or new interactive elements beyond the enumerated set
+without coordinated edit.
 
 ### IX. Offline-First
 The engine MUST produce audible speech with no network connectivity. A design that degrades to
@@ -1398,4 +1465,4 @@ Where this constitution and a convenience conflict, this constitution wins and t
 either changed or proposed as an amendment. Where this constitution and the reference stack
 conflict, the maintainer decides, and the decision is logged.
 
-**Version**: 1.12.0 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-21
+**Version**: 2.0.0 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-28

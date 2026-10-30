@@ -5,7 +5,7 @@ use std::path::Path;
 
 const ALLOWED_HEX: &[&str] = &[
     "#0B0F1A", "#141B2D", "#F2F0E6", "#8FD8E8", "#A9B8CE", "#E8C46A", "#B9A6F5", "#55688F",
-    "#FFD400", "#FF4D63",
+    "#FFD400", "#FF4D63", "#5AD6A8",
 ];
 
 const DESIGN_SONA_FILES: &[&str] = &[

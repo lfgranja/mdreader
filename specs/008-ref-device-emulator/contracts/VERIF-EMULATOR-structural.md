@@ -1,7 +1,7 @@
 # Contracts — VERIF-EMULATOR Structural Verification Layer
 
 **Feature**: `specs/008-ref-device-emulator/`  
-**References**: `specs/003-reference-device/contracts/` (status-surface.md, earcon-mapping.md, surface-audit.md)  
+- **References**: `specs/003-reference-device/contracts/` (status-surface.md, earcon-mapping.md, surface-audit.md); `crates/engine-core/src/closed.rs` (closed-set engine contract: `PlaybackRate` ladder `[0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 4.0]`, `EngineError` 7 variants)
 **Status**: Draft — structural verification contracts only; physical gate contracts unchanged.
 
 ## Contract Summary
@@ -22,3 +22,4 @@
 - Note: 8 structural contracts verified; aligns with tasks.md T007 reference (8 contracts mapped). Contract names: manifest, Service, MediaSession, notification, focus, diag, resume fingerprint, rate-step UI.
 - **Explicitly excluded (physical-only)**: Audio-output verification (`22050 Hz` mono f32 → device format), `SC-009` benchmark, real `MAY_DUCK` audio volume (~20%), telephony/alarm interruption simulation, Bluetooth/car routing (`FR` device switch), 10/10 on-device trials.
 - **No false-equivalence claim permitted**: Attestation must state both verified and excluded items; must link to `verify.sh` for excluded items.
+- **Closed-set enforcement**: `VERIF-EMULATOR` uses `crates/engine-core/src/closed.rs` exclusively — rate ladder `[0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 4.0]` unchanged; no new `EngineError`, `EventKind`, or rate-ladder variants; no `Other`/`Unknown` catch-all variants permitted.

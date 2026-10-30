@@ -66,8 +66,8 @@ target/
 /snapshots/*
 
 # Android / Kotlin
-android-shell/build/
-android-shell/.gradle/
+/android-shell/build/
+/android-shell/.gradle/
 *.class
 *.jar
 *.iml
@@ -76,4 +76,15 @@ android-shell/.gradle/
 .idea/
 .vscode/
 .DS_Store
+# Spec Kit local assessments and artifacts
+.specify/assessments/
+.specify/bugs/
+.omp/plans/
 *.env*
+
+# Build artifacts that leak into the tree
+# Tool local ignore/config files
+
+.npmignore
+.prettierignore
+.terraformignore

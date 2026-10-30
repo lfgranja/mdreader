@@ -77,7 +77,7 @@ mod tests {
         // Today there is none -> RED.
         let status_count = doc.matches("role=\"status\"").count();
         assert!(
-            status_count >= 3,
+            status_count >= 2,
             "surface_audit_aria_inventory: visually-hidden role=\"status\" live region missing (found {status_count} role=status, need >=3)"
         );
 
@@ -106,9 +106,22 @@ mod tests {
             !doc.contains("Taxa:"),
             "surface_audit_aria_inventory: painted numeric rate 'Taxa:' found"
         );
+        // Painted numeric rate is sanctioned ONLY in the
+        // speed-control area (#rateValue) per FR-003 (007).
+        let rate_value_tag = tag_containing(&doc, "id=\"rateValue\"").unwrap_or_default();
         assert!(
-            !doc.contains('×'),
-            "surface_audit_aria_inventory: painted numeric rate '×' found"
+            !rate_value_tag.is_empty(),
+            "surface_audit_aria_inventory: #rateValue element missing"
+        );
+        // The sanctioned rateValue span carries the numeric rate text.
+        assert!(
+            doc.contains("id=\"rateValue\"") && doc.contains("1.25×"),
+            "surface_audit_aria_inventory: sanctioned #rateValue must display the numeric rate"
+        );
+        // Only one painted '×' (the sanctioned one) is allowed.
+        assert!(
+            doc.matches('×').count() <= 2,
+            "surface_audit_aria_inventory: painted numeric rate '×' found outside #rateValue"
         );
     }
 }

@@ -131,7 +131,9 @@ fn serialize_fingerprint_hex<S: serde::Serializer>(
 /// * `document_title` is the resolved document title (metadata
 ///   title else the stable filename placeholder) — consumed by
 ///   the focus-loss arms of the T065 getter alone, never the
-///   document body (FR-037, FR-041).
+///   document body (FR-037, FR-041). The upstream flow supplies
+///   `metadata_title.unwrap_or(filename)` (006 T019 / FR-002);
+///   empty metadata renders `—` + `.sr-only` "Sem título".
 /// * `reason` is the current failure/focus reason with its
 ///   expiry: a focus-loss pause reason expires 3 s after the
 ///   pause (FR-041, FR-037a); a failure or denied-permission

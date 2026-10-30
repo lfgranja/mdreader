@@ -6406,10 +6406,7 @@ pub mod publish {
         clippy::needless_pass_by_value,
         reason = "Tauri's CommandArg extractor is implemented for State by value"
     )]
-    pub fn set_rms_visibility(
-        state: State<'_, AppState>,
-        hidden: bool,
-    ) -> Result<(), String> {
+    pub fn set_rms_visibility(state: State<'_, AppState>, hidden: bool) -> Result<(), String> {
         let mut guard = state.view_hidden.lock().map_err(|e| e.to_string())?;
         *guard = hidden;
         Ok(())
@@ -6455,7 +6452,6 @@ pub mod publish {
         let val = state.last_rms.lock().map(|v| *v).unwrap_or(rms);
         let _ = channel.send(val);
     }
-
 }
 
 /// Get RMS from backend if available.
@@ -6521,12 +6517,15 @@ mod heartbeat_bookmark_tests {
                 .execute(ShellVerb::Play)
                 .map_err(|e| e.to_string())?
         };
+        // T154 (fix): garante que o waveform tenha payload determinístico para renderização funcional.
+        if let Ok(mut resolver_guard) = state.surface_resolver.lock() {
+            if let Some(resolver) = resolver_guard.as_mut() {
+                resolver.ensure_nonzero_total_units();
+            }
+        }
         after_execute(state, &snapshot, ShellVerb::Play);
         Ok(snapshot)
     }
-
-    /// The event-durable pause write: a deliberate pause
-    /// persists the position with the `paused` end kind —
     /// the FR-032c continue-offer kind — and the FR-015
     /// clock stamped, and a paused session is not
     /// `Playing`, so a heartbeat tick records nothing new.

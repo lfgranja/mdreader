@@ -431,6 +431,16 @@ impl SurfaceResolver {
         }
     }
 
+    /// Ensure the unit total is non-zero so the waveform has a
+    /// deterministic payload for rendering (T154). Only call when
+    /// the session opened with zero units; never overwrites a
+    /// positive total.
+    pub fn ensure_nonzero_total_units(&mut self) {
+        if self.total_units == 0 {
+            self.total_units = 1;
+        }
+    }
+
     /// Note the MEASURED end of one parsed unit (T143 / FR-013):
     /// the synthesis's own measurement of where the unit's audio
     /// ends, in the document's timeline (the seconds from the
@@ -441,6 +451,11 @@ impl SurfaceResolver {
     /// backward (FR-013) and never passes the session-start unit
     /// total. An end that would move the timeline back is ignored:
     /// the measured timeline only grows.
+    /// Ensure the unit total is non-zero so the waveform has a
+    /// deterministic payload for rendering (T154). Only call when
+    /// the session opened with zero units; never overwrites a
+    /// positive total.
+
     pub fn note_measured_unit_end(&mut self, end_secs: f64) {
         if self
             .measured_unit_ends

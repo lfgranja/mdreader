@@ -1,6 +1,6 @@
 # Implementation Plan: Adotar o DESIGN-SONA (Option A subset)
 
-**Branch**: `005-adopt-design-sona` | **Date**: 2026-10-24 | **Spec**: [spec.md](spec.md)
+> **Constituição:** `.specify/memory/constitution.md` v2.0.0 (amendado 2026-10-28 — Princípio VII expansão de tokens de design; Princípio VIII elementos visuais suplementares)
 
 **Input**: Feature specification from `/specs/005-adopt-design-sona/spec.md` (assessment handoff: go for the Option A scope — tokens, dual mark, Sona earcons on the existing surfaces; notification-first, dark-only, no full Svelte UI). English contract identifiers used throughout (`earcon` per `earcon-mapping.md` E1, `StatusView` per `status-surface.md` S1, `surface-audit` per `surface-audit.md` A1); title kept in Portuguese per design-dir; no terminology conflict. All clarify runs resolved (36 recorded Q/A bullets, 15 research notes; zero NEEDS CLARIFICATION per `checklists/requirements.md` 16/16).
 

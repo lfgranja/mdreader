@@ -380,14 +380,14 @@ impl SampleQueue {
                 (Some(sample), Some(tone)) => {
                     *slot = sample.mul_add(gain, tone);
                     let s = f64::from(sample);
-                    sum_sq += s * s;
+                    sum_sq = f64::mul_add(s, s, sum_sq);
                     count += 1;
                     speech_consumed += 1;
                 }
                 (Some(sample), None) => {
                     *slot = sample * gain;
                     let s = f64::from(sample);
-                    sum_sq += s * s;
+                    sum_sq = f64::mul_add(s, s, sum_sq);
                     count += 1;
                     speech_consumed += 1;
                 }
@@ -402,6 +402,7 @@ impl SampleQueue {
         if self.short_mix.is_empty() {
             self.short_mix_kind = None;
         }
+        #[expect(clippy::cast_possible_truncation, clippy::cast_precision_loss, reason = "rms is a f32 magnitude, precision loss acceptable")]
         let rms = if count > 0 {
             ((sum_sq / count as f64).sqrt()) as f32
         } else {

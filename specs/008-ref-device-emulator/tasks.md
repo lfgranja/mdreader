@@ -4,7 +4,7 @@ description: "Task list for VERIF-EMULATOR structural verification layer (spec 0
 
 # Tasks: VERIF-EMULATOR — Structural Verification Layer (spec 008-ref-device-emulator)
 
-**Input**: Design documents from `/specs/008-ref-device-emulator/` (`spec.md`, `plan.md`, `research.md`, `data-model.md`, `contracts/VERIF-EMULATOR-structural.md`, `quickstart.md`, `VERIF-EMULATOR.md`)
+**Input**: Design documents from `/specs/008-ref-device-emulator/` (`spec.md`, `plan.md`, `research.md`, `data-model.md`, `contracts/VERIF-EMULATOR-structural.md`, `quickstart.md`, `VERIF-EMULATOR.md`, `checklists/`)
 
 **Prerequisites**: `plan.md` (designated branch `005-adopt-design-sona`, option A confirmed), `spec.md` (FR-001 to FR-006, SC-001 to SC-004), `VERIF-EMULATOR.md` (template created), contracts/reference contracts (`specs/003-reference-device/contracts/`), `AGENTS.md` (constitution v2.0.0)
 
@@ -25,9 +25,9 @@ description: "Task list for VERIF-EMULATOR structural verification layer (spec 0
 **Purpose**: Confirm design artifacts exist; prepare isolated verification environment; no `crates/*/src` or `src-tauri/src/` edits.
 
 - [X] T001 Confirm feature branch `005-adopt-design-sona` active; `VERIF-EMULATOR.md` template exists at `specs/008-ref-device-emulator/VERIF-EMULATOR.md`
-- [X] T002 [P] Confirm design docs (`spec.md`, `plan.md`, `data-model.md`, `contracts/VERIF-EMULATOR-structural.md`, `quickstart.md`, `research.md`) present and consistent with `AGENTS.md` v2.0.0
-- [X] T003 [P] Confirm `cleanroom-core` empty (no new crate); verify no `Cargo.toml` / `Cargo.lock` changes needed for structural layer
-- [X] T004 [P] Confirm `scripts/verify.sh` unchanged (`verify.sh` preserved per `FR-003`); record current `git status` baseline (`0c985ee`, 51 dirty) for isolation verification (`SC-002`)
+- [X] T002 [P] Confirm design docs (`spec.md`, `plan.md`, `data-model.md`, `contracts/VERIF-EMULATOR-structural.md`, `quickstart.md`, `research.md`) present and consistent with `AGENTS.md` v2.0.0 at `specs/008-ref-device-emulator/`
+- [X] T003 [P] Confirm `cleanroom-core` empty (no new crate); verify no `Cargo.toml` / `Cargo.lock` changes needed for structural layer at `specs/008-ref-device-emulator/`
+- [X] T004 [P] Confirm `scripts/verify.sh` unchanged (`verify.sh` preserved per `FR-003`); record current `git status` baseline (`0c985ee`, 51 dirty) for isolation verification (`SC-002`) at repo root
 
 ---
 
@@ -37,14 +37,14 @@ description: "Task list for VERIF-EMULATOR structural verification layer (spec 0
 
 **CRITICAL**: No user story implementation starts until this phase is complete and tests are RED (failing).
 
-- [X] T005 [US1] RED TEST — Structural attestation format: verify `VERIF-EMULATOR.md` exists with sections 1–8 (Header, Verified Contracts, Exclusions, verify.sh Reference, Security/Consent, No False-Equivalence, Attachments); expect FAIL until template completed
-- [X] T006 [US1] RED TEST — Checklist completeness: verify `checklists/requirements.md`, `security.md`, `verification.md` have all `[ ]` items marked; RED: checklist verification gate — all items [x] (16/16 req, 6/6 sec, 9/9 ver); no open checklist items remain. Historical RED reference only; verification completes at Phase 6 (T033-T040).
-- [X] T007 [P] [US1] RED TEST — Contract mapping completeness: verify all 8 structural framework contracts mapped in contracts/VERIF-EMULATOR-structural.md (manifest, Service lifecycle, MediaSession init, notification limits, focus API, diagnostic JSONL, resume fingerprint, rate-step UI) — contracts file has 8 verified items; FR-001 covers 6 categories with notification/service split; expect FAIL if any missing
-- [X] T008 [P] [US2] RED TEST — Isolation / dirty-tree preservation: verify `git status --short` unchanged after a simulated verification run (no source edits); expect FAIL until isolation verified (`SC-002`)
-- [X] T009 [P] [US3] RED TEST — False-equivalence claim absence: grep `VERIF-EMULATOR.md` and `spec.md` for language implying `gate-8-full` equivalence; expect 0 hits (`SC-004`); expect FAIL if any found
-- [X] T010 [P] RED TEST — Secret exclusion in attestation: verify `VERIF-EMULATOR.md` §5 contains explicit prohibition (`.env`, `.pem`, `.key`, tokens); verify `spec.md` FR-005 links template; RED: secret exclusion verified — VERIF-EMULATOR.md §5 contains .env/.pem/.key/token prohibition; spec.md FR-005 links template; AGENTS.md deny-secrets binding. Clause present. Historical RED reference; remaining verification at Phase 6 (T038).
-- [X] T011 [P] RED TEST — Diagnostic boundary / failure isolation: verify `spec.md` contains `Verification failure isolation and diagnostic boundary` clause; verify `VERIF-EMULATOR.md` references `AGENTS.md` diag rules (`≤200` chars identifier-pattern, `error` on `failure`/`refusal`, local-only, never transmitted); RED: failure-isolation / diag-boundary clause verified — spec.md 'Verification failure isolation and diagnostic boundary' (line 77-97) links to AGENTS.md diag rules (local-only, ≤200 chars identifier-pattern, error on failure/refusal, never transmitted, no secrets). Clause present. Historical RED reference.
-- [X] T012 RED TEST — AVD version delta documented: verify `spec.md` Q1 / Assumptions / quickstart.md step 1 / `VERIF-EMULATOR.md` header include delta-note requirement; RED: AVD delta-note verified — spec.md Q1/Assumptions (line 112), quickstart.md step 1, VERIF-EMULATOR.md §1 header document delta-note requirement. Clause present. Historical RED reference.
+- [X] T005 [US1] RED TEST — Structural attestation format: verify `VERIF-EMULATOR.md` exists with sections 1–8 (Header, Verified Contracts, Exclusions, verify.sh Reference, Security/Consent, No False-Equivalence, Attachments) at `specs/008-ref-device-emulator/VERIF-EMULATOR.md`; expect FAIL until template completed (`SC-001`, `SC-003`)
+- [X] T006 [US1] RED TEST — Checklist completeness: verify `checklists/requirements.md`, `security.md`, `verification.md` at `specs/008-ref-device-emulator/checklists/` have all `[ ]` items marked; RED: checklist verification gate — all items [x] (16/16 req, 6/6 sec, 9/9 ver); no open checklist items remain (`SC-001`, `SC-004`)
+- [X] T007 [P] [US1] RED TEST — Contract mapping completeness: verify all 8 structural framework contracts mapped in `contracts/VERIF-EMULATOR-structural.md` (manifest, Service lifecycle, MediaSession init, notification limits, focus API, diagnostic JSONL, resume fingerprint, rate-step UI) at `specs/008-ref-device-emulator/contracts/`; FR-001 covers 6 categories with notification/service split; expect FAIL if any missing (`FR-001`, `SC-001`)
+- [X] T008 [P] [US2] RED TEST — Isolation / dirty-tree preservation: verify `git status --short` unchanged after a simulated verification run (no source edits) at repo root; expect FAIL until isolation verified (`SC-002`, `FR-004`)
+- [X] T009 [P] [US3] RED TEST — False-equivalence claim absence: grep `VERIF-EMULATOR.md` and `spec.md` for language implying `gate-8-full` equivalence at `specs/008-ref-device-emulator/`; expect 0 hits (`SC-004`); expect FAIL if any found
+- [X] T010 [P] RED TEST — Secret exclusion in attestation: verify `VERIF-EMULATOR.md` §5 contains explicit prohibition (`.env`, `.pem`, `.key`, tokens) at `specs/008-ref-device-emulator/VERIF-EMULATOR.md`; verify `spec.md` FR-005 links template; RED: secret exclusion verified (`AGENTS.md` deny-secrets, `security.md` CHK001)
+- [X] T011 [P] RED TEST — Diagnostic boundary / failure isolation: verify `spec.md` contains `Verification failure isolation and diagnostic boundary` clause at `specs/008-ref-device-emulator/spec.md` lines 77–97; verify `VERIF-EMULATOR.md` references `AGENTS.md` diag rules (`≤200` chars identifier-pattern, `error` on `failure`/`refusal`, local-only, never transmitted) (`security.md` CHK005)
+- [X] T012 RED TEST — AVD version delta documented: verify `spec.md` Q1 / Assumptions / quickstart.md step 1 / `VERIF-EMULATOR.md` header include delta-note requirement at `specs/008-ref-device-emulator/` (`spec.md` Q1 line 112, `quickstart.md` step 1, `VERIF-EMULATOR.md` §1)
 
 ---
 
@@ -58,22 +58,22 @@ description: "Task list for VERIF-EMULATOR structural verification layer (spec 0
 
 > **NOTE**: These extend Phase 2 RED tests specifically for P1; they must turn GREEN as P1 is completed.
 
-- [X] T013 [P] [US1] Contract test — `VERIF-EMULATOR.md` attestation passes section-completeness check (all 8 sections present, exclusions complete, reference to `verify.sh`, sign-off path) — `SC-001`, `SC-003`
-- [X] T014 [P] [US1] Integration test — Structural verification checklist (`spec.md` FR-001 contracts) passes on AVD (`API 29+`); notification shows title + section + progress with no body/rate/voice (`SC-001`); expect GREEN after verification run
-- [X] T015 [P] [US1] Integration test — Focus API response verified (`MAY_DUCK` → ~20% duck + continue; permanent loss → pause + 3 s; no auto-resume) (`FR-002`, contracts)
-- [X] T016 [P] [US1] Integration test — Diagnostic JSONL writes to app-private storage; `EventKind` 9 variants present; 30-day trim; no transmission (`SC-003`, `AGENTS.md` diag rules)
-- [X] T017 [P] [US1] Integration test — Resume by `blake3` fingerprint works; edited document = different fingerprint = no resume (`FR-005`, contracts)
-- [X] T018 [P] [US1] Integration test — Rate-step UI present (`rate ladder` 7 members); no audio-output verification claimed; `SC-009` not benchmarked (`FR-002`, `SC-004`)
+- [X] T013 [P] [US1] Contract test — `VERIF-EMULATOR.md` attestation passes section-completeness check (all 8 sections present, exclusions complete, reference to `verify.sh`, sign-off path) at `specs/008-ref-device-emulator/VERIF-EMULATOR.md` — `SC-001`, `SC-003`
+- [X] T014 [P] [US1] Integration test — Structural verification checklist (`spec.md` FR-001 contracts) passes on AVD (`API 29+`); notification shows title + section + progress with no body/rate/voice (`SC-001`) at `specs/008-ref-device-emulator/` — `FR-001`, `SC-001`
+- [X] T015 [P] [US1] Integration test — Focus API response verified (`MAY_DUCK` → ~20% duck + continue; permanent loss → pause + 3 s; no auto-resume) (`FR-002`, contracts) at `specs/008-ref-device-emulator/`
+- [X] T016 [P] [US1] Integration test — Diagnostic JSONL writes to app-private storage; `EventKind` 9 variants present; 30-day trim; no transmission (`SC-003`, `AGENTS.md` diag rules) at `specs/008-ref-device-emulator/`
+- [X] T017 [P] [US1] Integration test — Resume by `blake3` fingerprint works; edited document = different fingerprint = no resume (`FR-005`, contracts) at `specs/008-ref-device-emulator/`
+- [X] T018 [P] [US1] Integration test — Rate-step UI present (`rate ladder` 7 members); no audio-output verification claimed; `SC-009` not benchmarked (`FR-002`, `SC-004`) at `specs/008-ref-device-emulator/`
 
 ### Implementation for User Story 1
 
-- [X] T019 [P] [US1] Create/update `VERIF-EMULATOR.md` template (already created; verify all 8 sections present with content) — `spec.md` FR-005, contracts
-- [X] T020 [US1] Verify `contracts/VERIF-EMULATOR-structural.md` references all 8 structural framework contracts with no missing mapping — `FR-001`, contracts
-- [X] T021 [US1] Verify `quickstart.md` step 6 references `VERIF-EMULATOR.md` sections; confirm step 7 confirms 0 false-equivalence hits — `SC-004`
-- [X] T022 [P] [US1] Confirm `data-model.md` attestation model references `VERIF-EMULATOR.md`; no new database entities; `blake3` unchanged — `SC-002`
-- [X] T023 [US1] Confirm `spec.md` `Verification failure isolation and diagnostic boundary` clause present and links to `AGENTS.md` diag rules — `SC-002` (isolation / isolation-boundary), `FR-003`
-- [X] T024 [P] [US1] Confirm isolation: `git status --short` unchanged after simulated verification (no `crates/*/src` or `src-tauri/src/` edits) — `SC-002`, `FR-004`
-- [X] T025 [US1] Confirm `checklists/verification.md` all `[x]` (CHK001 resolved by linked template; CHK005 resolved by clause) — verification gate
+- [X] T019 [P] [US1] Create/update `VERIF-EMULATOR.md` template (already created; verify all 8 sections present with content) at `specs/008-ref-device-emulator/VERIF-EMULATOR.md` — `spec.md` FR-005, contracts
+- [X] T020 [US1] Verify `contracts/VERIF-EMULATOR-structural.md` references all 8 structural framework contracts with no missing mapping at `specs/008-ref-device-emulator/contracts/VERIF-EMULATOR-structural.md` — `FR-001`, contracts
+- [X] T021 [US1] Verify `quickstart.md` step 6 references `VERIF-EMULATOR.md` sections; confirm step 7 confirms 0 false-equivalence hits at `specs/008-ref-device-emulator/quickstart.md` — `SC-004`
+- [X] T022 [P] [US1] Confirm `data-model.md` attestation model references `VERIF-EMULATOR.md`; no new database entities; `blake3` unchanged at `specs/008-ref-device-emulator/data-model.md` — `SC-002`
+- [X] T023 [US1] Confirm `spec.md` `Verification failure isolation and diagnostic boundary` clause present and links to `AGENTS.md` diag rules at `specs/008-ref-device-emulator/spec.md` lines 77–97 — `SC-002` (isolation / isolation-boundary), `FR-003`
+- [X] T024 [P] [US1] Confirm isolation: `git status --short` unchanged after simulated verification (no `crates/*/src` or `src-tauri/src/` edits) at repo root — `SC-002`, `FR-004`
+- [X] T025 [US1] Confirm `checklists/verification.md` all `[x]` (CHK001 resolved by linked template; CHK005 resolved by clause) at `specs/008-ref-device-emulator/checklists/verification.md` — verification gate
 
 ---
 
@@ -83,9 +83,9 @@ description: "Task list for VERIF-EMULATOR structural verification layer (spec 0
 
 **Independent Test**: CI runs `AVD structural check`; manifest/service/notification/focus errors cause non-zero exit; `verify-emulator.sh` (if defined) does not cover physical-only gates (`FR-004`, contracts, `SC-002`).
 
-- [X] T026 [P] [US2] Document CI structural verification procedure referencing `VERIF-EMULATOR.md` exclusions, `quickstart.md` validation steps, and checklist gates (`SC-001`–`SC-004`); note: `verify-emulator.sh` file not present; structural verification uses quickstart.md validation steps and checklist gates directly — no separate script required. Confirm it does NOT claim `gate-8-full` coverage — `FR-003`, contracts, `SC-002`
-- [X] T027 [P] [US2] Confirm `quickstart.md` prerequisites (`isolated CI container`, `verify.sh` not altered) preserved; document version delta rule applied (`API 29+`) — `SC-003` (auditability / delta-note)
-- [X] T028 [US2] Confirm `plan.md` and `spec.md` reference `VERIF-EMULATOR.md`; confirm `SC-044` deferred preserved (`offline_default`) — `SC-002`, Assumptions
+- [X] T026 [P] [US2] Document CI structural verification procedure referencing `VERIF-EMULATOR.md` exclusions, `quickstart.md` validation steps, and checklist gates (`SC-001`–`SC-004`); note: `verify-emulator.sh` file not present; structural verification uses quickstart.md validation steps and checklist gates directly — no separate script required. Confirm it does NOT claim `gate-8-full` coverage at `specs/008-ref-device-emulator/quickstart.md` — `FR-003`, contracts, `SC-002`
+- [X] T027 [P] [US2] Confirm `quickstart.md` prerequisites (`isolated CI container`, `verify.sh` not altered) preserved; document version delta rule applied (`API 29+`) at `specs/008-ref-device-emulator/quickstart.md` — `SC-003` (auditability / delta-note)
+- [X] T028 [US2] Confirm `plan.md` and `spec.md` reference `VERIF-EMULATOR.md`; confirm `SC-044` deferred preserved (`offline_default`) at `specs/008-ref-device-emulator/plan.md` and `specs/008-ref-device-emulator/spec.md` — `SC-002`, Assumptions
 
 ---
 
@@ -93,10 +93,10 @@ description: "Task list for VERIF-EMULATOR structural verification layer (spec 0
 
 **Goal**: Attestation document passes audit; includes verified contracts, exclusions, AVD version, `verify.sh` link, date/branch/commit, sign-off; readable 6 months later; 0 false-equivalence claims (`SC-003`, `SC-004`).
 
-- [X] T029 [P] [US3] Confirm `VERIF-EMULATOR.md` sections complete and signed off: Header (§1), Verified Contracts (§2), Exclusions (§3), `verify.sh` Reference (§4), Security/Consent Boundary (§5 — no secrets clause per `security.md` CHK001), No False-Equivalence (§6) — `SC-003`
-- [X] T030 [P] [US3] Confirm `spec.md` `SC-004` measurable: string search of `VERIF-EMULATOR.md` / `README` / `ROADMAP` for false-equivalence language = 0 hits — `SC-004`
-- [X] T031 [US3] Confirm `VERIF-EMULATOR.md` references `problem.md`, `decision.md`, contracts (`VERIF-EMULATOR-structural.md`), and `AGENTS.md` (§5, §6, §7); no ambiguous exclusions — `SC-003`
-- [X] T032 [US3] Confirm `checklists/security.md` all `[x]` (CHK001–CHK006); `checklists/verification.md` all `[x]` (CHK001–CHK007 + notes) — verification gates complete
+- [X] T029 [P] [US3] Confirm `VERIF-EMULATOR.md` sections complete and signed off: Header (§1), Verified Contracts (§2), Exclusions (§3), `verify.sh` Reference (§4), Security/Consent Boundary (§5 — no secrets clause per `security.md` CHK001), No False-Equivalence (§6) at `specs/008-ref-device-emulator/VERIF-EMULATOR.md` — `SC-003`
+- [X] T030 [P] [US3] Confirm `spec.md` `SC-004` measurable: string search of `VERIF-EMULATOR.md` / `README` / `ROADMAP` for false-equivalence language = 0 hits at `specs/008-ref-device-emulator/` — `SC-004`
+- [X] T031 [US3] Confirm `VERIF-EMULATOR.md` references `problem.md`, `decision.md`, contracts (`VERIF-EMULATOR-structural.md`), and `AGENTS.md` (§5, §6, §7); no ambiguous exclusions at `specs/008-ref-device-emulator/VERIF-EMULATOR.md` — `SC-003`
+- [X] T032 [US3] Confirm `checklists/security.md` all `[x]` (CHK001–CHK006); `checklists/verification.md` all `[x]` (CHK001–CHK007 + notes) at `specs/008-ref-device-emulator/checklists/` — verification gates complete
 
 ---
 
@@ -106,14 +106,14 @@ description: "Task list for VERIF-EMULATOR structural verification layer (spec 0
 
 > ⚠️ **CRITICAL**: Only verification tasks in this phase attest to the complete, correct implementation of this feature. No agent statement substitutes for these.
 
-- [X] T033 [US1] [US2] [US3] Verification — `VERIF-EMULATOR.md` exists and is readable; exclusions list complete (audio-output `22050 Hz`, `SC-009` ≤3 s, Bluetooth/car, telephony/alarm, 10/10, `SC-044`); `verify.sh` reference present; AVD version documented; sign-off path present; delta note present if needed — `SC-001`, `SC-003`
-- [X] T034 [US2] [US3] Verification — Isolation verified: `git status --short` unchanged after verification run; no `crates/*/src` or `src-tauri/src/` edits; dirty `005-adopt-design-sona` preserved (`0c985ee`) — `SC-002`, `FR-004`
-- [X] T035 [US1] [US2] [US3] Verification — No false-equivalence: search `VERIF-EMULATOR.md`, `spec.md`, `quickstart.md`, `ROADMAP.md` for language equating `VERIF-EMULATOR` with `gate-8-full` = 0 hits — `SC-004`
-- [X] T036 [US1] [US2] [US3] Verification — No new engine/rate/event variants invented; `FR-006` satisfied; contracts reference `engine-core/src/closed.rs` — `FR-006`, `SC-001`
-- [X] T037 [US1] [US2] [US3] Verification — Supply chain intact: `Cargo.toml` / `Cargo.lock` unchanged; no denied crates; `deny.toml` and `AGENTS.md` rules preserved; advisory-free — gates 5/6
-- [X] T038 [US3] Verification — `VERIF-EMULATOR.md` §5 (security/consent) present; `VERIF-EMULATOR.md` §6 (no false-equivalence) present; no secrets clause (`.env`, `.pem`, `.key`, tokens) present in template — `SC-003`, `security.md` CHK001
-- [X] T039 [US1] [US2] Verification — Failure-handling isolation verified: `spec.md` `Verification failure isolation and diagnostic boundary` clause present; links `AGENTS.md` diag rules (`local-only`, `≤200` chars identifier-pattern, `error` on `failure`/`refusal`, never transmitted) — `security.md` CHK005
-- [X] T040 [US1] [US2] [US3] Verification — Checklist complete: `requirements.md` 16/16 `[x]`; `security.md` 6/6 `[x]`; `verification.md` 9/9 `[x]`; `research.md` references all evidence sources (`SLSA`, `CISA`, `NIST`, `IETF`, `AGENTS.md`, `contracts`) — verification gate complete
+- [X] T033 [US1] [US2] [US3] Verification — `VERIF-EMULATOR.md` exists and is readable; exclusions list complete (audio-output `22050 Hz`, `SC-009` ≤3 s, Bluetooth/car, telephony/alarm, 10/10, `SC-044`); `verify.sh` reference present; AVD version documented; sign-off path present; delta note present if needed at `specs/008-ref-device-emulator/VERIF-EMULATOR.md` — `SC-001`, `SC-003`
+- [X] T034 [US2] [US3] Verification — Isolation verified: `git status --short` unchanged after verification run; no `crates/*/src` or `src-tauri/src/` edits; dirty `005-adopt-design-sona` preserved (`0c985ee`) at repo root — `SC-002`, `FR-004`
+- [X] T035 [US1] [US2] [US3] Verification — No false-equivalence: search `VERIF-EMULATOR.md`, `spec.md`, `quickstart.md`, `ROADMAP.md` for language equating `VERIF-EMULATOR` with `gate-8-full` = 0 hits at `specs/008-ref-device-emulator/` — `SC-004`
+- [X] T036 [US1] [US2] [US3] Verification — No new engine/rate/event variants invented; `FR-006` satisfied; contracts reference `engine-core/src/closed.rs` at `specs/008-ref-device-emulator/contracts/VERIF-EMULATOR-structural.md` — `FR-006`, `SC-001`
+- [X] T037 [US1] [US2] [US3] Verification — Supply chain intact: `Cargo.toml` / `Cargo.lock` unchanged; no denied crates; `deny.toml` and `AGENTS.md` rules preserved; advisory-free at repo root — gates 5/6
+- [X] T038 [US3] Verification — `VERIF-EMULATOR.md` §5 (security/consent) present; `VERIF-EMULATOR.md` §6 (no false-equivalence) present; no secrets clause (`.env`, `.pem`, `.key`, tokens) present in template at `specs/008-ref-device-emulator/VERIF-EMULATOR.md` — `SC-003`, `security.md` CHK001
+- [X] T039 [US1] [US2] Verification — Failure-handling isolation verified: `spec.md` `Verification failure isolation and diagnostic boundary` clause present; links `AGENTS.md` diag rules (`local-only`, `≤200` chars identifier-pattern, `error` on `failure`/`refusal`, never transmitted) at `specs/008-ref-device-emulator/spec.md` — `security.md` CHK005
+- [X] T040 [US1] [US2] [US3] Verification — Checklist complete: `requirements.md` 16/16 `[x]`; `security.md` 6/6 `[x]`; `verification.md` 9/9 `[x]`; `research.md` references all evidence sources (`SLSA`, `CISA`, `NIST`, `IETF`, `AGENTS.md`, `contracts`) at `specs/008-ref-device-emulator/` — verification gate complete
 
 ---
 

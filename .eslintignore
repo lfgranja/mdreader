@@ -4,3 +4,5 @@ build/
 target/
 *.log
 .coverage/
+.env*
+.idea/

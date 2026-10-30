@@ -435,7 +435,7 @@ impl SurfaceResolver {
     /// deterministic payload for rendering (T154). Only call when
     /// the session opened with zero units; never overwrites a
     /// positive total.
-    pub fn ensure_nonzero_total_units(&mut self) {
+    pub const fn ensure_nonzero_total_units(&mut self) {
         if self.total_units == 0 {
             self.total_units = 1;
         }
@@ -455,7 +455,6 @@ impl SurfaceResolver {
     /// deterministic payload for rendering (T154). Only call when
     /// the session opened with zero units; never overwrites a
     /// positive total.
-
     pub fn note_measured_unit_end(&mut self, end_secs: f64) {
         if self
             .measured_unit_ends

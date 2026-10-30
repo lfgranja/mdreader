@@ -17,7 +17,8 @@
 
 ## Verification Rules (for attestation)
 
-- **Verified (structural)**: Manifest declaration (`mediaPlayback` FGS), `Service` lifecycle, `MediaSession` initialization, notification content limits, focus API response (`MAY_DUCK` / permanent loss), diagnostic JSONL write/read, resume fingerprint consistency, rate-step UI presence.
+- **- **Verified (structural)**: Manifest declaration (`mediaPlayback` FGS), `Service` lifecycle, `MediaSession` initialization, notification content limits, focus API response (`MAY_DUCK` → ~20% duck + continue reading; permanent loss / call / alarm → pause + 3-second reason; never auto-resumes), diagnostic JSONL write/read, resume fingerprint consistency, rate-step UI presence.**
+- Focus behaviors are structural contract behaviors observable via the framework API response (focus grant/loss state, pause reason, resume-blocked flag), not audio measurements or real interruption simulation.
 - Note: 8 structural contracts verified; aligns with tasks.md T007 reference (8 contracts mapped). Contract names: manifest, Service, MediaSession, notification, focus, diag, resume fingerprint, rate-step UI.
 - **Explicitly excluded (physical-only)**: Audio-output verification (`22050 Hz` mono f32 → device format), `SC-009` benchmark, real `MAY_DUCK` audio volume (~20%), telephony/alarm interruption simulation, Bluetooth/car routing (`FR` device switch), 10/10 on-device trials.
 - **No false-equivalence claim permitted**: Attestation must state both verified and excluded items; must link to `verify.sh` for excluded items.

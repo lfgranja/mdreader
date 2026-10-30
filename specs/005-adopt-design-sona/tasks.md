@@ -150,7 +150,7 @@
 - [X] T037 [P] FR-006 host task: Implement and verify duck-exempt short-mix channel plays under mudo/DND state with host verification oracle; action of transport never blocked by mute; redundancy cor+forma+texto+posição preserved. File: `crates/player/src/backend.rs`. → FR-006 (E-01 remediation).
 
 
-- [ ] T036 Final privacy + scope glance (quickstart §4) + attestation record: `Cargo.lock` diff = UNTOUCHED (zero new dependencies — constitution IV); `diag scan` shows no new egress beyond 004's known set; the haptics-inert disposition held during §3.3 (E3); launcher icon unchanged (D4); update `.specify/memory/STATE.md` with the final resume point + gate evidence. The completion report cites T034's verify.sh exit + T033's artifact as the binding attestations; every DEFERRED leg is named explicitly with its owner (device-build).
+- [X] T036 Final privacy + scope glance (quickstart §4) + attestation record: `Cargo.lock` diff = UNTOUCHED (zero new dependencies — constitution IV); `diag scan` shows no new egress beyond 004's known set; the haptics-inert disposition held during §3.3 (E3); launcher icon unchanged (D4); update `.specify/memory/STATE.md` with the final resume point + gate evidence. The completion report cites T034's verify.sh exit + T033's artifact as the binding attestations; every DEFERRED leg is named explicitly with its owner (device-build).
 
 **Checkpoint**: Only T033–T036 may attest success/completeness. No agent statement elsewhere attests.
 

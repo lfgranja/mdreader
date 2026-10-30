@@ -11,7 +11,7 @@
   - Identity: derived from `blake3` fingerprint of attestation content (optional; not required; can use commit SHA + date).
   - Relationships: references `003-reference-device` contracts (`status-surface`, `earcon-mapping`, `surface-audit`); does not create or modify `blake3` resume fingerprint (`session` crate unchanged).
   - Validation: exclusions must be complete (no false-equivalence claim); must reference `problem.md` / `decision.md`; must not claim `gate-8-full`.
-
+  - File: `specs/008-ref-device-emulator/VERIF-EMULATOR.md`
 - **003-reference-device structural-state** (existing, verified by layer):
   - `§SurfaceInventory`: manifest/service/notification state (existing).
   - `§NotificationSurface`: title + section + progress (deterministic / indeterminate rules).

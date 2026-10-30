@@ -88,3 +88,8 @@ target/
 .npmignore
 .prettierignore
 .terraformignore
+
+# Scaffolding / assessment dirs (not product build)
+.opencode/
+.specify/assessments/
+.omp/plans/

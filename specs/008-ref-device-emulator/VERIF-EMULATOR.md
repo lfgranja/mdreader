@@ -55,8 +55,9 @@ These remain covered ONLY by physical `verify.sh` / `gate-8-full`:
 This document records structural verification (`VERIF-EMULATOR`) ONLY. It does NOT claim equivalence to `gate-8-full` or audio-output verification (`SC-004`, contracts). Physical device remains required for `001-android-media-shell` full verification.
 
 ---
-
-## 7. Attachments / References
+- ## 7. Attachments / References
+- `problem.md`: `.specify/assessments/ref-device-emulator/problem.md` — assessment problem statement and gap analysis
+- `decision.md`: `.specify/assessments/ref-device-emulator/decision.md` — `go` verdict, Option A confirmed, 6 gaps resolved
 - `spec.md`: `specs/008-ref-device-emulator/spec.md`
 - `plan.md`: `spec.md` (same feature)
 - `contracts/VERIF-EMULATOR-structural.md`: structural contracts

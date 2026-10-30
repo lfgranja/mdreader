@@ -6,3 +6,4 @@ target/
 .env*
 coverage/
 .git/
+.idea/

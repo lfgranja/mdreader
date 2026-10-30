@@ -4,7 +4,7 @@
 - **Date**: 2026-10-26
 - **Feature**: `005-adopt-design-sona`
 - **Branch**: `005-adopt-design-sona`
-- **Author**: Design-dir / spec-level (coordinated by T012)
+- **Author**: Design-dir / spec-level (coordinated by T017)
 - **Constitution reference**: `.specify/memory/constitution.md` §VII (Closed sets, no catch-alls); plan.md l17 / l41; data-model.md §DiagnosticEvent (l89–96)
 
 ## Context
@@ -16,7 +16,7 @@ Per constitution §VII, any new member in a closed set must be:
 2. Coordinated across all consuming surfaces (writer, scan, contract schema, docs)
 3. Documented as a §VII change at release (not a silent edit)
 
-`data-model.md` §DiagnosticEvent defines exactly two additions: `EarconTruncation` (truncation counter) and `EarconEmissionFailure` (typed emission-failure with required `error` field). `tasks.md` T012 defines the coordinated edit (writer.rs + scan.rs + schema 9→11 + semver + docs).
+`data-model.md` §DiagnosticEvent defines exactly two additions: `EarconTruncation` (truncation counter) and `EarconEmissionFailure` (typed emission-failure with required `error` field). `tasks.md` T017 defines the coordinated edit (writer.rs + scan.rs + schema 9→11 + semver + docs).
 
 The feature is defensible ONLY if this amendment is visible in the release artifact (docs / version / changelog), not buried in source.
 
@@ -28,17 +28,17 @@ The two new kinds are sanctioned; the rule is: one truncation → one `EarconTru
 
 No new engine trait / SDK identifier is added; the extension is player-side diagnostic only (VI engine-neutral).
 
-The amendment artifact is this ADR + the coordinated source edits (T012) + `crates/diag/CHANGELOG.md` entry + `VERSION` tag update (`design-sona-v2.2.0` + diag-release note) — never a silent source-only change.
+The amendment artifact is this ADR + the coordinated source edits (T017) + `crates/diag/CHANGELOG.md` entry + `VERSION` tag update (`design-sona-v2.2.0` + diag-release note) — never a silent source-only change.
 
 ## Consequences
 
 - **Positive**: Closed-set discipline preserved; burst/failure policies are observable; audit trail exists; constitution §VII satisfied explicitly.
 - **Risk if omitted**: A release without this ADR + version note makes the §VII claim unverified — a future auditor could treat the kind additions as a silent branch (violating MUST — no catch-all, no silent deletion/omission of coordination).
-- **Mitigation**: T012 must carry the docs edit; T027 (`verify.sh` wire) must confirm `contract_schema` reads `exactly eleven`; T031 (`STATE.md` resume) must record the amendment.
+- **Mitigation**: T017 must carry the docs edit; T032 (`verify.sh` wire) must confirm `contract_schema` reads `exactly eleven`; T036 (`STATE.md` resume) must record the amendment.
 
 ## References
 
-- `specs/005-adopt-design-sona/tasks.md` T012 (diag extension), T027 (verify), T031 (attestation)
+- `specs/005-adopt-design-sona/tasks.md` T017 (diag extension), T032 (verify), T036 (attestation)
 - `specs/005-adopt-design-sona/data-model.md` §DiagnosticEvent (l89–96)
 - `specs/005-adopt-design-sona/contracts/earcon-mapping.md` E3 (system interruption), E4 (failure / emission-failure)
 - `.specify/memory/constitution.md` §VII (Closed sets; coordinated edition; no catch-all)

@@ -2585,6 +2585,7 @@ fn signal_document_end(state: &AppState) {
 /// [`tracing`] and exits the process with a non-zero
 /// status: the bridge cannot serve without the loop.
 #[cfg_attr(target_os = "android", tauri::mobile_entry_point)]
+#[expect(clippy::too_many_lines, reason = "large Tauri command handler")]
 pub fn run() {
     tauri::Builder::default()
         .manage(AppState {
@@ -2696,7 +2697,7 @@ pub fn run() {
                     let _tick = ticker.tick().await;
                     let app_state = app_handle_rms.state::<AppState>();
                     // Skip if hidden
-                    let hidden = app_state.view_hidden.lock().map(|g| *g).unwrap_or(false);
+                    let hidden = app_state.view_hidden.lock().is_ok_and(|g| *g);
                     if hidden {
                         continue;
                     }
@@ -2704,8 +2705,7 @@ pub fn run() {
                     let has_channel = app_state
                         .rms_channel
                         .lock()
-                        .map(|g| g.is_some())
-                        .unwrap_or(false);
+                        .is_ok_and(|g| g.is_some());
                     if !has_channel {
                         continue;
                     }
@@ -3580,8 +3580,7 @@ pub mod commands {
             "pause" => Ok(BridgeAction::Verb(ShellVerb::Pause)),
             "stop" => Ok(BridgeAction::Verb(ShellVerb::Stop)),
             "skip_forward5s" => Ok(BridgeAction::Verb(ShellVerb::SkipForward)),
-            "skip_back5s" => Ok(BridgeAction::Verb(ShellVerb::SkipBackward)),
-            "repeat_section" => Ok(BridgeAction::Verb(ShellVerb::SkipBackward)),
+            "skip_back5s" | "repeat_section" => Ok(BridgeAction::Verb(ShellVerb::SkipBackward)),
             "rate_up" => Ok(BridgeAction::Verb(ShellVerb::RateUp)),
             "rate_down" => Ok(BridgeAction::Verb(ShellVerb::RateDown)),
             "cycle_voice_next" => Ok(BridgeAction::Verb(ShellVerb::CycleVoiceNext)),
@@ -6383,6 +6382,9 @@ pub mod publish {
         Value::Object(obj)
     }
     /// Register the frontend listener for RMS channel (T102).
+    ///
+    /// # Errors
+    /// Returns an error if the state lock is poisoned.
     #[tauri::command]
     #[expect(
         clippy::needless_pass_by_value,
@@ -6401,6 +6403,9 @@ pub mod publish {
     }
 
     /// Set RMS visibility/hidden state (T102). Frontend signals when hidden.
+    ///
+    /// # Errors
+    /// Returns an error if the state lock is poisoned.
     #[tauri::command]
     #[expect(
         clippy::needless_pass_by_value,
@@ -6409,6 +6414,7 @@ pub mod publish {
     pub fn set_rms_visibility(state: State<'_, AppState>, hidden: bool) -> Result<(), String> {
         let mut guard = state.view_hidden.lock().map_err(|e| e.to_string())?;
         *guard = hidden;
+        drop(guard);
         Ok(())
     }
 
@@ -6416,28 +6422,24 @@ pub mod publish {
     /// skip while hidden or no subscribers (T102).
     pub fn publish_rms(state: &AppState, rms: f32) {
         // Skip if hidden
-        if let Ok(hidden) = state.view_hidden.lock() {
-            if *hidden {
-                return;
-            }
+        if let Ok(hidden) = state.view_hidden.lock()
+            && *hidden
+        {
+            return;
         }
         // Check if channel registered
-        let channel = {
-            let guard = match state.rms_channel.lock() {
-                Ok(g) => g,
-                Err(_) => return,
-            };
-            match guard.as_ref() {
+        let channel = match state.rms_channel.lock() {
+            Ok(guard) => match guard.as_ref() {
                 Some(c) => c.clone(),
                 None => return,
-            }
+            },
+            Err(_) => return,
         };
         // Throttle to ~20Hz (50ms)
         let now = crate::now_ms();
         {
-            let mut last_pub = match state.last_rms_publish_ms.lock() {
-                Ok(g) => g,
-                Err(_) => return,
+            let Ok(mut last_pub) = state.last_rms_publish_ms.lock() else {
+                return;
             };
             if now.saturating_sub(*last_pub) < 50 {
                 // Last-wins coalescing: update last_rms but don't publish yet
@@ -6449,17 +6451,17 @@ pub mod publish {
             *last_pub = now;
         }
         // Publish (last-wins value)
-        let val = state.last_rms.lock().map(|v| *v).unwrap_or(rms);
+        let val = state.last_rms.lock().map_or(rms, |v| *v);
         let _ = channel.send(val);
     }
 }
 
 /// Get RMS from backend if available.
 fn get_backend_rms(state: &AppState) -> Option<f32> {
-    if let Ok(guard) = state.backend.lock() {
-        if let Some(backend) = guard.as_ref() {
-            return Some(backend.rms());
-        }
+    if let Ok(guard) = state.backend.lock()
+        && let Some(backend) = guard.as_ref()
+    {
+        return Some(backend.rms());
     }
     None
 }
@@ -6518,10 +6520,10 @@ mod heartbeat_bookmark_tests {
                 .map_err(|e| e.to_string())?
         };
         // T154 (fix): garante que o waveform tenha payload determinístico para renderização funcional.
-        if let Ok(mut resolver_guard) = state.surface_resolver.lock() {
-            if let Some(resolver) = resolver_guard.as_mut() {
-                resolver.ensure_nonzero_total_units();
-            }
+        if let Ok(mut resolver_guard) = state.surface_resolver.lock()
+            && let Some(resolver) = resolver_guard.as_mut()
+        {
+            resolver.ensure_nonzero_total_units();
         }
         after_execute(state, &snapshot, ShellVerb::Play);
         Ok(snapshot)

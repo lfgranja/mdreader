@@ -1,31 +1,32 @@
-//! Tauri build script.
+//! Build script — S2 packaging wiring.
 //!
-//! Generates the Tauri application context and the Android
-//! build scaffolding. The Android manifest is hand-edited
-//! for the `mediaPlayback` foreground service — Tauri 2
-//! exposes no plugin API for it (`mobile::update_manifest`
-//! does not exist) — so `scripts/check-manifest.sh`
-//! re-verifies the built manifest on every build.
+//! Copies `src-tauri/src/status_view.html` → `dist/index.html` at build time
+//! so the packaged app serves the restyled surface as its frontend entry.
+//!
+//! This is the S2 contract: the served `index.html` MUST be byte-identical
+//! to `src-tauri/src/status_view.html`. The bench `dist/index.html` content
+//! may remain as a fallback only if it does not leave the audited surface
+//! unserved — it leaves it unserved as the default route, so the bench page
+//! is REPLACED.
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // tauri.conf.json frontendDist is "../dist" relative to src-tauri/,
+    // i.e. workspace-root dist/.
+    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("src")
+        .join("status_view.html");
+    let out_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("dist");
+    let dst = out_dir.join("index.html");
 
-fn main() {
-    // S2 packaging wiring (005): the packaged app serves
-    // src-tauri/src/status_view.html as the bundle entry. Copy
-    // it to dist/index.html at build time so the served-identity
-    // twin stays green.
-    let src = std::path::Path::new("src/status_view.html");
-    let dst_dir = std::path::Path::new("../dist");
-    let _ = std::fs::create_dir_all(dst_dir);
-    let dst = dst_dir.join("index.html");
-    if src.exists() {
-        let _ = std::fs::copy(src, &dst);
-    }
-    // Local bench: keep src-tauri/dist/index.html byte-identical to source (S2 verification).
-    let bench_dir = std::path::Path::new("dist");
-    let _ = std::fs::create_dir_all(bench_dir);
-    let bench = bench_dir.join("index.html");
-    if src.exists() {
-        let _ = std::fs::copy(src, &bench);
-    }
+    // Ensure the dist directory exists.
+    std::fs::create_dir_all(&out_dir)?;
 
-    tauri_build::build();
+    // Copy status_view.html → dist/index.html at build time.
+    let _bytes = std::fs::copy(&src, &dst)?;
+
+    // Re-run this build script if status_view.html changes.
+    println!("cargo:rerun-if-changed={}", src.display());
+
+    Ok(())
 }

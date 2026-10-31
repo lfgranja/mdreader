@@ -15,9 +15,7 @@
 | `directory-reading` | `intake.md` apenas | — | **Bloqueado** (intake) | `.specify/assessments/directory-reading/intake.md` |
 | `design-son-adoption` | 5/5 (`intake→research→problem→concept→decision`) | `go` → `005` | **Completo / handoff ativo** | `decision.md` (0 clarifications pendentes) |
 | `fr-024-synthesis-adapter` | 5/5 | `go` condicional | **Completo; clarificações transportadas para `/speckit.clarify`** | `decision.md`: 5 `[NEEDS CLARIFICATION]` (`SC-009`, fronteiras `Piper`) |
-| `ressoa-mobile-app` | 5/5 | `go` (Option A narrow) | **Completo / handoff para `004`** | `decision.md` |
-| `ref-device-emulator` | 5/5 | `go` (após 6 gaps G1–G6 resolvidos) | **Completo / handoff para `008`** | `decision.md` (veredito atualizado 2026-10-29) |
-
+| `ref-device-emulator` | 5/5 (+ `6-gaps-research`) | `needs-clarification` (`go` permitido após G1–G6 2026-10-29; `VERIF-EMULATOR.md` existente) | **Completo / `VERIF-EMULATOR` definido; `go` após clarificação (arquivo original ainda registra `needs-clarification`)** | `decision.md` (atualizado 2026-10-29) |
 **Percorrido:** 4 de 5 ideias com `go`; 1 bloqueado em intake (`directory-reading`). Nenhum assessment pendente de decisão.
 
 ### 1.2 Delivery — `specs/`
@@ -30,7 +28,7 @@
 | 004 | `ressoa-dogfood-build` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ `verification/` | `verify.sh` GREEN `9501bba` (Phase 17, 2026-10-22) | **Converge / verificado** |
 | 005 | `adopt-design-sona` | ✓ | ✓ (post-clarify) | **✗ pendente** | ✓ (16/16) | ✓ | fonte reflete design-dir; **sem** `tests/` próprio do spec | — | **Clarify→Plan completo; `/speckit.tasks` pendente** (`STATE.md` 2026-10-24: "NEXT: `/speckit.tasks`") |
 | 006 | `lente-sinestesica-completa` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | converge completo | **Concluído** |
-| 007 | `son-a-complete-design` | ✓ | ✓ | **✗ não encontrado** | ✓ | ✓ | — | — | **Specify/plan feito; `/speckit.tasks` e implementação pendentes** |
+| 007 | `son-a-complete-design` | ✓ | ✓ | **✓ (`glob` confirma; `read` não confirmou neste turno)** | ✓ | ✓ | — | — | **Specify/plan feito; `/speckit.tasks` e implementação pendentes** |
 | 008 | `ref-device-emulator` | ✓ | ✓ | ✓ | ✓ | ✓ | apenas docs/estrutural | converge completo | **Concluído (camada estrutural, sem código)** |
 
 **Percorrido:**
@@ -45,10 +43,10 @@
 | Slug | assess | fix | test | Status | Resumo |
 |---|---|---|---|---|---|
 | `corrupt-design-asset` | ✓ | ✗ | ✗ | Assess concluído | Asset `ui-proposta-2-lente-sinestesica.png` contém imagem de Rust tutorial, não mockup SONA. Afeta verificação visual de 005/006/007. |
-| `corrupt-ui-proposta-asset` | ✓ | ✗ | ✗ | Assess concluído | Pasta vazia além do assessment. |
+| `corrupt-ui-proposta-asset` | — | — | — | **Pasta NÃO ENCONTRADA** (`glob` listou; `ls` confirma ausência; arquivo `assessment.md` ausente) | — |
 | `sona-visual-core-fix` | ✓ | ✓ (parcial) | ✓ (parcial) | Fix parcial | Header quebrado, waveform vazio, botões pequenos persistem (`sona_final_updated.png`). Status: high, visual core ainda quebrado. |
 | `sona-visual-fix` | ✓ | ✗ | ✗ | Assess concluído | Pasta vazia além do assessment. |
-| `sona-waveform-missing-in-screenshot` | ✓ (re-evaluated) | ✗ | ✗ | Assess concluído | `drawWaveform()` precisa de `SampleQueue` ativo (`total_units > 0`) para ribbon funcional; screenshot com `monkey` não confirma. |
+| `sona-waveform-missing-in-screenshot` | ✓ (re-evaluated) | ✓ (aplicado 2026-10-28) | ✓ (parcial) | Assess + fix aplicado (`fix.md` 4560 bytes); funcionalidade completa ainda inconclusiva (`AppState` precisa `kind='determinate'` inicial; reprodução ativa não confirmada) |
 
 **Percorrido:** 5/5 assessados (valid). Apenas 1 entrou em fix/test, mas com fix parcial. Nenhum bug fechado com `bug.test` green. Nenhuma regressão ativa confirmada (`bg_14` interrompido, não falha verificada).
 
@@ -84,7 +82,7 @@
 | Fonte | Confirmação | Relevância para o projeto |
 |---|---|---|
 | Android Developers — Foreground service types (developer.android.com) | `FOREGROUND_SERVICE` + `FOREGROUND_SERVICE_MEDIA_PLAYBACK` obrigatórios a partir de Android 14 (API 34); `mediaPlayback` tipo requer minSdk 29 | Valida SC-006/SC-032 no `001`/`004`; manifest editado diretamente (Tauri 2 sem `mobile::update_manifest`) |
-| Tauri v2.12.x release notes | 2.12.x line ativa; 2.12.3 é o patch mais recente da linha | Valida pin `tauri = "=2.12.1"` na constituição; nenhuma mudança breaking na 2.12.x que afete o build |
+| Tauri v2.12.x release notes (`v2.tauri.app/release/tauri/`) | 2.12.3 (patch mais recente, 2 semanas atrás); `2.12.1` pinado no projeto (`Cargo.toml` / `tauri.conf.json`); nenhuma mudança breaking entre 2.12.1 e 2.12.3 que afete `mediaPlayback`/manifest | Valida pin `tauri = "=2.12.1"`; upgrade para 2.12.3 possível sem quebra (`Cargo.toml`: pin exato por `Principle IV`; `docs/architecture.md`: verificar manifest em cada upgrade) |
 | cpal 0.18.2 CHANGELOG (RustAudio/cpal) | Lançado 2026-08-16; AAudio: Xruns reportados como `ErrorKind::Xrun` | Valida backend CPAL 0.18.2 + AAudio no `crates/player/src/backend.rs`; exato-request 22050 Hz/mono/f32 |
 | sherpa-onnx 1.13.8 (crates.io, pub.dev, k2-fsa) | Android arm64 build disponível; Piper TTS suportado; Kokrio/Kokoro também | Valida `offline_default` = sherpa-onnx + Piper pt-BR (`faber` CC0) no `crates/adapter-synthesis` |
 | sherpa-onnx Android build docs (k2-fsa.github.io) | Build scripts para Linux/macOS; Android arm64 suportado | Valida viabilidade do build Android gate 9 (`cargo tauri android build --target aarch64`) |
@@ -130,8 +128,9 @@
 - [ ] `007`: `/speckit.tasks` → implementação (RMS, canvas, repeat, token expansion).
 - [ ] `.specify/bugs/`: `corrupt-design-asset`, `sona-visual-core-fix`, `sona-waveform-missing-in-screenshot` precisam `fix`/`test`; `corrupt-ui-proposta-asset`/`sona-visual-fix` vazios (baixa prioridade).
 - [ ] `directory-reading`: `decision.md` (go/kill/clarify) — baixa prioridade; não bloqueia 005.
+- [ ] `corrupt-ui-proposta-asset`: arquivo `assessment.md` NÃO ENCONTRADO (`glob` listou; `ls` confirma ausência da pasta `.specify/bugs/corrupt-ui-proposta-asset/`); não bloqueia 005.
 - [ ] `cargo check` / `verify.sh` PASS no working tree atual (atualmente interrompido / não confirmado; deve ser verificado após cada etapa).
 
 ---
 
-*Atualizado: 2026-10-29 · Base: `AGENTS.md` (Repository Guidelines reescrito neste turno), `.specify/memory/STATE.md`, `specs/*/spec.md`/`plan.md`/`tasks.md`, `.specify/assessments/*/decision.md`, `.specify/bugs/*/assessment.md`, `OBJETIVO.md`, `constitution.md` §1309, pesquisas web (Tauri 2.12.x, CPAL 0.18.2 AAudio, sherpa-onnx 1.13.8 Android).*
+*Atualizado: 2026-10-30 · Base: `AGENTS.md` (Repository Guidelines reescrito neste turno), `.specify/memory/STATE.md`, `specs/*/spec.md`/`plan.md`/`tasks.md`, `.specify/assessments/*/decision.md`, `.specify/bugs/*/assessment.md`, `OBJETIVO.md`, `constitution.md` §1309, pesquisas web (Tauri 2.12.x, CPAL 0.18.2 AAudio, sherpa-onnx 1.13.8 Android).*

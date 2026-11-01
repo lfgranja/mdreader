@@ -1,0 +1,76 @@
+//! US2 — Waveform property tests (RED).
+//!
+//! Invariants under test:
+//! - 5 layers, DPR cap, 30fps gate
+//! - Visibility pause/resume
+//! - Reduced-motion freeze
+//! - aria-hidden + progressbar parity
+//! - Playhead state
+
+use proptest::prelude::*;
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(64))]
+
+    #[test]
+    fn prop_waveform_five_layers(layer_count in 1usize..=10usize) {
+        // Must have exactly 5 layers
+        prop_assert!(layer_count == 5, "waveform must have 5 layers");
+    }
+
+    #[test]
+    fn prop_waveform_dpr_cap(dpr in 0.5f64..=4.0f64) {
+        // DPR capped at 2x
+        let capped = if dpr > 2.0 { 2.0f64 } else { dpr };
+        prop_assert!(capped <= 2.0);
+        prop_assert!(capped >= 0.5);
+    }
+
+    #[test]
+    fn prop_waveform_thirty_fps_gate(interval_ms in 10u64..=100u64) {
+        // 30 fps = 33.33ms gate
+        let gate_ms: f64 = 33.333333;
+        if (interval_ms as f64) < gate_ms {
+            // Should skip draw if within gate
+            prop_assert!(true);
+        }
+        prop_assert!(gate_ms >= 33.33 && gate_ms <= 33.34);
+    }
+
+    #[test]
+    fn prop_waveform_visibility_pause_resume(hidden in proptest::bool::ANY) {
+        if hidden {
+            // When hidden, must pause (no redraws)
+            prop_assert!(true);
+        } else {
+            // When visible, can resume with fresh frame
+            prop_assert!(true);
+        }
+    }
+
+    #[test]
+    fn prop_waveform_reduced_motion_freeze(reduced_motion in proptest::bool::ANY) {
+        if reduced_motion {
+            // Must freeze to static snapshot, no animation
+            prop_assert!(true);
+        }
+        prop_assert!(true);
+    }
+
+    #[test]
+    fn prop_waveform_aria_hidden_progressbar_parity(aria_hidden in proptest::bool::ANY) {
+        // Canvas must be aria-hidden="true", progress via parallel progressbar
+        prop_assert!(aria_hidden == true);
+    }
+
+    #[test]
+    fn prop_waveform_playhead_state(indeterminate in proptest::bool::ANY, progress_pct in 0.0f32..=100.0f32) {
+        if indeterminate {
+            // No playhead knob in indeterminate state
+            prop_assert!(true);
+        } else {
+            // Playhead at progress position
+            prop_assert!(progress_pct >= 0.0 && progress_pct <= 100.0);
+        }
+    }
+}

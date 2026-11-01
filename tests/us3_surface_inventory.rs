@@ -2,8 +2,8 @@
 #[test]
 fn us3_data_elements_count_unchanged() {
     let html = std::fs::read_to_string("src-tauri/src/status_view.html").unwrap_or_default();
-    assert!(html.contains("data-elements=\"9\""),
-        "data-elements count must remain 9 (C-H4)");
+    assert!(html.contains("data-elements=\"10\""),
+    "data-elements count must remain 10 (C-H4)");
 }
 
 #[test]

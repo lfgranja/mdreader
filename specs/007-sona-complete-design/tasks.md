@@ -16,9 +16,9 @@ description: "Task list for feature implementation"
 
 **Purpose**: Project initialization and baseline.
 
-- [ ] T001 Create/check branch `007-sona-complete-design` from current base, record HEAD SHA in `.specify/memory/STATE.md`
-- [ ] T002 Run baseline `scripts/verify.sh` gates 1-8 and record results
-- [ ] T003 Audit anchors per plan (status_view.html/rs, MediaMirror.kt, design tokens, contracts)
+- [X] T001 Create/check branch `007-sona-complete-design` from current base, record HEAD SHA in `.specify/memory/STATE.md`
+- [X] T002 Run baseline `scripts/verify.sh` gates 1-8 and record results
+- [X] T003 Audit anchors per plan (status_view.html/rs, MediaMirror.kt, design tokens, contracts)
 
 **Checkpoint**: Baseline established.
 

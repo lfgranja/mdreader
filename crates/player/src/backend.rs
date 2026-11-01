@@ -402,7 +402,11 @@ impl SampleQueue {
         if self.short_mix.is_empty() {
             self.short_mix_kind = None;
         }
-        #[expect(clippy::cast_possible_truncation, clippy::cast_precision_loss, reason = "rms is a f32 magnitude, precision loss acceptable")]
+        #[expect(
+            clippy::cast_possible_truncation,
+            clippy::cast_precision_loss,
+            reason = "rms is a f32 magnitude, precision loss acceptable"
+        )]
         let rms = if count > 0 {
             ((sum_sq / count as f64).sqrt()) as f32
         } else {

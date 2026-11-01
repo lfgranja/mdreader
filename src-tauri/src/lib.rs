@@ -2702,10 +2702,7 @@ pub fn run() {
                         continue;
                     }
                     // Check if channel registered
-                    let has_channel = app_state
-                        .rms_channel
-                        .lock()
-                        .is_ok_and(|g| g.is_some());
+                    let has_channel = app_state.rms_channel.lock().is_ok_and(|g| g.is_some());
                     if !has_channel {
                         continue;
                     }

@@ -13,5 +13,5 @@ fn main() {
         let _ = std::fs::copy(&src, &dst);
     }
     println!("cargo:rerun-if-changed=src/status_view.html");
-    tauri_build::build()
+    tauri_build::build();
 }

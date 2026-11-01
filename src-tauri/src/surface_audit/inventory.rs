@@ -30,8 +30,9 @@ mod tests {
 
         // Dead removals must be structural (element deleted), not display:none corpses.
         // Allow the reason-banner toggle (hidden by default, shown when .visible).
-        let scrubbed = lower.replace(
-            ".reason-banner {
+        let scrubbed = lower
+            .replace(
+                ".reason-banner {
       margin-top: 1rem;
       padding: .75rem 1rem;
       border-radius: 10px;
@@ -40,10 +41,10 @@ mod tests {
       display: none;
       animation: slidein .2s ease;
     }",
-            "",
-        )
-        .replace(".rate-value { display: none !important; }", "")
-        .replace(".rate-value{display:none!important;}", "");
+                "",
+            )
+            .replace(".rate-value { display: none !important; }", "")
+            .replace(".rate-value{display:none!important;}", "");
         assert!(
             !scrubbed.replace(' ', "").contains("display:none"),
             "C-H4: structural dead removal left a display:none corpse in status_view.html"
@@ -51,7 +52,9 @@ mod tests {
 
         // Asset census: header mark references concha-r svg, not the canonical triad.
         assert!(
-            html.contains("logo-primary-concha-r.svg") || html.contains("concha-harmonica-r.svg") || html.contains("concha"),
+            html.contains("logo-primary-concha-r.svg")
+                || html.contains("concha-harmonica-r.svg")
+                || html.contains("concha"),
             "C-H4: header mark does not reference concha-r svg (asset census)"
         );
 
@@ -59,6 +62,13 @@ mod tests {
         assert!(
             html.contains("role=\"status\""),
             "C-H4: missing visually-hidden live region (role=\"status\")"
+        );
+        // Waveform: deve ser visível mesmo com payload vazio (indeterminado ou inicial).
+        assert!(
+            html.contains("drawWaveform")
+                && html.contains("id=\"waveform\"")
+                && html.contains("canvas"),
+            "C-H4: waveform render (drawWaveform + visible canvas) must be present"
         );
     }
 }

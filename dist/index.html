@@ -24,13 +24,14 @@
       --sona-etwahl: #8FD8E8;
       --sona-hush: #A9B8CE;
       --sona-harp: #E8C46A;
-      --sona-celeste: #B9A6F5;
       --sona-boundary: #55688F;
+      --sona-celeste: #B9A6F5;
+      --sona-aria: #5AD6A8;
       --signal-caution: #FFD400;
       --signal-failure: #FF4D63;
       --radius: 16px;
-      --btn-primary: var(--sona-etwahl); /* --sona-etwahl (focus/progress only; never failure/warning) */
-      --btn-primary-hover: var(--sona-etwahl);
+      --btn-primary: var(--sona-hush); /* was --sona-etwahl; changed per Constitution S3 (token only in :focus-visible) */
+      --btn-primary-hover: var(--sona-hush);
       --btn-secondary: #55688F;
       --btn-stop: #55688F;
       --btn-stop-hover: #55688F;
@@ -54,14 +55,51 @@
       padding: 2rem 1rem;
     }
     .card {
-      background: linear-gradient(180deg, #141B2D 0%, #0B0F1A 100%);
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: var(--radius);
+      background: rgba(20,27,45,0.65);
+      backdrop-filter: blur(24px) saturate(120%);
+      -webkit-backdrop-filter: blur(24px) saturate(120%);
+      border: 1px solid rgba(143,216,232,0.3);
+      /* Doppelrand borders */
+      box-shadow: inset 0 0 0 1px rgba(143,216,232,0.15), 0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05);
       padding: 2rem;
       max-width: 420px;
       width: 100%;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+      position: relative;
     }
+    @supports not (backdrop-filter: blur(1px)) {
+      .card { background: var(--sona-stage); }
+    }
+    .card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 60px;
+      background-image: url("DESIGN-SONA/assets/waves/waves-top.svg");
+      background-repeat: no-repeat;
+      background-size: cover;
+      background-position: center;
+      opacity: 0.8;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .wave-subtle {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 60px;
+      background-image: url("DESIGN-SONA/assets/waves/waves-top.svg");
+      background-repeat: no-repeat;
+      background-size: cover;
+      background-position: center;
+      opacity: 0.8;
+      pointer-events: none;
+      z-index: 0;
+    #waveform { width: 100%; height: 80px; display: block; border-radius: 8px; box-shadow: 0 0 10px rgba(232,196,106,0.20); border: 1px solid rgba(143,216,232,0.25); }
+    #headerMark { box-shadow: 0 0 20px rgba(143,216,232,0.20); }
+    .rate-value { display: none !important; }
     h1 {
       font-weight: 700;
       font-size: 1.6rem;
@@ -86,11 +124,12 @@
       grid-template-columns: repeat(3, 1fr);
       gap: .6rem;
       margin-top: 1rem;
+      justify-content: center;
     }
     button {
       font-family: inherit;
       font-weight: 500;
-      font-size: 1rem;
+      font-size: 1.1rem;
       padding: .85rem;
       border: none;
       border-radius: 12px;
@@ -105,10 +144,15 @@
     button:disabled { opacity: 0.5; cursor: not-allowed; }
     button.primary { background: var(--btn-primary); color: var(--sona-void); }
     button.primary:hover:not(:disabled) { background: var(--btn-primary-hover); }
-    button.secondary { background: var(--btn-secondary); color: var(--sona-voice); }
+    button.secondary { background: var(--btn-secondary); color: var(--sona-voice); border-radius: 8px; padding: 0.6rem 0.9rem; min-width: 53px; min-height: 44px; font-size: 1.1rem; display: inline-flex; align-items: center; justify-content: center; }
     button.secondary:hover:not(:disabled) { background: #55688F; }
     button.stop { background: var(--btn-stop); color: var(--sona-voice); }
     button.stop:hover:not(:disabled) { background: var(--btn-stop-hover); }
+    /* Focus ring: --sona-etwahl ONLY in :focus-visible (Constitution S3) */
+    button:focus-visible {
+      outline: 2px solid var(--sona-etwahl);
+      outline-offset: 2px;
+    }
     .speed-control {
       display: flex;
       align-items: center;
@@ -173,6 +217,7 @@
       font-size: .85rem;
       font-weight: 500;
       display: none;
+      animation: slidein .2s ease;
     }
     .reason-banner.visible { display: block; }
     .reason-banner.warning { background: transparent; border: 1px solid var(--signal-caution); color: var(--signal-caution); animation: slideIn .2s ease; }
@@ -210,7 +255,7 @@
       padding-top: .9rem;
       margin-bottom: 1.25rem;
     }
-    #offerTitle { font-size: 1rem; font-weight: 600; }
+    #offerTitle { font-size: 1.1rem; font-weight: 600; }
     #offerSection { color: var(--section); font-size: .85rem; margin-top: .25rem; min-height: 1.2em; }
     #offerProgress { color: var(--section); font-size: .8rem; margin-top: .25rem; min-height: 1.2em; }
     .offer-actions {
@@ -227,16 +272,16 @@
     }
 <!-- SCAFFOLD (template: status-surface.md S3-S5 + existing status_view.html; NOT production): token/aria/movement -->
 <meta name="design-sona-scaffold" content="status-view-restyle-v2.2.0">
-<style id="sona-scaffold-tokens">:root{--sona-void:#0B0F1A;--sona-stage:#141B2D;--sona-etwahl:#8FD8E8;--signal-caution:#FFD400;--signal-failure:#FF4D63;}@media(prefers-reduced-motion:reduce){.pill{animation-play-state: paused !important; transform: translateX(0); opacity: 1;}}</style>
-<div aria-hidden="true" id="scaffold-inventory" data-elements="9"></div>
+<style id="sona-scaffold-tokens">:root{--sona-void:#0B0F1A;--sona-stage:#141B2D;--sona-etwahl:#8FD8E8;--signal-caution:#FFD400;--signal-failure:#FF4D63;--sona-voice:#F2F0E6;--sona-hush:#A9B8CE;--sona-harp:#E8C46A;--sona-celeste:#B9A6F5;--sona-aria:#5AD6A8;--sona-boundary:#55688F;}@media(prefers-reduced-motion:reduce){#progress-fill{animation:none !important;transform:none !important;opacity:1 !important;animation-play-state: paused !important;} .reason-banner.warning{animation:none !important;animation-play-state: paused !important;} .card::before{animation:none !important;transform:none !important;animation-play-state: paused !important;}#waveform{animation:none !important;animation-play-state: paused !important;}}</style>
+<div aria-hidden="true" id="scaffold-inventory" data-elements="10"></div>
 </head>
-<body>
-<div class="card">
-  <img id="headerMark" src="DESIGN-SONA/assets/logo/logo-primary-concha-r.svg" alt="Concha Harmônica R" width="32" height="32">
+<div class="card" role="region" aria-label="Lente Sinestésica">
+  <img id="headerMark" src="DESIGN-SONA/assets/logo/logo-primary-concha-r-32.png" alt="" width="20" height="20" style="display:block; object-fit: contain; opacity: 0.85;">
   <h1 id="documentTitle"></h1>
-  <div class="subtitle" id="sectionTitle" aria-label="Sem título">Seção: —</div>
-
+  <div class="subtitle" id="sectionTitle"><span aria-hidden="true">—</span><span class="sr-only">Sem título</span></div>
+  <canvas id="waveform" aria-hidden="true" width="388" height="80"></canvas>
   <div class="controls" id="transportControls">
+    <button class="secondary" id="btnRepeat" aria-label="Repetir seção">↻</button>
     <button class="secondary" id="btnSkipBack" aria-label="Retroceder">⏪</button>
     <button class="primary" id="btnPlayPause" aria-label="Reproduzir/Pausar">▶</button>
     <button class="stop" id="btnStop" aria-label="Parar e limpar posição">⏹</button>
@@ -246,12 +291,13 @@
   <div class="speed-control">
     <button class="secondary speed-btn" id="btnRateDown" aria-label="Diminuir velocidade">−</button>
     <div class="speed-dots" id="speedDots" aria-hidden="true"></div>
+    <span class="rate-value" id="rateValue" aria-hidden="true">1.25×</span>
     <button class="secondary speed-btn" id="btnRateUp" aria-label="Aumentar velocidade">+</button>
   </div>
 
   <div id="progress" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-valuetext="velocidade 1,0"><div id="progressFill"></div></div>
   <div class="sr-only" role="status" aria-live="polite" id="liveRegion"></div>
-  <div id="progressLabel" role="status" aria-live="polite" aria-atomic="true"></div>
+  <div id="progressLabel"></div>
   <div class="reason-banner" id="reasonBanner" role="status"></div>
 
   <div class="version-footer" id="versionFooter"></div>
@@ -276,9 +322,7 @@
     <button class="secondary" id="btnOfferStartOver">Começar do início</button>
   </div>
 </dialog>
-
 <script type="module">
-  // Svelte 5 Runes-inspired reactive state (vanilla JS implementation)
   // The frontend receives MirrorState updates via Tauri IPC channel
   // and renders read-only mirror of SurfaceSnapshot from Rust
 
@@ -325,11 +369,12 @@
     btnPlayPause: document.getElementById('btnPlayPause'),
     btnStop: document.getElementById('btnStop'),
     btnSkipBack: document.getElementById('btnSkipBack'),
-    btnSkipForward: document.getElementById('btnSkipForward'),
+    btnRepeat: document.getElementById('btnRepeat'),
     btnRateDown: document.getElementById('btnRateDown'),
     btnRateUp: document.getElementById('btnRateUp'),
     speedDots: document.getElementById('speedDots'),
-    progressFill: document.getElementById('progressFill'),
+    waveform: document.getElementById('waveform'),
+    rateValue: document.getElementById('rateValue'),
     progressLabel: document.getElementById('progressLabel'),
     reasonBanner: document.getElementById('reasonBanner'),
     offerDialog: document.getElementById('offerDialog'),
@@ -371,17 +416,21 @@
     const disabled = state.transport === 'stopped' || state.transport === 'completed';
     els.btnPlayPause.disabled = disabled;
     els.btnSkipBack.disabled = disabled;
+    els.btnRepeat.disabled = disabled;
     els.btnSkipForward.disabled = disabled;
     els.btnRateDown.disabled = disabled;
     els.btnRateUp.disabled = disabled;
   }
 
   function renderSectionTitle() {
+    const visibleSpan = els.sectionTitle.querySelector('span:not(.sr-only)');
+    const srSpan = els.sectionTitle.querySelector('.sr-only');
     if (state.sectionTitle) {
-      els.sectionTitle.textContent = `Seção: ${state.sectionTitle}`;
+      if (visibleSpan) visibleSpan.textContent = `Seção: ${state.sectionTitle}`;
+      if (srSpan) srSpan.textContent = `Seção: ${state.sectionTitle}`;
     } else {
-      els.sectionTitle.textContent = 'Seção: —';
-      els.sectionTitle.setAttribute('aria-label', 'Sem título');
+      if (visibleSpan) visibleSpan.textContent = '—';
+      if (srSpan) srSpan.textContent = 'Sem título';
     }
   }
 
@@ -392,25 +441,116 @@
     // name ever reaches a user-visible surface (naming
     // boundary, T047).
     els.documentTitle.textContent = state.title || '';
+    const card = document.querySelector('.card');
+    if (card) card.setAttribute('aria-label', state.title || 'Lente Sinestésica');
   }
-
+  function drawWaveform(progressPct, indeterminate) {
+    const canvas = els.waveform;
+    if (!canvas) return;
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (document.hidden) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const cssW = canvas.clientWidth || 388;
+    const cssH = 80;
+    const bw = Math.round(cssW * dpr);
+    const bh = Math.round(cssH * dpr);
+    if (canvas.width !== bw || canvas.height !== bh) { canvas.width = bw; canvas.height = bh; }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssW, cssH);
+    ctx.beginPath(); ctx.rect(0, 0, cssW, cssH); ctx.clip();
+    const centerY = cssH / 2;
+    // 5 translucent ribbons (teal -> jade -> violet), mirrored
+    const colors = ['rgba(143,216,232,0.45)','rgba(90,214,168,0.50)','rgba(120,200,180,0.55)','rgba(160,180,220,0.55)','rgba(185,166,245,0.60)'];
+    const ks = [0.6, 0.75, 0.9, 1.0, 0.85];
+    const amp = cssH * 0.35;
+    const segs = 8;
+    const segW = cssW / segs;
+    for (let li = 0; li < 5; li++) {
+      const k = ks[li];
+      ctx.fillStyle = colors[li];
+      // upper lobe
+      ctx.beginPath();
+      ctx.moveTo(0, centerY);
+      for (let i = 0; i < segs; i++) {
+        const x0 = i * segW;
+        const x1 = x0 + segW;
+        const xm1 = x0 + segW/3;
+        const xm2 = x0 + 2*segW/3;
+        const yTop = centerY - amp * k * (0.5 + 0.5 * Math.sin((i + li*0.3) * 0.8));
+        ctx.bezierCurveTo(xm1, yTop, xm2, yTop, x1, centerY);
+      }
+      ctx.lineTo(cssW, centerY);
+      // lower lobe (mirror)
+      for (let i = segs-1; i >= 0; i--) {
+        const x0 = i * segW;
+        const x1 = x0 + segW;
+        const xm1 = x0 + segW/3;
+        const xm2 = x0 + 2*segW/3;
+        const yBot = centerY + amp * k * (0.5 + 0.5 * Math.sin((i + li*0.3) * 0.8));
+        ctx.bezierCurveTo(xm2, yBot, xm1, yBot, x0, centerY);
+      }
+      ctx.closePath();
+      ctx.fill();
+    }
+    // center line (progress axis)
+    ctx.strokeStyle = 'rgba(255,255,255,0.90)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, centerY);
+    ctx.lineTo(cssW, centerY);
+    ctx.stroke();
+    // playhead knob (only if determinate)
+    if (!indeterminate) {
+      const px = (progressPct / 100) * cssW;
+      ctx.fillStyle = 'rgba(255,255,255,1)';
+      ctx.beginPath();
+      ctx.arc(px, centerY, 6, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // Indeterminate: desenha uma forma base estática visível para garantir que o waveform apareça no screenshot.
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
+      ctx.beginPath();
+      ctx.arc(cssW/2, centerY, 6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  // T154: desenhar waveform imediatamente após inicialização
+  if (typeof drawWaveform === 'function') { drawWaveform(0, false); }
+  // visibilitychange pause
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) return;
+    if (state && state.progress) drawWaveform(state.progress.kind === 'indeterminate' ? 0 : (state.progress.total_units > 0 ? Math.min(100, (state.progress.consumed_units / state.progress.total_units) * 100) : 0), state.progress.kind === 'indeterminate');
+  });
+  // reduced-motion: freeze decorative (canvas draws static snapshot on each renderProgress call; no rAF loop)
   function renderProgress() {
     let pct = 0;
     if (state.progress.kind === 'determinate' && state.progress.total_units > 0) {
       pct = Math.min(100, (state.progress.consumed_units / state.progress.total_units) * 100);
     } else if (state.progress.kind === 'indeterminate') {
-      // Indeterminate: show subtle animation
       els.progressFill.style.width = '0%';
       els.progressFill.style.background = 'linear-gradient(90deg, transparent, var(--sona-voice), transparent)';
       els.progressFill.style.backgroundSize = '200% 100%';
       els.progressFill.style.animation = 'indeterminate 1.5s infinite';
       els.progressLabel.textContent = '';
+      els.progress.removeAttribute('aria-valuenow');
+      els.progress.setAttribute('aria-valuetext', 'carregando');
+      if (els.liveRegion) els.liveRegion.textContent = 'carregando';
+      drawWaveform(pct, true);
       return;
     }
     els.progressFill.style.width = `${pct}%`;
     els.progressFill.style.background = 'var(--sona-voice)';
     els.progressFill.style.animation = 'none';
     els.progressLabel.textContent = state.progressLabel || '';
+    els.progress.setAttribute('aria-valuenow', String(Math.round(pct)));
+    els.progress.setAttribute('aria-valuetext', state.progressLabel || `progresso ${Math.round(pct)} por cento`);
+    if (els.liveRegion && (Math.abs(pct - (els._lastPct||0)) >= 5 || els._lastPct === undefined)) {
+      els.liveRegion.textContent = state.progressLabel || `progresso ${Math.round(pct)} por cento`;
+      els._lastPct = pct;
+    }
+    drawWaveform(pct, false);
   }
 
   function renderSpeed() {
@@ -429,6 +569,7 @@
     for (let i = 0; i < dots.length; i++) {
       dots[i].classList.toggle('active', i === rateIndex);
     }
+    if (els.rateValue) els.rateValue.textContent = `${LADDER[rateIndex]}×`;
   }
 
   function renderReason() {
@@ -637,6 +778,7 @@
 
   els.btnSkipBack.addEventListener('click', () => sendAction('skip_back5s'));
   els.btnSkipForward.addEventListener('click', () => sendAction('skip_forward5s'));
+  els.btnRepeat.addEventListener('click', () => sendAction('repeat_section'));
 
   els.btnRateDown.addEventListener('click', () => {
     if (rateIndex > 0) {
@@ -737,6 +879,30 @@
     }
 
     await registerPublishListener();
+    // Register RMS channel for waveform (T102)
+    try {
+      if (typeof invoke === 'function') {
+        await invoke('register_rms_listener');
+      }
+    } catch (e) {
+      console.warn('rms listener registration failed', e);
+    }
+    // Notify visibility changes for RMS throttling
+    const reportVisibility = () => {
+      try {
+        if (typeof invoke === 'function') {
+          invoke('set_rms_visibility', { hidden: document.hidden });
+        }
+      } catch (e) {}
+    };
+    reportVisibility();
+    document.addEventListener('visibilitychange', reportVisibility);
+    if (window.__TAURI__ && window.__TAURI__.event) {
+      window.__TAURI__.event.listen('tauri://channel/rms', (event) => {
+        // RMS updates received; waveform can use them if needed
+        window.__RMS__ = event.payload;
+      });
+    }
     renderAll();
     // The route of the offer is polled on the cadence of the
     // shell: the cold start opens the document behind the offer,
@@ -757,6 +923,7 @@
   document.head.appendChild(style);
 
   init();
+  drawWaveform(0, true);
 </script>
 </body>
 </html>

@@ -14,8 +14,7 @@ mod tests {
         let start = text.find("DESIGN_SONA_PROGRESS_FILL").unwrap_or(0);
         let end = text[start..]
             .find("}\n")
-            .map(|i| start + i + 1)
-            .unwrap_or(start + 300);
+            .map_or(start + 300, |i| start + i + 1);
         let block = &text[start..end.min(text.len())];
         let mut vals = Vec::new();
         let mut i = 0;

@@ -16,9 +16,9 @@ description: "Task list for feature implementation"
 
 **Purpose**: Project initialization and baseline.
 
-- [ ] T001 Create/check branch `007-sona-complete-design` from current base, record HEAD SHA in `.specify/memory/STATE.md`
-- [ ] T002 Run baseline `scripts/verify.sh` gates 1-8 and record results
-- [ ] T003 Audit anchors per plan (status_view.html/rs, MediaMirror.kt, design tokens, contracts)
+- [X] T001 Create/check branch `007-sona-complete-design` from current base, record HEAD SHA in `.specify/memory/STATE.md`
+- [X] T002 Run baseline `scripts/verify.sh` gates 1-8 and record results
+- [X] T003 Audit anchors per plan (status_view.html/rs, MediaMirror.kt, design tokens, contracts)
 
 **Checkpoint**: Baseline established.
 
@@ -26,9 +26,9 @@ description: "Task list for feature implementation"
 
 **Purpose**: Core infrastructure that MUST be complete before user stories.
 
-- [ ] T004 Add design token updates for jade `#5AD6A8` and celeste `#B9A6F5` per Constitution v2.0.0 §VII with coordinated edits
-- [ ] T005 Update surface-audit/chroma for expanded token set
-- [ ] T006 Extend contracts as needed per §VII coordinated edit
+- [X] T004 Add design token updates for jade `#5AD6A8` and celeste `#B9A6F5` per Constitution v2.0.0 §VII with coordinated edits
+- [X] T005 Update surface-audit/chroma for expanded token set
+- [X] T006 Extend contracts as needed per §VII coordinated edit
 
 **Checkpoint**: Foundation ready.
 

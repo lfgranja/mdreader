@@ -70,7 +70,7 @@ crates/doc-structure — ordered headings → timeline/FR-038 re-anchor
 | `contracts/` | Normative IPC/surface/earcon/ingest/storage/resume/diagnostic contracts (`*.md`, `*.json`) |
 | `docs/` | Architecture, IPC, diagnostics, fallback order, byte budget, ADRs |
 | `specs/` | Feature specs/tasks/checklists/contracts (001-android-media-shell onward) |
-| `tests/` | Root integration/contract/UI/audit tests (many artifact/filesystem assertions); includes `005-red/`, `005-adopt-design-sona-red/`, `contract/` |
+| `tests/` | Root integration/contract/UI/audit tests; includes `005-red/`, `005-adopt-design-sona-red/`, `contract/` |
 
 ## Development Commands
 
@@ -150,6 +150,7 @@ adapter-synthesis chunk --input doc.md
 ### CLI Protocol (Principle II)
 - `clap` derive; stdin/args → stdout (JSON default, `--format human` optional); errors → stderr; exit 0 on `Ok`, 1 on `Err`.
 - Each crate exposes `pub fn run(args, streams) -> Result<(), CliError>`; `main.rs` forwards locked stdio.
+- Thin `main.rs` wrappers delegate to crate `cli::run`; identical code path for CLI/IPC.
 
 ### Closed Sets (Principle VII)
 - One declaration site in `crates/engine-core/src/closed.rs` (e.g. `TransportState`, `SessionEnd`, `EngineError`).
@@ -162,6 +163,7 @@ adapter-synthesis chunk --input doc.md
 - Rust-only logic, Kotlin/JNI as transport/mirror.
 - Content-addressed bookmarks via blake3-256 fingerprint (`crates/session/src/fingerprint.rs`).
 - Diagnostics are append-only JSONL with 4 required fields (`v`, `ts_ms`, `kind`, `position_secs`), `additionalProperties: false`, `detail` bound to non-prose `key=value` (≤200 chars).
+- Coordinator pattern: Tauri bridge coordinates via `AppState`; crate modules expose pure functions where possible.
 
 ## Important Files
 
@@ -209,21 +211,19 @@ adapter-synthesis chunk --input doc.md
 | Area | What lives there | Notes |
 |---|---|---|
 | `crates/*/src/**` `#[cfg(test)]` | Inline unit tests | Co-located, shape/CLI/protocol checks. |
-| `crates/session/tests/` | Session integration tests | `test_ingest_cli.rs`, `test_offer3s.rs`, many `prop_*` targets. |
-| `crates/player/tests/` | Player integration/contract/feature tests | `tests/integration/` (recovery/failover/focus/routing/lockscreen/external start), `tests/contract/` (focus intents/removal signals/shell IPC), plus latency/progress/earcon/setup tests. |
-| `crates/engine-core/tests/contract/` | Engine handoff/stand-in conformance | `test_engine_handoff_us1.rs`, `test_standin_conformance_us5.rs`. |
+| `crates/*/tests/` | Integration/contract/property tests | e.g. `crates/session/tests/` (`test_ingest_cli.rs`, `prop_*`), `crates/player/tests/` (integration/contract/feature), `crates/engine-core/tests/contract/`, `crates/adapter-synthesis/tests/`. |
 | `crates/cleanroom-core/tests/` | Property/validation tests | `slice_readability_proptest.rs` (BLOCKING invariants). |
 | `src-tauri/tests/` | Bridge/integration/diagnostic tests | Publish/payload, noscope/purity, resume/restarts audio, play-to-audio measured, in-app play functional, offer/lockscreen, buffer state in diag, etc. |
-| `tests/005-red/`, `tests/005-adopt-design-sona-red/` | Spec/design red/gate tests | Feature-gated (census/ARIA/logo/motion/latency/property contracts). |
-| `tests/contract/` | Contract docs/tests | e.g. `test_focus_intents_us2_contract.md`. |
-| `specs/**/verification/` | Attestations/protocols | Supporting evidence (not always `#[test]` harnesses). |
+| `tests/` (root) | Spec/contract/UI/audit tests | `005-red/`, `005-adopt-design-sona-red/`, `contract/`, `chroma_scope_property.rs`, etc. |
+| `specs/**/tests/` | Spec-driven tests/fixtures | Supporting evidence (not always `#[test]` harnesses). |
 
 ### Patterns
 - **Unit/Integration/Contract/Property:** Co-located unit tests, cross-component integration via authoritative types (`PlaybackSession`, `PositionClock`), contract tests between layers, property tests with `proptest!` and explicit case counts/grid strategies.
-- **Fixtures/replay:** Embedded via `include_str!` (e.g. `service_kill_power_loss.jsonl`) and `specs/.../tests/device/fixtures/`. Deterministic JSONL replay through Rust authority.
+- **Fixtures/replay:** Embedded via `include_str!` and fixture files under `specs/.../tests/device/fixtures/`. Deterministic JSONL replay through Rust authority.
 - **Temp/redb:** Tests use real `redb` files/temp dirs (no mocks). Session/recovery tests read/write bookmarks via `session::BOOKMARKS`/`store`.
-- **Guard/absence tests:** Fail-closed scans (e.g. `src-tauri/tests/test_noscope.rs` enforces no network crates/call sites app-wide, no external `http://`/`https://` in served HTML surfaces with W3C namespace allowlist, manifest capability checks).
+- **Guard/absence tests:** Fail-closed scans (e.g. `src-tauri/tests/test_noscope.rs` enforces no network crates/call sites app-wide).
 - **Traceability:** Tests reference FR/SC/task/spec anchors; BLOCKING invariants are explicitly marked.
+- **Regression files:** Property tests persist failing cases in `*.proptest-regressions` files checked into the repo.
 - **Exactness:** Contract-critical values assert equality (e.g. rewind formula `min(REWIND_FRACTION × paused, REWIND_CAP_SECS)`, bounds ≤30s for kill/recovery).
 
 ### Running & Gates
@@ -233,15 +233,15 @@ adapter-synthesis chunk --input doc.md
 - **Full gate sequence (`scripts/verify.sh`, fail-closed):**
   1. **format** — `cargo fmt --all -- --check`
   2. **tests** — `cargo nextest run --workspace` + two-way diff vs `scripts/expected-tests.txt`
-  3. **surface-audit** — `cargo nextest run --workspace -E 'test(surface_audit)'` and `-E 'test(earcon)'` (C-H1..C-H9)
+  3. **surface-audit/earcon** — via nextest filters (C-H1..C-H9)
   4. **documentation** — `cargo doc --workspace --no-deps`
   5. **lint-drift** — manifest `[lints] workspace = true`, root `[workspace.lints]` matches pinned rigour set exactly, `[workspace.dependencies]` exists, `cargo clippy --workspace --all-targets -- -D warnings`
-  6. **supply-chain** — `cargo deny check advisories licenses bans sources` + `cargo audit` (`webpki-roots` waivers enforced)
-  7. **deny-list** — scan manifests/`Cargo.lock` for denied crates (name-boundary match); allows `sherpa-onnx`, `ort`, `msedge-tts`
-  8. **closed-set** — no catch-all ` _ =>` match arm in `crates/*/src/*.rs` (comments stripped)
-  9. **pipeline** — runs shell subset (`engine-core` handoff/standin/prop_pitch + `player` prop_transport_math), prints `gate-8-shell: PASS`, `gate-8-full: DEFERRED (owner=synthesis)` (full gate 8 deferred per FR-024/Exceptions Log)
+  6. **supply-chain** — `cargo deny check advisories licenses bans sources` + `cargo audit` (webpki-roots waivers enforced)
+  7. **deny-list** — scan manifests/`Cargo.lock` for denied crates (name-boundary match); allows `sherpa-onnx`, `ort`, `espeak-rs`, `msedge-tts`
+  8. **closed-set** — no catch-all `_ =>` match arm in `crates/*/src/*.rs` (comments stripped)
+  9. **pipeline** — runs shell subset, prints `gate-8-shell: PASS`, `gate-8-full: DEFERRED (owner=synthesis)`
   10. `scripts/check-manifest.sh` (minSdk 29, `mediaPlayback`, FGS permissions, no INTERNET)
-  11. `scripts/check-shell-purity.sh` (mirror-only, vocabulary allowlists, no `Other`/`Unknown`, engine-id allowlist, traceability FR/SC in `specs/001-android-media-shell/spec.md`↔tests)
+  11. `scripts/check-shell-purity.sh` (mirror-only, vocabulary allowlists, no `Other`/`Unknown`, engine-id allowlist, traceability FR/SC)
   12. C-H1..C-H9 scaffold echo
-- **Gate 9:** `cargo tauri android build --target aarch64` (authoritative device artifact). Then `scripts/check-manifest.sh` and `scripts/check-apk-classes.sh` validate built artifact/classes (`MainActivity`, `PlaybackService`, `FocusMirror`, `MediaMirror`, `Residency`, `RoutingMirror`, `TauriActivity`).
+- **Gate 9:** `cargo tauri android build --target aarch64` (authoritative device artifact). Then `scripts/check-manifest.sh` and `scripts/check-apk-classes.sh` validate built artifact/classes.
 - **Coverage expectations:** No coverage tooling configured. Strict linting, closed-set discipline, shell purity, and fail-closed guards are the primary QA mechanisms.

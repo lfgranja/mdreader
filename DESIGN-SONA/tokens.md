@@ -1,6 +1,6 @@
 # DESIGN-SONA/tokens.md — Token Architecture: Sona-Inspired (B base, softened)
 
-**Versão:** 1.0.0 · **Data:** 2026-10-06
+**Versão:** 1.1.0 · **Data:** 2026-11-01
 > Base: `DESIGN/tokens.md` v1.0.0 (B — Sinalização, paleta corrigida, 3 camadas). Mudança: paleta adaptada à personalidade Sona (turquesa, dourado, violeta pastel) mantendo contraste AA, conjunto fechado, apenas dark.
 
 ---
@@ -15,7 +15,7 @@
 | `--sona-hush` | `#A9B8CE` | Texto secundário (seção, metadados, dim) | **9.51:1** | Periwinkle; passa AA a todos os tamanhos |
 | `--sona-etwahl` | `#8FD8E8` | **Acento primário** — progresso, fluxo, focus ring, logo vivo | **11.98:1** | Turquesa de Sona (documentado `Universe:Sona`, azul/turquesa); adaptado para AA |
 | `--sona-harp` | `#E8C46A` | **Acento secundário** — taxa ativa, ênfase, ponto de estado suave | **11.42:1** | Ouro de Sona (`#c9b373` adaptado); usado com moderação |
-| `--sona-celeste` | `#B9A6F5` | **Acento terciário** — rate / Song of Celerity / velocidade | **8.96:1** | Violeta de Sona (`#cb97e3` adaptado); **não usado para falha/aviso** |
+| `--sona-celeste` | `#B9A6F5` | **Acento terciário** — waveform-ribbon violet layers + decorative-wave violet stops (sanctioned per 007); rate uses `--sona-harp` | **8.96:1** | Violeta de Sona (`#cb97e3` adaptado); **não usado para falha/aviso** |
 | `--sona-aria` | `#5AD6A8` | **Acento de Marca (Onda 2)** — cura, ressonância da marca | **11.20:1** | Verde Jade / Menta Acústica (Aria of Perseverance); marca apenas |
 | `--sona-boundary` | `#55688F` | Hairline / dividers / contornos | **3.43:1** | Limiar 3:1 não-texto; marginal; usar `--sona-etwahl` para ring de focus |
 

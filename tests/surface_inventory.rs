@@ -34,7 +34,7 @@ fn inventory_count_unchanged() {
     let html = std::fs::read_to_string("src-tauri/src/status_view.html")
         .unwrap_or_default();
     assert!(
-        html.contains("data-elements=\"9\""),
-        "scaffold-inventory data-elements must stay 9 (C-H4)"
+        html.contains("data-elements=\"10\""),
+        "scaffold-inventory data-elements must stay 10 (C-H4)"
     );
 }

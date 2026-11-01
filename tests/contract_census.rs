@@ -1,6 +1,6 @@
-// RED test for T007 — contract census (C-H1). Must NOT pass until contract updates land.
-// Invariant: audited hex values match SonaToken 10-member closed set; banned jade
-// #5AD6A8/#5FD0A0 and celeste #B9A6F5 absent; inventory count == 9.
+// Contract census (C-H1) — amended for 007 SONA Complete Design
+// Jade #5AD6A8 and celeste #B9A6F5 allowed only in sanctioned scopes (C-H1 amended).
+// Inventory count == 10 (C-H4 amended).
 
 #[test]
 fn census_banned_jade_absent() {
@@ -25,11 +25,11 @@ fn census_banned_celeste_absent() {
 }
 
 #[test]
-fn census_inventory_count_is_nine() {
+fn census_inventory_count_is_ten() {
     let html = std::fs::read_to_string("src-tauri/src/status_view.html")
         .unwrap_or_default();
-    assert!(html.contains("data-elements=\"9\""),
-        "scaffold-inventory data-elements must be 9 (C-H4)");
+    assert!(html.contains("data-elements=\"10\""),
+        "scaffold-inventory data-elements must be 10 (C-H4)");
 }
 
 #[test]

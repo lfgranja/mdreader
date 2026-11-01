@@ -5,14 +5,15 @@
 //! - RMS computation is lock-free and allocation-free on hot path
 //! - Payload shape is f32 for IPC channel
 
-use player::backend::Backend;
+use player::backend::CpalBackend;
 
 #[test]
 fn rms_method_exists_and_returns_f32() {
-    // Backend must expose rms() method returning f32
-    // This is a compile-time contract check
+    fn assert_rms_exists<T: HasRms>() {}
+    trait HasRms { fn rms(&self) -> f32; }
+    impl HasRms for CpalBackend { fn rms(&self) -> f32 { self.rms() } }
+    let _ = assert_rms_exists::<CpalBackend>;
 }
-
 #[test]
 fn rms_values_are_finite_f32() {
     let val = 0.5f32;

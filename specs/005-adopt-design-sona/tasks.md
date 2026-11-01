@@ -31,9 +31,9 @@ description: "Task list for feature implementation"
 
 **Purpose**: Branch/state validation, baseline gates, anchor audit.
 
-- [ ] T001 Verify on correct branch `pr/005-sc001-sc002-sc007-tests` (or `005-adopt-design-sona`), record HEAD SHA in state. File: `.specify/memory/STATE.md`
-- [ ] T002 Run `scripts/verify.sh` gates 1–8 on current tree; record results. Must be green or document existing state. File: `scripts/verify.sh`
-- [ ] T003 Audit anchors per plan: `crates/player/src/backend.rs`, `crates/player/src/earcon.rs`, `crates/diag/src/writer.rs`, `src-tauri/src/status_view.html`, `src-tauri/src/status_view.rs`, `android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt` (:701-744), `src-tauri/tauri.conf.json`, `DESIGN-SONA/`, `scripts/verify.sh`, `scripts/expected-tests.txt`. Record findings. File: `.specify/memory/STATE.md`
+- [X] T001 Verify on correct branch `pr/005-sc001-sc002-sc007-tests` (or `005-adopt-design-sona`), record HEAD SHA in state. File: `.specify/memory/STATE.md`
+- [X] T002 Run `scripts/verify.sh` gates 1–8 on current tree; record results. Must be green or document existing state. File: `scripts/verify.sh`
+- [X] T003 Audit anchors per plan: `crates/player/src/backend.rs`, `crates/player/src/earcon.rs`, `crates/diag/src/writer.rs`, `src-tauri/src/status_view.html`, `src-tauri/src/status_view.rs`, `android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt` (:701-744), `src-tauri/tauri.conf.json`, `DESIGN-SONA/`, `scripts/verify.sh`, `scripts/expected-tests.txt`. Record findings. File: `.specify/memory/STATE.md`
 
 **Checkpoint**: Baseline known, anchors verified.
 
@@ -43,9 +43,9 @@ description: "Task list for feature implementation"
 
 **Purpose**: Surface audit infrastructure + packaging wiring (byte-identity). **MUST complete before any user story.**
 
-- [ ] T004 Create `src-tauri/src/surface_audit.rs` with closed auditee resolver (A1: `status_view.html`, `status_view.rs` relevant, `MediaMirror.kt` :701-744 slice, `DESIGN-SONA/*` audited, `tauri.conf.json`, `logo-primary-concha-r.svg`). Add `pub mod surface_audit;` to `src-tauri/src/lib.rs`. Scaffold via LSP first. Files: `src-tauri/src/surface_audit.rs`, `src-tauri/src/lib.rs`
-- [ ] T005 [RED] [P] Add served-identity twin test `surface_audit_served_identity_binds_status_view_as_bundle` in `src-tauri/src/surface_audit/served_identity.rs` asserting byte-identity between `src-tauri/src/status_view.html` and served bundle entry (`frontendDist/index.html`). Must fail initially. Files: `src-tauri/src/surface_audit/served_identity.rs`, `src-tauri/tauri.conf.json`
-- [ ] T006 Implement packaging wiring via `src-tauri/build.rs`: copy `src/status_view.html` → `dist/index.html` at build time with `cargo:rerun-if-changed`; ensure bundle serves restyled surface. Update build script. Files: `src-tauri/build.rs`, `src-tauri/tauri.conf.json`
+- [X] T004 Create `src-tauri/src/surface_audit.rs` with closed auditee resolver (A1: `status_view.html`, `status_view.rs` relevant, `MediaMirror.kt` :701-744 slice, `DESIGN-SONA/*` audited, `tauri.conf.json`, `logo-primary-concha-r.svg`). Add `pub mod surface_audit;` to `src-tauri/src/lib.rs`. Scaffold via LSP first. Files: `src-tauri/src/surface_audit.rs`, `src-tauri/src/lib.rs`
+- [X] T005 [RED] [P] Add served-identity twin test `surface_audit_served_identity_binds_status_view_as_bundle` in `src-tauri/src/surface_audit/served_identity.rs` asserting byte-identity between `src-tauri/src/status_view.html` and served bundle entry (`frontendDist/index.html`). Must fail initially. Files: `src-tauri/src/surface_audit/served_identity.rs`, `src-tauri/tauri.conf.json`
+- [X] T006 Implement packaging wiring via `src-tauri/build.rs`: copy `src/status_view.html` → `dist/index.html` at build time with `cargo:rerun-if-changed`; ensure bundle serves restyled surface. Update build script. Files: `src-tauri/build.rs`, `src-tauri/tauri.conf.json`
 - [X] T007 [RED] [P] Add C-H1 chroma census test in `src-tauri/src/surface_audit/chroma.rs` over 10 hex set (8 sona + 2 signals), checking both progress branches (determinate/indeterminate), fail on off-set/vacancy. Files: `src-tauri/src/surface_audit/chroma.rs`
 - [X] T008 [RED] [P] Add C-H2 role-exclusivity test in `src-tauri/src/surface_audit/exclusivity.rs` (focus ring only `:focus-visible`, warning/failure exclusivity). Files: `src-tauri/src/surface_audit/exclusivity.rs`
 - [X] T009 [RED] [P] Add C-H6 movement census in `src-tauri/src/surface_audit/movement.rs` (≤1 loop, reduced-motion freeze visible, pulse TTL bounded). Files: `src-tauri/src/surface_audit/movement.rs`
@@ -99,8 +99,8 @@ description: "Task list for feature implementation"
 
 ### Implementation for User Story 3
 - [X] T020 [US3] Restyle `src-tauri/src/status_view.html`: apply 10-hex palette (8 sona + 2 signals), focus ring `:focus-visible` with `--sona-etwahl`, reduced-motion guard freezing pill visibly, indeterminate solid pill (no shimmer gradient), role/aria (progressbar, hidden status region, no numeric paint), remove dead elements, preserve single-column. Files: `src-tauri/src/status_view.html`
-- [ ] T021 [US3] Update `src-tauri/src/status_view.rs` if needed for inventory/wiring. Files: `src-tauri/src/status_view.rs`
-- [ ] T022 [US3] Align DESIGN-SONA docs/tokens if needed (`tokens.md`, `components.md`, `DESIGN-SONA.md`, `preview.html`) with normalized v2.2.0; add `CHANGELOG.md`, `VERSION` if missing per T014/T028 in plan. Files: `DESIGN-SONA/*`
+- [X] T021 [US3] Update `src-tauri/src/status_view.rs` if needed for inventory/wiring. Files: `src-tauri/src/status_view.rs`
+- [X] T022 [US3] Align DESIGN-SONA docs/tokens if needed (`tokens.md`, `components.md`, `DESIGN-SONA.md`, `preview.html`) with normalized v2.2.0; add `CHANGELOG.md`, `VERSION` if missing per T014/T028 in plan. Files: `DESIGN-SONA/*`
 
 **Checkpoint**: US3 host leg green, bundle serves restyled surface.
 
@@ -112,9 +112,9 @@ description: "Task list for feature implementation"
 **Independent Test**: SC-006 host checks green.
 
 ### Implementation for User Story 4
-- [ ] T023 [P] [US4] Add Concha Harmônica "R" header to `status_view.html` using `DESIGN-SONA/assets/logo/logo-primary-concha-r.svg` (no jade/celeste paints). Files: `src-tauri/src/status_view.html`, `DESIGN-SONA/assets/logo/logo-primary-concha-r.svg`
-- [ ] T024 [US4] Add static metadata card with `--sona-stage` background, ensure no reactive elements. Files: `src-tauri/src/status_view.html`
-- [ ] T025 [US4] Verify no navigation to excluded screens (Cockpit Eyes-Free, Console Braun & Rams, Sumário Editorial Suíço, Matriz de Telemetria). Files: `src-tauri/src/status_view.html`, `src-tauri/src/status_view.rs`
+- [X] T023 [P] [US4] Add Concha Harmônica "R" header to `status_view.html` using `DESIGN-SONA/assets/logo/logo-primary-concha-r.svg` (no jade/celeste paints). Files: `src-tauri/src/status_view.html`, `DESIGN-SONA/assets/logo/logo-primary-concha-r.svg`
+- [X] T024 [US4] Add static metadata card with `--sona-stage` background, ensure no reactive elements. Files: `src-tauri/src/status_view.html`
+- [X] T025 [US4] Verify no navigation to excluded screens (Cockpit Eyes-Free, Console Braun & Rams, Sumário Editorial Suíço, Matriz de Telemetria). Files: `src-tauri/src/status_view.html`, `src-tauri/src/status_view.rs`
 
 **Checkpoint**: US4 static Lente present.
 
@@ -122,10 +122,10 @@ description: "Task list for feature implementation"
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T026 Update `scripts/verify.sh` to include surface-audit and earcon-mapping checks (fail-closed). Update `scripts/expected-tests.txt` with new tests. Files: `scripts/verify.sh`, `scripts/expected-tests.txt`
-- [ ] T027 Run full host verification: `cargo test`, `cargo clippy --workspace -- -D warnings`, `cargo fmt --all -- --check`, `scripts/verify.sh`. Fix issues. Files: workspace
-- [ ] T028 Property tests pass: `cargo test` for surface_audit, earcon burst/latency. Files: `src-tauri/`, `crates/player/`
-- [ ] T029 Device trial sheets prepared per quickstart §3 (SC-001/002/003/006/007) — deferred execution noted. Files: `specs/005-adopt-design-sona/quickstart.md`
+- [X] T026 Update `scripts/verify.sh` to include surface-audit and earcon-mapping checks (fail-closed). Update `scripts/expected-tests.txt` with new tests. Files: `scripts/verify.sh`, `scripts/expected-tests.txt`
+- [X] T027 Run full host verification: `cargo test`, `cargo clippy --workspace -- -D warnings`, `cargo fmt --all -- --check`, `scripts/verify.sh`. Fix issues. Files: workspace
+- [X] T028 Property tests pass: `cargo test` for surface_audit, earcon burst/latency. Files: `src-tauri/`, `crates/player/`
+- [X] T029 Device trial sheets prepared per quickstart §3 (SC-001/002/003/006/007) — deferred execution noted. Files: `specs/005-adopt-design-sona/quickstart.md`
 
 **Checkpoint**: Host gates green (where applicable). Device trials ready.
 
@@ -135,10 +135,10 @@ description: "Task list for feature implementation"
 
 **Purpose**: Only these tasks attest completeness.
 
-- [ ] T030 [VERIFY] All host checks pass: surface-audit (C-H1..C-H8), earcon-mapping, contrast, aria, movement, accent, latency. Evidence in test output. Files: all modified
+- [X] T030 [VERIFY] All host checks pass: surface-audit (C-H1..C-H8), earcon-mapping, contrast, aria, movement, accent, latency. Evidence in test output. Files: all modified
 - [X] T031 [VERIFY] Bundle identity: served `dist/index.html` byte-identical to `src-tauri/src/status_view.html`. Files: `dist/index.html`, `src-tauri/src/status_view.html`
-- [ ] T032 [VERIFY] No `_ =>`, no `unwrap/expect/panic/todo/dbg/print_*` violations introduced. `cargo clippy` clean. Files: modified files
-- [ ] T033 [VERIFY] Update STATE.md and prepare for `/speckit.converge` with evidence summary. Files: `.specify/memory/STATE.md`
+- [X] T032 [VERIFY] No `_ =>`, no `unwrap/expect/panic/todo/dbg/print_*` violations introduced. `cargo clippy` clean. Files: modified files
+- [X] T033 [VERIFY] Update STATE.md and prepare for `/speckit.converge` with evidence summary. Files: `.specify/memory/STATE.md`
 
 - [X] T034 [P] [HIGH] Complete restyle of `src-tauri/src/status_view.html` per FR-008/SC-001 (10-hex closed set, role exclusivity `:focus-visible`, aria inventory, movement rules, reduced-motion freeze, solid indeterminate pill) (partial)
 - [X] T035 [P] [HIGH] Verify and complete earcon burst/truncation policy in `crates/player/src/backend.rs` per FR-003/SC-002 (latest wins, emit `EarconTruncation`/`EarconEmissionFailure`, ≤100ms latency) with passing property tests (partial)
@@ -175,8 +175,8 @@ description: "Task list for feature implementation"
 
 ## Phase 9: Convergence
 
-- [ ] T034 [P] [HIGH] Complete restyle of `src-tauri/src/status_view.html` per FR-008/SC-001 (10-hex closed set, role exclusivity `:focus-visible`, aria inventory, movement rules, reduced-motion freeze, solid indeterminate pill) (partial)
-- [ ] T035 [P] [HIGH] Verify and complete earcon burst/truncation policy in `crates/player/src/backend.rs` per FR-003/SC-002 (latest wins, emit `EarconTruncation`/`EarconEmissionFailure`, ≤100ms latency) with passing property tests (partial)
-- [ ] T036 [P] [HIGH] Verify MediaStyle constraints in `android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt` per FR-002/SC-003 (accent-only `#F2F0E6`, title/section/progress only, no body/rate/brand) (partial)
-- [ ] T037 [MEDIUM] Add Concha Harmônica "R" header to `src-tauri/src/status_view.html` per FR-004/US4 (no jade/celeste paints) (partial)
-- [ ] T038 [MEDIUM] Ensure served bundle identity passes: verify `dist/index.html` byte-identical to `src-tauri/src/status_view.html` via surface-audit test (partial)
+- [X] T034 [P] [HIGH] Complete restyle of `src-tauri/src/status_view.html` per FR-008/SC-001 (10-hex closed set, role exclusivity `:focus-visible`, aria inventory, movement rules, reduced-motion freeze, solid indeterminate pill) (partial)
+- [X] T035 [P] [HIGH] Verify and complete earcon burst/truncation policy in `crates/player/src/backend.rs` per FR-003/SC-002 (latest wins, emit `EarconTruncation`/`EarconEmissionFailure`, ≤100ms latency) with passing property tests (partial)
+- [X] T036 [P] [HIGH] Verify MediaStyle constraints in `android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt` per FR-002/SC-003 (accent-only `#F2F0E6`, title/section/progress only, no body/rate/brand) (partial)
+- [X] T037 [MEDIUM] Add Concha Harmônica "R" header to `src-tauri/src/status_view.html` per FR-004/US4 (no jade/celeste paints) (partial)
+- [X] T038 [MEDIUM] Ensure served bundle identity passes: verify `dist/index.html` byte-identical to `src-tauri/src/status_view.html` via surface-audit test (partial)

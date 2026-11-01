@@ -1,4 +1,4 @@
-//! Surface-audit twins for feature 005 (host checks C-H1..C-H8).
+//! Surface-audit twins for feature 005/007.
 //!
 //! Closed auditee resolver (A1) + a FIXED byte-scanner parser (A2). Each
 //! check lives in its own child module (one file per check) so separate
@@ -25,46 +25,19 @@ pub enum Auditee {
 }
 
 impl Auditee {
-    /// All six auditees.
-    pub const ALL: [Self; 6] = [
-        Self::StatusViewHtml,
-        Self::StatusViewRs,
-        Self::MediaMirrorKt,
-        Self::DesignSonaDir,
-        Self::TauriConfJson,
-        Self::ConchaRLogoSvg,
-    ];
-
-    /// Resolve the auditee path relative to `CARGO_MANIFEST_DIR/..`.
+    /// Resolve auditee to a relative path from `manifest_dir`.
     #[must_use]
-    pub fn path(&self, manifest_dir: &Path) -> PathBuf {
-        let root = manifest_dir.parent().unwrap_or(manifest_dir);
+    pub fn relative_path(self) -> &'static str {
         match self {
-            Self::StatusViewHtml => root.join("src-tauri/src/status_view.html"),
-            Self::StatusViewRs => root.join("src-tauri/src/status_view.rs"),
-            Self::MediaMirrorKt => {
-                root.join("android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt")
+            Auditee::StatusViewHtml => "src/status_view.html",
+            Auditee::StatusViewRs => "src/status_view.rs",
+            Auditee::MediaMirrorKt => {
+                "android-shell/app/src/main/java/com/lfgranja/mdreader/MediaMirror.kt"
             }
-            Self::DesignSonaDir => root.join("DESIGN-SONA"),
-            Self::TauriConfJson => root.join("src-tauri/tauri.conf.json"),
-            Self::ConchaRLogoSvg => root.join("DESIGN-SONA/assets/logo/logo-primary-concha-r.svg"),
+            Auditee::DesignSonaDir => "DESIGN-SONA",
+            Auditee::TauriConfJson => "tauri.conf.json",
+            Auditee::ConchaRLogoSvg => "DESIGN-SONA/assets/logo/logo-primary-concha-r.svg",
         }
-    }
-
-    /// Resolve and verify existence; missing auditee => named error.
-    ///
-    /// # Errors
-    /// Returns a named error if the auditee is missing.
-    pub fn resolve(&self, manifest_dir: &Path) -> Result<PathBuf, String> {
-        let p = self.path(manifest_dir);
-        if !p.exists() {
-            return Err(format!(
-                "surface_audit: missing auditee {:?} at {}",
-                self,
-                p.display()
-            ));
-        }
-        Ok(p)
     }
 }
 
@@ -74,8 +47,19 @@ impl Auditee {
 /// Returns a named error if any auditee is missing.
 pub fn resolve_all(manifest_dir: &Path) -> Result<Vec<(Auditee, PathBuf)>, String> {
     let mut out = Vec::with_capacity(6);
-    for a in Auditee::ALL {
-        let p = a.resolve(manifest_dir)?;
+    let auditees = [
+        Auditee::StatusViewHtml,
+        Auditee::StatusViewRs,
+        Auditee::MediaMirrorKt,
+        Auditee::DesignSonaDir,
+        Auditee::TauriConfJson,
+        Auditee::ConchaRLogoSvg,
+    ];
+    for a in auditees {
+        let p = manifest_dir.join(a.relative_path());
+        if !p.exists() {
+            return Err(format!("C-H1..C-H8 auditee missing: {}", p.display()));
+        }
         out.push((a, p));
     }
     Ok(out)

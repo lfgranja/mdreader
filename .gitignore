@@ -93,3 +93,5 @@ target/
 .opencode/
 .specify/assessments/
 .omp/plans/
+
+.codegraph/

@@ -216,11 +216,17 @@
       border-radius: 10px;
       font-size: .85rem;
       font-weight: 500;
-      display: none;
-      animation: slidein .2s ease;
+      display: block;
+      height: 0;
+      overflow: hidden;
+      padding-top: 0;
+      padding-bottom: 0;
+      margin-top: 0;
+      border-width: 0;
+      animation: none;
     }
-    .reason-banner.visible { display: block; }
-    .reason-banner.warning { background: transparent; border: 1px solid var(--signal-caution); color: var(--signal-caution); animation: slideIn .2s ease; }
+    .reason-banner.visible { height: auto; overflow: visible; padding: .75rem 1rem; margin-top: 1rem; border-width: 1px; animation: slideIn .2s ease; }
+    .reason-banner.warning { background: transparent; border: 1px solid var(--signal-caution); color: var(--signal-caution); }
     .reason-banner.failure { background: transparent; border: 1px solid var(--signal-failure); color: var(--signal-failure); animation: none; }
     /* FR-009: the resume offer — the visual dialog of the in-app
        route. The DESIGN-SONA tokens are the ones the card paints
@@ -273,7 +279,7 @@
 <!-- SCAFFOLD (template: status-surface.md S3-S5 + existing status_view.html; NOT production): token/aria/movement -->
 <meta name="design-sona-scaffold" content="status-view-restyle-v2.2.0">
 <style id="sona-scaffold-tokens">:root{--sona-void:#0B0F1A;--sona-stage:#141B2D;--sona-etwahl:#8FD8E8;--signal-caution:#FFD400;--signal-failure:#FF4D63;--sona-voice:#F2F0E6;--sona-hush:#A9B8CE;--sona-harp:#E8C46A;--sona-celeste:#B9A6F5;--sona-aria:#5AD6A8;--sona-boundary:#55688F;}@media(prefers-reduced-motion:reduce){#progress-fill{animation:none !important;transform:none !important;opacity:1 !important;animation-play-state: paused !important;} .reason-banner.warning{animation:none !important;animation-play-state: paused !important;} .card::before{animation:none !important;transform:none !important;animation-play-state: paused !important;}#waveform{animation:none !important;animation-play-state: paused !important;}}</style>
-<div aria-hidden="true" id="scaffold-inventory" data-elements="10"></div>
+  <div aria-hidden="true" id="scaffold-inventory" data-elements="9"></div>
 </head>
 <div class="card" role="region" aria-label="Lente Sinestésica">
   <img id="headerMark" src="DESIGN-SONA/assets/logo/logo-primary-concha-r-32.png" alt="" width="20" height="20" style="display:block; object-fit: contain; opacity: 0.85;">
@@ -444,11 +450,36 @@
     const card = document.querySelector('.card');
     if (card) card.setAttribute('aria-label', state.title || 'Lente Sinestésica');
   }
+  // RMS-driven waveform state
+  const rmsBuffer = [];
+  const RMS_BUFFER_SIZE = 64;
+  let lastRms = 0;
+  let waveformRafId = null;
+  let lastWaveformFrame = 0;
+  const WAVEFORM_FPS = 30;
+  const WAVEFORM_FRAME_INTERVAL = 1000 / WAVEFORM_FPS;
+  let waveformVisible = true;
+
+  function pushRms(val) {
+    const v = typeof val === 'number' && isFinite(val) ? Math.max(0, Math.min(1, val)) : 0;
+    lastRms = v;
+    rmsBuffer.push(v);
+    if (rmsBuffer.length > RMS_BUFFER_SIZE) {
+      rmsBuffer.shift();
+    }
+  }
+
   function drawWaveform(progressPct, indeterminate) {
     const canvas = els.waveform;
     if (!canvas) return;
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (document.hidden) return;
+    if (reduced) {
+      if (canvas._frozen) return;
+      canvas._frozen = true;
+    } else {
+      canvas._frozen = false;
+    }
+    if (document.hidden || !waveformVisible) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -461,16 +492,16 @@
     ctx.clearRect(0, 0, cssW, cssH);
     ctx.beginPath(); ctx.rect(0, 0, cssW, cssH); ctx.clip();
     const centerY = cssH / 2;
-    // 5 translucent ribbons (teal -> jade -> violet), mirrored
     const colors = ['rgba(143,216,232,0.45)','rgba(90,214,168,0.50)','rgba(120,200,180,0.55)','rgba(160,180,220,0.55)','rgba(185,166,245,0.60)'];
     const ks = [0.6, 0.75, 0.9, 1.0, 0.85];
-    const amp = cssH * 0.35;
+    const baseAmp = cssH * 0.35;
+    const rmsMod = 0.3 + lastRms * 0.7;
+    const amp = baseAmp * rmsMod;
     const segs = 8;
     const segW = cssW / segs;
     for (let li = 0; li < 5; li++) {
       const k = ks[li];
       ctx.fillStyle = colors[li];
-      // upper lobe
       ctx.beginPath();
       ctx.moveTo(0, centerY);
       for (let i = 0; i < segs; i++) {
@@ -478,30 +509,31 @@
         const x1 = x0 + segW;
         const xm1 = x0 + segW/3;
         const xm2 = x0 + 2*segW/3;
-        const yTop = centerY - amp * k * (0.5 + 0.5 * Math.sin((i + li*0.3) * 0.8));
+        const rmsIdx = Math.max(0, rmsBuffer.length - (segs - i));
+        const rmsVal = rmsBuffer[rmsIdx] !== undefined ? rmsBuffer[rmsIdx] : lastRms;
+        const yTop = centerY - amp * k * (0.3 + 0.7 * rmsVal) * (0.5 + 0.5 * Math.sin((i + li*0.3) * 0.8));
         ctx.bezierCurveTo(xm1, yTop, xm2, yTop, x1, centerY);
       }
       ctx.lineTo(cssW, centerY);
-      // lower lobe (mirror)
       for (let i = segs-1; i >= 0; i--) {
         const x0 = i * segW;
         const x1 = x0 + segW;
         const xm1 = x0 + segW/3;
         const xm2 = x0 + 2*segW/3;
-        const yBot = centerY + amp * k * (0.5 + 0.5 * Math.sin((i + li*0.3) * 0.8));
+        const rmsIdx = Math.max(0, rmsBuffer.length - (segs - i));
+        const rmsVal = rmsBuffer[rmsIdx] !== undefined ? rmsBuffer[rmsIdx] : lastRms;
+        const yBot = centerY + amp * k * (0.3 + 0.7 * rmsVal) * (0.5 + 0.5 * Math.sin((i + li*0.3) * 0.8));
         ctx.bezierCurveTo(xm2, yBot, xm1, yBot, x0, centerY);
       }
       ctx.closePath();
       ctx.fill();
     }
-    // center line (progress axis)
     ctx.strokeStyle = 'rgba(255,255,255,0.90)';
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(0, centerY);
     ctx.lineTo(cssW, centerY);
     ctx.stroke();
-    // playhead knob (only if determinate)
     if (!indeterminate) {
       const px = (progressPct / 100) * cssW;
       ctx.fillStyle = 'rgba(255,255,255,1)';
@@ -509,12 +541,29 @@
       ctx.arc(px, centerY, 6, 0, Math.PI * 2);
       ctx.fill();
     } else {
-      // Indeterminate: desenha uma forma base estática visível para garantir que o waveform apareça no screenshot.
       ctx.fillStyle = 'rgba(255,255,255,0.6)';
       ctx.beginPath();
       ctx.arc(cssW/2, centerY, 6, 0, Math.PI * 2);
       ctx.fill();
     }
+  }
+
+  function scheduleWaveformDraw(progressPct, indeterminate) {
+    const now = performance.now ? performance.now() : Date.now();
+    if (now - lastWaveformFrame < WAVEFORM_FRAME_INTERVAL) {
+      return;
+    }
+    lastWaveformFrame = now;
+    drawWaveform(progressPct, indeterminate);
+  }
+
+  function requestWaveformDraw(progressPct, indeterminate) {
+    if (document.hidden || !waveformVisible) return;
+    if (waveformRafId !== null) return;
+    waveformRafId = requestAnimationFrame(() => {
+      waveformRafId = null;
+      scheduleWaveformDraw(progressPct, indeterminate);
+    });
   }
   // T154: desenhar waveform imediatamente após inicialização
   if (typeof drawWaveform === 'function') { drawWaveform(0, false); }
@@ -559,16 +608,21 @@
     // on the closed 7-rung ladder (dots), earcon and haptic.
     if (els.speedDots.childElementCount !== LADDER.length) {
       els.speedDots.innerHTML = '';
-      for (let i = 0; i < LADDER.length; i++) {
-        const dot = document.createElement('span');
-        dot.className = 'speed-dot';
-        els.speedDots.appendChild(dot);
+  // visibilitychange pause/resume
+  document.addEventListener('visibilitychange', () => {
+    waveformVisible = !document.hidden;
+    if (document.hidden) {
+      if (waveformRafId !== null) {
+        cancelAnimationFrame(waveformRafId);
+        waveformRafId = null;
       }
+      return;
     }
-    const dots = els.speedDots.children;
-    for (let i = 0; i < dots.length; i++) {
-      dots[i].classList.toggle('active', i === rateIndex);
+    if (state && state.progress) {
+      const pct = state.progress.kind === 'indeterminate' ? 0 : (state.progress.total_units > 0 ? Math.min(100, (state.progress.consumed_units / state.progress.total_units) * 100) : 0);
+      requestWaveformDraw(pct, state.progress.kind === 'indeterminate');
     }
+  });
     if (els.rateValue) els.rateValue.textContent = `${LADDER[rateIndex]}×`;
   }
 
@@ -618,41 +672,44 @@
     if (!payload) {
       return null;
     }
-    const route = payload.offer_route || null;
-    const windowMs = payload.window_ms ?? payload.offer_window_ms ?? null;
-    const pendingColdStart = payload.pending_cold_start === true;
-    return { route: route, windowMs: windowMs, pendingColdStart: pendingColdStart };
-  }
-
-  // The context of the offer: the title, the section title and the
-  // progress already on screen — and nothing else (FR-011/FR-019):
-  // no document prose, no rate value, no voice identity, no
-  // elapsed or remaining time.
-  function renderOffer() {
-    els.offerTitle.textContent = state.title || '';
-    els.offerSection.textContent = state.sectionTitle || '';
-    els.offerProgress.textContent = state.progressLabel || '';
-  }
-
-  // Opens the offer dialog for the in-app route, with the window
-  // the shell published. Any other route — the lock-screen route
-  // and the no-route case — opens NO in-app dialog.
-  function openOffer(windowMs) {
-    if (els.offerDialog.open) {
+  function renderProgress() {
+    let pct = 0;
+    if (state.progress.kind === 'determinate' && state.progress.total_units > 0) {
+      pct = Math.min(100, (state.progress.consumed_units / state.progress.total_units) * 100);
+    } else if (state.progress.kind === 'indeterminate') {
+      els.progressFill.style.width = '0%';
+      els.progressFill.style.background = 'linear-gradient(90deg, transparent, var(--sona-voice), transparent)';
+      els.progressFill.style.backgroundSize = '200% 100%';
+      els.progressFill.style.animation = 'indeterminate 1.5s infinite';
+      els.progressLabel.textContent = '';
+      els.progress.setAttribute('aria-valuenow', '0');
+      els.progress.setAttribute('aria-valuemin', '0');
+      els.progress.setAttribute('aria-valuemax', '100');
+      els.progress.setAttribute('aria-valuetext', 'carregando');
+      if (els.liveRegion) {
+        els.liveRegion.setAttribute('aria-live', 'polite');
+        els.liveRegion.textContent = 'carregando';
+      }
+      requestWaveformDraw(pct, true);
       return;
     }
-    renderOffer();
-    els.offerDialog.showModal();
-    offer.route = 'in_app_dialog';
-    offer.windowMs = windowMs;
-    offer.shown = true;
-    // The elapsing of the window is the rule of the SHELL: the
-    // surface only closes the dialog — the silence rule (continue
-    // from the stored position) is a decision of the shell.
-    offer.timer = setTimeout(closeOffer, windowMs);
+    els.progressFill.style.width = `${pct}%`;
+    els.progressFill.style.background = 'var(--sona-voice)';
+    els.progressFill.style.animation = 'none';
+    els.progressLabel.textContent = state.progressLabel || '';
+    els.progress.setAttribute('aria-valuenow', String(Math.round(pct)));
+    els.progress.setAttribute('aria-valuemin', '0');
+    els.progress.setAttribute('aria-valuemax', '100');
+    els.progress.setAttribute('aria-valuetext', state.progressLabel || `progresso ${Math.round(pct)} por cento`);
+    if (els.liveRegion) {
+      els.liveRegion.setAttribute('aria-live', 'polite');
+      if (Math.abs(pct - (els._lastPct||0)) >= 5 || els._lastPct === undefined) {
+        els.liveRegion.textContent = state.progressLabel || `progresso ${Math.round(pct)} por cento`;
+        els._lastPct = pct;
+      }
+    }
+    requestWaveformDraw(pct, false);
   }
-
-  // Closes the offer dialog. The offer episode ends here: the
   // dialog does not reopen for the same route, and a later route
   // opens it again.
   function closeOffer() {
@@ -778,7 +835,10 @@
 
   els.btnSkipBack.addEventListener('click', () => sendAction('skip_back5s'));
   els.btnSkipForward.addEventListener('click', () => sendAction('skip_forward5s'));
-  els.btnRepeat.addEventListener('click', () => sendAction('repeat_section'));
+  els.btnRepeat.addEventListener('click', () => {
+    // Section restart - reuse SkipBack earcon behavior
+    sendAction('repeat_section');
+  });
 
   els.btnRateDown.addEventListener('click', () => {
     if (rateIndex > 0) {
@@ -899,8 +959,19 @@
     document.addEventListener('visibilitychange', reportVisibility);
     if (window.__TAURI__ && window.__TAURI__.event) {
       window.__TAURI__.event.listen('tauri://channel/rms', (event) => {
-        // RMS updates received; waveform can use them if needed
-        window.__RMS__ = event.payload;
+        const payload = event.payload;
+        window.__RMS__ = payload;
+        if (typeof payload === 'number') {
+          pushRms(payload);
+        } else if (payload && typeof payload.rms === 'number') {
+          pushRms(payload.rms);
+        } else if (payload && typeof payload.value === 'number') {
+          pushRms(payload.value);
+        }
+        if (state && state.progress) {
+          const pct = state.progress.kind === 'indeterminate' ? 0 : (state.progress.total_units > 0 ? Math.min(100, (state.progress.consumed_units / state.progress.total_units) * 100) : 0);
+          requestWaveformDraw(pct, state.progress.kind === 'indeterminate');
+        }
       });
     }
     renderAll();

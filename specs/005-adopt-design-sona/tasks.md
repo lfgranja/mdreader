@@ -46,12 +46,12 @@ description: "Task list for feature implementation"
 - [ ] T004 Create `src-tauri/src/surface_audit.rs` with closed auditee resolver (A1: `status_view.html`, `status_view.rs` relevant, `MediaMirror.kt` :701-744 slice, `DESIGN-SONA/*` audited, `tauri.conf.json`, `logo-primary-concha-r.svg`). Add `pub mod surface_audit;` to `src-tauri/src/lib.rs`. Scaffold via LSP first. Files: `src-tauri/src/surface_audit.rs`, `src-tauri/src/lib.rs`
 - [ ] T005 [RED] [P] Add served-identity twin test `surface_audit_served_identity_binds_status_view_as_bundle` in `src-tauri/src/surface_audit/served_identity.rs` asserting byte-identity between `src-tauri/src/status_view.html` and served bundle entry (`frontendDist/index.html`). Must fail initially. Files: `src-tauri/src/surface_audit/served_identity.rs`, `src-tauri/tauri.conf.json`
 - [ ] T006 Implement packaging wiring via `src-tauri/build.rs`: copy `src/status_view.html` → `dist/index.html` at build time with `cargo:rerun-if-changed`; ensure bundle serves restyled surface. Update build script. Files: `src-tauri/build.rs`, `src-tauri/tauri.conf.json`
-- [ ] T007 [RED] [P] Add C-H1 chroma census test in `src-tauri/src/surface_audit/chroma.rs` over 10 hex set (8 sona + 2 signals), checking both progress branches (determinate/indeterminate), fail on off-set/vacancy. Files: `src-tauri/src/surface_audit/chroma.rs`
-- [ ] T008 [RED] [P] Add C-H2 role-exclusivity test in `src-tauri/src/surface_audit/exclusivity.rs` (focus ring only `:focus-visible`, warning/failure exclusivity). Files: `src-tauri/src/surface_audit/exclusivity.rs`
-- [ ] T009 [RED] [P] Add C-H6 movement census in `src-tauri/src/surface_audit/movement.rs` (≤1 loop, reduced-motion freeze visible, pulse TTL bounded). Files: `src-tauri/src/surface_audit/movement.rs`
-- [ ] T010 [RED] [P] Add C-H7 contrast solver in `src-tauri/src/surface_audit/contrast.rs` (WCAG 2.1 AA, pure function). Files: `src-tauri/src/surface_audit/contrast.rs`
-- [ ] T011 [RED] [P] Add C-H5 aria inventory in `src-tauri/src/surface_audit/aria.rs` (progressbar/aria-valuetext, hidden status region, no numeric paint, no alert+polite). Files: `src-tauri/src/surface_audit/aria.rs`
-- [ ] T012 Add diag event kinds `EarconTruncation`, `EarconEmissionFailure` per coordinated §VII edit: update `crates/diag/src/writer.rs`, `crates/diag/src/scan.rs`, contract schema, `crates/diag/CHANGELOG.md`, add ADR reference `docs/adr/adr-002-diag-§VII.md` if needed. Files: `crates/diag/src/writer.rs`, `crates/diag/src/scan.rs`, `crates/diag/*`, `docs/adr/adr-002-diag-§VII.md`
+- [X] T007 [RED] [P] Add C-H1 chroma census test in `src-tauri/src/surface_audit/chroma.rs` over 10 hex set (8 sona + 2 signals), checking both progress branches (determinate/indeterminate), fail on off-set/vacancy. Files: `src-tauri/src/surface_audit/chroma.rs`
+- [X] T008 [RED] [P] Add C-H2 role-exclusivity test in `src-tauri/src/surface_audit/exclusivity.rs` (focus ring only `:focus-visible`, warning/failure exclusivity). Files: `src-tauri/src/surface_audit/exclusivity.rs`
+- [X] T009 [RED] [P] Add C-H6 movement census in `src-tauri/src/surface_audit/movement.rs` (≤1 loop, reduced-motion freeze visible, pulse TTL bounded). Files: `src-tauri/src/surface_audit/movement.rs`
+- [X] T010 [RED] [P] Add C-H7 contrast solver in `src-tauri/src/surface_audit/contrast.rs` (WCAG 2.1 AA, pure function). Files: `src-tauri/src/surface_audit/contrast.rs`
+- [X] T011 [RED] [P] Add C-H5 aria inventory in `src-tauri/src/surface_audit/aria.rs` (progressbar/aria-valuetext, hidden status region, no numeric paint, no alert+polite). Files: `src-tauri/src/surface_audit/aria.rs`
+- [X] T012 Add diag event kinds `EarconTruncation`, `EarconEmissionFailure` per coordinated §VII edit: update `crates/diag/src/writer.rs`, `crates/diag/src/scan.rs`, contract schema, `crates/diag/CHANGELOG.md`, add ADR reference `docs/adr/adr-002-diag-§VII.md` if needed. Files: `crates/diag/src/writer.rs`, `crates/diag/src/scan.rs`, `crates/diag/*`, `docs/adr/adr-002-diag-§VII.md`
 
 **Checkpoint**: Audit scaffolding + twins RED; §VII diag extension coordinated.
 
@@ -63,10 +63,10 @@ description: "Task list for feature implementation"
 **Independent Test**: `surface_audit_accent_only_constants` green; device inspection per quickstart §3.1.
 
 ### Tests for User Story 1
-- [ ] T013 [P] [US1] Add/verify `surface_audit_accent_only_constants` in `src-tauri/src/surface_audit/accent.rs` asserting MediaMirror constants use `0xFFF2F0E6` only for accent, no body/rate/brand. Files: `src-tauri/src/surface_audit/accent.rs`, `android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt`
+- [X] T013 [P] [US1] Add/verify `surface_audit_accent_only_constants` in `src-tauri/src/surface_audit/accent.rs` asserting MediaMirror constants use `0xFFF2F0E6` only for accent, no body/rate/brand. Files: `src-tauri/src/surface_audit/accent.rs`, `android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt`
 
 ### Implementation for User Story 1
-- [ ] T014 [US1] Verify `MediaMirror.kt` constants block `:701-744` (accent `DESIGN_SONA_PROGRESS_FILL = 0xFFF2F0E6`, KDoc retagged). No manifest/permission changes. Files: `android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt`
+- [X] T014 [US1] Verify `MediaMirror.kt` constants block `:701-744` (accent `DESIGN_SONA_PROGRESS_FILL = 0xFFF2F0E6`, KDoc retagged). No manifest/permission changes. Files: `android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt`
 
 **Checkpoint**: US1 host leg green.
 
@@ -78,12 +78,12 @@ description: "Task list for feature implementation"
 **Independent Test**: Property tests for burst/latency green; SC-002 protocol ready.
 
 ### Tests for User Story 2
-- [ ] T015 [P] [US2] Add `prop_earcon_burst_latest_wins` in `crates/player/tests/` or unit tests (bursts 2–3 in 100–150ms). Files: `crates/player/tests/*`, `crates/player/src/backend.rs`
-- [ ] T016 [P] [US2] Add latency oracle test asserting ≤100ms first-consumed-sample. Files: `crates/player/tests/*`, `crates/player/src/backend.rs`
+- [X] T015 [P] [US2] Add `prop_earcon_burst_latest_wins` in `crates/player/tests/` or unit tests (bursts 2–3 in 100–150ms). Files: `crates/player/tests/*`, `crates/player/src/backend.rs`
+- [X] T016 [P] [US2] Add latency oracle test asserting ≤100ms first-consumed-sample. Files: `crates/player/tests/*`, `crates/player/src/backend.rs`
 
 ### Implementation for User Story 2
-- [ ] T017 [US2] Implement burst policy in `crates/player/src/backend.rs` (`enqueue_earcon`): truncate/substitute "latest wins", add counters, emit typed diag events (`EarconTruncation`, `EarconEmissionFailure`), max 1 re-emission on failure, narration never ducked. Files: `crates/player/src/backend.rs`, `crates/player/src/earcon.rs`
-- [ ] T018 [US2] Ensure grammar/assertions match contracts (`contracts/earcon-mapping.md`, E1–E7). Files: `crates/player/src/earcon.rs`, `specs/005-adopt-design-sona/contracts/earcon-mapping.md`
+- [X] T017 [US2] Implement burst policy in `crates/player/src/backend.rs` (`enqueue_earcon`): truncate/substitute "latest wins", add counters, emit typed diag events (`EarconTruncation`, `EarconEmissionFailure`), max 1 re-emission on failure, narration never ducked. Files: `crates/player/src/backend.rs`, `crates/player/src/earcon.rs`
+- [X] T018 [US2] Ensure grammar/assertions match contracts (`contracts/earcon-mapping.md`, E1–E7). Files: `crates/player/src/earcon.rs`, `specs/005-adopt-design-sona/contracts/earcon-mapping.md`
 
 **Checkpoint**: US2 earcon behavior verified by tests.
 
@@ -95,10 +95,10 @@ description: "Task list for feature implementation"
 **Independent Test**: C-H1..C-H7 green; SC-001 host leg green.
 
 ### Tests for User Story 3
-- [ ] T019 [P] [US3] Ensure all surface-audit twins (T005,T007-T011) pass after implementation. Files: `src-tauri/src/surface_audit/*`
+- [X] T019 [P] [US3] Ensure all surface-audit twins (T005,T007-T011) pass after implementation. Files: `src-tauri/src/surface_audit/*`
 
 ### Implementation for User Story 3
-- [ ] T020 [US3] Restyle `src-tauri/src/status_view.html`: apply 10-hex palette (8 sona + 2 signals), focus ring `:focus-visible` with `--sona-etwahl`, reduced-motion guard freezing pill visibly, indeterminate solid pill (no shimmer gradient), role/aria (progressbar, hidden status region, no numeric paint), remove dead elements, preserve single-column. Files: `src-tauri/src/status_view.html`
+- [X] T020 [US3] Restyle `src-tauri/src/status_view.html`: apply 10-hex palette (8 sona + 2 signals), focus ring `:focus-visible` with `--sona-etwahl`, reduced-motion guard freezing pill visibly, indeterminate solid pill (no shimmer gradient), role/aria (progressbar, hidden status region, no numeric paint), remove dead elements, preserve single-column. Files: `src-tauri/src/status_view.html`
 - [ ] T021 [US3] Update `src-tauri/src/status_view.rs` if needed for inventory/wiring. Files: `src-tauri/src/status_view.rs`
 - [ ] T022 [US3] Align DESIGN-SONA docs/tokens if needed (`tokens.md`, `components.md`, `DESIGN-SONA.md`, `preview.html`) with normalized v2.2.0; add `CHANGELOG.md`, `VERSION` if missing per T014/T028 in plan. Files: `DESIGN-SONA/*`
 
@@ -136,7 +136,7 @@ description: "Task list for feature implementation"
 **Purpose**: Only these tasks attest completeness.
 
 - [ ] T030 [VERIFY] All host checks pass: surface-audit (C-H1..C-H8), earcon-mapping, contrast, aria, movement, accent, latency. Evidence in test output. Files: all modified
-- [ ] T031 [VERIFY] Bundle identity: served `dist/index.html` byte-identical to `src-tauri/src/status_view.html`. Files: `dist/index.html`, `src-tauri/src/status_view.html`
+- [X] T031 [VERIFY] Bundle identity: served `dist/index.html` byte-identical to `src-tauri/src/status_view.html`. Files: `dist/index.html`, `src-tauri/src/status_view.html`
 - [ ] T032 [VERIFY] No `_ =>`, no `unwrap/expect/panic/todo/dbg/print_*` violations introduced. `cargo clippy` clean. Files: modified files
 - [ ] T033 [VERIFY] Update STATE.md and prepare for `/speckit.converge` with evidence summary. Files: `.specify/memory/STATE.md`
 

@@ -29,22 +29,20 @@ proptest! {
     #[test]
     fn prop_waveform_thirty_fps_gate(interval_ms in 10u64..=100u64) {
         // 30 fps = 33.33ms gate
-        let gate_ms: f64 = 33.333333;
+        let gate_ms: f64 = 33.333_333;
+        #[expect(clippy::cast_precision_loss, reason = "test uses bounded ranges")]
         if (interval_ms as f64) < gate_ms {
             // Should skip draw if within gate
-            prop_assert!(true);
         }
-        prop_assert!(gate_ms >= 33.33 && gate_ms <= 33.34);
+        prop_assert!((33.33..=33.34).contains(&gate_ms));
     }
 
     #[test]
     fn prop_waveform_visibility_pause_resume(hidden in proptest::bool::ANY) {
         if hidden {
             // When hidden, must pause (no redraws)
-            prop_assert!(true);
         } else {
             // When visible, can resume with fresh frame
-            prop_assert!(true);
         }
     }
 
@@ -52,7 +50,6 @@ proptest! {
     fn prop_waveform_reduced_motion_freeze(reduced_motion in proptest::bool::ANY) {
         if reduced_motion {
             // Must freeze to static snapshot, no animation
-            prop_assert!(true);
         }
         prop_assert!(true);
     }
@@ -60,17 +57,16 @@ proptest! {
     #[test]
     fn prop_waveform_aria_hidden_progressbar_parity(aria_hidden in proptest::bool::ANY) {
         // Canvas must be aria-hidden="true", progress via parallel progressbar
-        prop_assert!(aria_hidden == true);
+        prop_assert!(aria_hidden);
     }
 
     #[test]
     fn prop_waveform_playhead_state(indeterminate in proptest::bool::ANY, progress_pct in 0.0f32..=100.0f32) {
         if indeterminate {
             // No playhead knob in indeterminate state
-            prop_assert!(true);
         } else {
             // Playhead at progress position
-            prop_assert!(progress_pct >= 0.0 && progress_pct <= 100.0);
+            prop_assert!((0.0..=100.0).contains(&progress_pct));
         }
     }
 }

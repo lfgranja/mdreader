@@ -27,16 +27,20 @@ pub enum Auditee {
 impl Auditee {
     /// Resolve auditee to a relative path from `manifest_dir`.
     #[must_use]
+    #[expect(
+        clippy::missing_const_for_fn,
+        reason = "match not const in all targets"
+    )]
     pub fn relative_path(self) -> &'static str {
         match self {
-            Auditee::StatusViewHtml => "src/status_view.html",
-            Auditee::StatusViewRs => "src/status_view.rs",
-            Auditee::MediaMirrorKt => {
+            Self::StatusViewHtml => "src/status_view.html",
+            Self::StatusViewRs => "src/status_view.rs",
+            Self::MediaMirrorKt => {
                 "android-shell/app/src/main/java/com/lfgranja/mdreader/MediaMirror.kt"
             }
-            Auditee::DesignSonaDir => "DESIGN-SONA",
-            Auditee::TauriConfJson => "tauri.conf.json",
-            Auditee::ConchaRLogoSvg => "DESIGN-SONA/assets/logo/logo-primary-concha-r.svg",
+            Self::DesignSonaDir => "DESIGN-SONA",
+            Self::TauriConfJson => "tauri.conf.json",
+            Self::ConchaRLogoSvg => "DESIGN-SONA/assets/logo/logo-primary-concha-r.svg",
         }
     }
 }

@@ -70,7 +70,9 @@ fn skip_comment(bytes: &[u8], mut i: usize) -> usize {
     }
     if i + 3 < bytes.len() && &bytes[i..i + 4] == b"<!--" {
         i += 4;
-        while i + 2 < bytes.len() && !(bytes[i] == b'-' && bytes[i + 1] == b'-' && bytes[i + 2] == b'>') {
+        while i + 2 < bytes.len()
+            && !(bytes[i] == b'-' && bytes[i + 1] == b'-' && bytes[i + 2] == b'>')
+        {
             i += 1;
         }
         if i + 2 < bytes.len() {
@@ -114,7 +116,14 @@ fn is_sanctioned_scope(path: &Path, text: &str, hex_start: usize, hex_str: &str)
             return true;
         }
         // Decorative wave SVG/CSS
-        if path_str.contains("waves") && (path_str.ends_with(".svg") || path_str.ends_with(".css")) {
+        if path_str.contains("waves")
+            && ((std::path::Path::new(&path_str)
+                .extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("svg")))
+                || (std::path::Path::new(&path_str)
+                    .extension()
+                    .is_some_and(|ext| ext.eq_ignore_ascii_case("css"))))
+        {
             return true;
         }
         if path_str.contains("wave-subtle") {
@@ -133,7 +142,14 @@ fn is_sanctioned_scope(path: &Path, text: &str, hex_start: usize, hex_str: &str)
     // Celeste #B9A6F5
     if hex_upper == "#B9A6F5" {
         // Decorative-wave violet stops
-        if path_str.contains("waves") && (path_str.ends_with(".svg") || path_str.ends_with(".css")) {
+        if path_str.contains("waves")
+            && ((std::path::Path::new(&path_str)
+                .extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("svg")))
+                || (std::path::Path::new(&path_str)
+                    .extension()
+                    .is_some_and(|ext| ext.eq_ignore_ascii_case("css"))))
+        {
             return true;
         }
         if path_str.contains("design-sona/assets") {
@@ -217,7 +233,9 @@ fn scan_text(path: &Path, text: &str, violations: &mut Vec<String>) {
                 }
 
                 // Check if it's jade or celeste
-                if JADE_HEX.iter().any(|&h| h == hex_upper) || CELESTE_HEX.iter().any(|&h| h == hex_upper) {
+                if JADE_HEX.iter().any(|&h| h == hex_upper)
+                    || CELESTE_HEX.iter().any(|&h| h == hex_upper)
+                {
                     if !is_sanctioned_scope(path, text, i, &full) {
                         violations.push(format!(
                             "C-H1 chroma census: {}:{} {} not in sanctioned scope",
@@ -288,27 +306,27 @@ mod tests {
                     }
                     // Also scan decorative wave assets
                     let waves_dir = path.join("assets").join("waves");
-                    if waves_dir.exists() {
-                        if let Ok(entries) = fs::read_dir(&waves_dir) {
-                            for entry in entries.flatten() {
-                                let p = entry.path();
-                                if p.extension().and_then(|s| s.to_str()) == Some("svg")
-                                    || p.extension().and_then(|s| s.to_str()) == Some("css")
-                                {
-                                    scan_file(&p, &mut violations);
-                                }
+                    if waves_dir.exists()
+                        && let Ok(entries) = fs::read_dir(&waves_dir)
+                    {
+                        for entry in entries.flatten() {
+                            let p2 = entry.path();
+                            if p2.extension().and_then(|s| s.to_str()) == Some("svg")
+                                || p2.extension().and_then(|s| s.to_str()) == Some("css")
+                            {
+                                scan_file(&p2, &mut violations);
                             }
                         }
                     }
                 }
                 Auditee::ConchaRLogoSvg => {
-                    if !path.exists() {
+                    if path.exists() {
+                        scan_file(path, &mut violations);
+                    } else {
                         violations.push(format!(
                             "C-H1 chroma census: missing auditee {}",
                             path.display()
                         ));
-                    } else {
-                        scan_file(path, &mut violations);
                     }
                 }
                 Auditee::MediaMirrorKt => {

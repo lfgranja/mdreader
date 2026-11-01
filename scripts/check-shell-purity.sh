@@ -281,7 +281,21 @@ ALLOWLIST=(
   # occurrences are still adjudicated by Section 3 and by the T086
   # residue inventory below.
   "$SRC_TAURI/tests/test_resume_restarts_audio.rs"
+
+  # 005 surface-audit host checks
+  "$SRC_TAURI/src/surface_audit/mod.rs"
+  "$SRC_TAURI/src/surface_audit/chroma.rs"
+  "$SRC_TAURI/src/surface_audit/exclusivity.rs"
+  "$SRC_TAURI/src/surface_audit/movement.rs"
+  "$SRC_TAURI/src/surface_audit/contrast.rs"
+  "$SRC_TAURI/src/surface_audit/aria.rs"
+  "$SRC_TAURI/src/surface_audit/inventory.rs"
+  "$SRC_TAURI/src/surface_audit/accent.rs"
+  "$SRC_TAURI/src/surface_audit/served_identity.rs"
+  "$SRC_TAURI/src/surface_audit/earcon.rs"
+  "$SRC_TAURI/src/surface_audit/earcon_latency.rs"
 )
+
 
 # Contract suites (T156): the two Phase 17 contract suites the
 # allowlist above carries — they NAME the mirrored vocabulary to pin
@@ -295,7 +309,21 @@ ALLOWLIST=(
 CONTRACT_SUITES=(
   "$SRC_TAURI/tests/test_offer_dialog_reachability.rs"
   "$SRC_TAURI/tests/test_resume_restarts_audio.rs"
+
+  # 005 surface-audit host checks
+  "$SRC_TAURI/src/surface_audit/mod.rs"
+  "$SRC_TAURI/src/surface_audit/chroma.rs"
+  "$SRC_TAURI/src/surface_audit/exclusivity.rs"
+  "$SRC_TAURI/src/surface_audit/movement.rs"
+  "$SRC_TAURI/src/surface_audit/contrast.rs"
+  "$SRC_TAURI/src/surface_audit/aria.rs"
+  "$SRC_TAURI/src/surface_audit/inventory.rs"
+  "$SRC_TAURI/src/surface_audit/accent.rs"
+  "$SRC_TAURI/src/surface_audit/served_identity.rs"
+  "$SRC_TAURI/src/surface_audit/earcon.rs"
+  "$SRC_TAURI/src/surface_audit/earcon_latency.rs"
 )
+
 
 is_allowlisted() {
   local file="$1" entry

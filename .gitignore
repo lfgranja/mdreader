@@ -93,5 +93,8 @@ target/
 .opencode/
 .specify/assessments/
 .omp/plans/
+<<<<<<< HEAD
 
+=======
+>>>>>>> dc41a46a (chore(gates): allowlist surface-audit in shell purity)
 .codegraph/

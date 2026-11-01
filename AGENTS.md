@@ -2,14 +2,14 @@
 
 ## Project Overview
 
-`mdreader` (product **Ressoa**, package `app.mdreader`) is an Android media-shell TTS audiobook reader. Rust owns synthesis and PCM playback (sole authority for transport/position/buffering/rate); Kotlin (`android-shell/`) owns `Service`, `MediaSession`, notification, and `AudioFocusRequest` as mirrors only (enforced by purity checks). The Tauri 2.12.1 bridge (`src-tauri/`) is one consumer among many. Every crate is CLI-drivable (`clap` derive, stdin/args → stdout, errors → stderr, `--format json`). Target: Android `minSdk 29`, host-checkable gates 1–8 via `scripts/verify.sh`, device gate 9 via `cargo tauri android build --target aarch64`.
+`mdreader` (product **Ressoa**, package `app.mdreader`) is an Android media-shell TTS audiobook reader. Rust owns synthesis and PCM playback (sole authority for transport/position/buffering/rate); Kotlin (`android-shell/`) owns `Service`, `MediaSession`, notification, and `AudioFocusRequest` as mirrors only. The Tauri 2.12.1 bridge (`src-tauri/`) is one consumer among many. Every crate is CLI-drivable (`clap` derive, stdin/args → stdout, errors → stderr, `--format json`). Target: Android `minSdk 29`, host-checkable gates 1–8 via `scripts/verify.sh`, device gate 9 via `cargo tauri android build --target aarch64`.
 
 Key principles:
-- **Library-first:** every capability reachable as a Rust API; CLI is thin.
-- **One code path:** identical behavior for CLI and IPC (`tauri::ipc::Channel`, no `InvokeBody::Streaming`).
+- **Library-first:** Every capability is reachable as a Rust API; CLI is thin.
+- **One code path:** Identical behavior for CLI and IPC (`tauri::ipc::Channel`, no `InvokeBody::Streaming`).
 - **Zero Android API in Rust:** Kotlin pushes answers across the boundary.
-- **Pipeline degrades observably:** never silently infers SSML/alignment; uses declared capabilities.
-- **Closed sets everywhere:** exhaustive `match`, no `_ =>` arms, no `Other`/`Unknown`; adding variants requires coordinated edits + docs + semver bump.
+- **Pipeline degrades observably:** Never silently infers SSML/alignment; uses declared capabilities.
+- **Closed sets everywhere:** Exhaustive `match`, no `_ =>` arms, no `Other`/`Unknown`; adding variants requires coordinated edits + docs + semver bump.
 - **Durability:** 20s heartbeat while `Playing` + event-durable writes; hard kill replays ≤ ~30s.
 
 ## Architecture & Data Flow
@@ -20,7 +20,7 @@ Kotlin surface (Service/MediaSession/notification/focus) — mirror only
 Tauri bridge: src-tauri/src/lib.rs (AppState, commands, publish, heartbeat)
         ↓ same Rust code path
 crates/player      — transport, position (audible-progress only), buffering/pre-roll (≤60 s), rate ladder, skip/rewind, focus/routing/interruption, surface/mirror, backend
-crates/engine-core — Engine trait, closed vocabulary (`engine-core/src/closed.rs`), handoff format (mono f32 @ 22050 Hz), fallback, stand-in fixtures
+crates/engine-core — Engine trait, closed vocabulary (closed.rs), handoff format (mono f32 @ 22050 Hz), fallback, stand-in fixtures
 crates/session     — redb bookmarks + settings (blake3-256 content fingerprint), offer/resume state machine
 crates/diag        — append-only JSONL diagnostics (30-day/10 MiB, 11 kinds, 7 violation types)
 crates/doc-structure — ordered headings → timeline/FR-038 re-anchor
@@ -28,16 +28,16 @@ crates/adapter-synthesis — offline_default (sherpa-onnx/Piper pt-BR), chunking
 crates/cleanroom-core — proptest utilities (standalone, not a workspace member)
 ```
 
-**Audio/handoff:** engine delivers mono `f32` PCM @ 22050 Hz; rate is pitch-preserving inside the engine; player selects rung only. Mismatches produce named `EngineError`s (never silent resample/downmix). Position advances only on audible progress from the callback (never during pre-roll, never on timer).
+**Audio/handoff:** Engine delivers mono `f32` PCM @ 22050 Hz; rate is pitch-preserving inside the engine; player selects rung only. Mismatches produce named `EngineError`s (never silent resample/downmix). Position advances only on audible progress from the callback (never during pre-roll, never on timer).
 
-**State/locks:** single `AppState` behind `tauri::manage`, fields `Mutex<_>`. Take/release locks alone, no nested/combined holds. Lock order follows IPC path (`session` → `bookmark_store` last); heartbeat/read order mirrors to avoid cycles. Poisoned locks are skipped with `tracing::warn` (best-effort), never panic.
+**State/locks:** Single `AppState` behind `tauri::manage`, fields `Mutex<_>`. Take/release locks alone, no nested/combined holds. Lock order follows IPC path (`session` → `bookmark_store` last); heartbeat/read order mirrors to avoid cycles. Poisoned locks are skipped with `tracing::warn` (best-effort), never panic.
 
 **Authority split:** Rust = sole playback authority; Kotlin = pure mirror. Shell purity enforced by `scripts/check-shell-purity.sh` (SC-035/FR-042).
 
 ## Key Directories
 
 | Path | Purpose |
-| --- | --- |
+|---|---|
 | `crates/engine-core/` | Closed sets, `Engine` trait, handoff format (`SAMPLE_RATE=22050`, `CHANNELS=1`, `f32`), fallback/order, stand-ins |
 | `crates/player/` | Transport/position/rate/skip/rewind/focus/interruption/routing/recovery/resume/earcon/backend/buffer/surface |
 | `crates/session/` | `redb` bookmarks/settings, blake3 fingerprint, offer machine, resume logic |
@@ -125,7 +125,7 @@ adapter-synthesis chunk --input doc.md
 ## Important Files
 
 | File | Role |
-| --- | --- |
+|---|---|
 | `Cargo.toml` | Workspace members/deps, `[workspace.lints]` (strict deny/warn set), `[patch.crates-io]` for vendored `sherpa-onnx-sys` |
 | `Cargo.lock` | Committed; use `--locked` |
 | `rust-toolchain.toml` | Stable channel + `rustfmt`, `clippy` |

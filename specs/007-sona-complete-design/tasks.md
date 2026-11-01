@@ -26,9 +26,9 @@ description: "Task list for feature implementation"
 
 **Purpose**: Core infrastructure that MUST be complete before user stories.
 
-- [ ] T004 Add design token updates for jade `#5AD6A8` and celeste `#B9A6F5` per Constitution v2.0.0 §VII with coordinated edits
-- [ ] T005 Update surface-audit/chroma for expanded token set
-- [ ] T006 Extend contracts as needed per §VII coordinated edit
+- [X] T004 Add design token updates for jade `#5AD6A8` and celeste `#B9A6F5` per Constitution v2.0.0 §VII with coordinated edits
+- [X] T005 Update surface-audit/chroma for expanded token set
+- [X] T006 Extend contracts as needed per §VII coordinated edit
 
 **Checkpoint**: Foundation ready.
 

@@ -13,9 +13,12 @@ const BRIDGE: &str = include_str!("../src/lib.rs");
 #[test]
 fn parse_action_recognizes_pick_document() {
     let action = parse_action("pick_document");
-    assert!(action.is_ok(), "pick_document must be a recognized bridge action");
+    assert!(
+        action.is_ok(),
+        "pick_document must be a recognized bridge action"
+    );
     match action.unwrap() {
-        BridgeAction::PickDocument => {},
+        BridgeAction::PickDocument => {}
         _ => panic!("pick_document must map to BridgeAction::PickDocument"),
     }
 }
@@ -23,7 +26,10 @@ fn parse_action_recognizes_pick_document() {
 #[test]
 fn pick_document_host_no_op_succeeds() {
     let res = src_tauri::shell_jni::pick_document_from_shell();
-    assert!(res.is_ok(), "pick_document_from_shell must succeed cleanly on host");
+    assert!(
+        res.is_ok(),
+        "pick_document_from_shell must succeed cleanly on host"
+    );
 }
 
 #[test]

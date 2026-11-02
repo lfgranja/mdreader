@@ -5,11 +5,11 @@
 //! content fingerprint. Reopening with an identical byte stream under any filename
 //! must resolve to the identical stored bookmark offset and `OpenOffer::Continue`.
 
+use engine_core::closed::SessionEnd;
 use proptest::prelude::*;
 use session::fingerprint::fingerprint;
 use session::offer::{ColdStart, OpenOffer, cold_start};
 use session::store::{BookmarkStore, StoredPosition, lookup_on_open};
-use engine_core::closed::SessionEnd;
 use tempfile::tempdir;
 
 proptest! {

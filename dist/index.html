@@ -149,6 +149,17 @@
       text-align: center;
       position: relative;
       overflow: hidden;
+      cursor: pointer;
+      min-height: 48px;
+      transition: transform 0.1s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+      outline: none;
+    }
+    .meta-box:active {
+      transform: scale(0.985);
+    }
+    .meta-box:focus-visible {
+      outline: 2px solid var(--sona-etwahl);
+      outline-offset: 4px;
     }
     .meta-box::after {
       content: "";
@@ -383,7 +394,7 @@
 <div class="card" role="region" aria-label="Lente Sinestésica">
   <img id="headerMark" src="DESIGN-SONA/assets/logo/logo-proposta-3-concha.png" alt="" width="58" height="68" style="display:block; object-fit: contain; background: transparent;">
   
-  <div class="meta-box">
+  <div class="meta-box" id="titleCard" role="button" tabindex="0" aria-label="Selecionar documento para leitura">
     <h1 id="documentTitle"></h1>
     <div class="subtitle" id="sectionTitle"><span aria-hidden="true">—</span><span class="sr-only">Sem título</span></div>
   </div>
@@ -497,6 +508,7 @@
     offerProgress: document.getElementById('offerProgress'),
     btnOfferContinue: document.getElementById('btnOfferContinue'),
     btnOfferStartOver: document.getElementById('btnOfferStartOver'),
+    titleCard: document.getElementById('titleCard'),
   };
 
   // Transport icons
@@ -1101,6 +1113,41 @@
     closeOffer();
     await sendAction('start_over');
   });
+
+  // T167: Document picker trigger via Title Card
+  let pickerDebounceTimer = null;
+  function triggerDocumentPicker() {
+    if (pickerDebounceTimer) {
+      return;
+    }
+    pickerDebounceTimer = setTimeout(() => {
+      pickerDebounceTimer = null;
+    }, 500);
+
+    sendAction('pick_document').then(() => {
+      if (els.titleCard) {
+        els.titleCard.focus();
+      }
+    }).catch((err) => {
+      console.error('Failed to launch document picker:', err);
+      if (els.titleCard) {
+        els.titleCard.focus();
+      }
+    });
+  }
+
+  if (els.titleCard) {
+    els.titleCard.addEventListener('click', () => {
+      triggerDocumentPicker();
+    });
+
+    els.titleCard.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        triggerDocumentPicker();
+      }
+    });
+  }
 
   // Register for mirror publish channel
   async function registerPublishListener() {

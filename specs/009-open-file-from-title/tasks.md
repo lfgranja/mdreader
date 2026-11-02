@@ -75,14 +75,14 @@
 
 ### Tests for User Story 3 (TDD - Write First, MUST FAIL initially) ⚠️
 
-- [ ] T172 [P] [US3] Unit & Invariant test in `src-tauri/tests/test_pick_document_cancellation.rs` asserting that `IngestOutcome::Cancelled` or `IngestOutcome::Refused` makes zero modifications to `AppState::session` or `PositionClock`.
-- [ ] T173 [P] [US3] Contract test in `src-tauri/tests/test_pick_document_error_notification.rs` verifying that format refusals (>93.636 bytes / non-text) publish `reason: "FormatUndeliverable"` to `reasonBanner` and `liveRegion` without audio interruption.
+- [x] T172 [P] [US3] Unit & Invariant test in `src-tauri/tests/test_pick_document_cancellation.rs` asserting that `IngestOutcome::Cancelled` or `IngestOutcome::Refused` makes zero modifications to `AppState::session` or `PositionClock`.
+- [x] T173 [P] [US3] Contract test in `src-tauri/tests/test_pick_document_error_notification.rs` verifying that format refusals (>93.636 bytes / non-text) publish `reason: "FormatUndeliverable"` to `reasonBanner` and `liveRegion` without audio interruption.
 
 ### Implementation for User Story 3
 
-- [ ] T174 [US3] Implement refusal callback / notification bridge from `DocIngest.handlePickResult` in `android-shell/src/main/kotlin/app/mdreader/DocIngest.kt` to notify the UI of `IngestOutcome.Refused(FormatUndeliverable)` and `IngestOutcome.Unreadable`.
-- [ ] T175 [US3] Handle `FormatUndeliverable` notification in `src-tauri/src/status_view.html` by invoking `renderReason("FormatUndeliverable")` to display the inline reason banner and announce via `liveRegion`.
-- [ ] T176 [US3] Wrap SAF activity launch in `android-shell/src/main/kotlin/app/mdreader/DocIngest.kt` in a try-catch block for `ActivityNotFoundException` and unexpected system exceptions, logging diagnostics safely.
+- [x] T174 [US3] Implement refusal callback / notification bridge from `DocIngest.handlePickResult` in `android-shell/src/main/kotlin/app/mdreader/DocIngest.kt` to notify the UI of `IngestOutcome.Refused(FormatUndeliverable)` and `IngestOutcome.Unreadable`.
+- [x] T175 [US3] Handle `FormatUndeliverable` notification in `src-tauri/src/status_view.html` by invoking `renderReason("FormatUndeliverable")` to display the inline reason banner and announce via `liveRegion`.
+- [x] T176 [US3] Wrap SAF activity launch in `android-shell/src/main/kotlin/app/mdreader/DocIngest.kt` in a try-catch block for `ActivityNotFoundException` and unexpected system exceptions, logging diagnostics safely.
 
 ---
 

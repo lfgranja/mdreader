@@ -13,7 +13,7 @@ Key principles:
 - **Durability:** 20s heartbeat while `Playing` + event-durable writes; hard kill replays ≤ ~30s.
 - **Position advances only on audible progress:** Never during pre-roll, never on timer.
 
-**Governance & Contracts:** Normative policy lives in `.specify/memory/constitution.md` (amendments require SYNC IMPACT REPORT). Wire formats and interfaces are normative in `contracts/*.md` and `contracts/*.json`. Rationale lives in `docs/`.
+**Governance & Contracts:** Normative policy lives in `.specify/memory/constitution.md` (v2.0.0, amended 2026-10-28; amendments require SYNC IMPACT REPORT). Wire formats and interfaces are normative in `contracts/*.md` and `contracts/*.json`. Rationale lives in `docs/`. Current roadmap/state in `ROADMAP.md`.
 
 ## Architecture & Data Flow
 
@@ -51,10 +51,18 @@ crates/doc-structure — ordered headings → timeline/FR-038 re-anchor
 - **Engine contract:** `Engine` (`crates/engine-core/src/trait_.rs`) requires `declared_capabilities()`, `set_rate()` (pitch-preserving stretch inside engine; rung selection only), `stream(position_secs, max_secs)`. `stream` returns buffered-only chunks (reading never advances position). Delivered sample rate must remain declared on all rungs; pitch deviation beyond `PITCH_TOLERANCE_CENTS` → `EngineError::RateMismatch`.
 - **Backend:** `cpal` 0.18.2 (AAudio on Android). Host CI devices (44.1–48 kHz stereo) return named refusal in `CpalBackend` (asserted in contracts). Pre-roll ≤ 60 s.
 
+### RMS Instrumentation & Waveform (007)
+- **RMS source (Rust):** `crates/player/src/backend.rs` computes RMS of recently consumed speech blocks (lock-free) in `SampleQueue::consume_into()`, stored as `AtomicU32` bits via `rms: AtomicU32` in `SampleQueue` (Ordering::Relaxed). Exposed via `CpalBackend::rms()` and `CpalBackend` queue accessor (`queue.lock().map_or(0.0, |q| q.rms())`).
+- **RMS IPC (Tauri):** `src-tauri/src/lib.rs` maintains `rms_channel: Mutex<Option<tauri::ipc::Channel<f32>>>`, `last_rms`, `last_rms_publish_ms`, `view_hidden`. Commands: `register_rms_listener` registers channel; `set_rms_visibility` updates visibility for throttling. `publish_rms` implements last-wins coalescing with ~20 Hz throttle (50ms interval) and publishes over `tauri://channel/rms`. Backend RMS polled in playback watch loop.
+- **Waveform visualizer (frontend):** `src-tauri/src/status_view.html` renders canvas `#waveform` (aria-hidden="true") with 5-layer smooth ribbons (teal→jade→violet/celeste) using cubic-bezier curves at 1/3 and 2/3 width, per-layer opacity 0.15/0.20/0.25/0.30/0.35, mirrored around center axis. White 1px center line (0.90 opacity), 6px circular playhead when playing. Features: DPR cap at 2×, 30 fps gate (33.33ms), IPC-event-driven redraw (no continuous rAF loop), pause on `visibilitychange` (resume with one fresh frame), freeze under `prefers-reduced-motion: reduce` (static snapshot), canvas fallback if unavailable. Progress tracked via parallel visually-hidden `#progress` progressbar (`role="progressbar"`) updated by `renderProgress()` with `aria-valuenow`/`aria-valuetext`; live region `#liveRegion` announces meaningful changes.
+
+### Repeat Button (007)
+- **UI:** `src-tauri/src/status_view.html` adds `#btn-repeat` button; click handler calls `sendAction('repeat_section')`. Styled with SONA tokens, keyboard accessible (native button, focus ring).
+- **Bridge mapping:** `src-tauri/src/lib.rs` maps `"skip_back5s" | "repeat_section"` to `BridgeAction::Verb(ShellVerb::SkipBackward)`. Reuses existing skip/section logic and "skip back" earcon (Allegro-trás). Restarts current section from beginning.
+
 ### Wire Format
 - Rust `PascalCase` → JSON `snake_case` (e.g. `TransportState::Playing` → `playing`, `PlaybackRate` → bare number like `1.5`, `EngineTier::OfflineDefault` → `offline_default`). `Display` returns wire strings.
 
-## Key Directories
 
 | Path | Purpose |
 |---|---|
@@ -81,28 +89,37 @@ crates/doc-structure — ordered headings → timeline/FR-038 re-anchor
 cargo fmt --all -- --check
 cargo fmt --all
 
-# Tests (gate 2) — use cargo-nextest
+# Tests (gate 2) — use cargo-nextest; must match scripts/expected-tests.txt (two-way diff)
 cargo nextest run --workspace
 cargo nextest run --workspace --profile ci
+# Check gate 2 diff locally
+cargo nextest list --workspace | sort > /tmp/nextest-live.txt
+sort scripts/expected-tests.txt > /tmp/expected.txt
+diff -u /tmp/expected.txt /tmp/nextest-live.txt
 cargo nextest run -p player --test prop_transport_math
-cargo nextest run -p engine-core --test prop_closed_sets
+cargo nextest run -p engine-core --test test_engine_handoff_us1 --test test_standin_conformance_us5 --test prop_pitch --test standin_shape
+cargo nextest run -p adapter-synthesis --test prop_chunk
 
 # Docs (gate 3)
 cargo doc --workspace --no-deps
 
-# Lint (gate 4) — must be clean
+# Lint (gate 4) — must be clean (includes clippy -D warnings)
 cargo clippy --workspace --all-targets -- -D warnings
 
 # Supply chain (gate 5)
 cargo deny check advisories licenses bans sources
 cargo audit
 
-# All gates 1-8 (fail-closed)
+# All gates 1-8 (fail-closed, host-checkable)
 ./scripts/verify.sh
 
-# Android artifact (gate 9, outside verify.sh)
-cargo tauri android build --target aarch64
-# or debug for APK class checks
+# Sub-gates (invoked by verify.sh)
+./scripts/check-manifest.sh      # minSdk 29, mediaPlayback, FGS permissions, no INTERNET
+./scripts/check-shell-purity.sh  # mirror-only, vocabulary allowlists, traceability
+./scripts/check-apk-classes.sh   # APK class presence (after build)
+
+# Android artifact (gate 9, outside verify.sh — authoritative)
+cargo tauri android build --target aarch64        # release
 cargo tauri android build --target aarch64 --debug
 
 # Build/check
@@ -122,7 +139,6 @@ engine-core stream --at 12.5 --budget-secs 5.0
 diag scan record.jsonl
 adapter-synthesis chunk --input doc.md
 ```
-
 ## Code Conventions & Common Patterns
 
 ### Formatting & Imports
@@ -217,23 +233,24 @@ adapter-synthesis chunk --input doc.md
 | `crates/*/src/**` `#[cfg(test)]` | Inline unit tests | Co-located, shape/CLI/protocol checks. |
 | `crates/*/tests/` | Integration/contract/property tests | e.g. `crates/session/tests/` (`test_ingest_cli.rs`, `prop_*`), `crates/player/tests/` (integration/contract/feature), `crates/engine-core/tests/contract/`, `crates/adapter-synthesis/tests/`. |
 | `crates/cleanroom-core/tests/` | Property/validation tests | `slice_readability_proptest.rs` (BLOCKING invariants). **Not a workspace member** — run separately. |
-| `src-tauri/tests/` | Bridge/integration/diagnostic tests | Publish/payload, noscope/purity, resume/restarts audio, play-to-audio measured, in-app play functional, offer/lockscreen, buffer state in diag, etc. |
-| `tests/` (root) | Spec/contract/UI/audit tests | `005-red/`, `005-adopt-design-sona-red/`, `contract/`, `chroma_scope_property.rs`, etc. |
-| `specs/**/tests/` | Spec-driven tests/fixtures | Supporting evidence (not always `#[test]` harnesses). |
+| `src-tauri/tests/` | Bridge/integration/diagnostic tests | Publish/payload, noscope/purity, resume/restarts audio, play-to-audio measured, in-app play functional, offer/lockscreen, buffer state in diag, surface inventory/count, waveform canvas/performance, RMS/visualization, repeat control, progress labels, etc. |
+| `tests/` (root) | Spec/contract/UI/audit tests | `005-red/` (FR-006/007/SC-001, latency oracle/reduced-motion/freeeze), `005-adopt-design-sona-red/` (contract drift, extensions empty, FR-006/FR-007, property census closed, SC-001 split/duplication), `contract/`, `chroma_scope_property.rs`, `contract_census.rs`, `surface_inventory.rs`, `us1_*`, `us2_*` (banner/states/rate/blind/waveform), `us3_*` (contract audit/surface inventory/notification purity), `005-adopt-design-sona-sc001*/sc002/sc007`, earcon/lente/reduced-motion invariants. Converged with **007-sona-complete-design** (RMS/waveform/repeat). |
+| `specs/**/tests/` | Spec-driven tests/fixtures | Supporting evidence (not always `#[test]` harnesses). Device fixtures under `tests/device/fixtures/`. |
 
 ### Patterns
 - **Unit/Integration/Contract/Property:** Co-located unit tests, cross-component integration via authoritative types, contract tests between layers, property tests with `proptest!` and explicit case counts/grid strategies.
-- **Fixtures/replay:** Embedded via `include_str!` and fixture files under `specs/.../tests/device/fixtures/`. Deterministic JSONL replay through Rust authority.
+- **Fixtures/replay:** Embedded via `include_str!` and fixture files under `specs/.../tests/device/fixtures/` and `tests/device/fixtures/`. Deterministic JSONL replay through Rust authority.
 - **Temp/redb:** Tests use real `redb` files/temp dirs (no mocks). Session/recovery tests read/write bookmarks via `session::BOOKMARKS`/`store`.
 - **Guard/absence tests:** Fail-closed scans (e.g. `src-tauri/tests/test_noscope.rs` enforces no network crates/call sites app-wide).
-- **Traceability:** Tests reference FR/SC/task/spec anchors; BLOCKING invariants are explicitly marked.
+- **Traceability:** Tests reference FR/SC/task/spec anchors (005/007); BLOCKING invariants are explicitly marked.
 - **Regression files:** Property tests persist failing cases in `*.proptest-regressions` files checked into the repo.
 - **Exactness:** Contract-critical values assert equality (e.g. rewind formula `min(REWIND_FRACTION × paused, REWIND_CAP_SECS)`, bounds ≤30s for kill/recovery).
+- **Converged coverage (005↔007):** Surface/ARIA/contrast/reduced-motion, RMS/waveform canvas/performance, repeat control, numeric/rate, overflow/empty-title, glassmorphism/chroma scope, decorative elements, and latency/oracle invariants. Red suites in `tests/005-red/` and `tests/005-adopt-design-sona-red/` validate adoption/contract compliance.
 
 ### Running & Gates
 - **Runner:** `cargo nextest` with CI profile (`.config/nextest.toml`: `threads-required=1`, `failure-output=final`, `leaks-request=forbid`).
 - **Target naming:** Namespaced by crate/module and feature/US/task (e.g. `player::*`, `engine-core::*`, `src-tauri::*`, `*::prop_*`, `*::us1`).
-- **Gate 2:** Must match `scripts/expected-tests.txt` exactly (two-way diff of live `cargo nextest list --workspace` vs pinned list). Includes unit/property/contract/integration/schema targets.
+- **Gate 2:** Must match `scripts/expected-tests.txt` exactly (two-way diff of live `cargo nextest list --workspace` vs pinned list). Includes unit/property/contract/integration/schema targets. Current pinned inventory: **110** targets (includes `src-tauri` surface/RMS/waveform/repeat tests and crate/property/integration sets).
 
 ```sh
 # Check gate 2 diff locally
@@ -256,4 +273,4 @@ diff -u /tmp/expected.txt /tmp/nextest-live.txt
   11. `scripts/check-shell-purity.sh` (mirror-only, vocabulary allowlists, no `Other`/`Unknown`, engine-id allowlist, traceability FR/SC)
   12. C-H1..C-H9 scaffold echo
 - **Gate 9:** `cargo tauri android build --target aarch64` (authoritative device artifact). Then `scripts/check-manifest.sh` and `scripts/check-apk-classes.sh` validate built artifact/classes.
-- **Coverage expectations:** No coverage tooling configured. Strict linting, closed-set discipline, shell purity, and fail-closed gates are the primary QA mechanisms.
+- **Coverage expectations:** No coverage tooling configured. Strict linting, closed-set discipline, shell purity, and fail-closed gates are the primary QA mechanisms. 005/007 convergence validated via contract/property tests and surface audits.

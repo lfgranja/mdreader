@@ -90,13 +90,13 @@
 
 **Purpose**: Formal execution of the project verification gate. Only these tests attest to success.
 
-- [ ] T177 Run formatting check: `cargo fmt --all -- --check`.
-- [ ] T178 Run all unit, integration, and property tests via nextest: `cargo nextest run --workspace`.
-- [ ] T179 Update and verify gate 2 test census against `scripts/expected-tests.txt`.
-- [ ] T180 Run clippy lint gate: `cargo clippy --workspace --all-targets -- -D warnings`.
-- [ ] T181 Run closed-set purity and shell-purity scans: `./scripts/check-shell-purity.sh` and gate 8 checks.
-- [ ] T182 Execute full gate verification suite: `./scripts/verify.sh`.
-- [ ] T183 Perform on-device validation against test scenarios documented in `specs/009-open-file-from-title/quickstart.md` using ADB.
+- [x] T177 Run formatting check: `cargo fmt --all -- --check`.
+- [x] T178 Run all unit, integration, and property tests via nextest: `cargo nextest run --workspace`.
+- [x] T179 Update and verify gate 2 test census against `scripts/expected-tests.txt`.
+- [x] T180 Run clippy lint gate: `cargo clippy --workspace --all-targets -- -D warnings`.
+- [x] T181 Run closed-set purity and shell-purity scans: `./scripts/check-shell-purity.sh` and gate 8 checks.
+- [x] T182 Execute full gate verification suite: `./scripts/verify.sh`.
+- [x] T183 Perform on-device validation against test scenarios documented in `specs/009-open-file-from-title/quickstart.md` using ADB.
 
 ---
 

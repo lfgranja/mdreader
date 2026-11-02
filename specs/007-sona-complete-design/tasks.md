@@ -38,12 +38,12 @@ description: "Task list for feature implementation"
 **Independent Test**: RMS values published and consumed correctly.
 
 ### Tests for User Story 1
-- [ ] T007 [P] [US1] Add property tests for RMS invariants in appropriate test location
-- [ ] T008 [P] [US1] Add contract tests for RMS payload
+- [X] T007 [P] [US1] Add property tests for RMS invariants in appropriate test location
+- [X] T008 [P] [US1] Add contract tests for RMS payload
 
 ### Implementation for User Story 1
-- [ ] T009 [US1] Implement RMS instrumentation in audio/backend pipeline
-- [ ] T010 [US1] Publish RMS values through appropriate channels
+- [X] T009 [US1] Implement RMS instrumentation in audio/backend pipeline
+- [X] T010 [US1] Publish RMS values through appropriate channels
 
 **Checkpoint**: US1 complete.
 
@@ -53,13 +53,13 @@ description: "Task list for feature implementation"
 **Independent Test**: Waveform renders correctly, respects reduced-motion.
 
 ### Tests for User Story 2
-- [ ] T011 [P] [US2] Add property tests for waveform rendering invariants
-- [ ] T012 [P] [US2] Add tests for reduced-motion behavior
+- [X] T011 [P] [US2] Add property tests for waveform rendering invariants
+- [X] T012 [P] [US2] Add tests for reduced-motion behavior
 
 ### Implementation for User Story 2
-- [ ] T013 [US2] Implement canvas waveform in status_view.html
-- [ ] T014 [US2] Add reduced-motion guards for waveform
-- [ ] T015 [US2] Wire waveform to RMS data
+- [X] T013 [US2] Implement canvas waveform in status_view.html
+- [X] T014 [US2] Add reduced-motion guards for waveform
+- [X] T015 [US2] Wire waveform to RMS data
 
 **Checkpoint**: US2 complete.
 
@@ -69,11 +69,11 @@ description: "Task list for feature implementation"
 **Independent Test**: Repeat behavior works correctly.
 
 ### Tests for User Story 3
-- [ ] T016 [P] [US3] Add tests for repeat functionality
+- [X] T016 [P] [US3] Add tests for repeat functionality
 
 ### Implementation for User Story 3
-- [ ] T017 [US3] Add repeat button to UI
-- [ ] T018 [US3] Implement repeat logic
+- [X] T017 [US3] Add repeat button to UI
+- [X] T018 [US3] Implement repeat logic
 
 **Checkpoint**: US3 complete.
 
@@ -83,25 +83,25 @@ description: "Task list for feature implementation"
 **Independent Test**: Elements are supplementary only, not required interactions.
 
 ### Tests for User Story 4
-- [ ] T019 [P] [US4] Add tests for supplementary elements (non-required)
+- [X] T019 [P] [US4] Add tests for supplementary elements (non-required)
 
 ### Implementation for User Story 4
-- [ ] T020 [US4] Add glow/neon effects as supplementary elements
-- [ ] T021 [US4] Ensure no required interactions depend on them
+- [X] T020 [US4] Add glow/neon effects as supplementary elements
+- [X] T021 [US4] Ensure no required interactions depend on them
 
 **Checkpoint**: US4 complete.
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T022 Update contracts and documentation
-- [ ] T023 Run full host verification (cargo test, clippy, fmt, verify.sh)
-- [ ] T024 Property tests pass for all new functionality
+- [X] T022 Update contracts and documentation
+- [X] T023 Run full host verification (cargo test, clippy, fmt, verify.sh)
+- [X] T024 Property tests pass for all new functionality
 
 ## Phase 8: Verification (Attestation)
 
-- [ ] T025 [VERIFY] All host checks pass
-- [ ] T026 [VERIFY] Constitution compliance verified (§VII, §VIII)
-- [ ] T027 [VERIFY] Update STATE.md and prepare for converge
+- [X] T025 [VERIFY] All host checks pass
+- [X] T026 [VERIFY] Constitution compliance verified (§VII, §VIII)
+- [X] T027 [VERIFY] Update STATE.md and prepare for converge
 
 ## Dependencies & Execution Order
 

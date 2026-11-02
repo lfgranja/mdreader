@@ -180,3 +180,13 @@ description: "Task list for feature implementation"
 - [X] T036 [P] [HIGH] Verify MediaStyle constraints in `android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt` per FR-002/SC-003 (accent-only `#F2F0E6`, title/section/progress only, no body/rate/brand) (partial)
 - [X] T037 [MEDIUM] Add Concha Harmônica "R" header to `src-tauri/src/status_view.html` per FR-004/US4 (no jade/celeste paints) (partial)
 - [X] T038 [MEDIUM] Ensure served bundle identity passes: verify `dist/index.html` byte-identical to `src-tauri/src/status_view.html` via surface-audit test (partial)
+
+
+## Phase 10: Convergence
+
+- [X] T039 [VERIFY] Verify SC-001 host checks pass (C-H1..C-H6): chroma census 10-hex, role exclusivity, contrast WCAG 2.1 AA, aria inventory, movement census, reduced-motion freeze. Run `cargo test` for surface_audit tests. Files: `src-tauri/src/surface_audit/*`, `src-tauri/src/status_view.html`
+- [X] T040 [VERIFY] Verify SC-002 host checks pass (C-H7/C-H8): earcon burst latest-wins property tests and latency oracle ≤100ms. Run `cargo test -p player`. Files: `crates/player/src/backend.rs`, `crates/player/tests/*`
+- [X] T041 [VERIFY] Verify SC-003/US1: MediaStyle accent-only constraints pass (`surface_audit_accent_only_constants`). Files: `android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt`, `src-tauri/src/surface_audit/accent.rs`
+- [X] T042 [VERIFY] Verify US4/SC-006: Concha Harmônica "R" header present, static metadata card with `--sona-stage`, no excluded screens reachable. Files: `src-tauri/src/status_view.html`
+- [X] T043 [VERIFY] Verify bundle identity: `dist/index.html` byte-identical to `src-tauri/src/status_view.html` and served-identity test passes. Files: `src-tauri/tauri.conf.json`, `src-tauri/build.rs`, `src-tauri/src/surface_audit/served_identity.rs`
+- [X] T044 [VERIFY] Run full host verification gates 1-8: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo nextest run --workspace` (matches `scripts/expected-tests.txt`), `./scripts/verify.sh`. Update `scripts/expected-tests.txt` if needed. Files: workspace

@@ -100,6 +100,14 @@
 
 ---
 
+## Phase 6: Convergence
+
+**Purpose**: Address remaining gaps and deferred validation from the convergence assessment.
+
+- [ ] T184 [US1] [US2] [US3] Perform live on-device manual/ADB validation of Scenarios 1–4 on target Android device or emulator per quickstart.md and document validation transcript (partial T183 execution).
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies

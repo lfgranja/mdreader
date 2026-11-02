@@ -38,12 +38,12 @@ description: "Task list for feature implementation"
 **Independent Test**: RMS values published and consumed correctly.
 
 ### Tests for User Story 1
-- [ ] T007 [P] [US1] Add property tests for RMS invariants in appropriate test location
-- [ ] T008 [P] [US1] Add contract tests for RMS payload
+- [X] T007 [P] [US1] Add property tests for RMS invariants in appropriate test location
+- [X] T008 [P] [US1] Add contract tests for RMS payload
 
 ### Implementation for User Story 1
-- [ ] T009 [US1] Implement RMS instrumentation in audio/backend pipeline
-- [ ] T010 [US1] Publish RMS values through appropriate channels
+- [X] T009 [US1] Implement RMS instrumentation in audio/backend pipeline
+- [X] T010 [US1] Publish RMS values through appropriate channels
 
 **Checkpoint**: US1 complete.
 

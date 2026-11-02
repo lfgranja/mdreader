@@ -2,13 +2,14 @@
 //!
 //! Invariant:
 //! For any valid non-empty document bytes (valid UTF-8, size ≤ 93636 bytes) with no prior
-//! stored bookmark, `OfferMachine` with a cold start evaluates to `StartNow`, offset 0.0,
-//! and computes the exact Blake3 fingerprint of the input bytes.
+//! stored bookmark, `cold_start(lookup.offer)` evaluates to `ColdStart::StartNow`,
+//! starting at the first spoken position with no offer dialog, and computes the exact
+//! Blake3 fingerprint of the input bytes.
 
 use proptest::prelude::*;
 use session::fingerprint::fingerprint;
-use session::offer::{OfferMachine, OfferResolution};
-use session::store::{BookmarkStore, StoredPosition};
+use session::offer::{ColdStart, OpenOffer, cold_start};
+use session::store::{BookmarkStore, lookup_on_open};
 use tempfile::tempdir;
 
 proptest! {
@@ -26,18 +27,20 @@ proptest! {
         let fp = fingerprint(bytes);
         let dir = tempdir().expect("tempdir creates cleanly");
         let store_path = dir.path().join("prop_bookmarks.redb");
-        let store = BookmarkStore::open(&store_path).expect("store opens cleanly");
+        let mut store = BookmarkStore::open(&store_path).expect("store opens cleanly");
 
         // Verify store has no prior bookmark for this fingerprint
         let prior = store.get(&fp).expect("store read succeeds");
         prop_assert!(prior.is_none(), "Unread document must have no prior stored row");
 
-        // An unread document has no prior stored position
-        let resolution = OfferMachine::decide(None, true);
-        match resolution {
-            OfferResolution::StartNow => {},
-            other => prop_assert!(false, "Expected StartNow for unread document, got {:?}", other),
-        }
+        // Lookup on open with empty store yields OpenOffer::NoOffer
+        let lookup = lookup_on_open(&mut store, bytes).expect("lookup_on_open succeeds");
+        prop_assert_eq!(lookup.offer, OpenOffer::NoOffer);
+        prop_assert_eq!(lookup.fingerprint, fp);
+
+        // Cold start decision maps OpenOffer::NoOffer directly to ColdStart::StartNow
+        let start_decision = cold_start(lookup.offer);
+        prop_assert_eq!(start_decision, ColdStart::StartNow, "Unread document must map to ColdStart::StartNow (auto-play)");
     }
 
     #[test]

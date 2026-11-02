@@ -80,7 +80,26 @@ pub fn channel_ready() -> bool {
 #[cfg(target_os = "android")]
 static JVM: OnceLock<jni::JavaVM> = OnceLock::new();
 
-/// Captures the JVM handle from one JNI entry's environment.
+/// Cached global reference to `app.mdreader.ShellHost`.
+///
+/// On Android, JNI calls on threads attached via `JavaVM::attach_current_thread`
+/// (such as background tokio/audio threads) use the system bootstrap `ClassLoader`,
+/// which cannot find APK classes. Caching a `GlobalRef` on the first JNI entry from
+/// an app thread allows static methods on `ShellHost` to be called reliably from
+/// any thread.
+#[cfg(target_os = "android")]
+static SHELL_HOST_CLASS: OnceLock<jni::objects::GlobalRef> = OnceLock::new();
+
+/// Returns the cached `JClass` for `ShellHost`.
+#[cfg(target_os = "android")]
+fn get_shell_host_class<'a>() -> Result<&'a jni::objects::JClass<'static>, String> {
+    SHELL_HOST_CLASS
+        .get()
+        .map(|g| <&jni::objects::JClass<'static>>::from(g.as_obj()))
+        .ok_or_else(|| String::from("shell JNI: ShellHost class GlobalRef not cached"))
+}
+
+/// Captures the JVM handle and caches the `ShellHost` class from one JNI entry's environment.
 ///
 /// The first entry wins; every later call observes the set handle and
 /// returns without touching the environment. An unusable environment
@@ -89,14 +108,22 @@ static JVM: OnceLock<jni::JavaVM> = OnceLock::new();
 /// loudly at its call site (fail-closed, never a silent half-wire).
 #[cfg(target_os = "android")]
 fn capture_jvm(raw: *mut jni::sys::JNIEnv) {
-    if JVM.get().is_some() {
-        return;
-    }
     // SAFETY: `raw` is the environment pointer the JVM handed this
     // entry point; it is valid for the duration of the call, and
     // `from_raw` / `get_java_vm` only read it.
-    match unsafe { jni::JNIEnv::from_raw(raw) } {
-        Ok(env) => match env.get_java_vm() {
+    let mut env = match unsafe { jni::JNIEnv::from_raw(raw) } {
+        Ok(env) => env,
+        Err(error) => {
+            tracing::warn!(
+                error = error.to_string(),
+                "shell JNI: environment unusable at entry"
+            );
+            return;
+        }
+    };
+
+    if JVM.get().is_none() {
+        match env.get_java_vm() {
             Ok(vm) => {
                 let _ = JVM.set(vm);
             }
@@ -106,12 +133,28 @@ fn capture_jvm(raw: *mut jni::sys::JNIEnv) {
                     "shell JNI: JVM handle unavailable at entry"
                 );
             }
-        },
-        Err(error) => {
-            tracing::warn!(
-                error = error.to_string(),
-                "shell JNI: environment unusable at entry"
-            );
+        }
+    }
+
+    if SHELL_HOST_CLASS.get().is_none() {
+        match env.find_class("app/mdreader/ShellHost") {
+            Ok(class) => match env.new_global_ref(class) {
+                Ok(global_ref) => {
+                    let _ = SHELL_HOST_CLASS.set(global_ref);
+                }
+                Err(error) => {
+                    tracing::warn!(
+                        error = error.to_string(),
+                        "shell JNI: failed to create GlobalRef for ShellHost"
+                    );
+                }
+            },
+            Err(error) => {
+                tracing::warn!(
+                    error = error.to_string(),
+                    "shell JNI: failed to find ShellHost on entry thread"
+                );
+            }
         }
     }
 }
@@ -145,9 +188,7 @@ pub fn publish_mirror_to_kotlin(
     let mut env = vm
         .attach_current_thread()
         .map_err(|error| format!("shell JNI: attach_current_thread failed: {error}"))?;
-    let class = env
-        .find_class("app/mdreader/ShellHost")
-        .map_err(|error| format!("shell JNI: ShellHost lookup failed: {error}"))?;
+    let class = get_shell_host_class()?;
     let mirror = env
         .new_string(mirror_json)
         .map_err(|error| format!("shell JNI: mirror string allocation failed: {error}"))?;
@@ -207,9 +248,7 @@ pub fn command_document_end_to_kotlin() -> Result<(), String> {
     let mut env = vm
         .attach_current_thread()
         .map_err(|error| format!("shell JNI: attach_current_thread failed: {error}"))?;
-    let class = env
-        .find_class("app/mdreader/ShellHost")
-        .map_err(|error| format!("shell JNI: ShellHost lookup failed: {error}"))?;
+    let class = get_shell_host_class()?;
     let _ = env
         .call_static_method(class, "commandDocumentEnd", "()V", &[])
         .map_err(|error| format!("shell JNI: ShellHost.commandDocumentEnd failed: {error}"))?;
@@ -1131,9 +1170,7 @@ pub fn pick_document_from_shell() -> Result<(), String> {
         .attach_current_thread()
         .map_err(|error| format!("shell JNI: attach failed: {error}"))?;
 
-    let class = env
-        .find_class("app/mdreader/ShellHost")
-        .map_err(|error| format!("shell JNI: ShellHost lookup failed: {error}"))?;
+    let class = get_shell_host_class()?;
 
     let _ = env
         .call_static_method(class, "pickDocument", "()Z", &[])

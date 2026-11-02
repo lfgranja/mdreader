@@ -1,8 +1,8 @@
 //! T172 — Invariant test: cancellation or refusal makes zero modification to playback state.
 //!
 //! Requirement:
-//! - When user cancels document picker or selection is cancelled, transport state,
-//!   position, and bookmark store remain completely unchanged.
+//! - When user cancels document picker or selection is cancelled, active status,
+//!   cursor, and bookmark store remain completely unchanged.
 //! - Non-destructive: picker cancellation leaves current playing/paused document intact.
 
 use src_tauri::commands::parse_action;

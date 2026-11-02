@@ -83,25 +83,25 @@ description: "Task list for feature implementation"
 **Independent Test**: Elements are supplementary only, not required interactions.
 
 ### Tests for User Story 4
-- [ ] T019 [P] [US4] Add tests for supplementary elements (non-required)
+- [X] T019 [P] [US4] Add tests for supplementary elements (non-required)
 
 ### Implementation for User Story 4
-- [ ] T020 [US4] Add glow/neon effects as supplementary elements
-- [ ] T021 [US4] Ensure no required interactions depend on them
+- [X] T020 [US4] Add glow/neon effects as supplementary elements
+- [X] T021 [US4] Ensure no required interactions depend on them
 
 **Checkpoint**: US4 complete.
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T022 Update contracts and documentation
-- [ ] T023 Run full host verification (cargo test, clippy, fmt, verify.sh)
-- [ ] T024 Property tests pass for all new functionality
+- [X] T022 Update contracts and documentation
+- [X] T023 Run full host verification (cargo test, clippy, fmt, verify.sh)
+- [X] T024 Property tests pass for all new functionality
 
 ## Phase 8: Verification (Attestation)
 
 - [ ] T025 [VERIFY] All host checks pass
 - [ ] T026 [VERIFY] Constitution compliance verified (§VII, §VIII)
-- [ ] T027 [VERIFY] Update STATE.md and prepare for converge
+- [X] T027 [VERIFY] Update STATE.md and prepare for converge
 
 ## Dependencies & Execution Order
 

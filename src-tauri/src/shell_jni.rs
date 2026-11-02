@@ -1112,3 +1112,38 @@ fn read_snapshot_bytes(path: &str) -> Result<Vec<u8>, IngestError> {
         Err(error) => Err(unreadable(error.to_string())),
     }
 }
+
+/// Commands the Kotlin  static over the
+/// captured JVM handle (T160): requests launch of the platform SAF
+/// document picker from the active Activity.
+///
+/// # Errors
+/// Returns an error string when the JVM handle was never captured,
+/// when the thread cannot be attached, or when the class lookup or the
+/// invocation fails.
+#[cfg(target_os = "android")]
+pub fn pick_document_from_shell() -> Result<(), String> {
+    use jni::objects::JValue;
+
+    let vm = JVM
+        .get()
+        .ok_or_else(|| "shell JNI: JVM not initialized; cannot pick document".to_string())?;
+
+    let mut env = vm
+        .attach_current_thread()
+        .map_err(|error| format!("shell JNI: attach failed: {error}"))?;
+
+    let class = env
+        .find_class("app/mdreader/ShellHost")
+        .map_err(|error| format!("shell JNI: ShellHost lookup failed: {error}"))?;
+
+    env.call_static_method(class, "pickDocument", "()Z", &[])
+        .map_err(|error| format!("shell JNI: ShellHost.pickDocument failed: {error}"))?;
+    Ok(())
+}
+
+/// No-op on non-Android targets.
+#[cfg(not(target_os = "android"))]
+pub const fn pick_document_from_shell() -> Result<(), String> {
+    Ok(())
+}

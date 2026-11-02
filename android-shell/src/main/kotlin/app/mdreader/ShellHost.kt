@@ -1,5 +1,6 @@
 package app.mdreader
 
+import android.app.Activity
 import android.app.Notification
 import android.content.Context
 import android.media.AudioManager
@@ -149,6 +150,11 @@ object ShellHost {
     /** Whether [init] has completed. */
     @Volatile
     private var initialised = false
+
+    /** The foreground Activity currently attached, if any (T159). */
+    @Volatile
+    @JvmStatic
+    var currentActivity: Activity? = null
 
     /**
      * Builds the four mirrors against the application context and
@@ -399,6 +405,22 @@ object ShellHost {
      * complete either way, and there is no surface left to
      * release.
      */
+    /**
+     * Commands the launch of the Storage Access Framework document
+     * picker (T161) from the active Activity via [DocIngest.pickDocument].
+     *
+     * @return true if the picker was successfully launched, false otherwise.
+     */
+    @JvmStatic
+    fun pickDocument(): Boolean {
+        val activity = currentActivity
+        if (activity == null) {
+            Log.w(TAG, "pickDocument: no active activity attached")
+            return false
+        }
+        return DocIngest.pickDocument(activity)
+    }
+
     @JvmStatic
     fun commandDocumentEnd() {
         val current = resident

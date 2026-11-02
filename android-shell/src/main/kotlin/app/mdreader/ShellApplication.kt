@@ -102,6 +102,7 @@ class ShellApplication : Application() {
          * declared, revocable consent).
          */
         override fun onActivityResumed(activity: Activity) {
+            ShellHost.currentActivity = activity
             if (consentFiled || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
                 return
             }
@@ -116,9 +117,15 @@ class ShellApplication : Application() {
             }
         }
 
-        override fun onActivityCreated(activity: Activity, state: Bundle?) {}
+        override fun onActivityCreated(activity: Activity, state: Bundle?) {
+            ShellHost.currentActivity = activity
+        }
 
-        override fun onActivityPaused(activity: Activity) {}
+        override fun onActivityPaused(activity: Activity) {
+            if (ShellHost.currentActivity === activity) {
+                ShellHost.currentActivity = null
+            }
+        }
 
         override fun onActivitySaveInstanceState(activity: Activity, state: Bundle) {}
 

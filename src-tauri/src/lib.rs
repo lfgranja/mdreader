@@ -3498,6 +3498,8 @@ pub mod commands {
         /// The read-only voice-asset inventory query —
         /// never a verb, never a state change.
         Diagnose,
+        /// Trigger platform native document picker (SAF) on Android.
+        PickDocument,
     }
 
     /// The closed Kotlin→Rust intent wire set (T110).
@@ -3600,6 +3602,7 @@ pub mod commands {
             "control_unmapped" => Ok(BridgeAction::Intent(IntentWire::ControlUnmapped)),
             "lifecycle_unmapped" => Ok(BridgeAction::Intent(IntentWire::LifecycleUnmapped)),
             "diagnose" => Ok(BridgeAction::Diagnose),
+            "pick_document" => Ok(BridgeAction::PickDocument),
             _ => Err(format!("unknown action: {action}")),
         }
     }
@@ -3640,6 +3643,10 @@ pub mod commands {
             Ok(BridgeAction::Verb(verb)) => dispatch_verb(verb, document, payload.as_ref(), &state),
             Ok(BridgeAction::Intent(intent)) => dispatch_intent(intent, &state),
             Ok(BridgeAction::Diagnose) => Ok(diagnose(&app)),
+            Ok(BridgeAction::PickDocument) => {
+                crate::shell_jni::pick_document_from_shell().map_err(|e| e.to_string())?;
+                Ok(serde_json::json!({ "status": "picker_launched" }))
+            }
             Err(reason) => Err(reason),
         }
     }

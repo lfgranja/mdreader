@@ -55,13 +55,13 @@
 
 ### Tests for User Story 2 (TDD - Write First, MUST FAIL initially) ⚠️
 
-- [ ] T168 [P] [US2] Contract/Integration test in `src-tauri/tests/test_pick_document_resume_offer.rs` asserting that picking a document with a saved deliberate-pause bookmark in `redb` routes through `AwaitOffer`, sets `offer_route: in_app_dialog`, `pending_cold_start: true`, and holds audio until resolved.
-- [ ] T169 [P] [US2] Property test in `crates/session/tests/prop_resume_offer_invariants.rs` asserting that identical byte content with differing filenames retains the stored bookmark and resumes from the exact recorded offset.
+- [x] T168 [P] [US2] Contract/Integration test in `src-tauri/tests/test_pick_document_resume_offer.rs` asserting that picking a document with a saved deliberate-pause bookmark in `redb` routes through `AwaitOffer`, sets `offer_route: in_app_dialog`, `pending_cold_start: true`, and holds audio until resolved.
+- [x] T169 [P] [US2] Property test in `crates/session/tests/prop_resume_offer_invariants.rs` asserting that identical byte content with differing filenames retains the stored bookmark and resumes from the exact recorded offset.
 
 ### Implementation for User Story 2
 
-- [ ] T170 [US2] Ensure `open_ingested_document` in `src-tauri/src/shell_jni.rs` preserves `open_document_bytes_named` return payload facts (`offer_route`, `pending_cold_start`, `offer_window_ms`) and notifies the webview publish channel.
-- [ ] T171 [US2] Verify and refine `applyOffer` integration in `src-tauri/src/status_view.html` to trigger `openOffer(windowMs)` immediately when an ingested document returns an `in_app_dialog` route.
+- [x] T170 [US2] Ensure `open_ingested_document` in `src-tauri/src/shell_jni.rs` preserves `open_document_bytes_named` return payload facts (`offer_route`, `pending_cold_start`, `offer_window_ms`) and notifies the webview publish channel.
+- [x] T171 [US2] Verify and refine `applyOffer` integration in `src-tauri/src/status_view.html` to trigger `openOffer(windowMs)` immediately when an ingested document returns an `in_app_dialog` route.
 
 **Checkpoint**: User Stories 1 and 2 work seamlessly without bookmark corruption.
 

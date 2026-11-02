@@ -1123,8 +1123,6 @@ fn read_snapshot_bytes(path: &str) -> Result<Vec<u8>, IngestError> {
 /// invocation fails.
 #[cfg(target_os = "android")]
 pub fn pick_document_from_shell() -> Result<(), String> {
-    use jni::objects::JValue;
-
     let vm = JVM
         .get()
         .ok_or_else(|| "shell JNI: JVM not initialized; cannot pick document".to_string())?;
@@ -1137,7 +1135,8 @@ pub fn pick_document_from_shell() -> Result<(), String> {
         .find_class("app/mdreader/ShellHost")
         .map_err(|error| format!("shell JNI: ShellHost lookup failed: {error}"))?;
 
-    env.call_static_method(class, "pickDocument", "()Z", &[])
+    let _ = env
+        .call_static_method(class, "pickDocument", "()Z", &[])
         .map_err(|error| format!("shell JNI: ShellHost.pickDocument failed: {error}"))?;
     Ok(())
 }

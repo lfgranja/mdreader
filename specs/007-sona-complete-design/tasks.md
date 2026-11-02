@@ -53,13 +53,13 @@ description: "Task list for feature implementation"
 **Independent Test**: Waveform renders correctly, respects reduced-motion.
 
 ### Tests for User Story 2
-- [ ] T011 [P] [US2] Add property tests for waveform rendering invariants
-- [ ] T012 [P] [US2] Add tests for reduced-motion behavior
+- [X] T011 [P] [US2] Add property tests for waveform rendering invariants
+- [X] T012 [P] [US2] Add tests for reduced-motion behavior
 
 ### Implementation for User Story 2
-- [ ] T013 [US2] Implement canvas waveform in status_view.html
-- [ ] T014 [US2] Add reduced-motion guards for waveform
-- [ ] T015 [US2] Wire waveform to RMS data
+- [X] T013 [US2] Implement canvas waveform in status_view.html
+- [X] T014 [US2] Add reduced-motion guards for waveform
+- [X] T015 [US2] Wire waveform to RMS data
 
 **Checkpoint**: US2 complete.
 
@@ -69,11 +69,11 @@ description: "Task list for feature implementation"
 **Independent Test**: Repeat behavior works correctly.
 
 ### Tests for User Story 3
-- [ ] T016 [P] [US3] Add tests for repeat functionality
+- [X] T016 [P] [US3] Add tests for repeat functionality
 
 ### Implementation for User Story 3
-- [ ] T017 [US3] Add repeat button to UI
-- [ ] T018 [US3] Implement repeat logic
+- [X] T017 [US3] Add repeat button to UI
+- [X] T018 [US3] Implement repeat logic
 
 **Checkpoint**: US3 complete.
 

@@ -1,10 +1,15 @@
-//! T163 — Property-based test: unread document ingest always yields auto-play (StartNow).
+//! T163 — Property-based test: unread document ingest always yields auto-play (`StartNow`).
 //!
 //! Invariant:
 //! For any valid non-empty document bytes (valid UTF-8, size ≤ 93636 bytes) with no prior
 //! stored bookmark, `cold_start(lookup.offer)` evaluates to `ColdStart::StartNow`,
 //! starting at the first spoken position with no offer dialog, and computes the exact
 //! Blake3 fingerprint of the input bytes.
+
+#![expect(
+    clippy::expect_used,
+    reason = "test harness: assertions and temp file fixtures use expect to fail loudly on harness failure"
+)]
 
 use proptest::prelude::*;
 use session::fingerprint::fingerprint;
@@ -20,7 +25,7 @@ proptest! {
         title in "[A-Za-z0-9 ]{3,30}",
         body in "[A-Za-z0-9 ,.!?\n]{10,200}",
     ) {
-        let doc_text = format!("# {}\n\n{}", title, body);
+        let doc_text = format!("# {title}\n\n{body}");
         let bytes = doc_text.as_bytes();
         prop_assume!(bytes.len() <= 93636);
 

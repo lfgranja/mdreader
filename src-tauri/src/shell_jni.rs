@@ -1143,6 +1143,9 @@ pub fn pick_document_from_shell() -> Result<(), String> {
 }
 
 /// No-op on non-Android targets.
+///
+/// # Errors
+/// This non-Android host stub never returns an error.
 #[cfg(not(target_os = "android"))]
 pub const fn pick_document_from_shell() -> Result<(), String> {
     Ok(())

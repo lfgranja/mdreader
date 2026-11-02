@@ -5,6 +5,11 @@
 //! content fingerprint. Reopening with an identical byte stream under any filename
 //! must resolve to the identical stored bookmark offset and `OpenOffer::Continue`.
 
+#![expect(
+    clippy::expect_used,
+    reason = "test harness: assertions and temp file fixtures use expect to fail loudly on harness failure"
+)]
+
 use engine_core::closed::SessionEnd;
 use proptest::prelude::*;
 use session::fingerprint::fingerprint;
@@ -21,7 +26,7 @@ proptest! {
         body in "[A-Za-z0-9 ,.!?\n]{10,150}",
         offset in 1.0f64..3600.0f64,
     ) {
-        let doc_text = format!("# {}\n\n{}", title, body);
+        let doc_text = format!("# {title}\n\n{body}");
         let bytes = doc_text.as_bytes();
         prop_assume!(bytes.len() <= 93636);
 
@@ -46,16 +51,20 @@ proptest! {
             OpenOffer::Continue { offset_secs, first_yield_ms } => {
                 prop_assert!((offset_secs - offset).abs() < 1e-6, "Stored offset must match exact recorded offset");
                 prop_assert_eq!(first_yield_ms, 250);
-            },
-            other => prop_assert!(false, "Expected OpenOffer::Continue, got {:?}", other),
+            }
+            OpenOffer::ExplicitResume | OpenOffer::NoOffer => {
+                prop_assert!(false, "Expected OpenOffer::Continue");
+            }
         }
 
         let cold = cold_start(lookup.offer);
         match cold {
             ColdStart::AwaitOffer { offset_secs, .. } => {
                 prop_assert!((offset_secs - offset).abs() < 1e-6);
-            },
-            other => prop_assert!(false, "Expected ColdStart::AwaitOffer, got {:?}", other),
+            }
+            ColdStart::StartNow | ColdStart::AwaitExplicitResume => {
+                prop_assert!(false, "Expected ColdStart::AwaitOffer");
+            }
         }
     }
 }

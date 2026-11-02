@@ -14,13 +14,13 @@ const BRIDGE: &str = include_str!("../src/lib.rs");
 fn parse_action_recognizes_pick_document() {
     let action = parse_action("pick_document");
     assert!(
-        action.is_ok(),
+        action.as_ref().is_ok(),
         "pick_document must be a recognized bridge action"
     );
-    match action.unwrap() {
-        BridgeAction::PickDocument => {}
-        _ => panic!("pick_document must map to BridgeAction::PickDocument"),
-    }
+    assert!(
+        matches!(action, Ok(BridgeAction::PickDocument)),
+        "pick_document must map to BridgeAction::PickDocument"
+    );
 }
 
 #[test]

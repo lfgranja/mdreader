@@ -3644,7 +3644,7 @@ pub mod commands {
             Ok(BridgeAction::Intent(intent)) => dispatch_intent(intent, &state),
             Ok(BridgeAction::Diagnose) => Ok(diagnose(&app)),
             Ok(BridgeAction::PickDocument) => {
-                crate::shell_jni::pick_document_from_shell().map_err(|e| e.to_string())?;
+                crate::shell_jni::pick_document_from_shell()?;
                 Ok(serde_json::json!({ "status": "picker_launched" }))
             }
             Err(reason) => Err(reason),

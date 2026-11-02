@@ -99,8 +99,8 @@ description: "Task list for feature implementation"
 
 ## Phase 8: Verification (Attestation)
 
-- [ ] T025 [VERIFY] All host checks pass
-- [ ] T026 [VERIFY] Constitution compliance verified (§VII, §VIII)
+- [X] T025 [VERIFY] All host checks pass
+- [X] T026 [VERIFY] Constitution compliance verified (§VII, §VIII)
 - [X] T027 [VERIFY] Update STATE.md and prepare for converge
 
 ## Dependencies & Execution Order

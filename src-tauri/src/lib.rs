@@ -6396,6 +6396,8 @@ pub mod publish {
         *guard = Some(channel);
         drop(guard);
         tracing::info!("rms channel registered");
+        // T028: publish initial RMS so drawWaveform() gets data at mount
+        crate::publish::publish_rms(state.inner(), 0.0);
         Ok(())
     }
 

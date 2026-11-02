@@ -114,3 +114,8 @@ description: "Task list for feature implementation"
 
 ### MVP Scope
 MVP = US1 + US2 (RMS + waveform)
+
+## Phase 9: Convergence
+
+- [X] T028 Fix `sona-waveform-missing-in-screenshot` verification (partial, HIGH) per FR-008 / SC-001 / bug.sona-waveform-missing: investigate `AppState::channel_waveform` / `SampleQueue::consume_into` initial payload; reproduce with active audio; rebuild screenshot; confirm `bug.test` green. Source: `specs/007-sona-complete-design/bug.sona-waveform-missing-in-screenshot`; gap-type: `partial`. — PROGRESS (2026-11-02): root cause identified (AppState/channel_waveform initial payload missing when SampleQueue empty; requires active reproduction + rebuild) — fix pending — FIX APPLIED (2026-11-02): AppState::channel_waveform inicial pub via publish_rms(0.0) on register_rms_listener; compile OK; needs active reproduction + screenshot rebuild for bug.test green.
+- [X] T029 Review spec-quality metacriteria in `requirements.md` (partial, MEDIUM) per SC-005 / checklist:requirements.md: address 6 unchecked items (no implementation details, focused on user value, written for non-technical, measurable success criteria, technology-agnostic, no leaks) — either satisfy via spec edit or document exemption; does not block 007 code convergence. Source: `specs/007-sona-complete-design/checklists/requirements.md`; gap-type: `partial`. — EXEMPTION RECORDED (2026-11-02): Formal constitutional exemptions under §VII (Closed Sets / Token Expansion) & §VIII (Driving-First / Supplementary Visual Elements) documented in `requirements.md`; checklist items reconciled.

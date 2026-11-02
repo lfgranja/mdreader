@@ -44,27 +44,34 @@
          see. The stack is the platform UI face, so the surface
          renders identically with the radio off. */
       font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-      background: var(--bg);
-      color: var(--title);
+      background: var(--sona-void);
+      color: var(--sona-voice);
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: safe center;
       min-height: 100vh;
       margin: 0;
-      padding: 2rem 1rem;
+      padding: 1.5rem 1rem;
+      width: 100%;
+      overflow-x: hidden;
     }
     .card {
-      background: rgba(20,27,45,0.65);
-      backdrop-filter: blur(24px) saturate(120%);
-      -webkit-backdrop-filter: blur(24px) saturate(120%);
-      border: 1px solid rgba(143,216,232,0.3);
-      /* Doppelrand borders */
-      box-shadow: inset 0 0 0 1px rgba(143,216,232,0.15), 0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05);
-      padding: 2rem;
-      max-width: 420px;
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      border-radius: var(--radius);
+      padding: 1rem 0.75rem 2.5rem;
+      max-width: 460px;
       width: 100%;
+      min-height: calc(100vh - 3rem);
       position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      text-align: center;
+      box-sizing: border-box;
     }
     @supports not (backdrop-filter: blur(1px)) {
       .card { background: var(--sona-stage); }
@@ -72,45 +79,102 @@
     .card::before {
       content: "";
       position: absolute;
-      top: 0;
+      top: 22px;
       left: 0;
       right: 0;
-      height: 60px;
-      background-image: url("DESIGN-SONA/assets/waves/waves-top.svg");
+      height: 84px;
+      background-image: url("DESIGN-SONA/assets/waves/waves-top-ribbons.png");
       background-repeat: no-repeat;
-      background-size: cover;
-      background-position: center;
-      opacity: 0.8;
+      background-size: 100% auto;
+      background-position: center center;
+      opacity: 0.90;
       pointer-events: none;
       z-index: 0;
     }
     .wave-subtle {
       position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 60px;
-      background-image: url("DESIGN-SONA/assets/waves/waves-top.svg");
+      top: 6px;
+      left: 12px;
+      right: 12px;
+      height: 24px;
+      background-image: url("DESIGN-SONA/assets/waves/waves-top-ribbons.png");
       background-repeat: no-repeat;
-      background-size: cover;
-      background-position: center;
-      opacity: 0.8;
+      background-size: contain;
+      background-position: center top;
+      opacity: 0.35;
       pointer-events: none;
       z-index: 0;
-    #waveform { width: 100%; height: 80px; display: block; border-radius: 8px; box-shadow: 0 0 10px rgba(232,196,106,0.20); border: 1px solid rgba(143,216,232,0.25); }
-    #headerMark { box-shadow: 0 0 20px rgba(143,216,232,0.20); }
-    .rate-value { display: none !important; }
+    }
+    #waveform {
+      width: 100%;
+      height: 300px;
+      display: block;
+      margin: 1.5rem 0;
+      background: transparent;
+      border: none;
+      box-shadow: none;
+    }
+    #headerMark {
+      margin: 1.0rem auto 1.6rem;
+      position: relative;
+      z-index: 2;
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      outline: none !important;
+      filter: none !important;
+      -webkit-filter: none !important;
+    }
+    .rate-value {
+      color: var(--sona-harp);
+      font-weight: 600;
+      font-size: 1rem;
+      font-variant-numeric: tabular-nums;
+      padding: 0.25rem 0.5rem;
+      background: rgba(232,196,106,0.12);
+      border: 1px solid rgba(232,196,106,0.25);
+      border-radius: 6px;
+    }
+    .meta-box {
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.02) 40%, rgba(18, 25, 42, 0.82) 100%);
+      backdrop-filter: blur(40px) saturate(140%);
+      -webkit-backdrop-filter: blur(40px) saturate(140%);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      box-shadow: inset 0 2px 1px rgba(255, 255, 255, 0.40), inset 0 -1.5px 2px rgba(0, 0, 0, 0.5), 0 28px 60px rgba(0, 0, 0, 0.70);
+      border-radius: 30px;
+      padding: 2.2rem 2.4rem;
+      width: 100%;
+      max-width: 450px;
+      margin: 1.2rem auto 0;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .meta-box::after {
+      content: "";
+      position: absolute;
+      top: -60%;
+      left: -60%;
+      width: 220%;
+      height: 220%;
+      background: radial-gradient(circle at 28% 18%, rgba(255, 255, 255, 0.20) 0%, transparent 45%);
+      pointer-events: none;
+    }
     h1 {
       font-weight: 700;
-      font-size: 1.6rem;
-      letter-spacing: -0.03em;
-      margin: 0 0 .25rem;
-      color: var(--title);
+      font-size: 3.25rem;
+      letter-spacing: -0.035em;
+      margin: 0 0 .6rem;
+      color: #FFFFFF;
+      line-height: 1.15;
+      text-shadow: 0 2px 20px rgba(0,0,0,0.6);
     }
     .subtitle {
-      color: var(--section);
-      font-size: .85rem;
-      margin-bottom: 1.25rem;
+      color: rgba(242,240,230,0.90);
+      font-size: 1.60rem;
+      font-weight: 400;
+      margin-bottom: 0;
+      letter-spacing: -0.015em;
     }
     .section-title {
       font-weight: 300;
@@ -119,74 +183,109 @@
       margin-top: .5rem;
       min-height: 1.4em;
     }
-    .controls {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: .6rem;
-      margin-top: 1rem;
+    .bottom-island {
+      background: rgba(26, 35, 54, 0.78);
+      backdrop-filter: blur(36px);
+      -webkit-backdrop-filter: blur(36px);
+      border: 1px solid rgba(255,255,255,0.18);
+      box-shadow: inset 0 1px 1px rgba(255,255,255,0.22), 0 24px 50px rgba(0,0,0,0.65);
+      border-radius: 999px;
+      padding: 0.65rem 1.1rem;
+      display: inline-flex;
+      align-items: center;
       justify-content: center;
+      gap: 0.85rem;
+      margin: 1rem auto 1.5rem;
+      width: auto;
+      max-width: 96%;
+    }
+    .controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.65rem;
+      margin: 0;
+      width: auto;
     }
     button {
       font-family: inherit;
       font-weight: 500;
-      font-size: 1.1rem;
-      padding: .85rem;
       border: none;
-      border-radius: 12px;
+      border-radius: 50%;
       cursor: pointer;
-      transition: transform .05s, opacity .15s, background .15s;
-      display: flex;
+      transition: transform .08s ease, opacity .15s, background .15s, box-shadow .15s;
+      display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: .4rem;
+      width: 48px;
+      height: 48px;
+      padding: 0;
     }
-    button:active { transform: scale(0.97); }
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
-    button.primary { background: var(--btn-primary); color: var(--sona-void); }
-    button.primary:hover:not(:disabled) { background: var(--btn-primary-hover); }
-    button.secondary { background: var(--btn-secondary); color: var(--sona-voice); border-radius: 8px; padding: 0.6rem 0.9rem; min-width: 53px; min-height: 44px; font-size: 1.1rem; display: inline-flex; align-items: center; justify-content: center; }
-    button.secondary:hover:not(:disabled) { background: #55688F; }
-    button.stop { background: var(--btn-stop); color: var(--sona-voice); }
-    button.stop:hover:not(:disabled) { background: var(--btn-stop-hover); }
-    /* Focus ring: --sona-etwahl ONLY in :focus-visible (Constitution S3) */
+    button:active { transform: scale(0.92); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    button.primary {
+      background: #FFFFFF;
+      color: var(--sona-void);
+      width: 64px;
+      height: 64px;
+      font-size: 1.6rem;
+      box-shadow: 0 0 28px rgba(255,255,255,0.65), 0 4px 12px rgba(0,0,0,0.3);
+    }
+    button.primary:hover:not(:disabled) { background: #FFFFFF; }
+    button.secondary {
+      background: rgba(255,255,255,0.09);
+      color: var(--sona-voice);
+      border: 1px solid rgba(255,255,255,0.14);
+      font-size: 1.25rem;
+    }
+    button.secondary:hover:not(:disabled) { background: rgba(255,255,255,0.16); }
+    button.stop {
+      display: none !important;
+    }
     button:focus-visible {
       outline: 2px solid var(--sona-etwahl);
       outline-offset: 2px;
     }
     .speed-control {
-      display: flex;
+      display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: .75rem;
-      margin-top: 1rem;
-      padding: 1rem;
-      background: rgba(255,255,255,0.03);
-      border-radius: 12px;
+      margin: 0;
+      padding: 0;
+      background: transparent;
+      border-radius: 0;
     }
     .speed-btn {
-      width: 48px;
-      height: 48px;
-      font-size: 1.25rem;
-      padding: 0;
+      display: none;
     }
     .speed-dots {
+      display: none;
+    }
+    .speed-pill {
+      cursor: pointer;
+      user-select: none;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: .4rem;
-      min-width: 60px;
-      min-height: 1.5rem;
+      height: 44px;
+      padding: 0 0.85rem;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.10);
+      transition: background 0.15s;
     }
-    .speed-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--progress-bg);
-      transition: background .15s, transform .15s;
+    .speed-pill:hover {
+      background: rgba(255,255,255,0.15);
     }
-    .speed-dot.active {
-      background: var(--sona-voice);
-      transform: scale(1.25);
+    .rate-value {
+      color: var(--sona-voice);
+      font-weight: 500;
+      font-size: 0.95rem;
+      font-variant-numeric: tabular-nums;
+      padding: 0;
+      background: transparent;
+      border: none;
+      border-radius: 0;
     }
     #progress {
       width: 100%;
@@ -282,23 +381,32 @@
   <div aria-hidden="true" id="scaffold-inventory" data-elements="10"></div>
 </head>
 <div class="card" role="region" aria-label="Lente Sinestésica">
-  <img id="headerMark" src="DESIGN-SONA/assets/logo/logo-primary-concha-r-32.png" alt="" width="20" height="20" style="display:block; object-fit: contain; opacity: 0.85;">
-  <h1 id="documentTitle"></h1>
-  <div class="subtitle" id="sectionTitle"><span aria-hidden="true">—</span><span class="sr-only">Sem título</span></div>
-  <canvas id="waveform" aria-hidden="true" width="388" height="80"></canvas>
-  <div class="controls" id="transportControls">
-    <button class="secondary" id="btnRepeat" aria-label="Repetir seção">↻</button>
-    <button class="secondary" id="btnSkipBack" aria-label="Retroceder">⏪</button>
-    <button class="primary" id="btnPlayPause" aria-label="Reproduzir/Pausar">▶</button>
-    <button class="stop" id="btnStop" aria-label="Parar e limpar posição">⏹</button>
-    <button class="secondary" id="btnSkipForward" aria-label="Avançar">⏩</button>
+  <img id="headerMark" src="DESIGN-SONA/assets/logo/logo-proposta-3-concha.png" alt="" width="58" height="68" style="display:block; object-fit: contain; background: transparent;">
+  
+  <div class="meta-box">
+    <h1 id="documentTitle"></h1>
+    <div class="subtitle" id="sectionTitle"><span aria-hidden="true">—</span><span class="sr-only">Sem título</span></div>
   </div>
 
-  <div class="speed-control">
-    <button class="secondary speed-btn" id="btnRateDown" aria-label="Diminuir velocidade">−</button>
-    <div class="speed-dots" id="speedDots" aria-hidden="true"></div>
-    <span class="rate-value" id="rateValue" aria-hidden="true">1.25×</span>
-    <button class="secondary speed-btn" id="btnRateUp" aria-label="Aumentar velocidade">+</button>
+  <canvas id="waveform" aria-hidden="true" width="388" height="320"></canvas>
+  
+  <div class="bottom-island">
+    <div class="controls" id="transportControls">
+      <button class="secondary" id="btnRepeat" aria-label="Repetir seção">↻</button>
+      <button class="secondary" id="btnSkipBack" aria-label="Retroceder">⏮</button>
+      <button class="primary" id="btnPlayPause" aria-label="Reproduzir/Pausar">▶</button>
+      <button class="stop" id="btnStop" aria-label="Parar e limpar posição">⏹</button>
+      <button class="secondary" id="btnSkipForward" aria-label="Avançar">⏭</button>
+    </div>
+
+    <div class="speed-control">
+      <button class="secondary speed-btn" id="btnRateDown" aria-label="Diminuir velocidade">−</button>
+      <div class="speed-dots" id="speedDots" aria-hidden="true"></div>
+      <div class="speed-pill" id="speedPill" role="button" tabindex="0" aria-label="Ajustar velocidade">
+        <span class="rate-value" id="rateValue" aria-hidden="true">1.0×</span>
+      </div>
+      <button class="secondary speed-btn" id="btnRateUp" aria-label="Aumentar velocidade">+</button>
+    </div>
   </div>
 
   <div id="progress" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-valuetext="velocidade 1,0"><div id="progressFill"></div></div>
@@ -493,7 +601,7 @@
     // DPR cap at 2x
     const dpr = Math.min((window.devicePixelRatio && window.devicePixelRatio > 0) ? window.devicePixelRatio : 1, 2);
     const cssW = canvas.clientWidth || 388;
-    const cssH = 80;
+    const cssH = canvas.clientHeight || 240;
     const bw = Math.round(cssW * dpr);
     const bh = Math.round(cssH * dpr);
     if (canvas.width !== bw || canvas.height !== bh) {
@@ -506,72 +614,135 @@
     ctx.rect(0, 0, cssW, cssH);
     ctx.clip();
     const centerY = cssH / 2;
-    // 5 layers: teal->jade->violet with per-layer opacity 0.15/0.20/0.25/0.30/0.35
-    const layerOpacities = [0.15, 0.20, 0.25, 0.30, 0.35];
-    const colors = [
-      'rgba(143,216,232,' + layerOpacities[0] + ')',      // L1 teal
-      'rgba(90,214,168,' + layerOpacities[1] + ')',       // L2 jade
-      'rgba(138,190,206,' + layerOpacities[2] + ')',      // L3 jade->violet blend
-      'rgba(185,166,245,' + layerOpacities[3] + ')',      // L4 celeste/violet
-      'rgba(185,166,245,' + layerOpacities[4] + ')'       // L5 violet
+    // 5 pure silk ribbons matching canonical proposal 2
+    // With ultra-soft spline curves, translucent gradients, and additive sheen
+    const layerOpacities = [0.18, 0.22, 0.26, 0.30, 0.34];
+    const fillGradients = [
+      'rgba(143,216,232,' + layerOpacities[0] + ')',
+      'rgba(90,214,168,' + layerOpacities[1] + ')',
+      'rgba(110,210,210,' + layerOpacities[2] + ')',
+      'rgba(185,166,245,' + layerOpacities[3] + ')',
+      'rgba(185,166,245,' + layerOpacities[4] + ')'
     ];
-    const ks = [0.6, 0.75, 0.9, 1.0, 0.85];
-    const baseAmp = cssH * 0.35;
-    const rmsMod = 0.3 + lastRms * 0.7;
+    const strokeColors = [
+      'rgba(143,216,232,0.85)',
+      'rgba(90,214,168,0.90)',
+      'rgba(110,210,210,0.80)',
+      'rgba(185,166,245,0.90)',
+      'rgba(200,185,250,0.95)'
+    ];
+    const ks = [0.85, 1.15, 0.72, 1.05, 0.92];
+    const baseAmp = cssH * 0.44;
+    const rmsMod = 0.52 + lastRms * 0.55;
     const amp = baseAmp * rmsMod;
-    const segs = 8;
-    const segW = cssW / segs;
-    // 5 layers with cubic-bezier curves
+    const nowMs = (performance.now ? performance.now() : Date.now());
+    const t = nowMs * 0.00128; // 20% slower silk drift speed
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+
+    // Dense curve points with Catmull-Rom or cubic Bezier spline for liquid silk appearance
+    const numPoints = 28;
+    const segW = cssW / (numPoints - 1);
+
+    // 5 pure silk flowing bands with dynamic thickness, satin sheen and glowing edges
     for (let li = 0; li < 5; li++) {
       const k = ks[li];
-      ctx.fillStyle = colors[li];
-      ctx.beginPath();
-      ctx.moveTo(0, centerY);
-      for (let i = 0; i < segs; i++) {
-        const x0 = i * segW;
-        const x1 = x0 + segW;
-        const xm1 = x0 + segW / 3; // 1/3 width
-        const xm2 = x0 + (2 * segW) / 3; // 2/3 width
-        const rmsIdx = Math.max(0, rmsBuffer.length - (segs - i));
-        const rmsVal = rmsBuffer[rmsIdx] !== undefined ? rmsBuffer[rmsIdx] : lastRms;
-        const yTop = centerY - amp * k * (0.3 + 0.7 * rmsVal) * (0.5 + 0.5 * Math.sin((i + li * 0.3) * 0.8));
-        // cubic-bezier control points at 1/3 and 2/3
-        ctx.bezierCurveTo(xm1, yTop, xm2, yTop, x1, centerY);
+      const phase = li * 1.35 + t * (0.70 + li * 0.14);
+      const freq = 1.9 + li * 0.38;
+      
+      const ptsTop = [];
+      const ptsBot = [];
+
+      for (let j = 0; j < numPoints; j++) {
+        const x = j * segW;
+        const normX = x / cssW;
+        // Gaussian bell envelope
+        const bell = Math.exp(-Math.pow((normX - 0.5) * 3.1, 2));
+        // Sinusoidal wave spine
+        const wave = Math.sin(normX * Math.PI * freq + phase);
+        const wave2 = Math.sin(normX * Math.PI * (freq * 1.5) - phase * 0.8) * 0.3;
+        const spine = (wave + wave2) * amp * k * bell;
+        
+        // Ribbon thickness varies smoothly like a twisting silk ribbon
+        const ribbonWidth = (16 + 32 * Math.sin(normX * Math.PI * 1.2 + li * 0.8)) * bell * (0.65 + 0.35 * lastRms);
+        
+        ptsTop.push({ x: x, y: centerY + spine - ribbonWidth * 0.5 });
+        ptsBot.push({ x: x, y: centerY + spine + ribbonWidth * 0.5 });
       }
-      ctx.lineTo(cssW, centerY);
-      for (let i = segs - 1; i >= 0; i--) {
-        const x0 = i * segW;
-        const x1 = x0 + segW;
-        const xm1 = x0 + segW / 3;
-        const xm2 = x0 + (2 * segW) / 3;
-        const rmsIdx = Math.max(0, rmsBuffer.length - (segs - i));
-        const rmsVal = rmsBuffer[rmsIdx] !== undefined ? rmsBuffer[rmsIdx] : lastRms;
-        const yBot = centerY + amp * k * (0.3 + 0.7 * rmsVal) * (0.5 + 0.5 * Math.sin((i + li * 0.3) * 0.8));
-        ctx.bezierCurveTo(xm2, yBot, xm1, yBot, x0, centerY);
+
+      // Draw flowing silk ribbon band
+      ctx.beginPath();
+      ctx.moveTo(ptsTop[0].x, ptsTop[0].y);
+      for (let j = 0; j < ptsTop.length - 1; j++) {
+        const xc = (ptsTop[j].x + ptsTop[j + 1].x) / 2;
+        const yc = (ptsTop[j].y + ptsTop[j + 1].y) / 2;
+        ctx.quadraticCurveTo(ptsTop[j].x, ptsTop[j].y, xc, yc);
+      }
+      ctx.lineTo(ptsTop[ptsTop.length - 1].x, ptsTop[ptsTop.length - 1].y);
+      
+      // Return along bottom edge
+      for (let j = ptsBot.length - 1; j > 0; j--) {
+        const xc = (ptsBot[j].x + ptsBot[j - 1].x) / 2;
+        const yc = (ptsBot[j].y + ptsBot[j - 1].y) / 2;
+        ctx.quadraticCurveTo(ptsBot[j].x, ptsBot[j].y, xc, yc);
       }
       ctx.closePath();
+
+      // Satin gradient fill
+      const grad = ctx.createLinearGradient(0, centerY - amp, 0, centerY + amp);
+      grad.addColorStop(0, strokeColors[li]);
+      grad.addColorStop(0.5, fillGradients[li]);
+      grad.addColorStop(1, strokeColors[li]);
+      ctx.fillStyle = grad;
       ctx.fill();
+
+      // Delicate silk rim stroke
+      ctx.lineWidth = 1.4;
+      ctx.strokeStyle = strokeColors[li];
+      ctx.stroke();
     }
-    // White 1 px center line at 0.90 opacity
-    ctx.strokeStyle = 'rgba(255,255,255,0.90)';
+    ctx.restore();
+
+    // Center guide line
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(0, centerY);
     ctx.lineTo(cssW, centerY);
     ctx.stroke();
-    // 6 px circular playhead
-    if (!indeterminate) {
-      const px = (progressPct / 100) * cssW;
-      ctx.fillStyle = 'rgba(255,255,255,1)';
-      ctx.beginPath();
-      ctx.arc(px, centerY, 6, 0, Math.PI * 2);
-      ctx.fill();
-    } else {
-      ctx.fillStyle = 'rgba(255,255,255,0.6)';
-      ctx.beginPath();
-      ctx.arc(cssW / 2, centerY, 6, 0, Math.PI * 2);
-      ctx.fill();
+
+    // Pearl Playhead with 1-pulse-every-10s breath when paused
+    const isPaused = (state && state.transport !== 'playing');
+    let breathScale = 1.0;
+    let breathAlpha = 1.0;
+    if (isPaused) {
+      // 1 cycle every ~10s (period = 10,000 ms)
+      // Smooth sinusoidal oscillation between 0.30 and 1.50
+      const cycle = Math.sin(nowMs * (2 * Math.PI / 10000));
+      breathScale = 0.90 + 0.60 * cycle; // 0.30 to 1.50
+      breathAlpha = 0.65 + 0.35 * cycle; // tonality variation
     }
+
+    const px = (!indeterminate) ? (progressPct / 100) * cssW : cssW / 2;
+    const outerR = 10 * breathScale;
+    const innerR = 5 * breathScale;
+
+    // Outer pearl glow
+    const grad = ctx.createRadialGradient(px, centerY, 2 * breathScale, px, centerY, outerR);
+    grad.addColorStop(0, 'rgba(255,255,255,' + (0.95 * breathAlpha) + ')');
+    grad.addColorStop(0.5, 'rgba(255,255,255,' + (0.60 * breathAlpha) + ')');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(px, centerY, outerR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Inner pearl sphere
+    ctx.fillStyle = 'rgba(255,255,255,' + breathAlpha + ')';
+    ctx.beginPath();
+    ctx.arc(px, centerY, innerR, 0, Math.PI * 2);
+    ctx.fill();
     if (reduced) {
       canvas._frozenSnapshotDrawn = true;
     }
@@ -599,8 +770,20 @@
       scheduleWaveformDraw(progressPct, indeterminate);
     });
   }
-  // T154: desenhar waveform imediatamente após inicialização
-  if (typeof drawWaveform === 'function') { drawWaveform(0, false); }
+  // Subtle idle breathing animation loop (Siri-like organic vibration)
+  let idleRafId = null;
+  function idleBreathingLoop() {
+    if (!document.hidden && waveformVisible && !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) {
+      const pct = (state && state.progress && state.progress.kind === 'determinate' && state.progress.total_units > 0) ? Math.min(100, (state.progress.consumed_units / state.progress.total_units) * 100) : 0;
+      drawWaveform(pct, state && state.progress && state.progress.kind === 'indeterminate');
+    }
+    idleRafId = requestAnimationFrame(idleBreathingLoop);
+  }
+  if (typeof requestAnimationFrame === 'function') {
+    idleRafId = requestAnimationFrame(idleBreathingLoop);
+  } else if (typeof drawWaveform === 'function') {
+    drawWaveform(0, false);
+  }
   // visibilitychange pause - pause when hidden, resume with one fresh frame
   document.addEventListener('visibilitychange', () => {
     waveformVisible = !document.hidden;
@@ -682,21 +865,16 @@
     // on the closed 7-rung ladder (dots), earcon and haptic.
     if (els.speedDots.childElementCount !== LADDER.length) {
       els.speedDots.innerHTML = '';
-  // visibilitychange pause/resume
-  document.addEventListener('visibilitychange', () => {
-    waveformVisible = !document.hidden;
-    if (document.hidden) {
-      if (waveformRafId !== null) {
-        cancelAnimationFrame(waveformRafId);
-        waveformRafId = null;
+      for (let i = 0; i < LADDER.length; i++) {
+        const dot = document.createElement('span');
+        dot.className = 'speed-dot';
+        els.speedDots.appendChild(dot);
       }
-      return;
     }
-    if (state && state.progress) {
-      const pct = state.progress.kind === 'indeterminate' ? 0 : (state.progress.total_units > 0 ? Math.min(100, (state.progress.consumed_units / state.progress.total_units) * 100) : 0);
-      requestWaveformDraw(pct, state.progress.kind === 'indeterminate');
+    const dots = els.speedDots.children;
+    for (let i = 0; i < dots.length; i++) {
+      dots[i].classList.toggle('active', i === rateIndex);
     }
-  });
     if (els.rateValue) els.rateValue.textContent = `${LADDER[rateIndex]}×`;
   }
 
@@ -746,43 +924,10 @@
     if (!payload) {
       return null;
     }
-  function renderProgress() {
-    let pct = 0;
-    if (state.progress.kind === 'determinate' && state.progress.total_units > 0) {
-      pct = Math.min(100, (state.progress.consumed_units / state.progress.total_units) * 100);
-    } else if (state.progress.kind === 'indeterminate') {
-      els.progressFill.style.width = '0%';
-      els.progressFill.style.background = 'linear-gradient(90deg, transparent, var(--sona-voice), transparent)';
-      els.progressFill.style.backgroundSize = '200% 100%';
-      els.progressFill.style.animation = 'indeterminate 1.5s infinite';
-      els.progressLabel.textContent = '';
-      els.progress.setAttribute('aria-valuenow', '0');
-      els.progress.setAttribute('aria-valuemin', '0');
-      els.progress.setAttribute('aria-valuemax', '100');
-      els.progress.setAttribute('aria-valuetext', 'carregando');
-      if (els.liveRegion) {
-        els.liveRegion.setAttribute('aria-live', 'polite');
-        els.liveRegion.textContent = 'carregando';
-      }
-      requestWaveformDraw(pct, true);
-      return;
-    }
-    els.progressFill.style.width = `${pct}%`;
-    els.progressFill.style.background = 'var(--sona-voice)';
-    els.progressFill.style.animation = 'none';
-    els.progressLabel.textContent = state.progressLabel || '';
-    els.progress.setAttribute('aria-valuenow', String(Math.round(pct)));
-    els.progress.setAttribute('aria-valuemin', '0');
-    els.progress.setAttribute('aria-valuemax', '100');
-    els.progress.setAttribute('aria-valuetext', state.progressLabel || `progresso ${Math.round(pct)} por cento`);
-    if (els.liveRegion) {
-      els.liveRegion.setAttribute('aria-live', 'polite');
-      if (Math.abs(pct - (els._lastPct||0)) >= 5 || els._lastPct === undefined) {
-        els.liveRegion.textContent = state.progressLabel || `progresso ${Math.round(pct)} por cento`;
-        els._lastPct = pct;
-      }
-    }
-    requestWaveformDraw(pct, false);
+    const route = payload.offer_route || null;
+    const windowMs = payload.window_ms ?? payload.offer_window_ms ?? null;
+    const pendingColdStart = payload.pending_cold_start || false;
+    return { route, windowMs, pendingColdStart };
   }
   // dialog does not reopen for the same route, and a later route
   // opens it again.
@@ -922,6 +1067,16 @@
       renderSpeed();
     }
   });
+
+    const speedPill = document.getElementById('speedPill');
+  if (speedPill) {
+    speedPill.addEventListener('click', () => {
+      rateIndex = (rateIndex + 1) % LADDER.length;
+      state.rate = LADDER[rateIndex];
+      sendAction(rateIndex === 0 ? 'rate_down' : 'rate_up');
+      renderSpeed();
+    });
+  }
 
   els.btnRateUp.addEventListener('click', () => {
     if (rateIndex < LADDER.length - 1) {

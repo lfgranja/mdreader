@@ -1,8 +1,9 @@
 {
-  "ai": "omp",
+  "ai": "agy",
+  "ai_skills": true,
   "feature_numbering": "sequential",
   "here": true,
-  "integration": "omp",
+  "integration": "agy",
   "script": "sh",
-  "speckit_version": "1.2.3"
+  "speckit_version": "1.2.5"
 }

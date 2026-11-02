@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-`mdreader` (product **Ressoa**, package `app.mdreader`) is an Android media-shell TTS audiobook reader. Rust owns synthesis and PCM playback as the **sole playback authority**; Kotlin (`android-shell/`) owns `Service`, `MediaSession`, notification, and `AudioFocusRequest` as **mirrors only**. The Tauri 2.12.1 bridge (`src-tauri/`) is one consumer among many. Every crate is CLI-drivable (`clap` derive, stdin/args → stdout, errors → stderr, `--format json`). Target: Android `minSdk 29`. Host-checkable gates 1–8 via `scripts/verify.sh`, device gate 9 via `cargo tauri android build --target aarch64`.
+`mdreader` (product **Ressoa**, package `app.mdreader`) is an Android media-shell TTS audiobook reader. **Rust owns synthesis and PCM playback as the sole playback authority**; Kotlin (`android-shell/`) owns `Service`, `MediaSession`, notification, and `AudioFocusRequest` as **mirrors only**. The Tauri 2.12.1 bridge (`src-tauri/`) is one consumer among many. Every crate is CLI-drivable (`clap` derive, stdin/args → stdout, errors → stderr, `--format json`). Target: Android `minSdk 29`. Host-checkable gates 1–8 via `scripts/verify.sh`, device gate 9 via `cargo tauri android build --target aarch64`.
 
 Key principles:
 - **Library-first:** Every capability is reachable as a Rust API; CLI is thin.
@@ -12,6 +12,8 @@ Key principles:
 - **Closed sets everywhere:** Exhaustive `match`, no `_ =>` arms, no `Other`/`Unknown`; adding variants requires coordinated edits + docs + semver bump.
 - **Durability:** 20s heartbeat while `Playing` + event-durable writes; hard kill replays ≤ ~30s.
 - **Position advances only on audible progress:** Never during pre-roll, never on timer.
+
+**Governance & Contracts:** Normative policy lives in `.specify/memory/constitution.md` (amendments require SYNC IMPACT REPORT). Wire formats and interfaces are normative in `contracts/*.md` and `contracts/*.json`. Rationale lives in `docs/`.
 
 ## Architecture & Data Flow
 
@@ -61,7 +63,7 @@ crates/doc-structure — ordered headings → timeline/FR-038 re-anchor
 | `crates/session/` | `redb` bookmarks/settings, blake3-256 fingerprint, offer/resume state machine (`BOOKMARKS`, `StoredPosition`) |
 | `crates/diag/` | Append-only JSONL diagnostics (30-day/10 MiB, 11 kinds, 7 violation types), writer/scanner/retention |
 | `crates/doc-structure/` | Headings/timeline, normalization, `reanchor` (FR-038) |
-| `crates/adapter-synthesis/` | Offline adapter, chunk/synth, capabilities, format check, failure taxonomy, registry (`offline_default` only at v1), voice assets in `assets/` |
+| `crates/adapter-synthesis/` | Offline adapter `offline_default` (sherpa-onnx/Piper pt-BR), chunk/synth, capabilities, format check, failure taxonomy, registry, voices in `assets/` |
 | `crates/cleanroom-core/` | Standalone proptest helpers (not a workspace member) |
 | `src-tauri/` | Tauri bridge (`AppState`, commands, publish, heartbeat/playback watch), permissions/surface/failure/diag wiring, `shell_jni.rs` |
 | `android-shell/` | Kotlin mirror (Service/MediaSession/notification/focus) — no playback logic |
@@ -81,6 +83,7 @@ cargo fmt --all
 
 # Tests (gate 2) — use cargo-nextest
 cargo nextest run --workspace
+cargo nextest run --workspace --profile ci
 cargo nextest run -p player --test prop_transport_math
 cargo nextest run -p engine-core --test prop_closed_sets
 
@@ -194,13 +197,14 @@ adapter-synthesis chunk --input doc.md
 | `scripts/check-apk-classes.sh` | APK class presence verification |
 | `docs/architecture.md`, `docs/ipc.md`, `docs/fallback-order.md`, `docs/diagnostic-record.md` | Core architecture/contracts |
 | `contracts/*.md`, `contracts/*.json` | Normative contracts (shell IPC, surface, earcon, ingest, storage, resume, diagnostics) |
+| `.specify/memory/constitution.md` | Normative governance (principles, Exceptions Log, amendment process) |
 
 ## Runtime/Tooling Preferences
 
 - **Language/toolchain:** Rust 2024 edition (workspace resolver v3), stable toolchain (`rust-toolchain.toml` with `rustfmt`, `clippy`), MSRV policy as recorded. Clang linker on Linux x86_64 (`.cargo/config.toml`).
 - **Build/orchestration:** Cargo with `--locked` (committed `Cargo.lock`). Tauri 2.12.1 pinned exactly; `tauri-build` 2.7.2 pinned exactly.
 - **Android:** `minSdk 29`, manifest edited directly for `mediaPlayback` foreground service + `FOREGROUND_SERVICE*` permissions. JNI 0.21. Voice assets in `crates/adapter-synthesis/assets/`. No `android-shell/build.gradle*` present in repo root scan.
-- **Testing:** `cargo-nextest` (not plain `cargo test`). `proptest` 1.12.0, `tempfile` 3.14.0, `jsonschema` 0.29.0. Tests split across crate `tests/` and root `tests/`; many use real `redb` files/temp dirs (no mocks). Property tests checked in with `.proptest-regressions`. Root tests often assert on artifact/filesystem state.
+- **Testing:** `cargo-nextest` (not plain `cargo test`). `proptest` 1.12.0, `tempfile` 3.14.0, `jsonschema` 0.29.0. Tests split across crate `tests/` and root `tests/`; many use real `redb` files/temp dirs (no mocks). Property tests checked in with `.proptest-regressions`. Root tests often assert on artifact/filesystem state. `crates/cleanroom-core/` is not in workspace members (run separately if needed).
 - **Lint/format/supply chain:** `rustfmt` + `clippy` with strict deny set (gate 4 fails closed). `cargo-deny` + `cargo audit` (gate 5). Deny-list enforced (gate 6). Vendored `sherpa-onnx-sys` via `[patch.crates-io]` with removal condition when upstream fixes RUSTSEC-2026-0367/0368/0369.
 - **Audio:** `cpal` 0.18.2, AAudio on Android. Host CI devices (44.1–48 kHz stereo) return named refusal in `CpalBackend`.
 - **Workspace lints (enforced):** `unsafe_code = deny`, `missing_docs = deny`, `missing_debug_implementations = deny`, `unreachable_pub = deny`, `unused_results = deny`. Clippy: `all/pedantic = deny`, `nursery/cargo = warn (-1)`, and denies `unwrap_used`, `expect_used`, `panic`, `unimplemented`, `unreachable`, `todo`, `dbg_macro`, `print_stdout`, `print_stderr`, `allow_attributes`, `allow_attributes_without_reason`, `wildcard_dependencies`, `multiple_crate_versions`.
@@ -212,13 +216,13 @@ adapter-synthesis chunk --input doc.md
 |---|---|---|
 | `crates/*/src/**` `#[cfg(test)]` | Inline unit tests | Co-located, shape/CLI/protocol checks. |
 | `crates/*/tests/` | Integration/contract/property tests | e.g. `crates/session/tests/` (`test_ingest_cli.rs`, `prop_*`), `crates/player/tests/` (integration/contract/feature), `crates/engine-core/tests/contract/`, `crates/adapter-synthesis/tests/`. |
-| `crates/cleanroom-core/tests/` | Property/validation tests | `slice_readability_proptest.rs` (BLOCKING invariants). |
+| `crates/cleanroom-core/tests/` | Property/validation tests | `slice_readability_proptest.rs` (BLOCKING invariants). **Not a workspace member** — run separately. |
 | `src-tauri/tests/` | Bridge/integration/diagnostic tests | Publish/payload, noscope/purity, resume/restarts audio, play-to-audio measured, in-app play functional, offer/lockscreen, buffer state in diag, etc. |
 | `tests/` (root) | Spec/contract/UI/audit tests | `005-red/`, `005-adopt-design-sona-red/`, `contract/`, `chroma_scope_property.rs`, etc. |
 | `specs/**/tests/` | Spec-driven tests/fixtures | Supporting evidence (not always `#[test]` harnesses). |
 
 ### Patterns
-- **Unit/Integration/Contract/Property:** Co-located unit tests, cross-component integration via authoritative types (`PlaybackSession`, `PositionClock`), contract tests between layers, property tests with `proptest!` and explicit case counts/grid strategies.
+- **Unit/Integration/Contract/Property:** Co-located unit tests, cross-component integration via authoritative types, contract tests between layers, property tests with `proptest!` and explicit case counts/grid strategies.
 - **Fixtures/replay:** Embedded via `include_str!` and fixture files under `specs/.../tests/device/fixtures/`. Deterministic JSONL replay through Rust authority.
 - **Temp/redb:** Tests use real `redb` files/temp dirs (no mocks). Session/recovery tests read/write bookmarks via `session::BOOKMARKS`/`store`.
 - **Guard/absence tests:** Fail-closed scans (e.g. `src-tauri/tests/test_noscope.rs` enforces no network crates/call sites app-wide).
@@ -230,6 +234,14 @@ adapter-synthesis chunk --input doc.md
 - **Runner:** `cargo nextest` with CI profile (`.config/nextest.toml`: `threads-required=1`, `failure-output=final`, `leaks-request=forbid`).
 - **Target naming:** Namespaced by crate/module and feature/US/task (e.g. `player::*`, `engine-core::*`, `src-tauri::*`, `*::prop_*`, `*::us1`).
 - **Gate 2:** Must match `scripts/expected-tests.txt` exactly (two-way diff of live `cargo nextest list --workspace` vs pinned list). Includes unit/property/contract/integration/schema targets.
+
+```sh
+# Check gate 2 diff locally
+cargo nextest list --workspace | sort > /tmp/nextest-live.txt
+sort scripts/expected-tests.txt > /tmp/expected.txt
+diff -u /tmp/expected.txt /tmp/nextest-live.txt
+```
+
 - **Full gate sequence (`scripts/verify.sh`, fail-closed):**
   1. **format** — `cargo fmt --all -- --check`
   2. **tests** — `cargo nextest run --workspace` + two-way diff vs `scripts/expected-tests.txt`
@@ -244,4 +256,4 @@ adapter-synthesis chunk --input doc.md
   11. `scripts/check-shell-purity.sh` (mirror-only, vocabulary allowlists, no `Other`/`Unknown`, engine-id allowlist, traceability FR/SC)
   12. C-H1..C-H9 scaffold echo
 - **Gate 9:** `cargo tauri android build --target aarch64` (authoritative device artifact). Then `scripts/check-manifest.sh` and `scripts/check-apk-classes.sh` validate built artifact/classes.
-- **Coverage expectations:** No coverage tooling configured. Strict linting, closed-set discipline, shell purity, and fail-closed guards are the primary QA mechanisms.
+- **Coverage expectations:** No coverage tooling configured. Strict linting, closed-set discipline, shell purity, and fail-closed gates are the primary QA mechanisms.

@@ -94,3 +94,5 @@ target/
 .specify/assessments/
 .omp/plans/
 .codegraph/
+.specify/local-*.md
+.specify/*-plan.md

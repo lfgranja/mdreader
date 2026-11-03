@@ -421,6 +421,22 @@ object ShellHost {
         return DocIngest.pickDocument(activity)
     }
 
+    /**
+     * Commands the launch of the Storage Access Framework directory
+     * picker (T189) from the active Activity via [DocIngest.pickDirectory].
+     *
+     * @return true if the picker was successfully launched, false otherwise.
+     */
+    @JvmStatic
+    fun pickDirectory(): Boolean {
+        val activity = currentActivity
+        if (activity == null) {
+            Log.w(TAG, "pickDirectory: no active activity attached")
+            return false
+        }
+        return DocIngest.pickDirectory(activity)
+    }
+
     @JvmStatic
     fun commandDocumentEnd() {
         val current = resident

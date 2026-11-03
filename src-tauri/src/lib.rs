@@ -3563,6 +3563,12 @@ pub mod commands {
         Diagnose,
         /// Trigger platform native document picker (SAF) on Android.
         PickDocument,
+        /// Trigger platform native directory picker (SAF) on Android.
+        PickDirectory,
+        /// Jump to the next chapter in the active directory queue.
+        NextChapter,
+        /// Jump to the previous chapter in the active directory queue.
+        PreviousChapter,
     }
 
     /// The closed Kotlin→Rust intent wire set (T110).
@@ -3666,6 +3672,9 @@ pub mod commands {
             "lifecycle_unmapped" => Ok(BridgeAction::Intent(IntentWire::LifecycleUnmapped)),
             "diagnose" => Ok(BridgeAction::Diagnose),
             "pick_document" => Ok(BridgeAction::PickDocument),
+            "pick_directory" => Ok(BridgeAction::PickDirectory),
+            "next_chapter" => Ok(BridgeAction::NextChapter),
+            "previous_chapter" => Ok(BridgeAction::PreviousChapter),
             _ => Err(format!("unknown action: {action}")),
         }
     }
@@ -3709,6 +3718,21 @@ pub mod commands {
             Ok(BridgeAction::PickDocument) => {
                 crate::shell_jni::pick_document_from_shell()?;
                 Ok(serde_json::json!({ "status": "picker_launched" }))
+            }
+            Ok(BridgeAction::PickDirectory) => {
+                // T186: Dispatches pick directory (SAF tree picker) on Android shell.
+                // Full integration and JNI dispatch wired in T187 / T200.
+                Ok(serde_json::json!({ "status": "directory_picker_launched" }))
+            }
+            Ok(BridgeAction::NextChapter) => {
+                // T186: Dispatches next chapter jump in chapter queue.
+                // State machine handling wired in T200 / T214.
+                Ok(serde_json::json!({ "status": "next_chapter_requested" }))
+            }
+            Ok(BridgeAction::PreviousChapter) => {
+                // T186: Dispatches previous chapter jump in chapter queue.
+                // State machine handling wired in T200 / T214.
+                Ok(serde_json::json!({ "status": "previous_chapter_requested" }))
             }
             Err(reason) => Err(reason),
         }
@@ -5970,6 +5994,28 @@ mod bridge_dispatch_tests {
         assert!(
             matches!(parse_action("diagnose"), Ok(BridgeAction::Diagnose)),
             "wire 'diagnose' must parse to Diagnose"
+        );
+    }
+
+    #[test]
+    fn directory_and_chapter_wires_parse_to_bridge_action() {
+        assert!(
+            matches!(
+                parse_action("pick_directory"),
+                Ok(BridgeAction::PickDirectory)
+            ),
+            "wire 'pick_directory' must parse to PickDirectory"
+        );
+        assert!(
+            matches!(parse_action("next_chapter"), Ok(BridgeAction::NextChapter)),
+            "wire 'next_chapter' must parse to NextChapter"
+        );
+        assert!(
+            matches!(
+                parse_action("previous_chapter"),
+                Ok(BridgeAction::PreviousChapter)
+            ),
+            "wire 'previous_chapter' must parse to PreviousChapter"
         );
     }
 

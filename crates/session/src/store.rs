@@ -534,31 +534,22 @@ impl BookmarkStore {
             ),
             Some(bm) => match bm.end_kind {
                 SessionEnd::Paused => (
-                    OpenOffer::ResumeOffer {
-                        stored_position_secs: bm.offset_secs,
-                        anchor_phrase: None,
-                        rewound_offset_secs: bm.offset_secs,
-                        rewound_by_secs: 0.0,
+                    OpenOffer::Continue {
+                        offset_secs: bm.offset_secs,
+                        first_yield_ms: bm.saved_ts_ms,
                     },
-                    crate::offer::ColdStart::AwaitOffer,
+                    crate::offer::ColdStart::AwaitOffer {
+                        offset_secs: bm.offset_secs,
+                        first_yield_ms: bm.saved_ts_ms,
+                    },
                     "in_app_dialog",
                 ),
                 SessionEnd::Interrupted => (
-                    OpenOffer::ResumeOffer {
-                        stored_position_secs: bm.offset_secs,
-                        anchor_phrase: None,
-                        rewound_offset_secs: bm.offset_secs,
-                        rewound_by_secs: 0.0,
-                    },
+                    OpenOffer::ExplicitResume,
                     crate::offer::ColdStart::StartNow,
                     "none",
                 ),
-                SessionEnd::Completed => (
-                    OpenOffer::RestartOffer,
-                    crate::offer::ColdStart::StartNow,
-                    "none",
-                ),
-                SessionEnd::Stopped => (
+                SessionEnd::Completed | SessionEnd::Stopped => (
                     OpenOffer::NoOffer,
                     crate::offer::ColdStart::StartNow,
                     "none",
@@ -593,13 +584,13 @@ impl BookmarkStore {
         let write_tx = self.db.begin_write()?;
         {
             let mut bm_table = write_tx.open_table(BOOKMARKS)?;
-            let _ = bm_table.remove(completed_chapter_fp.as_slice())?;
+            let _ = bm_table.remove(completed_chapter_fp)?;
         }
         {
             let mut dir_table = write_tx.open_table(DIRECTORY_BOOKMARKS)?;
-            let end_kind_byte = SessionEnd::Playing.to_persisted_u8();
+            let end_kind_byte = end_kind_to_code(SessionEnd::Interrupted);
             let val = (next_chapter_index, 0.0_f64, saved_ts_ms, end_kind_byte);
-            let _ = dir_table.insert(collection_fp.as_slice(), val)?;
+            let _ = dir_table.insert(collection_fp, &val)?;
         }
         write_tx.commit()?;
         Ok(())

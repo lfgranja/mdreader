@@ -13,10 +13,12 @@ Cargo.lock.bak
 /src-tauri/target/
 /src-tauri/gen/
 !/src-tauri/gen/android/app/src/main/java/app/mdreader/MainActivity.kt
+!/src-tauri/gen/android/app/src/main/assets/index.html
 
 # Node / Svelte
 node_modules/
 dist/
+!dist/index.html
 .vite/
 .svelte-kit/
 
@@ -97,6 +99,8 @@ target/
 .codegraph/
 .specify/local-*.md
 .specify/*-plan.md
+*-plan.md
+*_PLAN.md
 
 # Spec Kit generated skills & integrations
 .agents/skills/speckit-*

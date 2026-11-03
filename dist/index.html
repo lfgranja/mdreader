@@ -1014,11 +1014,13 @@
   // The context of the offer: the title, the section title and the
   // progress already on screen — and nothing else (FR-011/FR-019):
   // no document prose, no rate value, no voice identity, no
-  // elapsed or remaining time.
+  // elapsed or remaining time. For directory reading, binds chapter filename
+  // and saved offset (T209).
   function renderOffer() {
-    els.offerTitle.textContent = state.title || '';
-    els.offerSection.textContent = state.sectionTitle || '';
-    els.offerProgress.textContent = state.progressLabel || '';
+    els.offerTitle.textContent = state.title || state.chapterFilename || '';
+    els.offerSection.textContent = state.sectionTitle || (state.chapterIndex != null ? `Capítulo ${state.chapterIndex + 1}` : '');
+    const savedOffset = state.saved_offset_secs ?? state.stored_offset_secs ?? state.positionSecs;
+    els.offerProgress.textContent = state.progressLabel || (savedOffset > 0 ? `${Math.round(savedOffset)}s` : '');
   }
 
   // Opens the offer dialog for the in-app route, with the window

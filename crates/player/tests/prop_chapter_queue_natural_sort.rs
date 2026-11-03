@@ -1,6 +1,6 @@
 //! T196 (TDD RED): natural-sort invariants for chapter queues.
 
-use player::queue::{sort_natural, ChapterItem, ChapterStatus};
+use player::queue::{ChapterItem, ChapterStatus, sort_natural};
 use proptest::prelude::*;
 
 fn item(name: String) -> ChapterItem {

@@ -70,11 +70,11 @@
 
 ### Implementation for User Story 2
 
-- [ ] T206 [US2] Implement atomic write transaction for chapter completion and new chapter start persistence in `crates/session/src/store.rs`.
-- [ ] T207 [US2] Add 20-second heartbeat write loop for active directory playback with `SessionEnd::Interrupted` in `src-tauri/src/lib.rs`.
-- [ ] T208 [US2] Implement `lookup_directory_on_open` in `crates/session/src/store.rs` resolving composite Blake3 fingerprint against `DIRECTORY_BOOKMARKS`.
-- [ ] T209 [US2] Connect directory resume offer flow to `offerDialog` in `src-tauri/src/status_view.html` displaying current chapter filename and saved position with 3.0s auto-dismiss window.
-- [ ] T210 [US2] Implement "Recomeçar do início" handler resetting active chapter to 0, offset to 0.0s, and clearing previous bookmark in `src-tauri/src/lib.rs`.
+- [x] T206 [US2] Implement atomic write transaction for chapter completion and new chapter start persistence in `crates/session/src/store.rs`.
+- [x] T207 [US2] Add 20-second heartbeat write loop for active directory playback with `SessionEnd::Interrupted` in `src-tauri/src/lib.rs`.
+- [x] T208 [US2] Implement `lookup_directory_on_open` in `crates/session/src/store.rs` resolving composite Blake3 fingerprint against `DIRECTORY_BOOKMARKS`.
+- [x] T209 [US2] Connect directory resume offer flow to `offerDialog` in `src-tauri/src/status_view.html` displaying current chapter filename and saved position with 3.0s auto-dismiss window.
+- [x] T210 [US2] Implement "Recomeçar do início" handler resetting active chapter to 0, offset to 0.0s, and clearing previous bookmark in `src-tauri/src/lib.rs`.
 
 **Checkpoint**: User Stories 1 and 2 operate seamlessly with crash-safe durability.
 

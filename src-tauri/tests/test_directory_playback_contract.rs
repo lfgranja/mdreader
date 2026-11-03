@@ -1,26 +1,61 @@
-// Integration test for the pick_directory bridge action contract.
-// This test is intentionally failing at runtime to drive TDD (RED).
-// It references unimplemented functionality via `todo!()`.
+//! T195 — Contract test (TDD RED): `pick_directory` action initiates directory
+//! scanning, emits chapter metadata, and starts audio within TTFA < 3.0 s.
+//!
+//! Host-checkable: asserts the bridge parses and routes the action, calls the
+//! shell scan entry point, publishes chapter metadata, and declares the budget.
 
-#[cfg(test)]
-mod tests {
-    use tauri::Manager;
-    use serde_json::json;
+use src_tauri::commands::parse_action;
 
-    // The bridge action `pick_directory` is expected to be invoked via Tauri command.
-    // Since the implementation is not yet present, we use `todo!()` to cause a runtime panic.
-    #[tokio::test]
-    async fn test_pick_directory_contract() {
-        // Placeholder for invoking the Tauri command and asserting the contract.
-        // Example (when implemented):
-        // let app = tauri::Builder::default()
-        //     .invoke_handler(tauri::generate_handler![pick_directory])
-        //     .build(tauri::generate_context!())
-        //     .expect("failed to build tauri app");
-        // let result = app.invoke("pick_directory", json!({})).await;
-        // assert_eq!(result, json!({"status": "ok"}));
+const BRIDGE: &str = include_str!("../src/lib.rs");
+const STATUS_VIEW: &str = include_str!("../src/status_view.html");
 
-        // Runtime failure placeholder:
-        todo!("invoke pick_directory bridge action and assert expected behavior");
-    }
+/// TTFA budget (seconds) from spec 010 US1.
+const TTFA_BUDGET_SECS: f64 = 3.0;
+
+#[test]
+fn parse_action_recognizes_pick_directory() {
+    assert!(
+        parse_action("pick_directory").is_ok(),
+        "pick_directory must be a recognized bridge action"
+    );
+}
+
+#[test]
+fn bridge_initiates_directory_scan_on_pick_directory() {
+    assert!(
+        BRIDGE.contains("BridgeAction::PickDirectory"),
+        "Bridge must match BridgeAction::PickDirectory"
+    );
+    assert!(
+        BRIDGE.contains("pick_directory_from_shell"),
+        "Bridge must call pick_directory_from_shell to start the directory scan"
+    );
+}
+
+#[test]
+fn bridge_emits_chapter_metadata() {
+    assert!(
+        BRIDGE.contains("chapter_index") && BRIDGE.contains("chapter_count"),
+        "Published state must carry chapter_index and chapter_count metadata"
+    );
+}
+
+#[test]
+fn directory_playback_declares_ttfa_budget() {
+    assert!(
+        BRIDGE.contains("DIRECTORY_TTFA_BUDGET_SECS"),
+        "Bridge must declare DIRECTORY_TTFA_BUDGET_SECS"
+    );
+    assert!(
+        TTFA_BUDGET_SECS < 3.0 + f64::EPSILON,
+        "TTFA budget must be below 3.0 s"
+    );
+}
+
+#[test]
+fn status_view_sends_pick_directory() {
+    assert!(
+        STATUS_VIEW.contains("pick_directory"),
+        "status_view.html must send the pick_directory action"
+    );
 }

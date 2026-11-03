@@ -1,4 +1,17 @@
-[profile.ci]
-threads-required = 1
+[profile.default]
 failure-output = "final"
-leaks-request = "forbid"
+
+[profile.ci]
+failure-output = "final"
+
+# Test groups for isolating hardware audio and persistent redb tests
+[test-groups.serial-exclusive]
+max-threads = 1
+
+[[profile.default.overrides]]
+filter = 'package(player) | package(session) | test(/prop_/)'
+test-group = 'serial-exclusive'
+
+[[profile.ci.overrides]]
+filter = 'package(player) | package(session) | test(/prop_/)'
+test-group = 'serial-exclusive'

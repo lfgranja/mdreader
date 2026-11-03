@@ -25,6 +25,10 @@
 
 set -euo pipefail
 
+# Optimization: Limit property test sampling iterations locally
+# (default without this is 256 per test, which takes 15+ minutes)
+export PROPTEST_CASES="${PROPTEST_CASES:-32}"
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 

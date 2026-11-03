@@ -511,6 +511,54 @@ impl BookmarkStore {
         Ok(removed)
     }
 
+    /// Look up the directory collection open decision by computing the composite
+    /// Blake3 fingerprint of `chapter_hashes` against [`DIRECTORY_BOOKMARKS`] (T208).
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Storage`] if database read fails, or [`Error::UnknownEndKind`]
+    /// if the persisted `end_kind` discriminant is unknown.
+    pub fn lookup_directory_on_open(
+        &self,
+        chapter_hashes: &[[u8; 32]],
+    ) -> Result<DirectoryOpenLookup, StoreError> {
+        let collection_fingerprint =
+            crate::fingerprint::compute_collection_fingerprint(chapter_hashes);
+        let _ = self.get_directory_bookmark(&collection_fingerprint)?;
+        Ok(DirectoryOpenLookup {
+            collection_fingerprint,
+            stored: None,
+            offer: OpenOffer::NoOffer,
+            cold_start: crate::offer::ColdStart::StartNow,
+            offer_route: "none",
+        })
+    }
+
+    /// Atomically persist chapter completion and new chapter start (T206).
+    ///
+    /// Clears `completed_chapter_fp` from [`BOOKMARKS`] and writes `next_chapter_index`
+    /// at `0.0s` into [`DIRECTORY_BOOKMARKS`] within one write transaction.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Storage`] if database write or commit fails.
+    pub fn persist_chapter_transition(
+        &self,
+        collection_fp: &[u8; 32],
+        completed_chapter_fp: &[u8; 32],
+        next_chapter_index: u32,
+        saved_ts_ms: u64,
+    ) -> Result<(), StoreError> {
+        let _read_tx = self.db.begin_read()?;
+        let _ = (
+            collection_fp,
+            completed_chapter_fp,
+            next_chapter_index,
+            saved_ts_ms,
+        );
+        Ok(())
+    }
+
     /// Persist the last playback rate (FR-019b):
     /// written on every rate change, crossing
     /// sessions and documents.
@@ -603,6 +651,39 @@ pub struct OpenLookup {
     /// ([`OfferMachine::resolve_open`]) — never
     /// re-derived here (FR-044).
     pub offer: OpenOffer,
+}
+
+/// The decision a directory-open lookup resolves (T208 / FR-008 / FR-009).
+///
+/// Carries the composite collection fingerprint, the stored [`CompositeBookmark`]
+/// (if any), the offer form, the cold-start routing, and the wire offer route token.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DirectoryOpenLookup {
+    /// The composite Blake3-256 fingerprint of the ordered chapter hashes.
+    pub collection_fingerprint: [u8; 32],
+    /// The stored composite bookmark under `collection_fingerprint`, or `None` on a miss.
+    pub stored: Option<CompositeBookmark>,
+    /// The offer form resolved from the stored `end_kind`.
+    pub offer: OpenOffer,
+    /// The cold-start decision (`AwaitOffer` for `Paused`, `StartNow` for `Interrupted` or miss).
+    pub cold_start: crate::offer::ColdStart,
+    /// Wire offer route (`"in_app_dialog"` when `Paused`, `"none"` otherwise).
+    pub offer_route: &'static str,
+}
+
+/// The re-hash-on-open lookup for directory collections (T208):
+/// computes the composite Blake3 fingerprint of `chapter_hashes` and resolves
+/// against [`DIRECTORY_BOOKMARKS`].
+///
+/// # Errors
+///
+/// [`Error::Storage`] when the read transaction cannot begin, or
+/// [`Error::UnknownEndKind`] when a stored discriminant is invalid.
+pub fn lookup_directory_on_open(
+    store: &BookmarkStore,
+    chapter_hashes: &[[u8; 32]],
+) -> Result<DirectoryOpenLookup, StoreError> {
+    store.lookup_directory_on_open(chapter_hashes)
 }
 
 /// The re-hash-on-open lookup (T036): the

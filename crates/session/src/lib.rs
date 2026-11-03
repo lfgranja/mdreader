@@ -39,4 +39,7 @@ pub mod offer;
 pub mod store;
 
 pub use fingerprint::{compute_collection_fingerprint, fingerprint};
-pub use store::{clear_bookmark, CompositeBookmark, StoreError, BOOKMARKS, DIRECTORY_BOOKMARKS};
+pub use store::{
+    clear_bookmark, lookup_directory_on_open, CompositeBookmark, DirectoryOpenLookup, StoreError,
+    BOOKMARKS, DIRECTORY_BOOKMARKS,
+};

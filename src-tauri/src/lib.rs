@@ -258,6 +258,16 @@ pub struct AppState {
     /// signal is gated on it, so the reading never ends while the
     /// producer still holds audio the reader has not heard.
     pub(crate) production: Mutex<Option<Production>>,
+    /// The place the current audio queue was anchored at when it
+    /// opened (`0.0` for a fresh reading, `start_offset_secs` for a
+    /// cold-start resume or re-anchor). The backend's clock counts
+    /// consumed samples from `0.0` for the current stream, so its
+    /// head in the document is `anchor + device.position_secs()`.
+    pub(crate) stream_anchor_secs: Mutex<f64>,
+    /// The playback-watch baselines (F1/F3): shared so a deliberate
+    /// or unexpected pause can credit any samples consumed since the
+    /// last watch tick before the session leaves `Playing`.
+    playback_watch: Mutex<PlaybackWatch>,
 }
 
 impl std::fmt::Debug for AppState {
@@ -284,6 +294,8 @@ impl std::fmt::Debug for AppState {
             .field("diag_measures", &self.diag_measures)
             .field("document", &self.document)
             .field("production", &self.production)
+            .field("stream_anchor_secs", &self.stream_anchor_secs)
+            .field("playback_watch", &self.playback_watch)
             .finish_non_exhaustive()
     }
 }
@@ -388,6 +400,8 @@ impl AppState {
             diag_measures: Mutex::new(DiagMeasures::default()),
             document: Mutex::new(None),
             production: Mutex::new(None),
+            stream_anchor_secs: Mutex::new(0.0),
+            playback_watch: Mutex::new(PlaybackWatch::default()),
         }
     }
 
@@ -746,6 +760,16 @@ fn teardown_outgoing_session(state: &AppState) {
         *guard = None;
     } else {
         tracing::warn!("the outgoing document was not dropped: the state lock is poisoned");
+    }
+    if let Ok(mut guard) = state.stream_anchor_secs.lock() {
+        *guard = 0.0;
+    } else {
+        tracing::warn!("the stream anchor was not reset: the state lock is poisoned");
+    }
+    if let Ok(mut guard) = state.playback_watch.lock() {
+        *guard = PlaybackWatch::default();
+    } else {
+        tracing::warn!("the playback watch was not reset: the state lock is poisoned");
     }
 }
 
@@ -2258,11 +2282,17 @@ fn spawn_playback_watch_task(app: &tauri::AppHandle) {
     let watch_handle = app.clone();
     let _watch_task = tauri::async_runtime::spawn(async move {
         let mut ticker = time::interval(Duration::from_millis(PLAYBACK_WATCH_PERIOD_MS));
-        let mut watch = PlaybackWatch::default();
         loop {
             let _tick = ticker.tick().await;
             let app_state = watch_handle.state::<AppState>();
+            let mut watch = app_state
+                .playback_watch
+                .lock()
+                .map_or_else(|_| PlaybackWatch::default(), |guard| *guard);
             playback_watch_tick(&app_state, &mut watch);
+            if let Ok(mut guard) = app_state.playback_watch.lock() {
+                *guard = watch;
+            }
         }
     });
 }
@@ -2329,7 +2359,7 @@ fn heartbeat_once(state: &AppState) {
 /// The playback-watch task's carried baselines (F1/F3): the last
 /// backend position fed into the session clock and the last
 /// consumed-unit count carried by a progress publish.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Copy)]
 struct PlaybackWatch {
     /// The backend-clock position (seconds) last credited through
     /// [`PlaybackSession::on_audible_progress`]. Deltas are taken
@@ -2501,6 +2531,30 @@ fn feed_audible_progress(state: &AppState, position_secs: f64, watch: &mut Playb
     record_progress(state, &snapshot, measured.as_deref());
 }
 
+/// Credit any speech samples the backend consumed since the last
+/// watch tick before a pause lands, so the paused session's
+/// stored position matches the paused audio queue head (FR-002 / FR-007).
+pub(crate) fn sync_audible_progress_before_pause(state: &AppState) {
+    let Some(stream_secs) = ({
+        let Ok(guard) = state.backend.lock() else {
+            return;
+        };
+        guard.as_ref().map(CpalBackend::position_secs)
+    }) else {
+        return;
+    };
+    let mut watch = {
+        let Ok(guard) = state.playback_watch.lock() else {
+            return;
+        };
+        *guard
+    };
+    feed_audible_progress(state, stream_secs, &mut watch);
+    if let Ok(mut guard) = state.playback_watch.lock() {
+        *guard = watch;
+    }
+}
+
 /// Republish the mirror when the consumed-unit count crosses to a
 /// new value (F3): the payload the notification's determinate bar
 /// reads. The count is computed from the session snapshot — the
@@ -2610,6 +2664,8 @@ pub fn run() {
             diag_measures: Mutex::new(DiagMeasures::default()),
             document: Mutex::new(None),
             production: Mutex::new(None),
+            stream_anchor_secs: Mutex::new(0.0),
+            playback_watch: Mutex::new(PlaybackWatch::default()),
         })
         .setup(|app| {
             // Voice assets ship inside the APK: extract them to a
@@ -3081,7 +3137,10 @@ pub mod commands {
             // The offer is open: the document is parked, NO audio
             // is synthesized, enqueued, or started, and the
             // payload reports the waiting reading.
+            let _prepared = prepare_session_document(&document, state, filename)
+                .map_err(|error| refuse(state, error))?;
             park_cold_start(state, &document, filename, start_offset_secs);
+            publish_current_state(state, None);
             serde_json::json!({
                 "status": "paused",
                 "transport": "paused",
@@ -3222,25 +3281,27 @@ pub mod commands {
     /// * [`OpenError::Backend`] when the device refuses to start
     ///   the stream.
     fn restart_backend_stream(state: &AppState, resume_secs: f64) -> Result<(), OpenError> {
+        let anchor_secs = state.stream_anchor_secs.lock().map_or(0.0, |guard| *guard);
         let backend = state.backend.lock().map_err(|error| OpenError::NoStart {
             reason: error.to_string(),
         })?;
         let device = backend.as_ref().ok_or_else(|| OpenError::NoStart {
             reason: String::from("no audio backend is open"),
         })?;
-        // The queue head IS the backend's audible position: the
-        // pause kept the queue, so the head is where the reading
-        // stopped. The resume position is the authority, and the
-        // two must name the same stretch of the document — a moved
-        // head would play the wrong words under the stored
-        // position.
-        let head_secs = device.position_secs();
+        // The queue head IS the backend's audible position anchored at
+        // the offset where the stream started: the pause kept the
+        // queue, so the head is where the reading stopped. The resume
+        // position is the authority, and the two must name the same
+        // stretch of the document — a moved head would play the wrong
+        // words under the stored position.
+        let stream_secs = device.position_secs();
+        let head_secs = anchor_secs + stream_secs;
         if (head_secs - resume_secs).abs() > REANCHOR_TOLERANCE_SECS {
             return Err(OpenError::NoStart {
                 reason: String::from("the queued audio does not match the resume position"),
             });
         }
-        if head_secs <= 0.0 && device.buffered_samples() == 0 {
+        if stream_secs <= 0.0 && device.buffered_samples() == 0 {
             return Err(OpenError::NoStart {
                 reason: String::from("no audio is queued to resume"),
             });
@@ -3261,17 +3322,17 @@ pub mod commands {
         guard.clone()
     }
 
-    /// Whether the session may be resumed at all (T160): only the
-    /// silent-but-alive states (paused, interrupted) carry a reading
-    /// the reader can resume. A stopped or completed session has no
-    /// reading to re-anchor.
+    /// Whether the session may be re-anchored at all (T160): any
+    /// active reading (playing, paused, interrupted) carries a
+    /// reading that can re-anchor to its new or stored position. A
+    /// stopped or completed session has no reading to re-anchor.
     fn resumable_transport(state: &AppState) -> bool {
         let Ok(guard) = state.session.lock() else {
             return false;
         };
         matches!(
             guard.snapshot().transport,
-            TransportState::Paused | TransportState::Interrupted
+            TransportState::Playing | TransportState::Paused | TransportState::Interrupted
         )
     }
 
@@ -3365,7 +3426,9 @@ pub mod commands {
         state: &State<'_, AppState>,
     ) -> Result<serde_json::Value, String> {
         let permissions = state.permissions.lock().map_err(|e| e.to_string())?;
-        if let Err(failure) = permissions::check_pre_play(&permissions) {
+        let pre_play = permissions::check_pre_play(&permissions);
+        drop(permissions);
+        if let Err(failure) = pre_play {
             // The FR-017 diagnostic record (T097): the refusal
             // is named before the ack leaves the path — the start
             // was refused (R5).
@@ -3707,7 +3770,9 @@ pub mod commands {
                 // state can ever be reported from a refused
                 // start (FR-010).
                 let permissions = state.permissions.lock().map_err(|e| e.to_string())?;
-                if let Err(failure) = permissions::check_pre_play(&permissions) {
+                let pre_play = permissions::check_pre_play(&permissions);
+                drop(permissions);
+                if let Err(failure) = pre_play {
                     // The FR-017 diagnostic record (T097): the
                     // refusal is named before the ack leaves the
                     // path — the start was refused (R5).
@@ -3728,6 +3793,7 @@ pub mod commands {
                 {
                     backend.pause();
                 }
+                crate::sync_audible_progress_before_pause(state);
                 let snap = {
                     let mut session = state.session.lock().map_err(|e| e.to_string())?;
                     session
@@ -3752,6 +3818,12 @@ pub mod commands {
                     && let Some(backend) = backend.as_ref()
                 {
                     backend.stop();
+                }
+                if let Ok(mut guard) = state.stream_anchor_secs.lock() {
+                    *guard = 0.0;
+                }
+                if let Ok(mut guard) = state.playback_watch.lock() {
+                    *guard = crate::PlaybackWatch::default();
                 }
                 let snap = {
                     let mut session = state.session.lock().map_err(|e| e.to_string())?;
@@ -3878,6 +3950,9 @@ pub mod commands {
             // change entry — the rung before and the rung after.
             record_rate_change(state, &snapshot, previous_rate, rung);
         } else if matches!(verb, ShellVerb::SkipForward | ShellVerb::SkipBackward) {
+            if snapshot.transport == TransportState::Playing {
+                let _ = reanchor_at(state, snapshot.position_secs);
+            }
             // The FR-017 diagnostic record (T097): the per-section
             // progress entry — the section the session landed in,
             // with the document's content hash as its only document
@@ -4083,6 +4158,12 @@ pub mod commands {
         if let Ok(mut guard) = state.production.lock() {
             *guard = None;
         }
+        if let Ok(mut guard) = state.stream_anchor_secs.lock() {
+            *guard = 0.0;
+        }
+        if let Ok(mut guard) = state.playback_watch.lock() {
+            *guard = crate::PlaybackWatch::default();
+        }
     }
 
     /// The session's current mirror for read-only intent
@@ -4232,6 +4313,7 @@ pub mod commands {
         transient_reason: Option<String>,
     ) -> Result<serde_json::Value, String> {
         pause_backend(state);
+        crate::sync_audible_progress_before_pause(state);
         let (snapshot, changed) = execute_or_current(state, verb)?;
         // The FR-017 diagnostic record (T097): the interruption's
         // class and its outcome, with the measured values the
@@ -4599,7 +4681,7 @@ pub mod commands {
         // document's PCM was grown into (FR-003). The stream starts
         // on it: the first audible speech arrives while the rest of
         // the document is still being produced (FR-003 / SC-002).
-        let _unit = produce_next_unit(state)?;
+        while pending_samples(state) == 0 && produce_next_unit(state)? {}
         let piece = take_piece(state, queue_room(state));
         enqueue_chunk(state, piece)?;
         // The stream starts on the first piece (T152 pins the block:
@@ -5207,16 +5289,21 @@ pub mod commands {
     /// * [`OpenError::NoStart`] when the closed transition
     ///   table rejects the press (a torn-down session takes no
     ///   play).
-    pub(crate) fn play_document(
+    ///
+    /// Prepare the session's document structure, rate seed, and
+    /// surface resolver before synthesis or cold-start parking
+    /// (T103 / T143 / FR-011 / FR-013 / FR-019b / FR-028a).
+    fn prepare_session_document(
         document: &str,
         state: &AppState,
         filename: &str,
-        start_offset_secs: f64,
-    ) -> Result<serde_json::Value, OpenError> {
-        // The FR-017 diagnostic record (T097): the play-to-audio
-        // clock opens here — the request instant — and the first
-        // audible audio of this request closes it.
-        note_play_request(state);
+    ) -> Result<
+        (
+            Vec<adapter_synthesis::chunk::DocumentSegment>,
+            Vec<DocumentSection>,
+        ),
+        OpenError,
+    > {
         // T160: the document is kept, so a resume whose queued audio
         // no longer names the stored position can re-synthesise the
         // correct stretch through this same path (FR-007).
@@ -5283,6 +5370,20 @@ pub mod commands {
         // progress projection, the section index and the per-section
         // diagnostic entries are live from the first chunk.
         install_session_structure(state, resolver, &sections)?;
+        Ok((segments, sections))
+    }
+
+    pub(crate) fn play_document(
+        document: &str,
+        state: &AppState,
+        filename: &str,
+        start_offset_secs: f64,
+    ) -> Result<serde_json::Value, OpenError> {
+        // The FR-017 diagnostic record (T097): the play-to-audio
+        // clock opens here — the request instant — and the first
+        // audible audio of this request closes it.
+        note_play_request(state);
+        let (segments, sections) = prepare_session_document(document, state, filename)?;
 
         // T113 / FR-003 ≤3 s first-audible: the backend is opened
         // once, and the STREAMING synthesis hands the first chunk to
@@ -5326,6 +5427,12 @@ pub mod commands {
         // (FR-002), so the resume credits the offset it entered
         // at. The audio and the position authority agree on where
         // the reading is.
+        if let Ok(mut guard) = state.stream_anchor_secs.lock() {
+            *guard = start_offset_secs;
+        }
+        if let Ok(mut guard) = state.playback_watch.lock() {
+            *guard = crate::PlaybackWatch::default();
+        }
         if start_offset_secs > 0.0 {
             let Ok(mut session) = state.session.lock() else {
                 return Err(OpenError::NoStart {
@@ -6034,7 +6141,7 @@ pub mod publish {
     };
     use player::transport::TransportState;
     use serde_json::{Map, Value};
-    use tauri::{AppHandle, State};
+    use tauri::{AppHandle, Emitter, State};
 
     /// The publish channel name (sanctioned Rust→frontend direction).
     const CHANNEL_NAME: &str = "mirror-publish";
@@ -6123,6 +6230,10 @@ pub mod publish {
         };
 
         let mirror = frontend_mirror(snapshot.transport, snapshot.position_secs, surface);
+
+        if let Some(app) = crate::shell_jni::installed_app() {
+            let _ = app.emit("tauri://channel/mirror-publish", mirror.clone());
+        }
 
         // The channel send is infallible in the Tauri API;
         // a send failure means the frontend disconnected,
@@ -6458,6 +6569,9 @@ pub mod publish {
         }
         // Publish (last-wins value)
         let val = state.last_rms.lock().map_or(rms, |v| *v);
+        if let Some(app) = crate::shell_jni::installed_app() {
+            let _ = app.emit("tauri://channel/rms", val);
+        }
         let _ = channel.send(val);
     }
 }

@@ -978,7 +978,17 @@ pub fn ingest_snapshot(snapshot: &IngestSnapshot) -> Result<(), IngestError> {
         );
         return Ok(());
     };
-    open_ingested_document(&app.state::<AppState>(), snapshot)
+    let state = app.state::<AppState>();
+    // The user explicitly picked a document in the foreground Activity:
+    // latch foreground state so a deliberate-pause offer expires into
+    // AutoStart rather than ExplicitResume (FR-032c).
+    if let Ok(mut tracker) = state.focus_tracker.lock() {
+        let _ = tracker.apply(player::focus::FocusIntent::AppForegrounded);
+    }
+    if let Ok(mut offer) = state.offer.lock() {
+        offer.on_foregrounded();
+    }
+    open_ingested_document(&state, snapshot)
 }
 
 /// Reads one ingested snapshot's BYTES from its file and
@@ -1117,7 +1127,7 @@ static APP_HANDLE: OnceLock<AppHandle> = OnceLock::new();
 /// cannot be constructed outside a running Tauri app, so the
 /// entry resolves the state through the retained handle
 /// instead.
-fn installed_app() -> Option<&'static AppHandle> {
+pub(crate) fn installed_app() -> Option<&'static AppHandle> {
     APP_HANDLE.get()
 }
 

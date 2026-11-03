@@ -40,14 +40,14 @@
 
 ### Tests for User Story 1 (TDD - Write First, MUST FAIL initially) ⚠️
 
-- [ ] T195 [P] [US1] Contract test in `src-tauri/tests/test_directory_playback_contract.rs` asserting that `pick_directory` action initiates directory scanning, emits chapter metadata, and starts audio within TTFA budget (< 3.0s).
-- [ ] T196 [P] [US1] Property-based test in `crates/player/tests/prop_chapter_queue_natural_sort.rs` testing invariants of natural sort ordering across arbitrary filename patterns (`01-`, `02-`, `10-`, case-insensitive, README index precedence).
-- [ ] T197 [P] [US1] Integration test in `crates/player/tests/test_gapless_chapter_transition.rs` asserting automatic gapless transition from chapter $N$ to $N+1$ with silence gap < 1.0s and PositionClock reset to 0.0s for the new chapter.
+- [x] T195 [P] [US1] Contract test in `src-tauri/tests/test_directory_playback_contract.rs` asserting that `pick_directory` action initiates directory scanning, emits chapter metadata, and starts audio within TTFA budget (< 3.0s).
+- [x] T196 [P] [US1] Property-based test in `crates/player/tests/prop_chapter_queue_natural_sort.rs` testing invariants of natural sort ordering across arbitrary filename patterns (`01-`, `02-`, `10-`, case-insensitive, README index precedence).
+- [x] T197 [P] [US1] Integration test in `crates/player/tests/test_gapless_chapter_transition.rs` asserting automatic gapless transition from chapter $N$ to $N+1$ with silence gap < 1.0s and PositionClock reset to 0.0s for the new chapter.
 
 ### Implementation for User Story 1
 
-- [ ] T198 [US1] Implement background coroutine directory scanning (`Dispatchers.IO`) in `android-shell/src/main/kotlin/app/mdreader/DocIngest.kt` collecting `.md`/`.txt` files from root and 1st-level subfolders with natural sort.
-- [ ] T199 [US1] Dispatch immediate first chapter yield to Rust via JNI before full background scan completion in `android-shell/src/main/kotlin/app/mdreader/DocIngest.kt`.
+- [x] T198 [US1] Implement background coroutine directory scanning (`Dispatchers.IO`) in `android-shell/src/main/kotlin/app/mdreader/DocIngest.kt` collecting `.md`/`.txt` files from root and 1st-level subfolders with natural sort.
+- [x] T199 [US1] Dispatch immediate first chapter yield to Rust via JNI before full background scan completion in `android-shell/src/main/kotlin/app/mdreader/DocIngest.kt`.
 - [ ] T200 [US1] Integrate `ChapterQueue` into `AppState` and handle `BridgeAction::Verb(ShellVerb::PickDirectory)` in `src-tauri/src/lib.rs`.
 - [ ] T201 [US1] Implement automatic gapless chapter advance on `DocumentEnd` in `crates/player/src/lib.rs` without destroying or recreating the `cpal` audio stream.
 - [ ] T202 [P] [US1] Update `status_view.html` `#sectionTitle` and `h1` to render active chapter title and tabular chapter counter (`"Capítulo X de Y • [Seção]"`) preserving 100dvh ceiling with zero CLS in `src-tauri/src/status_view.html`.

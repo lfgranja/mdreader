@@ -10,40 +10,40 @@
 
 ## Requirement Completeness
 
-- [ ] CHK001 Are the lifecycle, revocation triggers, and persistence criteria for URI tree permissions via `takePersistableUriPermission` completely defined without leaving retention ambiguity? [Completeness, Spec §FR-001]
-- [ ] CHK002 Is the handling of the Android system limit of 512 persistable URI grants per package specified, including eviction, release, or error handling behavior when the ceiling is reached? [Completeness, Spec §FR-001, Edge Case]
-- [ ] CHK003 Are the exact criteria and timing for releasing persistable URI grants via `releasePersistableUriPermission` specified for deleted, moved, or abandoned directories? [Completeness, Spec §FR-001]
-- [ ] CHK004 Is the lifecycle and cleanup policy of local private snapshot copies (`filesDir/snapshots/<fingerprint>.<ext>`) fully specified, including purge triggers upon session close, completion, or storage low-water marks? [Completeness, Plan §Technical Context, Research §Decision 1]
-- [ ] CHK005 Is the fallback and recovery behavior completely specified when `DocumentFile.fromTreeUri` returns null or an unresolvable virtual file representation? [Completeness, Spec §Edge Cases, Research §Decision 1]
-- [ ] CHK006 Are the specific file extension matching rules (`.md`, `.txt`) explicitly defined regarding case insensitivity (e.g., `.MD`, `.TXT`, `.Markdown`) and Unicode normalization? [Completeness, Spec §FR-002]
+- [x] CHK001 Are the lifecycle, revocation triggers, and persistence criteria for URI tree permissions via `takePersistableUriPermission` completely defined without leaving retention ambiguity? [Completeness, Spec §FR-001]
+- [x] CHK002 Is the handling of the Android system limit of 512 persistable URI grants per package specified, including eviction, release, or error handling behavior when the ceiling is reached? [Completeness, Spec §FR-001, Edge Case]
+- [x] CHK003 Are the exact criteria and timing for releasing persistable URI grants via `releasePersistableUriPermission` specified for deleted, moved, or abandoned directories? [Completeness, Spec §FR-001]
+- [x] CHK004 Is the lifecycle and cleanup policy of local private snapshot copies (`filesDir/snapshots/<fingerprint>.<ext>`) fully specified, including purge triggers upon session close, completion, or storage low-water marks? [Completeness, Plan §Technical Context, Research §Decision 1]
+- [x] CHK005 Is the fallback and recovery behavior completely specified when `DocumentFile.fromTreeUri` returns null or an unresolvable virtual file representation? [Completeness, Spec §Edge Cases, Research §Decision 1]
+- [x] CHK006 Are the specific file extension matching rules (`.md`, `.txt`) explicitly defined regarding case insensitivity (e.g., `.MD`, `.TXT`, `.Markdown`) and Unicode normalization? [Completeness, Spec §FR-002]
 
 ## Requirement Clarity
 
-- [ ] CHK007 Is "segunda thread de E/S fora da thread principal de interface" quantified with a concrete dispatching contract (e.g., coroutine context `Dispatchers.IO` with explicit thread pool sizing)? [Clarity, Spec §FR-002, Plan §Summary]
-- [ ] CHK008 Is "limite de contagem segura para evitar sobrecarga de chamadas de IPC" quantified with an exact numeric threshold for maximum scanned files or maximum iteration depth? [Clarity, Spec §FR-002, Assumptions]
-- [ ] CHK009 Is the precedence rule between index files (`README.md` / `index.md`) and natural alfanumeric sorting defined unambiguously when both exist or when links point to missing/external targets? [Clarity, Spec §FR-003, Research §Decision 1]
-- [ ] CHK010 Is the natural sort algorithm specified with standard reference criteria (e.g., Unicode Collation Algorithm with numeric sorting enabled) to prevent platform-dependent ordering? [Clarity, Spec §FR-003]
-- [ ] CHK011 Are the criteria for "aviso discreto de recusa sem crash" specified with concrete user notification contracts, visual channels, and diagnostic logging payloads? [Clarity, Spec §FR-012, User Story 3]
+- [x] CHK007 Is "segunda thread de E/S fora da thread principal de interface" quantified with a concrete dispatching contract (e.g., coroutine context `Dispatchers.IO` with explicit thread pool sizing)? [Clarity, Spec §FR-002, Plan §Summary]
+- [x] CHK008 Is "limite de contagem segura para evitar sobrecarga de chamadas de IPC" quantified with an exact numeric threshold for maximum scanned files or maximum iteration depth? [Clarity, Spec §FR-002, Assumptions]
+- [x] CHK009 Is the precedence rule between index files (`README.md` / `index.md`) and natural alfanumeric sorting defined unambiguously when both exist or when links point to missing/external targets? [Clarity, Spec §FR-003, Research §Decision 1]
+- [x] CHK010 Is the natural sort algorithm specified with standard reference criteria (e.g., Unicode Collation Algorithm with numeric sorting enabled) to prevent platform-dependent ordering? [Clarity, Spec §FR-003]
+- [x] CHK011 Are the criteria for "aviso discreto de recusa sem crash" specified with concrete user notification contracts, visual channels, and diagnostic logging payloads? [Clarity, Spec §FR-012, User Story 3]
 
 ## Requirement Consistency
 
-- [ ] CHK012 Is the directory hierarchy scope consistently defined between Spec §Edge Cases ("subpastas de 1º nível"), Plan §Summary ("pastas inteiras"), and Research §Decision 1 (explicit 1st-level limit)? [Consistency, Spec §Edge Cases, Plan §Summary, Research §Decision 1]
-- [ ] CHK013 Is the maximum supported file count consistently bounded across Spec §Assumptions (100 vs 500 files) and Plan §Technical Context (100 files limit)? [Consistency, Spec §Assumptions, Plan §Technical Context]
+- [x] CHK012 Is the directory hierarchy scope consistently defined between Spec §Edge Cases ("subpastas de 1º nível"), Plan §Summary ("pastas inteiras"), and Research §Decision 1 (explicit 1st-level limit)? [Consistency, Spec §Edge Cases, Plan §Summary, Research §Decision 1]
+- [x] CHK013 Is the maximum supported file count consistently bounded across Spec §Assumptions (100 vs 500 files) and Plan §Technical Context (100 files limit)? [Consistency, Spec §Assumptions, Plan §Technical Context]
 - [x] CHK014 Are the byte size boundary conditions for `MAX_DOC_BYTES` (93,636 bytes) strictly harmonized between SAF scanning, JNI manifest serialization, and Rust chapter ingestion? [Consistency, Spec §FR-006, Contracts §3.1]
 - [x] CHK015 Is the wire contract for `DirectoryManifest` in `contracts/directory-playback.md` consistent with the JNI parameter signatures and JSON schema constraints (`additionalProperties: false`)? [Consistency, Contracts §1.3, Contracts §3.1]
 
 ## Edge Case Coverage
 
-- [ ] CHK016 Is the system behavior specified when the user revokes directory read permission in Android OS Settings while playback is actively running in background? [Edge Case, Spec §Edge Cases, Research §Decision 1]
+- [x] CHK016 Is the system behavior specified when the user revokes directory read permission in Android OS Settings while playback is actively running in background? [Edge Case, Spec §Edge Cases, Research §Decision 1]
 - [x] CHK017 Is the behavior specified when a directory contains exclusively unsupported files, hidden dot-directories (`.obsidian`, `.git`), or 0 valid Markdown notes? [Edge Case, Spec §Edge Cases]
-- [ ] CHK018 Are concurrency and race conditions specified for scenarios where a file is deleted or renamed on external storage between directory scanning and chapter synthesis? [Edge Case, Spec §Edge Cases, Research §Decision 1]
-- [ ] CHK019 Is behavior defined for deeply nested directories or symlink loops encountered during DocumentFile traversal? [Edge Case, Spec §FR-002, Research §Decision 1]
-- [ ] CHK020 Are error types and diagnostic logging contracts defined for `SecurityException`, `FileNotFoundException`, and `DeadObjectException` during ContentResolver queries? [Edge Case, Spec §Edge Cases, Contracts §directory-playback.md]
+- [x] CHK018 Are concurrency and race conditions specified for scenarios where a file is deleted or renamed on external storage between directory scanning and chapter synthesis? [Edge Case, Spec §Edge Cases, Research §Decision 1]
+- [x] CHK019 Is behavior defined for deeply nested directories or symlink loops encountered during DocumentFile traversal? [Edge Case, Spec §FR-002, Research §Decision 1]
+- [x] CHK020 Are error types and diagnostic logging contracts defined for `SecurityException`, `FileNotFoundException`, and `DeadObjectException` during ContentResolver queries? [Edge Case, Spec §Edge Cases, Contracts §directory-playback.md]
 
 ## Non-Functional Requirements
 
-- [ ] CHK021 Is the ContentResolver query latency budget specified with a strict upper bound to prevent Android ANR under high I/O contention? [NFR, Spec §FR-004, Research §Decision 1]
-- [ ] CHK022 Is the Memory footprint for directory indexing specified with an explicit cap (e.g., maximum resident memory for chapter metadata before synthesis)? [NFR, Plan §Technical Context]
+- [x] CHK021 Is the ContentResolver query latency budget specified with a strict upper bound to prevent Android ANR under high I/O contention? [NFR, Spec §FR-004, Research §Decision 1]
+- [x] CHK022 Is the Memory footprint for directory indexing specified with an explicit cap (e.g., maximum resident memory for chapter metadata before synthesis)? [NFR, Plan §Technical Context]
 - [x] CHK023 Can the 3.0s TTFA (Time To First Audio) requirement be objectively measured and verified in automated testing harnesses without human listening? [NFR, Spec §FR-004, SC-002]
 - [x] CHK024 Is offline compliance (Constitution Principle IX) objectively verifiable via zero-socket-activity assertions during SAF directory ingestion? [NFR, Spec §FR-013, Plan §Constitution Check]
 

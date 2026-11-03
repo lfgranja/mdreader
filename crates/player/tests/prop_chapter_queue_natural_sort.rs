@@ -1,22 +1,24 @@
-//! Property-based test for natural sort invariants of ChapterQueue.
+// Property-based test for the natural sort invariants of ChapterQueue.
+// This test is deliberately failing at runtime to satisfy the TDD RED phase.
 
-use proptest::prelude::*;
+#[cfg(test)]
+mod tests {
+    use proptest::prelude::*;
+    use crate::queue::{ChapterItem, sort_natural};
 
-/// Placeholder for the natural sort implementation.
-fn sort_chapters_natural(_queue: &mut Vec<String>) {
-    // TODO: implement natural sort algorithm.
-    todo!();
-}
+    proptest! {
+        #[test]
+        fn test_natural_sort_invariants(ref names in proptest::collection::vec("[a-zA-Z0-9_]+", 1..20)) {
+            // Convert generated names into ChapterItems.
+            let mut items: Vec<ChapterItem> = names.iter().enumerate().map(|(i, name)| {
+                ChapterItem { id: i as u32, name: name.clone() }
+            }).collect();
 
-#[test]
-fn prop_chapter_queue_natural_sort() {
-    // Strategy: generate a vector of random ASCII strings.
-    let strategy = proptest::collection::vec("[a-zA-Z0-9]+", 0..100usize);
-
-    proptest::prop_assert!(strategy.prop_map(|mut chapters| {
-        // Invoke the (unimplemented) sort function.
-        sort_chapters_natural(&mut chapters);
-        // No further assertions; the test will fail at runtime due to `todo!()`.
-        true
-    }).test().is_err());
+            // Attempt to sort using the (currently unimplemented) natural sort function.
+            // The function is expected to sort in place.
+            sort_natural(&mut items);
+            // Placeholder: fail the test to indicate missing implementation.
+            todo!("assert natural sort invariants after sort_natural");
+        }
+    }
 }

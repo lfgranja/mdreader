@@ -48,10 +48,10 @@
 
 - [x] T198 [US1] Implement background coroutine directory scanning (`Dispatchers.IO`) in `android-shell/src/main/kotlin/app/mdreader/DocIngest.kt` collecting `.md`/`.txt` files from root and 1st-level subfolders with natural sort.
 - [x] T199 [US1] Dispatch immediate first chapter yield to Rust via JNI before full background scan completion in `android-shell/src/main/kotlin/app/mdreader/DocIngest.kt`.
-- [ ] T200 [US1] Integrate `ChapterQueue` into `AppState` and handle `BridgeAction::Verb(ShellVerb::PickDirectory)` in `src-tauri/src/lib.rs`.
-- [ ] T201 [US1] Implement automatic gapless chapter advance on `DocumentEnd` in `crates/player/src/lib.rs` without destroying or recreating the `cpal` audio stream.
-- [ ] T202 [P] [US1] Update `status_view.html` `#sectionTitle` and `h1` to render active chapter title and tabular chapter counter (`"Capítulo X de Y • [Seção]"`) preserving 100dvh ceiling with zero CLS in `src-tauri/src/status_view.html`.
-- [ ] T203 [US1] Announce chapter transitions politely to screen readers via `#liveRegion` (`aria-live="polite"`, `aria-atomic="true"`) in `src-tauri/src/status_view.html`.
+- [x] T200 [US1] Integrate `ChapterQueue` into `AppState` and handle `BridgeAction::Verb(ShellVerb::PickDirectory)` in `src-tauri/src/lib.rs`.
+- [x] T201 [US1] Implement automatic gapless chapter advance on `DocumentEnd` in `crates/player/src/lib.rs` without destroying or recreating the `cpal` audio stream.
+- [x] T202 [P] [US1] Update `status_view.html` `#sectionTitle` and `h1` to render active chapter title and tabular chapter counter (`"Capítulo X de Y • [Seção]"`) preserving 100dvh ceiling with zero CLS in `src-tauri/src/status_view.html`.
+- [x] T203 [US1] Announce chapter transitions politely to screen readers via `#liveRegion` (`aria-live="polite"`, `aria-atomic="true"`) in `src-tauri/src/status_view.html`.
 
 **Checkpoint**: User Story 1 delivers an end-to-end working MVP for opening directories and playing sequentially.
 

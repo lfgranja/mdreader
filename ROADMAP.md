@@ -65,7 +65,7 @@
 | 001 | `android-media-shell` | ✓ | ✓ | 140/151 | ✓ | ✓ | ✓ `tests/`, `crates/*` | `gate-8-shell PASS`; `gate-8-full DEFERRED (owner=synthesis)` | **CONVERGIDO NO NÚCLEO** |
 | 002 | `fr-024-synthesis-adapter` | ✓ | ✓ | 80/89 | ✓ | ✓ | ✓ `crates/adapter-synthesis/`; 110 pass | `SC-044 DEFERRED`; `V3_ATTESTATION_2026-10-10.md` | **Implementado / defer condicional de benchmark (SC-009)** |
 | 003 | `reference-device` | ✓ | ✓ | 12/12 | ✓ | ✓ | Docs, harness e protocolos | Emulador OK; aguarda run final em device físico via ADB | **Harness pronto; aguarda execução final** |
-| 004 | `ressoa-dogfood-build` | ✓ | ✓ | 172/173 | ✓ | ✓ | ✓ `verification/` | `verify.sh` GREEN `9501bba` (Phase 17) | **CONVERGIDO E VERIFICADO** |
+| 004 | `ressoa-dogfood-build` | ✓ | ✓ | 172/173 (T051 = validação manual device) | ✓ | ✓ | ✓ `verification/` | `/speckit.converge` executado → **0 findings** (converged) | **CONVERGIDO (2026-11-03)** |
 | 005 | `adopt-design-sona` | ✓ | ✓ | 55/55 | ✓ | ✓ | ✓ `surface_audit` integrado; SC-001/SC-002/SC-007 pass | Gates 1-8 host OK; TalkBack 10/10 | **CONVERGIDO** |
 | 006 | `lente-sinestesica-completa`| ✓ | ✓ | 55/55 | ✓ | ✓ | ✓ | Convergido completo | **CONVERGIDO** |
 | 007 | `sona-complete-design` | ✓ | ✓ | **29/29** | ✓ | ✓ | ✓ RMS instrumentation, canvas 5-layer, repeat button, T028 e T029 | Host tests green; zero achados pendentes | **CONVERGIDO (100%)** |
@@ -92,7 +92,7 @@
 
 ## 3. Análise Quantitativa e Qualitativa de Avanço
 
-### O que já percorremos (~93% do Produto Global):
+### O que já percorremos (~94% do Produto Global):
 - **Motor de Áudio e Playback Authority (100%):** O runtime Rust (`crates/player`, `crates/session`, `crates/diag`, `crates/engine-core`) gerencia soberanamente transporte, buffer, taxa pitch-preserving e `PositionClock` (audible progress puro).
 - **Design System SONA & Lente Sinestésica (100% Convergido):** Acessibilidade TalkBack (10/10), alto contraste para ambiente externo, visualizador de 5 camadas no canvas alimentado por RMS lock-free a ~20 Hz (`AtomicU32`) e botão repeat integrados (Spec 007 formalmente convergida — 29/29 tasks).
 - **Ingestão SAF & Bookmarking Durável (100% em código):** Abertura de arquivos Markdown pela caixa de título via Android SAF, cálculo de fingerprint Blake3, persistência atômica em `redb` a cada 20s e em pausas, e diálogo de retomada inteligente (`offerDialog`).
@@ -100,7 +100,7 @@
 - **Padrão de Qualidade e Otimização de CI:** Gates 1 a 8 verdes, clippy estrito sem `unwrap`/`expect`, paralelismo configurado via test-groups no `nextest.toml` e amostragem de proptest controlada. Histórico git limpo (apenas `dev` e `main`). 10 specs rastreadas (5 convergidas, 4 quase completas, 1 ativa).
 - **Governança e Spec Kit:** 10 assessments (7 completos, 3 parciais), 10 specs com artefatos completos, 11 bugs triados (7 fechados, 4 pendentes).
 
-### O que ainda falta (~7% para Fechamento Total):
+### O que ainda falta (~6% para Fechamento Total):
 1. **✅ Convergência Formal da Spec 009 (CONCLUÍDA 2026-11-03):**
    - `/speckit.converge` executado → 0 findings (converged). T184 (validação manual ADB) permanece como tarefa manual.
 2. **Completar Spec 010 — Directory Reading (NOW/NEXT):**

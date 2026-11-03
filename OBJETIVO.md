@@ -40,7 +40,7 @@ Um leitor de documentos Markdown (`mdreader`, produto **Ressa**) voltado a áudi
 ## Resultado esperado (convergência)
 
 - `001` + `002` + `003`: dispositivo de referência verificável (gate-8-shell PASS, gate-8-full DEFERRED até síntese fechar `SC-044`), com `verify.sh` verde e attestation V3 para adaptador.
-- `004`: build de dogfood com `verify.sh` GREEN (já atingido em `9501bba`, 2026-10-22, Phase 17 completa).
+- `004`: **CONVERGIDO** (2026-11-03). `/speckit.converge` executado → 0 findings. T051 (validação manual ADB) permanece como tarefa manual.
 - `005`: adoção completa do `DESIGN-SONA` (tokens, contraste, animações congeladas sob `prefers-reduced-motion`, `SC-007` TalkBack 10/10), com plano pronto e tarefas em execução.
 - `007`: convergência completa (RMS, waveform 5 camadas, repeat button, T028/T029) — 29/29 tasks.
 - `009`: **CONVERGIDO** (2026-11-03). `/speckit.converge` executado → 0 findings. T184 (validação manual ADB) permanece como tarefa manual.

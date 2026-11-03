@@ -50,11 +50,23 @@
       flex-direction: column;
       align-items: center;
       justify-content: safe center;
-      min-height: 100vh;
+      min-height: 100dvh;
+      max-height: 100dvh;
       margin: 0;
-      padding: 1.5rem 1rem;
+      padding: 0.75rem 0.75rem;
       width: 100%;
-      overflow-x: hidden;
+      overflow: hidden;
+    }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
     }
     .card {
       background: rgba(20,27,45,0.65);
@@ -64,10 +76,11 @@
       /* Doppelrand borders */
       box-shadow: inset 0 0 0 1px rgba(143,216,232,0.15), 0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05);
       border-radius: var(--radius);
-      padding: 1rem 0.75rem 2.5rem;
+      padding: 0.75rem 0.75rem 1.25rem;
       max-width: 460px;
       width: 100%;
-      min-height: calc(100vh - 3rem);
+      min-height: calc(100dvh - 1.5rem);
+      max-height: calc(100dvh - 1.5rem);
       position: relative;
       display: flex;
       flex-direction: column;
@@ -75,6 +88,8 @@
       justify-content: space-between;
       text-align: center;
       box-sizing: border-box;
+      gap: 0.4rem;
+      overflow: hidden;
     }
     @supports not (backdrop-filter: blur(1px)) {
       .card { background: var(--sona-stage); }
@@ -110,15 +125,18 @@
     }
     #waveform {
       width: 100%;
-      height: 300px;
+      height: 200px;
+      flex: 1 1 auto;
+      min-height: 120px;
+      max-height: 220px;
       display: block;
-      margin: 1.5rem 0;
+      margin: 0.5rem 0;
       background: transparent;
       border: none;
       box-shadow: none;
     }
     #headerMark {
-      margin: 1.0rem auto 1.6rem;
+      margin: 0.5rem auto 0.5rem;
       position: relative;
       z-index: 2;
       background: transparent !important;
@@ -127,6 +145,7 @@
       outline: none !important;
       filter: none !important;
       -webkit-filter: none !important;
+      flex-shrink: 0;
     }
     .rate-value {
       color: var(--sona-harp);
@@ -145,17 +164,24 @@
       border: 1px solid rgba(255, 255, 255, 0.22);
       box-shadow: inset 0 2px 1px rgba(255, 255, 255, 0.40), inset 0 -1.5px 2px rgba(0, 0, 0, 0.5), 0 28px 60px rgba(0, 0, 0, 0.70);
       border-radius: 30px;
-      padding: 2.2rem 2.4rem;
+      padding: 0.9rem 1.25rem;
       width: 100%;
       max-width: 450px;
-      margin: 1.2rem auto 0;
+      margin: 0.4rem auto 0;
       text-align: center;
       position: relative;
       overflow: hidden;
       cursor: pointer;
-      min-height: 48px;
+      height: auto;
+      min-height: 92px;
+      max-height: 140px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
       transition: transform 0.1s ease, border-color 0.15s ease, box-shadow 0.15s ease;
       outline: none;
+      flex-shrink: 0;
     }
     .meta-box:active {
       transform: scale(0.985);
@@ -176,16 +202,25 @@
     }
     h1 {
       font-weight: 700;
-      font-size: 3.25rem;
+      font-size: clamp(1.25rem, 4.5vw, 1.75rem);
       letter-spacing: -0.035em;
-      margin: 0 0 .6rem;
+      margin: 0;
       color: #FFFFFF;
-      line-height: 1.15;
+      line-height: 1.2;
       text-shadow: 0 2px 20px rgba(0,0,0,0.6);
+      max-width: 100%;
+      width: 100%;
+      overflow: hidden;
+      word-break: break-word;
+      hyphens: auto;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      text-align: center;
     }
     .subtitle {
       color: rgba(242,240,230,0.90);
-      font-size: 1.60rem;
+      font-size: 1.10rem;
       font-weight: 400;
       margin-bottom: 0;
       letter-spacing: -0.015em;
@@ -194,7 +229,7 @@
       font-weight: 300;
       color: var(--section);
       font-size: .95rem;
-      margin-top: .5rem;
+      margin-top: .35rem;
       min-height: 1.4em;
     }
     .bottom-island {
@@ -209,9 +244,10 @@
       align-items: center;
       justify-content: center;
       gap: 0.85rem;
-      margin: 1rem auto 1.5rem;
+      margin: 0.5rem auto 0.5rem;
       width: auto;
       max-width: 96%;
+      flex-shrink: 0;
     }
     .controls {
       display: flex;
@@ -1086,14 +1122,49 @@
     }
   }
 
+  function normalizeProgress(p) {
+    if (!p) return { kind: 'indeterminate' };
+    if (p === 'indeterminate' || p.kind === 'indeterminate') return { kind: 'indeterminate' };
+    if (p.determinate) return { kind: 'determinate', ...p.determinate };
+    if (p.kind === 'determinate') return p;
+    return { kind: 'indeterminate' };
+  }
+
+  async function refreshStatusView() {
+    try {
+      const view = await invoke('get_status_view');
+      if (view) {
+        state.title = view.title || state.title;
+        state.sectionTitle = view.section_title || null;
+        state.rate = view.rate;
+        state.transport = view.transport;
+        state.positionSecs = view.position_secs;
+        state.reason = view.reason;
+        state.reasonExpiry = view.reason_expiry;
+        if (view.progress) state.progress = normalizeProgress(view.progress);
+        if (view.progress_label !== undefined) state.progressLabel = view.progress_label || '';
+        if (view.fingerprint) fingerprint = view.fingerprint;
+        rateIndex = LADDER.findIndex(r => Math.abs(r - state.rate) < 0.01);
+        if (rateIndex < 0) rateIndex = 1;
+        renderAll();
+      }
+    } catch (e) {}
+  }
+
   // Action handlers
   async function sendAction(action) {
     const payload = { action };
     if (fingerprint) payload.fingerprint = fingerprint;
     try {
-      await invoke('run_mobile_plugin', payload);
+      const res = await invoke('run_mobile_plugin', payload);
+      if (res && res.transport) {
+        state.transport = res.transport;
+        renderTransport();
+      }
+      await refreshStatusView();
     } catch (e) {
       console.error(`Action ${action} failed:`, e);
+      await refreshStatusView();
     }
   }
 
@@ -1223,9 +1294,10 @@
       const mirror = event.payload;
       if (!mirror) return;
 
+      const prevTransport = state.transport;
       state.transport = mirror.transport;
       state.positionSecs = mirror.position_secs;
-      state.progress = mirror.progress;
+      state.progress = normalizeProgress(mirror.progress);
       state.progressLabel = mirror.progress_label || null;
       state.sectionTitle = mirror.section_title || null;
 
@@ -1242,6 +1314,9 @@
 
       renderAll();
       refreshOffer();
+      if (prevTransport !== mirror.transport || !state.title) {
+        refreshStatusView();
+      }
     });
   }
 
@@ -1314,6 +1389,7 @@
     // and the route published by the shell is what decides whether
     // the in-app dialog opens.
     setInterval(refreshOffer, OFFER_POLL_MS);
+    setInterval(refreshStatusView, 500);
     refreshOffer();
   }
 

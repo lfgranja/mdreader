@@ -152,6 +152,31 @@ impl ChapterQueue {
     }
 }
 
+/// Outcome of an automatic chapter N -> N+1 transition.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ChapterTransition {
+    /// Silence gap between the end of chapter N and start of N+1, in seconds.
+    pub gap_secs: f64,
+    /// Position of the new chapter's clock right after the transition.
+    pub new_position_secs: f64,
+}
+
+impl ChapterQueue {
+    /// Performs the automatic gapless transition to the next chapter.
+    ///
+    /// TDD RED stub (T197): behavior not yet implemented.
+    ///
+    /// # Errors
+    ///
+    /// Always returns [`ChapterQueueError::IndexOutOfBounds`] until implemented.
+    pub const fn transition_gapless(&mut self) -> Result<ChapterTransition, ChapterQueueError> {
+        Err(ChapterQueueError::IndexOutOfBounds {
+            index: usize::MAX,
+            len: self.items.len(),
+        })
+    }
+}
+
 /// Token parsed from a filename for natural alfanumeric sorting.
 #[derive(Debug, PartialEq, Eq)]
 enum NaturalSortToken<'a> {

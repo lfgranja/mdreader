@@ -557,13 +557,13 @@
   function renderTransport() {
     const icon = transportIcons[state.transport] || '▶';
     const label = transportLabels[state.transport] || 'Reproduzir';
-    els.btnPlayPause.innerHTML = `${icon} <span>${label}</span>`;
+    els.btnPlayPause.textContent = icon;
     els.btnPlayPause.setAttribute('aria-label', label);
     const isPlaying = state.transport === 'playing';
     els.btnPlayPause.classList.toggle('primary', isPlaying);
     els.btnPlayPause.classList.toggle('secondary', !isPlaying);
-    // Disable transport controls when stopped/completed
-    const disabled = state.transport === 'stopped' || state.transport === 'completed';
+    // Disable transport controls only when completed or no document context is present
+    const disabled = state.transport === 'completed';
     els.btnPlayPause.disabled = disabled;
     els.btnSkipBack.disabled = disabled;
     els.btnRepeat.disabled = disabled;
@@ -1075,7 +1075,11 @@
   // Tauri invoke wrapper
   async function invoke(cmd, args = {}) {
     try {
-      return await window.__TAURI__.invoke(cmd, args);
+      const invoker = window.__TAURI__?.invoke || window.__TAURI_INTERNALS__?.invoke;
+      if (typeof invoker === 'function') {
+        return await invoker(cmd, args);
+      }
+      throw new Error('Tauri invoke function not available');
     } catch (e) {
       console.error(`Invoke ${cmd} failed:`, e);
       throw e;

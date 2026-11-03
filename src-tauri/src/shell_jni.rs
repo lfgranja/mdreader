@@ -687,6 +687,44 @@ mod tests {
         );
         Ok(())
     }
+
+    /// Ingesting directory manifests parses JSON, instantiates `ChapterQueue`, and sorts naturally.
+    #[test]
+    fn parse_and_sort_directory_manifest_orders_chapters() -> Result<(), String> {
+        let manifest_json = r#"{
+            "tree_uri": "content://tree/docs",
+            "root_name": "Documentation",
+            "chapters": [
+                {
+                    "filename": "10-conclusion.md",
+                    "uri": "/snapshots/10.md",
+                    "size_bytes": 100
+                },
+                {
+                    "filename": "01-intro.md",
+                    "snapshot_path": "/snapshots/01.md",
+                    "byte_size": 200
+                },
+                {
+                    "filename": "README.md",
+                    "uri": "/snapshots/readme.md",
+                    "size_bytes": 50
+                }
+            ]
+        }"#;
+
+        let (tree_uri, root_name, queue) = super::parse_and_sort_directory_manifest(manifest_json)?;
+        assert_eq!(tree_uri, "content://tree/docs");
+        assert_eq!(root_name, "Documentation");
+        assert_eq!(queue.len(), 3);
+        assert_eq!(
+            queue.current().map(|c| c.filename.as_str()),
+            Some("README.md")
+        );
+        let items: Vec<&str> = queue.items().iter().map(|c| c.filename.as_str()).collect();
+        assert_eq!(items, vec!["README.md", "01-intro.md", "10-conclusion.md"]);
+        Ok(())
+    }
 }
 
 /// JNI: BLAKE3-256 hash computation (T017).
@@ -1195,4 +1233,219 @@ pub fn pick_document_from_shell() -> Result<(), String> {
 #[cfg(not(target_os = "android"))]
 pub const fn pick_document_from_shell() -> Result<(), String> {
     Ok(())
+}
+
+/// Commands the launch of the Storage Access Framework directory
+/// picker (T187): requests launch of the platform SAF directory tree
+/// picker from the active Activity via `ShellHost.pickDirectory()`.
+///
+/// # Errors
+/// Returns an error string when the JVM handle was never captured,
+/// when the thread cannot be attached, or when the class lookup or the
+/// invocation fails.
+#[cfg(target_os = "android")]
+pub fn pick_directory_from_shell() -> Result<(), String> {
+    let vm = JVM
+        .get()
+        .ok_or_else(|| "shell JNI: JVM not initialized; cannot pick directory".to_string())?;
+
+    let mut env = vm
+        .attach_current_thread()
+        .map_err(|error| format!("shell JNI: attach failed: {error}"))?;
+
+    let class = get_shell_host_class()?;
+
+    let _ = env
+        .call_static_method(class, "pickDirectory", "()Z", &[])
+        .map_err(|error| format!("shell JNI: ShellHost.pickDirectory failed: {error}"))?;
+    Ok(())
+}
+
+/// No-op on non-Android targets.
+///
+/// # Errors
+/// This non-Android host stub never returns an error.
+#[cfg(not(target_os = "android"))]
+pub const fn pick_directory_from_shell() -> Result<(), String> {
+    Ok(())
+}
+
+/// Manifest structure representing the directory selection payload from Kotlin.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct IngestDirectoryManifest {
+    /// Persistent SAF tree URI granted by the Android OS.
+    pub tree_uri: String,
+    /// Human-readable root directory name (e.g., "Apostila Rust").
+    pub root_name: String,
+    /// Discovered chapter items in the directory.
+    pub chapters: Vec<IngestChapterEntry>,
+}
+
+/// Manifest chapter item entry serialized by the Android shell.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct IngestChapterEntry {
+    /// File base name (e.g., `01-intro.md`).
+    pub filename: String,
+    /// Snapshot file path or individual document URI.
+    #[serde(alias = "snapshot_path", alias = "uri")]
+    pub file_uri: String,
+    /// Relative path from root (e.g., `capitulo1/01-intro.md`).
+    #[serde(default)]
+    pub relative_path: String,
+    /// Size in bytes (checked against `MAX_DOC_BYTES`).
+    #[serde(alias = "byte_size", alias = "size_bytes")]
+    pub byte_size: u64,
+    /// Blake3-256 fingerprint hex string (optional from Kotlin, parsed if present).
+    #[serde(default)]
+    pub fingerprint_hex: Option<String>,
+}
+
+/// Parses and validates a directory manifest JSON, natural-sorting the chapters
+/// into an initialized [`player::queue::ChapterQueue`].
+///
+/// # Errors
+///
+/// Returns an error string if JSON deserialization fails or if chapters are empty.
+pub fn parse_and_sort_directory_manifest(
+    manifest_json: &str,
+) -> Result<(String, String, player::queue::ChapterQueue), String> {
+    let manifest: IngestDirectoryManifest = serde_json::from_str(manifest_json)
+        .map_err(|e| format!("Failed to parse directory manifest JSON: {e}"))?;
+
+    let mut items: Vec<player::queue::ChapterItem> = manifest
+        .chapters
+        .into_iter()
+        .map(|entry| {
+            let relative_path = if entry.relative_path.is_empty() {
+                entry.filename.clone()
+            } else {
+                entry.relative_path
+            };
+            let mut fp = [0u8; 32];
+            if let Some(ref hex_str) = entry.fingerprint_hex
+                && let Ok(bytes) = hex::decode(hex_str)
+                && bytes.len() == 32
+            {
+                fp.copy_from_slice(&bytes);
+            }
+            player::queue::ChapterItem {
+                filename: entry.filename,
+                file_uri: entry.file_uri,
+                relative_path,
+                byte_size: entry.byte_size,
+                content_fingerprint: fp,
+                playback_status: player::queue::ChapterStatus::Pending,
+            }
+        })
+        .collect();
+
+    player::queue::sort_natural(&mut items);
+
+    Ok((
+        manifest.tree_uri,
+        manifest.root_name,
+        player::queue::ChapterQueue::new(items),
+    ))
+}
+
+/// Handles parsed directory selection by updating `AppState` and dispatching events.
+///
+/// # Errors
+///
+/// Returns an error string if `manifest_json` fails to parse into a valid manifest.
+pub fn handle_directory_selected(
+    tree_uri: &str,
+    root_name: &str,
+    manifest_json: &str,
+) -> Result<(), String> {
+    let (_tree_uri, _root_name, queue) = parse_and_sort_directory_manifest(manifest_json)?;
+
+    tracing::info!(
+        tree_uri,
+        root_name,
+        chapters_count = queue.len(),
+        "Directory manifest parsed and natural-sorted successfully"
+    );
+
+    if let Some(app) = installed_app() {
+        use tauri::Emitter;
+        let event_payload = serde_json::json!({
+            "type": "directory_selected",
+            "tree_uri": tree_uri,
+            "root_name": root_name,
+            "total_chapters": queue.len(),
+            "first_chapter": queue.current().map(|c| &c.filename),
+        });
+        if let Err(e) = app.emit("tauri://channel/directory-selected", event_payload) {
+            tracing::warn!(error = %e, "Failed to emit directory-selected event");
+        }
+    }
+
+    Ok(())
+}
+
+/// JNI: Directory selection result callback (T194, directory-playback.md §1.3).
+///
+/// Called from Kotlin `DocIngest.onDirectorySelected` after picking and scanning
+/// a directory. Deserializes the directory manifest JSON containing chapters list,
+/// validates and sorts it, and notifies AppState and channel listeners.
+///
+/// # Safety
+/// JNI entry point — reads string arguments and hands environment to [`capture_jvm`].
+#[cfg(target_os = "android")]
+#[expect(
+    unsafe_code,
+    reason = "JNI entry point: the JNI export requires the exact symbol name. Body reads input JNI strings and delegates to AppState on the mobile plugin channel."
+)]
+#[unsafe(no_mangle)]
+pub extern "C" fn Java_app_mdreader_DocIngest_onDirectorySelected(
+    env: *mut jni::sys::JNIEnv,
+    _this: jni::sys::jobject,
+    tree_uri: jni::sys::jstring,
+    root_name: jni::sys::jstring,
+    manifest_json: jni::sys::jstring,
+) {
+    use jni::JNIEnv;
+    use jni::objects::JString;
+
+    capture_jvm(env);
+    let mut env = match unsafe { JNIEnv::from_raw(env) } {
+        Ok(e) => e,
+        Err(e) => {
+            tracing::error!("JNI onDirectorySelected: invalid JNIEnv: {e}");
+            return;
+        }
+    };
+
+    let tree_uri_obj = unsafe { JString::from_raw(tree_uri) };
+    let root_name_obj = unsafe { JString::from_raw(root_name) };
+    let manifest_json_obj = unsafe { JString::from_raw(manifest_json) };
+
+    let tree_uri_str = match env.get_string(&tree_uri_obj) {
+        Ok(s) => s.into(),
+        Err(e) => {
+            tracing::error!("JNI onDirectorySelected: failed to get tree_uri: {e}");
+            return;
+        }
+    };
+
+    let root_name_str = match env.get_string(&root_name_obj) {
+        Ok(s) => s.into(),
+        Err(e) => {
+            tracing::error!("JNI onDirectorySelected: failed to get root_name: {e}");
+            return;
+        }
+    };
+
+    let manifest_json_str = match env.get_string(&manifest_json_obj) {
+        Ok(s) => s.into(),
+        Err(e) => {
+            tracing::error!("JNI onDirectorySelected: failed to get manifest_json: {e}");
+            return;
+        }
+    };
+
+    if let Err(e) = handle_directory_selected(&tree_uri_str, &root_name_str, &manifest_json_str) {
+        tracing::error!("JNI onDirectorySelected failed: {e}");
+    }
 }

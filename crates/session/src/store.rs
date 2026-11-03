@@ -47,6 +47,62 @@ use crate::offer::{OfferMachine, OpenOffer};
 /// the same rows directly.
 pub const BOOKMARKS: TableDefinition<&[u8; 32], (f64, u64, u8)> = TableDefinition::new("bookmarks");
 
+/// Directory bookmarks table (T191 / 010-directory-reading):
+/// composite collection fingerprint -> (`chapter_index`, `offset_secs`, `saved_ts_ms`, `end_kind_code`).
+pub const DIRECTORY_BOOKMARKS: TableDefinition<&[u8; 32], (u32, f64, u64, u8)> =
+    TableDefinition::new("directory_bookmarks");
+
+/// The store error type alias for compatibility with task naming.
+pub type StoreError = Error;
+
+/// Stored composite bookmark entry for directory collections (T191).
+///
+/// Persisted in [`DIRECTORY_BOOKMARKS`] under the collection's composite Blake3 hash.
+/// `Eq` is precluded by the `f64` field; offsets live on the quarter-second grid,
+/// so `PartialEq` is exact.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CompositeBookmark {
+    /// Blake3-256 composite collection fingerprint.
+    pub collection_fingerprint: [u8; 32],
+    /// 0-based chapter index within the ordered collection.
+    pub chapter_index: u32,
+    /// Offset in seconds within the active chapter.
+    pub offset_secs: f64,
+    /// Unix timestamp in milliseconds when the bookmark was saved.
+    pub saved_ts_ms: u64,
+    /// Session end kind deciding the resume offer flow.
+    pub end_kind: SessionEnd,
+}
+
+impl CompositeBookmark {
+    /// Convert to the raw tuple shape stored in redb.
+    const fn into_tuple(self) -> (u32, f64, u64, u8) {
+        (
+            self.chapter_index,
+            self.offset_secs,
+            self.saved_ts_ms,
+            end_kind_to_code(self.end_kind),
+        )
+    }
+
+    /// Construct a [`CompositeBookmark`] from a stored redb tuple.
+    fn from_tuple(
+        collection_fingerprint: [u8; 32],
+        chapter_index: u32,
+        offset_secs: f64,
+        saved_ts_ms: u64,
+        code: u8,
+    ) -> Result<Self, Error> {
+        Ok(Self {
+            collection_fingerprint,
+            chapter_index,
+            offset_secs,
+            saved_ts_ms,
+            end_kind: end_kind_from_code(code)?,
+        })
+    }
+}
+
 /// Settings table (storage-schema.md): key `str` →
 /// bytes. Required key: `"last_rate"`.
 const SETTINGS: TableDefinition<&str, &[u8]> = TableDefinition::new("settings");
@@ -294,6 +350,7 @@ impl BookmarkStore {
         let write_tx = db.begin_write()?;
         {
             let _bookmarks = write_tx.open_table(BOOKMARKS)?;
+            let _dir_bookmarks = write_tx.open_table(DIRECTORY_BOOKMARKS)?;
             let _settings = write_tx.open_table(SETTINGS)?;
         }
         write_tx.commit()?;
@@ -393,6 +450,148 @@ impl BookmarkStore {
         Ok(())
     }
 
+    /// Read the composite directory bookmark stored under `collection_fp` (T193).
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Storage`] if database read fails, or [`Error::UnknownEndKind`]
+    /// if the persisted `end_kind` code is unknown.
+    pub fn get_directory_bookmark(
+        &self,
+        collection_fp: &[u8; 32],
+    ) -> Result<Option<CompositeBookmark>, StoreError> {
+        let read_tx = self.db.begin_read()?;
+        let table = read_tx.open_table(DIRECTORY_BOOKMARKS)?;
+        let guard = table.get(collection_fp)?;
+        guard
+            .map(|entry| {
+                let (chapter_index, offset_secs, saved_ts_ms, code) = entry.value();
+                CompositeBookmark::from_tuple(
+                    *collection_fp,
+                    chapter_index,
+                    offset_secs,
+                    saved_ts_ms,
+                    code,
+                )
+            })
+            .transpose()
+    }
+
+    /// Write or update the directory bookmark for a collection (T193).
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Storage`] if database write or commit fails.
+    pub fn put_directory_bookmark(&self, bookmark: &CompositeBookmark) -> Result<(), StoreError> {
+        let write_tx = self.db.begin_write()?;
+        {
+            let mut table = write_tx.open_table(DIRECTORY_BOOKMARKS)?;
+            let _previous =
+                table.insert(&bookmark.collection_fingerprint, &bookmark.into_tuple())?;
+        }
+        write_tx.commit()?;
+        Ok(())
+    }
+
+    /// Delete the directory bookmark stored under `collection_fp` (T193).
+    ///
+    /// Returns `true` if an entry was removed, `false` if none existed.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Storage`] if database transaction fails.
+    pub fn delete_directory_bookmark(&self, collection_fp: &[u8; 32]) -> Result<bool, StoreError> {
+        let write_tx = self.db.begin_write()?;
+        let removed = {
+            let mut table = write_tx.open_table(DIRECTORY_BOOKMARKS)?;
+            let previous = table.remove(collection_fp)?;
+            previous.is_some()
+        };
+        write_tx.commit()?;
+        Ok(removed)
+    }
+
+    /// Look up the directory collection open decision by computing the composite
+    /// Blake3 fingerprint of `chapter_hashes` against [`DIRECTORY_BOOKMARKS`] (T208).
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Storage`] if database read fails, or [`Error::UnknownEndKind`]
+    /// if the persisted `end_kind` discriminant is unknown.
+    pub fn lookup_directory_on_open(
+        &self,
+        chapter_hashes: &[[u8; 32]],
+    ) -> Result<DirectoryOpenLookup, StoreError> {
+        let collection_fingerprint =
+            crate::fingerprint::compute_collection_fingerprint(chapter_hashes);
+        let stored = self.get_directory_bookmark(&collection_fingerprint)?;
+
+        let (offer, cold_start, offer_route) = stored.as_ref().map_or(
+            (OpenOffer::NoOffer, crate::offer::ColdStart::StartNow, "none"),
+            |bm| match bm.end_kind {
+                SessionEnd::Paused => (
+                    OpenOffer::Continue {
+                        offset_secs: bm.offset_secs,
+                        first_yield_ms: bm.saved_ts_ms,
+                    },
+                    crate::offer::ColdStart::AwaitOffer {
+                        offset_secs: bm.offset_secs,
+                        first_yield_ms: bm.saved_ts_ms,
+                    },
+                    "in_app_dialog",
+                ),
+                SessionEnd::Interrupted => (
+                    OpenOffer::ExplicitResume,
+                    crate::offer::ColdStart::StartNow,
+                    "none",
+                ),
+                SessionEnd::Completed | SessionEnd::Stopped => (
+                    OpenOffer::NoOffer,
+                    crate::offer::ColdStart::StartNow,
+                    "none",
+                ),
+            },
+        );
+
+        Ok(DirectoryOpenLookup {
+            collection_fingerprint,
+            stored,
+            offer,
+            cold_start,
+            offer_route,
+        })
+    }
+
+    /// Atomically persist chapter completion and new chapter start (T206).
+    ///
+    /// Clears `completed_chapter_fp` from [`BOOKMARKS`] and writes `next_chapter_index`
+    /// at `0.0s` into [`DIRECTORY_BOOKMARKS`] within one write transaction.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Storage`] if database write or commit fails.
+    pub fn persist_chapter_transition(
+        &self,
+        collection_fp: &[u8; 32],
+        completed_chapter_fp: &[u8; 32],
+        next_chapter_index: u32,
+        saved_ts_ms: u64,
+    ) -> Result<(), StoreError> {
+        let write_tx = self.db.begin_write()?;
+        {
+            let mut bm_table = write_tx.open_table(BOOKMARKS)?;
+            let _ = bm_table.remove(completed_chapter_fp)?;
+        }
+        {
+            let mut dir_table = write_tx.open_table(DIRECTORY_BOOKMARKS)?;
+            let end_kind_byte = end_kind_to_code(SessionEnd::Interrupted);
+            let val = (next_chapter_index, 0.0_f64, saved_ts_ms, end_kind_byte);
+            let _ = dir_table.insert(collection_fp, &val)?;
+        }
+        write_tx.commit()?;
+        Ok(())
+    }
+
     /// Persist the last playback rate (FR-019b):
     /// written on every rate change, crossing
     /// sessions and documents.
@@ -485,6 +684,39 @@ pub struct OpenLookup {
     /// ([`OfferMachine::resolve_open`]) — never
     /// re-derived here (FR-044).
     pub offer: OpenOffer,
+}
+
+/// The decision a directory-open lookup resolves (T208 / FR-008 / FR-009).
+///
+/// Carries the composite collection fingerprint, the stored [`CompositeBookmark`]
+/// (if any), the offer form, the cold-start routing, and the wire offer route token.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DirectoryOpenLookup {
+    /// The composite Blake3-256 fingerprint of the ordered chapter hashes.
+    pub collection_fingerprint: [u8; 32],
+    /// The stored composite bookmark under `collection_fingerprint`, or `None` on a miss.
+    pub stored: Option<CompositeBookmark>,
+    /// The offer form resolved from the stored `end_kind`.
+    pub offer: OpenOffer,
+    /// The cold-start decision (`AwaitOffer` for `Paused`, `StartNow` for `Interrupted` or miss).
+    pub cold_start: crate::offer::ColdStart,
+    /// Wire offer route (`"in_app_dialog"` when `Paused`, `"none"` otherwise).
+    pub offer_route: &'static str,
+}
+
+/// The re-hash-on-open lookup for directory collections (T208):
+/// computes the composite Blake3 fingerprint of `chapter_hashes` and resolves
+/// against [`DIRECTORY_BOOKMARKS`].
+///
+/// # Errors
+///
+/// [`Error::Storage`] when the read transaction cannot begin, or
+/// [`Error::UnknownEndKind`] when a stored discriminant is invalid.
+pub fn lookup_directory_on_open(
+    store: &BookmarkStore,
+    chapter_hashes: &[[u8; 32]],
+) -> Result<DirectoryOpenLookup, StoreError> {
+    store.lookup_directory_on_open(chapter_hashes)
 }
 
 /// The re-hash-on-open lookup (T036): the
@@ -635,8 +867,8 @@ mod tests {
     }
 
     #[test]
-    fn identical_bytes_at_any_path_share_the_stored_position()
-    -> Result<(), Box<dyn std::error::Error>> {
+    fn identical_bytes_at_any_path_share_the_stored_position(
+    ) -> Result<(), Box<dyn std::error::Error>> {
         // FR-036: the key is the content hash, never
         // the path — the lookup carries no path at
         // all, so the same bytes opened "from
@@ -689,8 +921,8 @@ mod tests {
     }
 
     #[test]
-    fn last_rate_round_trips_through_a_reopened_tempdir_store()
-    -> Result<(), Box<dyn std::error::Error>> {
+    fn last_rate_round_trips_through_a_reopened_tempdir_store(
+    ) -> Result<(), Box<dyn std::error::Error>> {
         // T042 / FR-019b: the store half of the
         // persistence wiring over a real redb file —
         // first use reads no rung; every write-on-change
@@ -750,6 +982,89 @@ mod tests {
                 );
             }
         }
+        Ok(())
+    }
+
+    #[test]
+    fn directory_bookmark_crud_and_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
+        let dir = tempfile::tempdir()?;
+        let path = dir.path().join("bookmarks.redb");
+        let store = BookmarkStore::open(&path)?;
+
+        let coll_fp = [42u8; 32];
+
+        // Miss on empty table
+        assert_eq!(store.get_directory_bookmark(&coll_fp)?, None);
+
+        // Put and Get
+        let bookmark = CompositeBookmark {
+            collection_fingerprint: coll_fp,
+            chapter_index: 2,
+            offset_secs: 15.75,
+            saved_ts_ms: 1_700_000_000_000,
+            end_kind: SessionEnd::Paused,
+        };
+        store.put_directory_bookmark(&bookmark)?;
+
+        let retrieved = store.get_directory_bookmark(&coll_fp)?;
+        assert_eq!(retrieved, Some(bookmark));
+
+        // Update
+        let updated = CompositeBookmark {
+            collection_fingerprint: coll_fp,
+            chapter_index: 3,
+            offset_secs: 45.25,
+            saved_ts_ms: 1_700_000_005_000,
+            end_kind: SessionEnd::Interrupted,
+        };
+        store.put_directory_bookmark(&updated)?;
+        assert_eq!(store.get_directory_bookmark(&coll_fp)?, Some(updated));
+
+        // Delete existing
+        assert!(store.delete_directory_bookmark(&coll_fp)?);
+        assert_eq!(store.get_directory_bookmark(&coll_fp)?, None);
+
+        // Delete non-existing
+        assert!(!store.delete_directory_bookmark(&coll_fp)?);
+
+        Ok(())
+    }
+
+    #[test]
+    fn directory_bookmark_all_session_end_variants_roundtrip(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let dir = tempfile::tempdir()?;
+        let path = dir.path().join("bookmarks.redb");
+        let store = BookmarkStore::open(&path)?;
+
+        let variants = [
+            (0u8, SessionEnd::Paused),
+            (1u8, SessionEnd::Stopped),
+            (2u8, SessionEnd::Completed),
+            (3u8, SessionEnd::Interrupted),
+        ];
+
+        for (idx, end_kind) in variants {
+            let mut coll_fp = [0u8; 32];
+            coll_fp[0] = idx;
+
+            let bm = CompositeBookmark {
+                collection_fingerprint: coll_fp,
+                chapter_index: u32::from(idx),
+                offset_secs: 10.0 + f64::from(idx),
+                saved_ts_ms: 1_000_000 + u64::from(idx),
+                end_kind,
+            };
+
+            store.put_directory_bookmark(&bm)?;
+            let loaded = store.get_directory_bookmark(&coll_fp)?;
+            assert_eq!(
+                loaded,
+                Some(bm),
+                "Failed roundtrip for SessionEnd variant {end_kind:?}"
+            );
+        }
+
         Ok(())
     }
 }

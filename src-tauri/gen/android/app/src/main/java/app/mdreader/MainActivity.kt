@@ -13,6 +13,6 @@ class MainActivity : TauriActivity() {
   @Deprecated("Deprecated in Java")
   override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
     super.onActivityResult(requestCode, resultCode, data)
-    DocIngest.handlePickResult(this, requestCode, resultCode, data)
+    ShellHost.onActivityResult(requestCode, resultCode, data)
   }
 }

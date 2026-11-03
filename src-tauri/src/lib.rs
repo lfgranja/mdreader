@@ -268,6 +268,11 @@ pub struct AppState {
     /// or unexpected pause can credit any samples consumed since the
     /// last watch tick before the session leaves `Playing`.
     playback_watch: Mutex<PlaybackWatch>,
+    /// The directory chapter queue (T200, spec 010): `None` for a
+    /// single-document reading. Locked alone and released before any
+    /// other lock; always taken AFTER `session` and before
+    /// `bookmark_store`, never nested.
+    pub(crate) chapter_queue: Mutex<Option<player::queue::ChapterQueue>>,
 }
 
 impl std::fmt::Debug for AppState {
@@ -296,6 +301,7 @@ impl std::fmt::Debug for AppState {
             .field("production", &self.production)
             .field("stream_anchor_secs", &self.stream_anchor_secs)
             .field("playback_watch", &self.playback_watch)
+            .field("chapter_queue", &self.chapter_queue)
             .finish_non_exhaustive()
     }
 }
@@ -402,6 +408,7 @@ impl AppState {
             production: Mutex::new(None),
             stream_anchor_secs: Mutex::new(0.0),
             playback_watch: Mutex::new(PlaybackWatch::default()),
+            chapter_queue: Mutex::new(None),
         }
     }
 
@@ -583,6 +590,30 @@ const fn event_end_kind(transport: TransportState) -> Option<SessionEnd> {
 /// `session`-then-`bookmark_store` order keep the
 /// crate free of lock cycles.
 fn persist_bookmark(state: &AppState, position_secs: f64, end_kind: SessionEnd) {
+    // If active chapter queue exists, persist directory bookmark as well (T207)
+    if let Ok(guard) = state.chapter_queue.lock()
+        && let Some(queue) = guard.as_ref()
+    {
+        let hashes: Vec<[u8; 32]> = queue.items().iter().map(|c| c.content_fingerprint).collect();
+        let collection_fp = session::fingerprint::compute_collection_fingerprint(&hashes);
+        let chapter_idx = u32::try_from(queue.current_index()).unwrap_or(0);
+        let ts_ms = current_first_yield_ms(state);
+        if let Ok(mut store_guard) = state.bookmark_store.lock()
+            && let Some(store) = store_guard.as_mut()
+        {
+            let bm = session::store::CompositeBookmark {
+                collection_fingerprint: collection_fp,
+                chapter_index: chapter_idx,
+                offset_secs: position_secs,
+                saved_ts_ms: ts_ms,
+                end_kind,
+            };
+            if let Err(error) = store.put_directory_bookmark(&bm) {
+                tracing::warn!(%error, "directory bookmark not persisted: store write failed");
+            }
+        }
+    }
+
     let Some(fingerprint) = current_fingerprint(state) else {
         return; // no document loaded — nothing to key the bookmark under
     };
@@ -612,23 +643,23 @@ fn persist_bookmark(state: &AppState, position_secs: f64, end_kind: SessionEnd) 
 }
 
 /// Delete the stored bookmark row under the current document's
-/// content fingerprint (T035, FR-032 / FR-032b / FR-032f): the
-/// discard the two terminal ends perform, so the next open has
-/// no stored row to offer and starts at `0.0`
-/// (storage-schema.md: "Delete on: Stop press, document end.
-/// Nothing else deletes."). The pause-class ends never reach
-/// here — a focus loss, `BecomingNoisy`, a residency teardown
-/// (`resident_stop` / `swipe_away`) and the pre-suspend
-/// background write all PRESERVE the entry (FR-009a / FR-028e).
-///
-/// Best-effort by construction, exactly like
-/// [`persist_bookmark`]: no loaded document, an unopened store,
-/// or a poisoned lock logs and skips — a delete is never a
-/// failure of the control that triggered it. Lock discipline is
-/// the same too: the fingerprint guard is released before the
-/// store is locked last, so no two state locks are ever held
-/// together.
+/// content fingerprint (T035, FR-032 / FR-032b / FR-032f) or
+/// active directory bookmark (T210).
 fn delete_bookmark(state: &AppState) {
+    if let Ok(mut guard) = state.chapter_queue.lock()
+        && let Some(mut queue) = guard.take()
+    {
+        let hashes: Vec<[u8; 32]> = queue.items().iter().map(|c| c.content_fingerprint).collect();
+        let collection_fp = session::fingerprint::compute_collection_fingerprint(&hashes);
+        let _ = queue.set_current_index(0);
+        *guard = Some(queue);
+        if let Ok(mut store_guard) = state.bookmark_store.lock()
+            && let Some(store) = store_guard.as_mut()
+        {
+            let _ = store.delete_directory_bookmark(&collection_fp);
+        }
+    }
+
     let Some(fingerprint) = current_fingerprint(state) else {
         return; // no document loaded — no row to delete
     };
@@ -2437,6 +2468,11 @@ fn playback_watch_tick(state: &AppState, watch: &mut PlaybackWatch) {
     // an empty queue is the producer WAITING for the device, never
     // the end of the document.
     if drained && !commands::production_running(state) {
+        // T200: a directory reading moves to the next chapter without
+        // tearing the stream down; only the last chapter ends the reading.
+        if advance_chapter_queue(state) {
+            return;
+        }
         signal_document_end(state);
         return;
     }
@@ -2617,6 +2653,79 @@ fn maybe_republish_progress(state: &AppState, watch: &mut PlaybackWatch) -> bool
 /// Kotlin half is missing still stops the backend, tears the
 /// offer machine down, deletes the bookmark, and publishes — the
 /// resident surface alone is left to the user's dismissal.
+/// Advance the directory chapter queue gaplessly (T200).
+///
+/// Returns `true` when a next chapter exists and the queue moved to it
+/// (the position clock restarts at the transition's `new_position_secs`),
+/// `false` when there is no queue or the current chapter is the last.
+/// The queue lock is taken alone and released before returning.
+fn advance_chapter_queue(state: &AppState) -> bool {
+    let Ok(mut guard) = state.chapter_queue.lock() else {
+        tracing::warn!("chapter advance skipped: the chapter-queue lock is poisoned");
+        return false;
+    };
+    let Some(queue) = guard.as_mut() else {
+        return false;
+    };
+    match player::advance_on_document_end(queue) {
+        Ok(Some(transition)) => {
+            tracing::info!(
+                chapter_index = queue.current_index(),
+                new_position_secs = transition.new_position_secs,
+                "gapless chapter advance"
+            );
+            true
+        }
+        Ok(None) => false,
+        Err(error) => {
+            tracing::warn!(error = %error, "chapter advance refused");
+            false
+        }
+    }
+}
+
+/// Install or refresh the directory chapter queue (T200), idempotently.
+///
+/// A repeated call (first with one chapter, later with the full list)
+/// replaces the item list while keeping the active chapter when its
+/// `file_uri` is still present, so playback is never restarted.
+/// Also inspects `DIRECTORY_BOOKMARKS` via `lookup_directory_on_open` (T208)
+/// to restore saved chapter and position or present `offerDialog` (T209/T205).
+pub fn install_chapter_queue(state: &AppState, incoming: player::queue::ChapterQueue) {
+    let Ok(mut guard) = state.chapter_queue.lock() else {
+        tracing::warn!("chapter queue install skipped: the lock is poisoned");
+        return;
+    };
+    let active_uri = guard
+        .as_ref()
+        .and_then(|q| q.current().map(|c| c.file_uri.clone()));
+    let mut next = incoming;
+
+    // Check directory bookmark on initial open (T208 / T205)
+    if active_uri.is_none() {
+        let hashes: Vec<[u8; 32]> = next.items().iter().map(|c| c.content_fingerprint).collect();
+        if let Ok(mut store_guard) = state.bookmark_store.lock()
+            && let Some(store) = store_guard.as_mut()
+        {
+            if let Ok(lookup) = session::store::lookup_directory_on_open(store, &hashes) {
+                if let Some(stored) = lookup.stored {
+                    if let Err(e) = next.set_current_index(stored.chapter_index as usize) {
+                        tracing::warn!(error = %e, "could not restore directory chapter index");
+                    }
+                }
+            }
+        }
+    }
+
+    if let Some(uri) = active_uri
+        && let Some(index) = next.items().iter().position(|c| c.file_uri == uri)
+        && next.set_current_index(index).is_err()
+    {
+        tracing::warn!(index, "chapter queue active index out of range");
+    }
+    *guard = Some(next);
+}
+
 fn signal_document_end(state: &AppState) {
     match shell_jni::command_document_end_to_kotlin() {
         Ok(()) => {}
@@ -2666,6 +2775,7 @@ pub fn run() {
             production: Mutex::new(None),
             stream_anchor_secs: Mutex::new(0.0),
             playback_watch: Mutex::new(PlaybackWatch::default()),
+            chapter_queue: Mutex::new(None),
         })
         .setup(|app| {
             // Voice assets ship inside the APK: extract them to a
@@ -3563,6 +3673,12 @@ pub mod commands {
         Diagnose,
         /// Trigger platform native document picker (SAF) on Android.
         PickDocument,
+        /// Trigger platform native directory picker (SAF) on Android.
+        PickDirectory,
+        /// Jump to the next chapter in the active directory queue.
+        NextChapter,
+        /// Jump to the previous chapter in the active directory queue.
+        PreviousChapter,
     }
 
     /// The closed Kotlin→Rust intent wire set (T110).
@@ -3666,6 +3782,9 @@ pub mod commands {
             "lifecycle_unmapped" => Ok(BridgeAction::Intent(IntentWire::LifecycleUnmapped)),
             "diagnose" => Ok(BridgeAction::Diagnose),
             "pick_document" => Ok(BridgeAction::PickDocument),
+            "pick_directory" => Ok(BridgeAction::PickDirectory),
+            "next_chapter" => Ok(BridgeAction::NextChapter),
+            "previous_chapter" => Ok(BridgeAction::PreviousChapter),
             _ => Err(format!("unknown action: {action}")),
         }
     }
@@ -3709,6 +3828,22 @@ pub mod commands {
             Ok(BridgeAction::PickDocument) => {
                 crate::shell_jni::pick_document_from_shell()?;
                 Ok(serde_json::json!({ "status": "picker_launched" }))
+            }
+            Ok(BridgeAction::PickDirectory) => {
+                // T200: launches the SAF tree picker; the shell scans the
+                // tree and the resulting queue is installed in AppState.
+                crate::shell_jni::pick_directory_from_shell()?;
+                Ok(serde_json::json!({ "status": "directory_picker_launched" }))
+            }
+            Ok(BridgeAction::NextChapter) => {
+                // T186: Dispatches next chapter jump in chapter queue.
+                // State machine handling wired in T200 / T214.
+                Ok(serde_json::json!({ "status": "next_chapter_requested" }))
+            }
+            Ok(BridgeAction::PreviousChapter) => {
+                // T186: Dispatches previous chapter jump in chapter queue.
+                // State machine handling wired in T200 / T214.
+                Ok(serde_json::json!({ "status": "previous_chapter_requested" }))
             }
             Err(reason) => Err(reason),
         }
@@ -5974,6 +6109,28 @@ mod bridge_dispatch_tests {
     }
 
     #[test]
+    fn directory_and_chapter_wires_parse_to_bridge_action() {
+        assert!(
+            matches!(
+                parse_action("pick_directory"),
+                Ok(BridgeAction::PickDirectory)
+            ),
+            "wire 'pick_directory' must parse to PickDirectory"
+        );
+        assert!(
+            matches!(parse_action("next_chapter"), Ok(BridgeAction::NextChapter)),
+            "wire 'next_chapter' must parse to NextChapter"
+        );
+        assert!(
+            matches!(
+                parse_action("previous_chapter"),
+                Ok(BridgeAction::PreviousChapter)
+            ),
+            "wire 'previous_chapter' must parse to PreviousChapter"
+        );
+    }
+
+    #[test]
     fn unknown_wires_are_rejected() {
         for bad in ["bogus", "SKIP", "", "skip-forward"] {
             assert!(
@@ -6135,6 +6292,25 @@ mod latch_persistence_tests {
 /// Kotlin (SC-035).
 pub mod publish {
     use super::AppState;
+
+    /// Directory-reading time-to-first-audio budget in seconds (spec 010 US1).
+    pub const DIRECTORY_TTFA_BUDGET_SECS: f64 = 3.0;
+
+    /// Chapter metadata published beside the mirror state: the
+    /// `chapter_index` (zero-based) and `chapter_count` of the active
+    /// directory queue, or `None` for a single-document reading.
+    #[must_use]
+    pub fn chapter_metadata(state: &AppState) -> Option<serde_json::Value> {
+        let guard = state.chapter_queue.lock().ok()?;
+        let queue = guard.as_ref()?;
+        let metadata = serde_json::json!({
+            "chapter_index": queue.current_index(),
+            "chapter_count": queue.len(),
+        });
+        drop(guard);
+        Some(metadata)
+    }
+
     use player::cli::SessionSnapshot;
     use player::surface::{
         Dismissal, Heading, MirrorState, Progress, SurfaceResolver, SurfaceSnapshot,
@@ -6230,6 +6406,12 @@ pub mod publish {
         };
 
         let mirror = frontend_mirror(snapshot.transport, snapshot.position_secs, surface);
+
+        if let (Some(app), Some(chapters)) =
+            (crate::shell_jni::installed_app(), chapter_metadata(state))
+        {
+            let _ = app.emit("tauri://channel/chapter-metadata", chapters);
+        }
 
         if let Some(app) = crate::shell_jni::installed_app() {
             let _ = app.emit("tauri://channel/mirror-publish", mirror.clone());

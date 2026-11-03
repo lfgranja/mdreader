@@ -94,6 +94,7 @@ src-tauri::repeat_control
 src-tauri::rms_payload_contract
 src-tauri::surface_inventory_count
 src-tauri::test_buffer_state_in_diag
+src-tauri::test_directory_playback_contract
 src-tauri::test_in_app_play_functional
 src-tauri::test_kotlin_mirror_payload
 src-tauri::test_lockscreen_resume_control

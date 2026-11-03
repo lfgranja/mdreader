@@ -478,7 +478,7 @@
   </div>
 
   <div id="progress" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-valuetext="velocidade 1,0"><div id="progressFill"></div></div>
-  <div class="sr-only" role="status" aria-live="polite" id="liveRegion"></div>
+  <div class="sr-only" role="status" aria-live="polite" id="liveRegion" aria-atomic="true"></div>
   <div id="progressLabel"></div>
   <div class="reason-banner" id="reasonBanner" role="status"></div>
 
@@ -511,6 +511,8 @@
   const state = {
     title: '',
     sectionTitle: null,
+    chapterIndex: null,
+    chapterCount: null,
     transport: 'stopped',
     positionSecs: 0,
     progress: { kind: 'indeterminate' },
@@ -611,13 +613,20 @@
   function renderSectionTitle() {
     const visibleSpan = els.sectionTitle.querySelector('span:not(.sr-only)');
     const srSpan = els.sectionTitle.querySelector('.sr-only');
-    if (state.sectionTitle) {
-      if (visibleSpan) visibleSpan.textContent = `Seção: ${state.sectionTitle}`;
-      if (srSpan) srSpan.textContent = `Seção: ${state.sectionTitle}`;
-    } else {
-      if (visibleSpan) visibleSpan.textContent = '—';
-      if (srSpan) srSpan.textContent = 'Sem título';
+    const hasCh = Number.isInteger(state.chapterIndex) && Number.isInteger(state.chapterCount) && state.chapterCount > 0;
+    let text = null;
+    if (hasCh) {
+      text = `Capítulo ${state.chapterIndex + 1} de ${state.chapterCount}` + (state.sectionTitle ? ` \u2022 ${state.sectionTitle}` : '');
+    } else if (state.sectionTitle) {
+      text = `Seção: ${state.sectionTitle}`;
     }
+    els.sectionTitle.style.fontVariantNumeric = 'tabular-nums';
+    if (visibleSpan) visibleSpan.textContent = text || '—';
+    if (srSpan) srSpan.textContent = text || 'Sem título';
+    if (hasCh && els._lastChapter !== undefined && els._lastChapter !== state.chapterIndex && els.liveRegion) {
+      els.liveRegion.textContent = text;
+    }
+    els._lastChapter = hasCh ? state.chapterIndex : undefined;
   }
 
   function renderDocumentTitle() {
@@ -1005,11 +1014,13 @@
   // The context of the offer: the title, the section title and the
   // progress already on screen — and nothing else (FR-011/FR-019):
   // no document prose, no rate value, no voice identity, no
-  // elapsed or remaining time.
+  // elapsed or remaining time. For directory reading, binds chapter filename
+  // and saved offset (T209).
   function renderOffer() {
-    els.offerTitle.textContent = state.title || '';
-    els.offerSection.textContent = state.sectionTitle || '';
-    els.offerProgress.textContent = state.progressLabel || '';
+    els.offerTitle.textContent = state.title || state.chapterFilename || '';
+    els.offerSection.textContent = state.sectionTitle || (state.chapterIndex != null ? `Capítulo ${state.chapterIndex + 1}` : '');
+    const savedOffset = state.saved_offset_secs ?? state.stored_offset_secs ?? state.positionSecs;
+    els.offerProgress.textContent = state.progressLabel || (savedOffset > 0 ? `${Math.round(savedOffset)}s` : '');
   }
 
   // Opens the offer dialog for the in-app route, with the window
@@ -1136,6 +1147,8 @@
       if (view) {
         state.title = view.title || state.title;
         state.sectionTitle = view.section_title || null;
+        state.chapterIndex = view.chapter_index ?? null;
+        state.chapterCount = view.chapter_count ?? null;
         state.rate = view.rate;
         state.transport = view.transport;
         state.positionSecs = view.position_secs;
@@ -1195,6 +1208,9 @@
 
   els.btnSkipBack.addEventListener('click', () => sendAction('skip_back5s'));
   els.btnSkipForward.addEventListener('click', () => sendAction('skip_forward5s'));
+  document.getElementById('btnPickDirectory').addEventListener('click', () => {
+    sendAction('pick_directory');
+  });
   els.btnRepeat.addEventListener('click', () => {
     // Section restart - reuse SkipBack earcon behavior
     sendAction('repeat_section');
@@ -1300,6 +1316,8 @@
       state.progress = normalizeProgress(mirror.progress);
       state.progressLabel = mirror.progress_label || null;
       state.sectionTitle = mirror.section_title || null;
+        state.chapterIndex = mirror.chapter_index ?? null;
+        state.chapterCount = mirror.chapter_count ?? null;
 
       // Update rate index from current rate if it changed
       const rateIdx = LADDER.findIndex(r => Math.abs(r - state.rate) < 0.01);
@@ -1328,6 +1346,8 @@
       if (initial) {
         state.title = initial.title || state.title;
         state.sectionTitle = initial.section_title || null;
+        state.chapterIndex = initial.chapter_index ?? null;
+        state.chapterCount = initial.chapter_count ?? null;
         state.rate = initial.rate;
         state.transport = initial.transport;
         state.positionSecs = initial.position_secs;

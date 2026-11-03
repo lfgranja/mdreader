@@ -51,7 +51,7 @@ Entidade de persistência associada à tabela `DIRECTORY_BOOKMARKS`.
 | `chapter_index` | `u32` | Índice ordinal do capítulo em que a reprodução parou |
 | `offset_secs` | `f64` | Deslocamento salvo em segundos dentro do capítulo em questão |
 | `saved_ts_ms` | `u64` | Timestamp Unix em milissegundos do momento da persistência |
-| `end_kind` | `SessionEnd` | Tipo fechado de encerramento (`Paused` ou `Interrupted`) |
+| `end_kind` | `SessionEnd` | Tipo fechado de encerramento (`0=Paused, 1=Stopped, 2=Completed, 3=Interrupted`) |
 
 ---
 
@@ -68,7 +68,7 @@ use redb::TableDefinition;
 ///   - u32: chapter_index (índice 0-based do capítulo)
 ///   - f64: offset_secs (posição audível no capítulo)
 ///   - u64: saved_ts_ms (timestamp Unix em ms)
-///   - u8: end_kind_code (SessionEnd: 1=Paused, 2=Interrupted)
+///   - u8: end_kind_code (SessionEnd: 0=Paused, 1=Stopped, 2=Completed, 3=Interrupted)
 pub const DIRECTORY_BOOKMARKS: TableDefinition<&[u8; 32], (u32, f64, u64, u8)> =
     TableDefinition::new("directory_bookmarks");
 ```
@@ -121,7 +121,7 @@ stateDiagram-v2
     state PlayingChapter {
         [*] --> AudioPlayback
         AudioPlayback --> AudioPlayback : PositionClock avança audivelmente
-        AudioPlayback --> PreRollingNext : Restam ≤ 5s do capítulo atual
+        AudioPlayback --> PreRollingNext : Restam ≤ 10s do capítulo atual (gatilho adaptativo)
     }
 
     PlayingChapter --> TransitioningChapter : Fim do arquivo (DocumentEnd)

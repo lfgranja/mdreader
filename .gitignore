@@ -97,3 +97,10 @@ target/
 .codegraph/
 .specify/local-*.md
 .specify/*-plan.md
+
+# Spec Kit generated skills & integrations
+.agents/skills/speckit-*
+.specify/integrations/
+
+# Tauri capabilities generated
+src-tauri/capabilities/

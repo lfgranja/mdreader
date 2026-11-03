@@ -1,4 +1,16 @@
-# Session state — 004-ressoa-dogfood-build (shell bring-up wave)
+# Session state — 004-ressoa-dogfood-build / Separation of Business & Engineering Repositories
+
+> **RESUME POINT (2026-11-02):**
+> 1. **Separação de Repositórios (Open Source vs Estratégia Privada MDMV):**
+>    - O repositório [`mdreader`](https://github.com/lfgranja/mdreader) é mantido 100% de código aberto (*open-source*), estritamente focado em engenharia de sistemas, especificações técnicas, testes determinísticos em Rust e o shell Android.
+>    - Criado e sincronizado o repositório privado na organização MDMV: [`MDMV-Laboratorio-de-Solucoes-Digitais/product-ressoa`](https://github.com/MDMV-Laboratorio-de-Solucoes-Digitais/product-ressoa).
+>    - Todos os documentos de negócio, inteligência de mercado, GTM, modelos de monetização, pareceres jurídicos e especificações comerciais foram transferidos para o repositório privado `product-ressoa` e removidos do repositório aberto.
+> 2. **Documento Embutido de Demonstração (Deployable Sample):**
+>    - Arquivo em linguagem simples para o usuário mantido em `assets/samples/bem-vindo-ao-ressoa.md` (e espelhado nos assets do APK Android) para garantir o primeiro som (*time-to-first-sound*) sem atrito.
+
+---
+
+## Histórico Anterior
 
 > **RESUME POINT (2026-10-24) — 005-adopt-design-sona, Phase 1 (Setup) COMPLETE (T001–T003).**
 > Branch `005-adopt-design-sona` cut at dev HEAD `226c06c`

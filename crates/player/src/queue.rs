@@ -164,15 +164,31 @@ pub struct ChapterTransition {
 impl ChapterQueue {
     /// Performs the automatic gapless transition to the next chapter.
     ///
-    /// TDD RED stub (T197): behavior not yet implemented.
+    /// Marks the current chapter `Completed`, activates the next one as
+    /// `Playing`, and reports a zero gap with the position clock reset to 0.0.
+    /// The audio stream is never torn down by the queue; only the index moves.
     ///
     /// # Errors
     ///
-    /// Always returns [`ChapterQueueError::IndexOutOfBounds`] until implemented.
-    pub const fn transition_gapless(&mut self) -> Result<ChapterTransition, ChapterQueueError> {
-        Err(ChapterQueueError::IndexOutOfBounds {
-            index: usize::MAX,
-            len: self.items.len(),
+    /// Returns [`ChapterQueueError::IndexOutOfBounds`] when there is no next chapter.
+    pub fn transition_gapless(&mut self) -> Result<ChapterTransition, ChapterQueueError> {
+        let next = self.current_index.saturating_add(1);
+        if next >= self.items.len() {
+            return Err(ChapterQueueError::IndexOutOfBounds {
+                index: next,
+                len: self.items.len(),
+            });
+        }
+        if let Some(c) = self.items.get_mut(self.current_index) {
+            c.playback_status = ChapterStatus::Completed;
+        }
+        self.current_index = next;
+        if let Some(c) = self.items.get_mut(next) {
+            c.playback_status = ChapterStatus::Playing;
+        }
+        Ok(ChapterTransition {
+            gap_secs: 0.0,
+            new_position_secs: 0.0,
         })
     }
 }

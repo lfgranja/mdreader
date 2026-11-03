@@ -29,7 +29,7 @@
 - **Decision**:
   - Manter a autoridade de reprodução integralmente no Rust criando a estrutura `ChapterQueue` dentro de `crates/player` e gerenciada no `AppState` do bridge Tauri.
   - Quando um arquivo termina (`DocumentEnd`), o Rust não recria o backend `cpal`/`AAudio`; em vez disso, o `ChapterQueue` consome o próximo capítulo válido da fila, carrega seus bytes, extrai títulos/headings e conecta o novo fluxo de áudio diretamente no buffer de síntese.
-  - Efetuar pré-aquecimento (*pre-roll*) do próximo capítulo durante os últimos 5 segundos do capítulo atual para garantir transição estritamente contínua (*gapless*, intervalo de silêncio < 1,0s per SC-004).
+  - Efetuar pré-aquecimento (*pre-roll*) do próximo capítulo durante os últimos 10,0 segundos (gatilho adaptativo per FR-005) do capítulo atual para garantir transição estritamente contínua (*gapless*, intervalo de silêncio < 1,0s per SC-004).
 - **Rationale**:
   - Princípio I (Rust Sole Playback Authority): o Android shell é apenas um espelho (`MediaMirror`). O ciclo de vida do transporte, a contagem de amostras, a detecção de término e o avanço para o próximo arquivo devem residir onde o relógio de áudio (`PositionClock`) opera.
   - Recriar o pipeline ou reinicializar o `cpal::Stream` provocaria estalos audíveis (*audio pops*), latência de reconexão de hardware e perda de foco de áudio.

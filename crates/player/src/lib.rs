@@ -16,6 +16,7 @@ pub mod earcon;
 pub mod focus;
 pub mod interruption;
 pub mod position;
+pub mod queue;
 pub mod rate;
 pub mod recovery;
 pub mod resume;

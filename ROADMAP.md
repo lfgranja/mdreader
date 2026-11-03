@@ -4,7 +4,7 @@
 > **Framework de Produto & Governança:** `Now / Next / Later` + Spec Kit (`assess.*` → `specify` → `clarify` → `plan` → `tasks` → `implement` → `converge` / `bug.*`)  
 > **Objetivo Primário:** `OBJETIVO.md` — leitor de documentos Markdown com síntese de voz 100% offline, Rust como única autoridade de playback/transporte/rate/posição, Kotlin como espelho estrito (`SC-035`), Tauri 2.12.1, CPAL 0.18.2 + AAudio, mono f32 @ 22050 Hz, sherpa-onnx 1.13.8 + Piper pt-BR (`offline_default`). Zero permissão de INTERNET.
 
-*Atualizado: 2026-11-03 · Branch atual: `dev` (HEAD `20069287`). Consolidação executiva pós-auditoria de código, convergência da Spec 007, otimização dos gates de verificação, benchmark acústico on-device e estratégia completa de marketing, ASO e monetização.*
+*Atualizado: 2026-11-03 · Branch atual: `dev` (HEAD `93b56aba`). Consolidação executiva pós-auditoria de código, convergência da Spec 007, otimização dos gates de verificação, benchmark acústico on-device, estratégia completa de marketing, ASO e monetização, e pesquisa de mercado 2026.*
 
 ---
 
@@ -12,9 +12,10 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────────────────┐
-│ NOW (Sprint Corrente - ~93% Concluído)                                                      │
+│ NOW (Sprint Corrente - ~92% Concluído)                                                      │
 │ • Validar T184 e executar `/speckit.converge` na Spec 009 (SAF Ingestão pelo Título)         │
-│ • Limpeza de diretórios de bugs vazios em .specify/bugs/                                    │
+│ • Completar Spec 010 — Directory Reading (26/42 tasks, 16 restantes)                        │
+│ • Limpeza de diretórios de bugs vazios em .specify/bugs/ (4 pendentes)                      │
 └─────────────────────────────────────────────────────────────────────────────────────────────┘
                                               ↓
 ┌─────────────────────────────────────────────────────────────────────────────────────────────┐
@@ -23,14 +24,17 @@
 │ • Transição de `gate-8-full` de DEFERRED para PASS (Spec 002 V4 Attestation)                 │
 │ • Bateria de verificação completa no device físico (Spec 003)                              │
 │ • Dogfooding & Packaging para distribuição local / release candidate (Spec 004)            │
+│ • Completar assessments parciais (custom-voices, custom-voices-catalog, text-translator)   │
 └─────────────────────────────────────────────────────────────────────────────────────────────┘
                                               ↓
 ┌─────────────────────────────────────────────────────────────────────────────────────────────┐
 │ LATER (Go-To-Market, ASO, Monetização e Expansão)                                           │
-│ • Posicionamento de Mercado: Leitor de Markdown Air-Gapped / Privacy-First (Anti-Speechify)  │
-│ • Modelo de Monetização: Freemium com Licença Perpétua (Pay Once, Own Forever) / IAP       │
-│ • Estratégia de ASO (Google Play): Otimização semântica (Title, Short & Full Desc 4000ch)   │
-│ • Features de Expansão: Directory Reading, Catálogo de Vozes Locais e Tradutor Offline     │
+│ • Posicionamento: Leitor de Markdown Air-Gapped / Privacy-First (Anti-Speechify)            │
+│ • Competidores: Speechify ($139/ano, cloud), NaturalReader ($99-199/ano), Voice Dream (iOS) │
+│ • Modelo: Freemium + Licença Perpétua (R$29.90-49.90 / $9.99-14.99 one-time)              │
+│ • ASO (Google Play): Title 30ch, Short Desc 80ch, Full Desc 4000ch, nicho Markdown/TTS     │
+│ • Canais: r/ObsidianMD, r/PKMS, Hacker News, F-Droid, Google Play                          │
+│ • Features de Expansão: Catálogo de Vozes Locais, Tradutor Offline, Directory Reading Pro  │
 └─────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -48,7 +52,7 @@
 | `ref-device-emulator` | 5/5 (+ `6-gaps-research`) | `go` → `008` | **Completo / entregue** | Promovido e convergido em `specs/008` |
 | `ressoa-mobile-app` | 5/5 | Decidido | **Completo** | `decision.md` base da spec `004` |
 | `open-file-from-title` | 5/5 | `go` → `009` | **Completo / entregue** | Promovido e implementado em `specs/009` |
-| `directory-reading` | `intake.md` apenas | — | **Backlog** | `.specify/assessments/directory-reading/intake.md` |
+| `directory-reading` | 5/5 | `go` → `010` | **Completo / promovido para `010`** | Promovido e em progresso em `specs/010` (26/42 tasks) |
 | `text-translator` | `intake.md` apenas | — | **Backlog** | `.specify/assessments/text-translator/intake.md` |
 | `custom-voices` | `intake.md` apenas | — | **Backlog** | `.specify/assessments/custom-voices/intake.md` |
 
@@ -67,6 +71,7 @@
 | 007 | `sona-complete-design` | ✓ | ✓ | **29/29** | ✓ | ✓ | ✓ RMS instrumentation, canvas 5-layer, repeat button, T028 e T029 | Host tests green; zero achados pendentes | **CONVERGIDO (100%)** |
 | 008 | `ref-device-emulator` | ✓ | ✓ | 40/40 | ✓ | ✓ | Harness de emulação estrutural | Convergido completo | **CONVERGIDO** |
 | 009 | `open-file-from-title` | ✓ | ✓ | **26/27** | ✓ | ✓ | ✓ Storage Access Framework JNI, auto-play, redb offer dialog, recusa segura | T158–T183 concluídas; resta T184 (validação device ADB) | **Implementado / Pronto para converge** |
+| 010 | `directory-reading` | ✓ | ✓ | **26/42** | ✓ | ✓ | ✓ ChapterQueue, directory bookmarks, pre-roll 10s, SAF tree permissions | T185–T213 em progresso; 16 tasks restantes (T214–T229) | **Em progresso / Feature ativa** |
 
 ---
 
@@ -87,28 +92,54 @@
 
 ## 3. Análise Quantitativa e Qualitativa de Avanço
 
-### O que já percorremos (~93% do Produto Global):
+### O que já percorremos (~92% do Produto Global):
 - **Motor de Áudio e Playback Authority (100%):** O runtime Rust (`crates/player`, `crates/session`, `crates/diag`, `crates/engine-core`) gerencia soberanamente transporte, buffer, taxa pitch-preserving e `PositionClock` (audible progress puro).
-- **Design System SONA & Lente Sinestésica (100% Convergido):** Acessibilidade TalkBack (10/10), alto contraste para ambiente externo, visualizador de 5 camadas no canvas alimentado por RMS lock-free a ~20 Hz (`AtomicU32`) e botão repeat integrados (Spec 007 formalmente convergida).
+- **Design System SONA & Lente Sinestésica (100% Convergido):** Acessibilidade TalkBack (10/10), alto contraste para ambiente externo, visualizador de 5 camadas no canvas alimentado por RMS lock-free a ~20 Hz (`AtomicU32`) e botão repeat integrados (Spec 007 formalmente convergida — 29/29 tasks).
 - **Ingestão SAF & Bookmarking Durável (100% em código):** Abertura de arquivos Markdown pela caixa de título via Android SAF, cálculo de fingerprint Blake3, persistência atômica em `redb` a cada 20s e em pausas, e diálogo de retomada inteligente (`offerDialog`).
-- **Padrão de Qualidade e Otimização de CI:** Gates 1 a 8 verdes, clippy estrito sem `unwrap`/`expect`, paralelismo configurado via test-groups no `nextest.toml` e amostragem de proptest controlada. Histórico git limpo (apenas `dev` e `main`).
+- **Directory Reading (62% — 26/42 tasks):** ChapterQueue com sort natural, directory bookmarks duráveis, pré-roll de 10s, SAF tree permissions, contextual skip e invalid chapter skipping (TDD RED). Feature ativa em `specs/010-directory-reading`.
+- **Padrão de Qualidade e Otimização de CI:** Gates 1 a 8 verdes, clippy estrito sem `unwrap`/`expect`, paralelismo configurado via test-groups no `nextest.toml` e amostragem de proptest controlada. Histórico git limpo (apenas `dev` e `main`). 10 specs rastreadas (5 convergidas, 4 quase completas, 1 ativa).
+- **Governança e Spec Kit:** 10 assessments (7 completos, 3 parciais), 10 specs com artefatos completos, 11 bugs triados (7 fechados, 4 pendentes).
 
-### O que ainda falta (~7% para Fechamento Total):
+### O que ainda falta (~8% para Fechamento Total):
 1. **Convergência Formal da Spec 009 (NOW):**
    - Validar T184 e rodar `/speckit.converge specs/009-open-file-from-title`.
-2. **Benchmark Acústico em Hardware Real - SC-009 (NEXT):**
+2. **Completar Spec 010 — Directory Reading (NOW/NEXT):**
+   - 16 tasks restantes (T214–T229): integração final, testes de convergência, documentação.
+3. **Benchmark Acústico em Hardware Real - SC-009 (NEXT):**
    - Comprovar latência acústica inicial < 3s (Time to First Audio) entre clique no Play e emissão PCM audível usando o modelo Piper pt-BR local via Sherpa-ONNX.
    - Atualizar a attestation da Spec 002 para V4 e transformar `gate-8-full` em `PASS`.
-3. **Validação Finais em Dispositivo Físico (NEXT):**
+4. **Validação Finais em Dispositivo Físico (NEXT):**
    - Executar suite automatizada via ADB no hardware conectado (`53cf9aa7`).
-4. **Housekeeping:**
-   - Limpar pastas vazias residuais de bugs em `.specify/bugs/`.
+5. **Housekeeping:**
+   - Limpar pastas vazias residuais de bugs em `.specify/bugs/` (4 bugs sem artefatos).
+   - Completar 3 assessments parciais (custom-voices, custom-voices-catalog, text-translator).
+6. **Go-To-Market (LATER):**
+   - Publicação no Google Play Store e F-Droid.
+   - Execução da estratégia de ASO e monetização.
 
 ---
 
 ## 4. Estratégia de Go-To-Market, ASO e Monetização (LATER)
 
 ### 4.1 Posicionamento Competitivo e Proposta Única de Valor (UVP)
+
+#### Landscape Competitivo (pesquisa 2026)
+
+| Concorrente | Modelo | Offline? | Markdown? | Preço | Plataforma | Lacuna vs Ressoa |
+|---|---|---|---|---|---|---|
+| **Speechify** | Cloud neural | ❌ Não | ❌ Texto linear | ~$139/ano (assinatura) | iOS/Android/Web | Requer internet, envia texto à nuvem, caro |
+| **NaturalReader** | Cloud + local | ⚠️ Parcial | ❌ Texto linear | $99-199/ano (assinatura) | iOS/Android/Web | Assinatura, foco em PDF/EPUB, não Markdown |
+| **ElevenReader** | Cloud (ElevenLabs) | ❌ Não | ❌ Texto linear | Freemium + créditos | iOS/Android | Requer internet, modelo de créditos |
+| **Voice Dream Reader** | Acapela offline | ✅ Sim | ❌ EPUB/PDF | $19.99 one-time | iOS-only | Não suporta Markdown, não é Android |
+| **@Voice / TTSReader** | OS TTS | ✅ Sim | ❌ PDF/EPUB | Freemium | Android | Foco em PDF/EPUB, não Markdown, UI genérica |
+| **Ressoa (mdreader)** | Piper local (sherpa-onnx) | ✅ 100% air-gapped | ✅ Cabeçalhos, seções | Freemium + one-time | Android (minSdk 29) | — (nicho não atendido) |
+
+#### Tendências de mercado 2026
+- **Anti-subscription fatigue:** Usuários de produtividade (devs, pesquisadores, estudantes) preferem pagamento único ("Pay Once, Own Forever") a assinaturas recorrentes.
+- **Privacy-first / data sovereignty:** Regulamentações (GDPR, LGPD) e consciência de privacidade impulsionam demanda por apps air-gapped. Nenhum concorrente principal é 100% offline + air-gapped + Markdown.
+- **Offline AI:** Modelos locais (Piper, sherpa-onnx) permitem inferência on-device com custo zero de servidor por minuto de áudio.
+- **ASO para nichos:** Apps indie vencem em nichos (audiobook, podcast, sleep) em vez de competir head-on com gigantes (Spotify, Audible).
+
 *   **O Problema do Mercado:** Aplicativos de ponta como *Speechify* cobram assinaturas caras (~$139/ano), transmitem todo o texto para servidores remotos na nuvem e exigem internet ativa. Apps como *Readwise Reader* focam em curadoria de links, mas não em foco e audição pura de Markdown.
 *   **O Posicionamento do Ressoa:**
     *   **100% Offline e Air-Gapped:** Zero permissão de internet (`android.permission.INTERNET` inexistente). Textos, notas e livros confidenciais nunca saem do aparelho.

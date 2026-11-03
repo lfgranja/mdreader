@@ -48,8 +48,8 @@ use std::sync::{Mutex, OnceLock};
 
 use tauri::{AppHandle, Manager};
 
-use crate::AppState;
 use crate::commands::run_mobile_plugin;
+use crate::AppState;
 
 /// The installed shell-channel sender: the Kotlin entries post codes
 /// through this sender toward the drain thread. Set once by
@@ -474,9 +474,9 @@ fn drain_loop(app: &AppHandle, rx: &Receiver<u32>) {
 #[cfg(test)]
 mod tests {
     use super::code_to_action;
-    use super::{IngestError, IngestSnapshot, open_ingested_document, picked_document_name};
-    use crate::AppState;
+    use super::{open_ingested_document, picked_document_name, IngestError, IngestSnapshot};
     use crate::commands::parse_action;
+    use crate::AppState;
 
     /// T103 (FR-011): the picked document's name is the file name
     /// the picker addressed — percent-decoded — carrying the
@@ -721,8 +721,8 @@ pub extern "C" fn Java_app_mdreader_DocIngest_00024Blake3Hasher_nativeBlake3(
     data: jni::sys::jbyteArray,
 ) -> jni::sys::jbyteArray {
     use blake3::Hasher;
-    use jni::JNIEnv;
     use jni::objects::JByteArray;
+    use jni::JNIEnv;
 
     capture_jvm(env);
     let env = unsafe { JNIEnv::from_raw(env).expect("valid JNIEnv") };
@@ -803,8 +803,8 @@ pub extern "C" fn Java_app_mdreader_DocIngest_onDocumentIngested(
     original_uri: jni::sys::jstring,
     mime_type: jni::sys::jstring,
 ) {
-    use jni::JNIEnv;
     use jni::objects::JString;
+    use jni::JNIEnv;
 
     capture_jvm(env);
     let mut env = unsafe { JNIEnv::from_raw(env).expect("valid JNIEnv") };
@@ -1194,5 +1194,40 @@ pub fn pick_document_from_shell() -> Result<(), String> {
 /// This non-Android host stub never returns an error.
 #[cfg(not(target_os = "android"))]
 pub const fn pick_document_from_shell() -> Result<(), String> {
+    Ok(())
+}
+
+/// Commands the launch of the Storage Access Framework directory
+/// picker (T187): requests launch of the platform SAF directory tree
+/// picker from the active Activity via `ShellHost.pickDirectory()`.
+///
+/// # Errors
+/// Returns an error string when the JVM handle was never captured,
+/// when the thread cannot be attached, or when the class lookup or the
+/// invocation fails.
+#[cfg(target_os = "android")]
+pub fn pick_directory_from_shell() -> Result<(), String> {
+    let vm = JVM
+        .get()
+        .ok_or_else(|| "shell JNI: JVM not initialized; cannot pick directory".to_string())?;
+
+    let mut env = vm
+        .attach_current_thread()
+        .map_err(|error| format!("shell JNI: attach failed: {error}"))?;
+
+    let class = get_shell_host_class()?;
+
+    let _ = env
+        .call_static_method(class, "pickDirectory", "()Z", &[])
+        .map_err(|error| format!("shell JNI: ShellHost.pickDirectory failed: {error}"))?;
+    Ok(())
+}
+
+/// No-op on non-Android targets.
+///
+/// # Errors
+/// This non-Android host stub never returns an error.
+#[cfg(not(target_os = "android"))]
+pub const fn pick_directory_from_shell() -> Result<(), String> {
     Ok(())
 }

@@ -24,11 +24,11 @@
 
 **Purpose**: Core data structures, composite Blake3 hashing, and dedicated storage table for directory bookmarks.
 
-- [ ] T190 [P] Implement `compute_collection_fingerprint(hashes: &[[u8; 32]]) -> [u8; 32]` computing `blake3(fp_1 || fp_2 || ... || fp_n)` in `crates/session/src/fingerprint.rs`.
-- [ ] T191 [P] Declare `DIRECTORY_BOOKMARKS: TableDefinition<&[u8; 32], (u32, f64, u64, u8)>` table and define `CompositeBookmark` struct in `crates/session/src/store.rs`.
-- [ ] T192 Implement `ChapterQueue` with index tracking, natural sort ordering, and transition state machine in `crates/player/src/queue.rs`.
-- [ ] T193 Implement directory bookmark CRUD methods (`get_directory_bookmark`, `put_directory_bookmark`, `delete_directory_bookmark`) in `crates/session/src/store.rs`.
-- [ ] T194 Define JNI entrypoint `Java_app_mdreader_DocIngest_onDirectorySelected` deserializing the directory manifest JSON and instantiating `ChapterQueue` in `src-tauri/src/shell_jni.rs`.
+- [x] T190 [P] Implement `compute_collection_fingerprint(hashes: &[[u8; 32]]) -> [u8; 32]` computing `blake3(fp_1 || fp_2 || ... || fp_n)` in `crates/session/src/fingerprint.rs`.
+- [x] T191 [P] Declare `DIRECTORY_BOOKMARKS: TableDefinition<&[u8; 32], (u32, f64, u64, u8)>` table and define `CompositeBookmark` struct in `crates/session/src/store.rs`.
+- [x] T192 Implement `ChapterQueue` with index tracking, natural sort ordering, and transition state machine in `crates/player/src/queue.rs`.
+- [x] T193 Implement directory bookmark CRUD methods (`get_directory_bookmark`, `put_directory_bookmark`, `delete_directory_bookmark`) in `crates/session/src/store.rs`.
+- [x] T194 Define JNI entrypoint `Java_app_mdreader_DocIngest_onDirectorySelected` deserializing the directory manifest JSON and instantiating `ChapterQueue` in `src-tauri/src/shell_jni.rs`.
 
 ---
 

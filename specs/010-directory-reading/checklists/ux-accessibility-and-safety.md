@@ -11,40 +11,54 @@
 ## Requirement Completeness
 
 - [ ] CHK001 Are the viewport bounding requirements explicitly specified to enforce `100dvh` without document or container scrolling across all supported device orientations and soft-keyboard states? [Completeness, Spec §FR-010, Research §Decision 5]
+  <!-- Gap: Spec §FR-010 specifies 100dvh without scrolling, but does not explicitly specify constraints across device orientations (landscape vs portrait) or soft-keyboard states (e.g. interactive-widget adjustments). -->
 - [ ] CHK002 Is Cumulative Layout Shift (CLS = 0.00) specified with explicit layout stabilization constraints (e.g., fixed/min height for subtitle and header containers during chapter transitions)? [Completeness, Spec §FR-010, Plan §Summary]
-- [ ] CHK003 Are the typographic rules for the chapter counter completely specified, including mandatory `font-variant-numeric: tabular-nums` to prevent horizontal jitter during digit transitions? [Completeness, Spec §FR-010, Research §Decision 5]
-- [ ] CHK004 Is the screen reader (TalkBack) announcement contract completely defined for `#liveRegion` with `aria-live="polite"` and `aria-atomic="true"`, ensuring accessibility focus is never forcefully stolen? [Completeness, Spec §FR-010, Research §Decision 5]
+  <!-- Gap: While CLS = 0.00 is stated as a requirement, explicit layout stabilization parameters (fixed/min height values or reserved space for subtitle container when section title transitions from null to string) are not specified. -->
+- [x] CHK003 Are the typographic rules for the chapter counter completely specified, including mandatory `font-variant-numeric: tabular-nums` to prevent horizontal jitter during digit transitions? [Completeness, Spec §FR-010, Research §Decision 5]
+- [x] CHK004 Is the screen reader (TalkBack) announcement contract completely defined for `#liveRegion` with `aria-live="polite"` and `aria-atomic="true"`, ensuring accessibility focus is never forcefully stolen? [Completeness, Spec §FR-010, Research §Decision 5]
 - [ ] CHK005 Are the contextual Bluetooth and lock-screen media actions (`ACTION_SKIP_TO_NEXT`, `ACTION_SKIP_TO_PREVIOUS`) fully specified with SAE J2364 eyes-free compliance criteria for in-car operation? [Completeness, Spec §FR-011, Research §Decision 4, Plan §Constitution Check]
+  <!-- Gap: Contextual skip actions are specified in FR-011 and Research Decision 4, but formal SAE J2364 eyes-free glance-time/compliance metrics are not explicitly cited or specified in the feature artifacts. -->
 - [ ] CHK006 Is the visual truncation behavior for long file names in `<h1>` completely specified (e.g., CSS `-webkit-line-clamp: 2`, text-overflow ellipsis, and full text in `title`/`aria-label`)? [Completeness, Spec §FR-010, Research §Decision 5]
+  <!-- Gap: Line clamp of 2 is specified in FR-010 and Research Decision 5, but text-overflow ellipsis and accessible exposure of full truncated text via title/aria-label are not specified. -->
 
 ## Requirement Clarity
 
-- [ ] CHK007 Is the chapter indicator subtitle string format unambiguously specified for both sectioned files (`"Capítulo X de Y • [Nome da Seção]"`) and unsectioned files (`"Capítulo X de Y"`)? [Clarity, Spec §FR-010, Contracts §2.2]
+- [x] CHK007 Is the chapter indicator subtitle string format unambiguously specified for both sectioned files (`"Capítulo X de Y • [Nome da Seção]"`) and unsectioned files (`"Capítulo X de Y"`)? [Clarity, Spec §FR-010, Contracts §2.2]
 - [ ] CHK008 Are the touch target sizes for all directory-related interactive controls specified to meet WCAG 2.2 Target Size (Minimum) of at least 48x48 dp / CSS pixels? [Clarity, Spec §FR-010, Plan §Constitution Check]
-- [ ] CHK009 Is the behavior of the repeat button (`#btn-repeat`) clearly defined in directory mode to differentiate between repeating the active section vs repeating the active chapter? [Clarity, Spec §FR-010, Research §Decision 4]
+  <!-- Gap: No touch target dimensions (≥ 48x48 dp) are explicitly specified in the 010 feature artifacts (spec, plan, contracts). -->
+- [x] CHK009 Is the behavior of the repeat button (`#btn-repeat`) clearly defined in directory mode to differentiate between repeating the active section vs repeating the active chapter? [Clarity, Spec §FR-010, Research §Decision 4]
 - [ ] CHK010 Are contrast ratio requirements for chapter metadata and subtitles explicitly defined to meet WCAG 2.2 AA (≥ 4.5:1) in both dark and light ambient modes? [Clarity, Spec §FR-010, Plan §Technical Context]
+  <!-- Gap: Color tokens are referenced from DESIGN-SONA, but numeric WCAG 2.2 AA contrast ratios (≥ 4.5:1) and ambient light/dark mode requirements are not explicitly specified in the 010 feature artifacts. -->
 - [ ] CHK011 Is the audio-visual synchronization tolerance between speech output and visual chapter subtitle update quantified (e.g., visual update within ≤ 50ms of audible boundary)? [Clarity, Spec §FR-010, Research §Decision 5]
+  <!-- Gap: Sync tolerance between audio boundary and DOM subtitle update is not quantified with an explicit millisecond bound (e.g. ≤ 50ms). -->
 
 ## Requirement Consistency
 
-- [ ] CHK012 Is the hierarchical skip behavior in Spec §FR-011 consistent with the media session action mapping defined in `contracts/directory-playback.md` and `android-shell/MediaMirror.kt`? [Consistency, Spec §FR-011, Contracts §2.1]
-- [ ] CHK013 Is the live region announcement content in Spec §FR-010 consistent with the internationalization (pt-BR) and earcon tone conventions established in `contracts/earcon.md`? [Consistency, Spec §FR-010, AGENTS.md Architecture & Data Flow]
-- [ ] CHK014 Are the UI elements for directory playback strictly compatible with the existing SONA token design system and Lente Sinestésica visual hierarchy? [Consistency, Plan §Summary, AGENTS.md Key Principles]
-- [ ] CHK015 Is the requirement for zero visual distraction while driving (Princípio VIII) consistently reflected across MediaStyle notification actions and lock-screen widgets? [Consistency, Plan §Constitution Check, Research §Decision 4]
+- [x] CHK012 Is the hierarchical skip behavior in Spec §FR-011 consistent with the media session action mapping defined in `contracts/directory-playback.md` and `android-shell/MediaMirror.kt`? [Consistency, Spec §FR-011, Contracts §2.1]
+- [x] CHK013 Is the live region announcement content in Spec §FR-010 consistent with the internationalization (pt-BR) and earcon tone conventions established in `contracts/earcon.md`? [Consistency, Spec §FR-010, AGENTS.md Architecture & Data Flow]
+- [x] CHK014 Are the UI elements for directory playback strictly compatible with the existing SONA token design system and Lente Sinestésica visual hierarchy? [Consistency, Plan §Summary, AGENTS.md Key Principles]
+- [x] CHK015 Is the requirement for zero visual distraction while driving (Princípio VIII) consistently reflected across MediaStyle notification actions and lock-screen widgets? [Consistency, Plan §Constitution Check, Research §Decision 4]
 
 ## Edge Case Coverage
 
 - [ ] CHK016 Is the UI rendering behavior specified for extreme chapter counts (e.g., `"Capítulo 999 de 1000"`) to guarantee no layout overflow or line wrapping breakage? [Edge Case, Spec §FR-010, Research §Decision 5]
+  <!-- Gap: Behavior for extreme chapter counts (wrapping, truncation, or scaling for large numbers like 999 de 1000) is not specified. -->
 - [ ] CHK017 Is the visual and accessibility behavior defined when a chapter has an empty or unreadable title (e.g., unnamed file or special Unicode emoji)? [Edge Case, Spec §FR-010]
+  <!-- Gap: Handling of empty filenames, unnamed files, or non-displayable unicode/emoji in the chapter title is missing from spec and contracts. -->
 - [ ] CHK018 Is the behavior of TalkBack announcements defined when consecutive chapters are skipped rapidly in succession, preventing auditory speech overlap in the screen reader? [Edge Case, Spec §FR-010, Research §Decision 5]
+  <!-- Gap: Debounce, queuing, or cancellation behavior for rapid successive chapter announcements in TalkBack is not specified. -->
 - [ ] CHK019 Is the layout response specified for split-screen, foldable, or landscape window resizing to ensure `100dvh` bounding remains unbroken without content clipping? [Edge Case, Spec §FR-010]
+  <!-- Gap: Responsive adaptation and behavior under split-screen, foldables, or landscape resizing to preserve 100dvh without clipping are not specified. -->
 - [ ] CHK020 Is the accessibility contract specified for users operating with `prefers-reduced-motion` enabled during chapter transition animations? [Edge Case, Spec §FR-010, AGENTS.md RMS Instrumentation & Waveform]
+  <!-- Gap: Chapter transition visual effects/animations do not define an explicit prefers-reduced-motion handling rule in the feature spec. -->
 
 ## Non-Functional Requirements
 
-- [ ] CHK021 Is the UI rendering performance during chapter transitions bounded to 60 fps (≤ 16.6ms per frame) on target Android devices? [NFR, Plan §Performance Goals]
+- [x] CHK021 Is the UI rendering performance during chapter transitions bounded to 60 fps (≤ 16.6ms per frame) on target Android devices? [NFR, Plan §Performance Goals]
 - [ ] CHK022 Can the CLS = 0.00 requirement be objectively measured and asserted in headless/automated DOM tests during chapter transition events? [NFR, Spec §FR-010, Plan §Summary]
+  <!-- Gap: Automated test assertion and measurement harness/criteria for CLS = 0.00 during transition events are not defined in quickstart or contracts. -->
 - [ ] CHK023 Can eyes-free operation compliance (SAE J2364) be verified via automated test asserting that 100% of chapter transitions and boundary skips execute without UI touch events? [NFR, Spec §SC-001, Spec §FR-011]
+  <!-- Gap: While SC-001 asserts hands-free audio transition, verification of SAE J2364 eyes-free compliance standard via automated tests is not specified in quickstart.md or contracts. -->
 
 ## Notes
 

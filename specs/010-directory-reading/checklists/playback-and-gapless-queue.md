@@ -14,7 +14,7 @@
 - [ ] CHK002 Are the trigger conditions, lookahead window (e.g., last 5 seconds of active chapter), and buffer memory bounds for synthesis pre-roll completely specified? [Completeness, Plan §Summary, Research §Decision 2]
 - [ ] CHK003 Are the rules for position clock advancement during chapter transitions explicitly constrained to audible progress, forbidding advance during pre-roll buffering or synthesis? [Completeness, Spec §FR-005, AGENTS.md PositionClock]
 - [ ] CHK004 Is the lifecycle and teardown sequence of the audio pipeline completely specified when the final chapter of the directory finishes playback (`completed`)? [Completeness, Spec §User Story 1, Spec §FR-007, Data Model §3]
-- [ ] CHK005 Is the behavior of `ChapterQueue` completely defined when consecutive skipped or invalid chapters are encountered (e.g., 3 unreadable files in a row)? [Completeness, Spec §FR-012, Spec §User Story 3]
+- [x] CHK005 Is the behavior of `ChapterQueue` completely defined when consecutive skipped or invalid chapters are encountered (e.g., 3 unreadable files in a row)? [Completeness, Spec §FR-012, Spec §User Story 3]
 - [ ] CHK006 Are the criteria for pre-roll cancellation or flushing specified when the user triggers an explicit seek or skip action while pre-roll of the next chapter is in flight? [Completeness, Spec §FR-011, Research §Decision 2]
 
 ## Requirement Clarity
@@ -23,14 +23,14 @@
 - [ ] CHK008 Are all variants of `ChapterStatus` (`Pending`, `Playing`, `Completed`, `Skipped`) defined with unambiguous entry, residency, and exit criteria? [Clarity, Data Model §1.2]
 - [ ] CHK009 Is "tempo de fala do próximo arquivo" in SC-004 defined objectively in terms of PCM sample delivery to the hardware sink rather than subjective perception? [Clarity, Spec §SC-004]
 - [ ] CHK010 Are the boundary conditions for "primeiros 3 segundos do arquivo" in backward skip logic specified with exact closed/open interval math (e.g., `position_secs <= 3.0`)? [Clarity, Spec §User Story 3 Scenario 2, Research §Decision 4]
-- [ ] CHK011 Is the handoff format between chapters explicitly verified to remain strictly mono `f32` @ `22050 Hz` without sample rate switching or channel re-allocation? [Clarity, Plan §Technical Context, AGENTS.md Audio & Handoff]
+- [x] CHK011 Is the handoff format between chapters explicitly verified to remain strictly mono `f32` @ `22050 Hz` without sample rate switching or channel re-allocation? [Clarity, Plan §Technical Context, AGENTS.md Audio & Handoff]
 
 ## Requirement Consistency
 
-- [ ] CHK012 Is the `ChapterStatus` enum definition in `data-model.md` strictly aligned with closed-set rules (Princípio VII, no `_ =>`, no `Other`/`Unknown`) in `crates/engine-core`? [Consistency, Data Model §1.2, Plan §Constitution Check]
+- [x] CHK012 Is the `ChapterStatus` enum definition in `data-model.md` strictly aligned with closed-set rules (Princípio VII, no `_ =>`, no `Other`/`Unknown`) in `crates/engine-core`? [Consistency, Data Model §1.2, Plan §Constitution Check]
 - [ ] CHK013 Are the IPC command names for chapter navigation (`next_chapter`, `previous_chapter`, `pick_directory`) consistent across `contracts/directory-playback.md`, Tauri bridge, and `ShellVerb` mappings? [Consistency, Contracts §2.1, Plan §Summary]
-- [ ] CHK014 Is the channel payload schema for `chapter_change` in `contracts/directory-playback.md` consistent with `DirectorySession` and `ChapterItem` fields in `data-model.md`? [Consistency, Contracts §2.2, Data Model §1]
-- [ ] CHK015 Does the transition logic preserve the strict sole playback authority of Rust, ensuring zero decision-making or state mutation occurs inside Android shell / Kotlin mirrors? [Consistency, Plan §Constitution Check, Research §Decision 2]
+- [x] CHK014 Is the channel payload schema for `chapter_change` in `contracts/directory-playback.md` consistent with `DirectorySession` and `ChapterItem` fields in `data-model.md`? [Consistency, Contracts §2.2, Data Model §1]
+- [x] CHK015 Does the transition logic preserve the strict sole playback authority of Rust, ensuring zero decision-making or state mutation occurs inside Android shell / Kotlin mirrors? [Consistency, Plan §Constitution Check, Research §Decision 2]
 
 ## Edge Case Coverage
 
@@ -38,7 +38,7 @@
 - [ ] CHK017 Is the behavior defined when an audio interruption (e.g., incoming phone call, transient focus loss) occurs exactly at the chapter transition boundary? [Edge Case, Data Model §3, AGENTS.md Focus]
 - [ ] CHK018 Is the behavior specified when a file in the queue becomes inaccessible or deleted between initial scan and the moment `ChapterQueue` attempts playback? [Edge Case, Spec §Edge Cases, Research §Decision 2]
 - [ ] CHK019 Is behavior defined for rapid successive skip commands (e.g., user presses "Next Chapter" 5 times within 500ms)? [Edge Case, Contracts §2.1, Spec §FR-011]
-- [ ] CHK020 Is the behavior specified when every single chapter in a directory exceeds `MAX_DOC_BYTES` or fails UTF-8 decoding? [Edge Case, Spec §FR-006, Spec §FR-012]
+- [x] CHK020 Is the behavior specified when every single chapter in a directory exceeds `MAX_DOC_BYTES` or fails UTF-8 decoding? [Edge Case, Spec §FR-006, Spec §FR-012]
 
 ## Non-Functional Requirements
 

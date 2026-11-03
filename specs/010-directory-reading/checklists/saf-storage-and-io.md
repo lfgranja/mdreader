@@ -29,13 +29,13 @@
 
 - [ ] CHK012 Is the directory hierarchy scope consistently defined between Spec §Edge Cases ("subpastas de 1º nível"), Plan §Summary ("pastas inteiras"), and Research §Decision 1 (explicit 1st-level limit)? [Consistency, Spec §Edge Cases, Plan §Summary, Research §Decision 1]
 - [ ] CHK013 Is the maximum supported file count consistently bounded across Spec §Assumptions (100 vs 500 files) and Plan §Technical Context (100 files limit)? [Consistency, Spec §Assumptions, Plan §Technical Context]
-- [ ] CHK014 Are the byte size boundary conditions for `MAX_DOC_BYTES` (93,636 bytes) strictly harmonized between SAF scanning, JNI manifest serialization, and Rust chapter ingestion? [Consistency, Spec §FR-006, Contracts §3.1]
-- [ ] CHK015 Is the wire contract for `DirectoryManifest` in `contracts/directory-playback.md` consistent with the JNI parameter signatures and JSON schema constraints (`additionalProperties: false`)? [Consistency, Contracts §1.3, Contracts §3.1]
+- [x] CHK014 Are the byte size boundary conditions for `MAX_DOC_BYTES` (93,636 bytes) strictly harmonized between SAF scanning, JNI manifest serialization, and Rust chapter ingestion? [Consistency, Spec §FR-006, Contracts §3.1]
+- [x] CHK015 Is the wire contract for `DirectoryManifest` in `contracts/directory-playback.md` consistent with the JNI parameter signatures and JSON schema constraints (`additionalProperties: false`)? [Consistency, Contracts §1.3, Contracts §3.1]
 
 ## Edge Case Coverage
 
 - [ ] CHK016 Is the system behavior specified when the user revokes directory read permission in Android OS Settings while playback is actively running in background? [Edge Case, Spec §Edge Cases, Research §Decision 1]
-- [ ] CHK017 Is the behavior specified when a directory contains exclusively unsupported files, hidden dot-directories (`.obsidian`, `.git`), or 0 valid Markdown notes? [Edge Case, Spec §Edge Cases]
+- [x] CHK017 Is the behavior specified when a directory contains exclusively unsupported files, hidden dot-directories (`.obsidian`, `.git`), or 0 valid Markdown notes? [Edge Case, Spec §Edge Cases]
 - [ ] CHK018 Are concurrency and race conditions specified for scenarios where a file is deleted or renamed on external storage between directory scanning and chapter synthesis? [Edge Case, Spec §Edge Cases, Research §Decision 1]
 - [ ] CHK019 Is behavior defined for deeply nested directories or symlink loops encountered during DocumentFile traversal? [Edge Case, Spec §FR-002, Research §Decision 1]
 - [ ] CHK020 Are error types and diagnostic logging contracts defined for `SecurityException`, `FileNotFoundException`, and `DeadObjectException` during ContentResolver queries? [Edge Case, Spec §Edge Cases, Contracts §directory-playback.md]
@@ -44,8 +44,8 @@
 
 - [ ] CHK021 Is the ContentResolver query latency budget specified with a strict upper bound to prevent Android ANR under high I/O contention? [NFR, Spec §FR-004, Research §Decision 1]
 - [ ] CHK022 Is the Memory footprint for directory indexing specified with an explicit cap (e.g., maximum resident memory for chapter metadata before synthesis)? [NFR, Plan §Technical Context]
-- [ ] CHK023 Can the 3.0s TTFA (Time To First Audio) requirement be objectively measured and verified in automated testing harnesses without human listening? [NFR, Spec §FR-004, SC-002]
-- [ ] CHK024 Is offline compliance (Constitution Principle IX) objectively verifiable via zero-socket-activity assertions during SAF directory ingestion? [NFR, Spec §FR-013, Plan §Constitution Check]
+- [x] CHK023 Can the 3.0s TTFA (Time To First Audio) requirement be objectively measured and verified in automated testing harnesses without human listening? [NFR, Spec §FR-004, SC-002]
+- [x] CHK024 Is offline compliance (Constitution Principle IX) objectively verifiable via zero-socket-activity assertions during SAF directory ingestion? [NFR, Spec §FR-013, Plan §Constitution Check]
 
 ## Notes
 

@@ -526,13 +526,9 @@ impl BookmarkStore {
             crate::fingerprint::compute_collection_fingerprint(chapter_hashes);
         let stored = self.get_directory_bookmark(&collection_fingerprint)?;
 
-        let (offer, cold_start, offer_route) = match stored.as_ref() {
-            None => (
-                OpenOffer::NoOffer,
-                crate::offer::ColdStart::StartNow,
-                "none",
-            ),
-            Some(bm) => match bm.end_kind {
+        let (offer, cold_start, offer_route) = stored.as_ref().map_or(
+            (OpenOffer::NoOffer, crate::offer::ColdStart::StartNow, "none"),
+            |bm| match bm.end_kind {
                 SessionEnd::Paused => (
                     OpenOffer::Continue {
                         offset_secs: bm.offset_secs,
@@ -555,7 +551,7 @@ impl BookmarkStore {
                     "none",
                 ),
             },
-        };
+        );
 
         Ok(DirectoryOpenLookup {
             collection_fingerprint,

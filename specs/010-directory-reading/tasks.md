@@ -65,8 +65,8 @@
 
 ### Tests for User Story 2 (TDD - Write First, MUST FAIL initially) ⚠️
 
-- [ ] T204 [P] [US2] Property-based test in `crates/session/tests/prop_directory_resume.rs` testing invariants: deliberate pause stores `(chapter_index, offset_secs, ts, Paused)` and routes to `AwaitOffer` (`in_app_dialog`); interrupted/kill stores `Interrupted` and resumes immediately without prompt.
-- [ ] T205 [P] [US2] Integration test in `src-tauri/tests/test_directory_resume.rs` verifying that reopening a previously paused directory presents `offerDialog` for 3.0s, and confirming "Continuar" restores the active chapter and position clock.
+- [x] T204 [P] [US2] Property-based test in `crates/session/tests/prop_directory_resume.rs` testing invariants: deliberate pause stores `(chapter_index, offset_secs, ts, Paused)` and routes to `AwaitOffer` (`in_app_dialog`); interrupted/kill stores `Interrupted` and resumes immediately without prompt.
+- [x] T205 [P] [US2] Integration test in `src-tauri/tests/test_directory_resume.rs` verifying that reopening a previously paused directory presents `offerDialog` for 3.0s, and confirming "Continuar" restores the active chapter and position clock.
 
 ### Implementation for User Story 2
 

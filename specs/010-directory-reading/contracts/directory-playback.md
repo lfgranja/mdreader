@@ -61,7 +61,13 @@ No retorno de `onActivityResult`:
 
 ### 1.3 Callback JNI de Retorno do Diretório (Kotlin → Rust)
 
+O ponto de entrada JNI localiza-se em `src-tauri/src/shell_jni.rs` dentro de módulo de fronteira FFI estritamente isolado (`#![allow(unsafe_code, reason = "...")]` no módulo ou `#[expect(unsafe_code, reason = "...")]` em conformidade com as convenções de lint do workspace, onde `unsafe_code = deny` vigora nos crates normais). O atributo `#[unsafe(no_mangle)]` atende ao requisito de exportação de símbolos da edição Rust 2024 para chamadas da JVM:
+
 ```rust
+#[expect(
+    unsafe_code,
+    reason = "JNI entry point: the JNI export requires the exact symbol name. Body reads input JNI strings and delegates to AppState on the mobile plugin channel."
+)]
 #[unsafe(no_mangle)]
 pub extern "C" fn Java_app_mdreader_DocIngest_onDirectorySelected(
     mut env: jni::JNIEnv,

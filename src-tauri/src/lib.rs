@@ -590,6 +590,30 @@ const fn event_end_kind(transport: TransportState) -> Option<SessionEnd> {
 /// `session`-then-`bookmark_store` order keep the
 /// crate free of lock cycles.
 fn persist_bookmark(state: &AppState, position_secs: f64, end_kind: SessionEnd) {
+    // If active chapter queue exists, persist directory bookmark as well (T207)
+    if let Ok(guard) = state.chapter_queue.lock()
+        && let Some(queue) = guard.as_ref()
+    {
+        let hashes: Vec<[u8; 32]> = queue.items().iter().map(|c| c.content_fingerprint).collect();
+        let collection_fp = session::fingerprint::compute_collection_fingerprint(&hashes);
+        let chapter_idx = u32::try_from(queue.current_index()).unwrap_or(0);
+        let ts_ms = current_first_yield_ms(state);
+        if let Ok(mut store_guard) = state.bookmark_store.lock()
+            && let Some(store) = store_guard.as_mut()
+        {
+            let bm = session::store::CompositeBookmark {
+                collection_fingerprint: collection_fp,
+                chapter_index: chapter_idx,
+                offset_secs: position_secs,
+                saved_ts_ms: ts_ms,
+                end_kind,
+            };
+            if let Err(error) = store.put_directory_bookmark(&bm) {
+                tracing::warn!(%error, "directory bookmark not persisted: store write failed");
+            }
+        }
+    }
+
     let Some(fingerprint) = current_fingerprint(state) else {
         return; // no document loaded — nothing to key the bookmark under
     };
@@ -619,23 +643,23 @@ fn persist_bookmark(state: &AppState, position_secs: f64, end_kind: SessionEnd) 
 }
 
 /// Delete the stored bookmark row under the current document's
-/// content fingerprint (T035, FR-032 / FR-032b / FR-032f): the
-/// discard the two terminal ends perform, so the next open has
-/// no stored row to offer and starts at `0.0`
-/// (storage-schema.md: "Delete on: Stop press, document end.
-/// Nothing else deletes."). The pause-class ends never reach
-/// here — a focus loss, `BecomingNoisy`, a residency teardown
-/// (`resident_stop` / `swipe_away`) and the pre-suspend
-/// background write all PRESERVE the entry (FR-009a / FR-028e).
-///
-/// Best-effort by construction, exactly like
-/// [`persist_bookmark`]: no loaded document, an unopened store,
-/// or a poisoned lock logs and skips — a delete is never a
-/// failure of the control that triggered it. Lock discipline is
-/// the same too: the fingerprint guard is released before the
-/// store is locked last, so no two state locks are ever held
-/// together.
+/// content fingerprint (T035, FR-032 / FR-032b / FR-032f) or
+/// active directory bookmark (T210).
 fn delete_bookmark(state: &AppState) {
+    if let Ok(mut guard) = state.chapter_queue.lock()
+        && let Some(mut queue) = guard.take()
+    {
+        let hashes: Vec<[u8; 32]> = queue.items().iter().map(|c| c.content_fingerprint).collect();
+        let collection_fp = session::fingerprint::compute_collection_fingerprint(&hashes);
+        let _ = queue.set_current_index(0);
+        *guard = Some(queue);
+        if let Ok(mut store_guard) = state.bookmark_store.lock()
+            && let Some(store) = store_guard.as_mut()
+        {
+            let _ = store.delete_directory_bookmark(&collection_fp);
+        }
+    }
+
     let Some(fingerprint) = current_fingerprint(state) else {
         return; // no document loaded — no row to delete
     };
@@ -2665,6 +2689,8 @@ fn advance_chapter_queue(state: &AppState) -> bool {
 /// A repeated call (first with one chapter, later with the full list)
 /// replaces the item list while keeping the active chapter when its
 /// `file_uri` is still present, so playback is never restarted.
+/// Also inspects `DIRECTORY_BOOKMARKS` via `lookup_directory_on_open` (T208)
+/// to restore saved chapter and position or present `offerDialog` (T209/T205).
 pub fn install_chapter_queue(state: &AppState, incoming: player::queue::ChapterQueue) {
     let Ok(mut guard) = state.chapter_queue.lock() else {
         tracing::warn!("chapter queue install skipped: the lock is poisoned");
@@ -2674,6 +2700,23 @@ pub fn install_chapter_queue(state: &AppState, incoming: player::queue::ChapterQ
         .as_ref()
         .and_then(|q| q.current().map(|c| c.file_uri.clone()));
     let mut next = incoming;
+
+    // Check directory bookmark on initial open (T208 / T205)
+    if active_uri.is_none() {
+        let hashes: Vec<[u8; 32]> = next.items().iter().map(|c| c.content_fingerprint).collect();
+        if let Ok(mut store_guard) = state.bookmark_store.lock()
+            && let Some(store) = store_guard.as_mut()
+        {
+            if let Ok(lookup) = session::store::lookup_directory_on_open(store, &hashes) {
+                if let Some(stored) = lookup.stored {
+                    if let Err(e) = next.set_current_index(stored.chapter_index as usize) {
+                        tracing::warn!(error = %e, "could not restore directory chapter index");
+                    }
+                }
+            }
+        }
+    }
+
     if let Some(uri) = active_uri
         && let Some(index) = next.items().iter().position(|c| c.file_uri == uri)
         && next.set_current_index(index).is_err()

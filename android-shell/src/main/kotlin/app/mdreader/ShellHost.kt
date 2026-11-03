@@ -1,5 +1,6 @@
 package app.mdreader
 
+import android.content.Intent
 import android.app.Activity
 import android.app.Notification
 import android.content.Context
@@ -435,6 +436,19 @@ object ShellHost {
             return false
         }
         return DocIngest.pickDirectory(activity)
+    }
+
+    /**
+     * Routes the Activity result to the ingest paths: the directory-tree
+     * request goes to [DocIngest.handleDirectoryResult] (T198/T199), any
+     * other request to [DocIngest.handlePickResult]. Pure delegation —
+     * no playback decision here.
+     */
+    @JvmStatic
+    fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        val activity = currentActivity ?: return
+        if (DocIngest.handleDirectoryResult(activity, requestCode, resultCode, data)) return
+        DocIngest.handlePickResult(activity, requestCode, resultCode, data)
     }
 
     @JvmStatic

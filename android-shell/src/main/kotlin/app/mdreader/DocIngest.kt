@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.provider.DocumentsContract
 import android.util.Log
 import java.io.File
 import java.io.FileOutputStream
@@ -43,6 +44,9 @@ object DocIngest {
 
     /** Request code for ACTION_OPEN_DOCUMENT. */
     private const val PICK_DOCUMENT_REQUEST = 0x4D4F // "MO" as u16
+
+    /** Request code for ACTION_OPEN_DOCUMENT_TREE. */
+    private const val PICK_DIRECTORY_REQUEST = 0x4D54 // "MT" as u16
 
     /** Snapshot directory under filesDir (not cache — survives app restarts). */
     const val SNAPSHOT_DIR = "snapshots"
@@ -116,6 +120,35 @@ object DocIngest {
             true
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start document picker", e)
+            false
+        }
+    }
+
+    /**
+     * Launches the system directory tree picker for continuous reading.
+     *
+     * Releases any previously persisted tree URI grants so that only a
+     * single active directory permission is held at any given time.
+     * Starts [Intent.ACTION_OPEN_DOCUMENT_TREE] carrying persistable read flags.
+     *
+     * @param activity The Activity to start the tree picker from (for startActivityForResult).
+     * @return true if directory picker was launched, false if the launch failed.
+     */
+    fun pickDirectory(activity: Activity): Boolean {
+        releaseExistingTreePermissions(activity.contentResolver)
+
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+            addFlags(
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+            )
+        }
+
+        return try {
+            activity.startActivityForResult(intent, PICK_DIRECTORY_REQUEST)
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start directory picker", e)
             false
         }
     }
@@ -276,6 +309,34 @@ object DocIngest {
             } catch (e: SecurityException) {
                 Log.w(TAG, "Persistable grant refused; the one-shot grant serves this read", e)
             }
+        }
+    }
+
+    /**
+     * Releases existing persisted tree URI permissions to enforce the single-active
+     * directory policy (FR-001) and prevent leakage against Android's 512 grant ceiling.
+     */
+    private fun releaseExistingTreePermissions(resolver: ContentResolver) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.KITKAT) return
+
+        try {
+            val permissions = resolver.persistedUriPermissions
+            for (permission in permissions) {
+                val uri = permission.uri
+                if (DocumentsContract.isTreeUri(uri)) {
+                    try {
+                        resolver.releasePersistableUriPermission(
+                            uri,
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        )
+                        Log.d(TAG, "Released previous tree URI permission: $uri")
+                    } catch (e: SecurityException) {
+                        Log.w(TAG, "Failed to release tree permission for $uri", e)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to inspect persistedUriPermissions for release", e)
         }
     }
 

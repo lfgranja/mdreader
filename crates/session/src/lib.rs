@@ -38,5 +38,5 @@ pub mod fingerprint;
 pub mod offer;
 pub mod store;
 
-pub use fingerprint::fingerprint;
+pub use fingerprint::{compute_collection_fingerprint, fingerprint};
 pub use store::{BOOKMARKS, clear_bookmark};

@@ -34,6 +34,19 @@ pub fn fingerprint(data: &[u8]) -> [u8; 32] {
     *hasher.finalize().as_bytes()
 }
 
+/// Computes the composite fingerprint for a collection of documents:
+/// `blake3(fp_1 || fp_2 || ... || fp_n)`.
+///
+/// If `hashes` is empty, returns the blake3 hash of an empty byte slice.
+#[must_use]
+pub fn compute_collection_fingerprint(hashes: &[[u8; 32]]) -> [u8; 32] {
+    let mut state = Hasher::new();
+    for hash in hashes {
+        let _ = state.update(hash);
+    }
+    *state.finalize().as_bytes()
+}
+
 /// The FR-038 re-anchor report: where reading
 /// resumes in the new engine's timeline, and the
 /// boundary that was reported for it.
@@ -88,4 +101,63 @@ pub fn reanchor(stored_offset_secs: f64, boundaries: &[f64]) -> Reanchor {
             reported: Some(reported),
         },
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn empty_hashes_returns_empty_slice_blake3() {
+        let expected = *blake3::hash(b"").as_bytes();
+        let actual = compute_collection_fingerprint(&[]);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn single_hash_returns_blake3_of_that_hash() {
+        let single = [42u8; 32];
+        let expected = *blake3::hash(&single).as_bytes();
+        let actual = compute_collection_fingerprint(&[single]);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn multiple_hashes_returns_concatenated_blake3() {
+        let h1 = [1u8; 32];
+        let h2 = [2u8; 32];
+        let h3 = [3u8; 32];
+
+        let mut concat = Vec::new();
+        concat.extend_from_slice(&h1);
+        concat.extend_from_slice(&h2);
+        concat.extend_from_slice(&h3);
+        let expected = *blake3::hash(&concat).as_bytes();
+
+        let actual = compute_collection_fingerprint(&[h1, h2, h3]);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn order_matters_in_collection_fingerprint() {
+        let h1 = [1u8; 32];
+        let h2 = [2u8; 32];
+
+        let fp1 = compute_collection_fingerprint(&[h1, h2]);
+        let fp2 = compute_collection_fingerprint(&[h2, h1]);
+
+        assert_ne!(fp1, fp2);
+    }
+
+    #[test]
+    fn deterministic_output() {
+        let h1 = fingerprint(b"chapter 1 content");
+        let h2 = fingerprint(b"chapter 2 content");
+
+        let first = compute_collection_fingerprint(&[h1, h2]);
+        let second = compute_collection_fingerprint(&[h1, h2]);
+
+        assert_eq!(first, second);
+        assert_eq!(first.len(), 32);
+    }
 }

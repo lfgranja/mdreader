@@ -46,10 +46,9 @@ fn directory_playback_declares_ttfa_budget() {
         BRIDGE.contains("DIRECTORY_TTFA_BUDGET_SECS"),
         "Bridge must declare DIRECTORY_TTFA_BUDGET_SECS"
     );
-    assert!(
-        TTFA_BUDGET_SECS < 3.0 + f64::EPSILON,
-        "TTFA budget must be below 3.0 s"
-    );
+    const {
+        assert!(TTFA_BUDGET_SECS <= src_tauri::publish::DIRECTORY_TTFA_BUDGET_SECS);
+    }
 }
 
 #[test]

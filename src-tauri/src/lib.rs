@@ -268,6 +268,11 @@ pub struct AppState {
     /// or unexpected pause can credit any samples consumed since the
     /// last watch tick before the session leaves `Playing`.
     playback_watch: Mutex<PlaybackWatch>,
+    /// The directory chapter queue (T200, spec 010): `None` for a
+    /// single-document reading. Locked alone and released before any
+    /// other lock; always taken AFTER `session` and before
+    /// `bookmark_store`, never nested.
+    pub(crate) chapter_queue: Mutex<Option<player::queue::ChapterQueue>>,
 }
 
 impl std::fmt::Debug for AppState {
@@ -296,6 +301,7 @@ impl std::fmt::Debug for AppState {
             .field("production", &self.production)
             .field("stream_anchor_secs", &self.stream_anchor_secs)
             .field("playback_watch", &self.playback_watch)
+            .field("chapter_queue", &self.chapter_queue)
             .finish_non_exhaustive()
     }
 }
@@ -402,6 +408,7 @@ impl AppState {
             production: Mutex::new(None),
             stream_anchor_secs: Mutex::new(0.0),
             playback_watch: Mutex::new(PlaybackWatch::default()),
+            chapter_queue: Mutex::new(None),
         }
     }
 
@@ -2437,6 +2444,11 @@ fn playback_watch_tick(state: &AppState, watch: &mut PlaybackWatch) {
     // an empty queue is the producer WAITING for the device, never
     // the end of the document.
     if drained && !commands::production_running(state) {
+        // T200: a directory reading moves to the next chapter without
+        // tearing the stream down; only the last chapter ends the reading.
+        if advance_chapter_queue(state) {
+            return;
+        }
         signal_document_end(state);
         return;
     }
@@ -2617,6 +2629,60 @@ fn maybe_republish_progress(state: &AppState, watch: &mut PlaybackWatch) -> bool
 /// Kotlin half is missing still stops the backend, tears the
 /// offer machine down, deletes the bookmark, and publishes — the
 /// resident surface alone is left to the user's dismissal.
+/// Advance the directory chapter queue gaplessly (T200).
+///
+/// Returns `true` when a next chapter exists and the queue moved to it
+/// (the position clock restarts at the transition's `new_position_secs`),
+/// `false` when there is no queue or the current chapter is the last.
+/// The queue lock is taken alone and released before returning.
+fn advance_chapter_queue(state: &AppState) -> bool {
+    let Ok(mut guard) = state.chapter_queue.lock() else {
+        tracing::warn!("chapter advance skipped: the chapter-queue lock is poisoned");
+        return false;
+    };
+    let Some(queue) = guard.as_mut() else {
+        return false;
+    };
+    match player::advance_on_document_end(queue) {
+        Ok(Some(transition)) => {
+            tracing::info!(
+                chapter_index = queue.current_index(),
+                new_position_secs = transition.new_position_secs,
+                "gapless chapter advance"
+            );
+            true
+        }
+        Ok(None) => false,
+        Err(error) => {
+            tracing::warn!(error = %error, "chapter advance refused");
+            false
+        }
+    }
+}
+
+/// Install or refresh the directory chapter queue (T200), idempotently.
+///
+/// A repeated call (first with one chapter, later with the full list)
+/// replaces the item list while keeping the active chapter when its
+/// `file_uri` is still present, so playback is never restarted.
+pub fn install_chapter_queue(state: &AppState, incoming: player::queue::ChapterQueue) {
+    let Ok(mut guard) = state.chapter_queue.lock() else {
+        tracing::warn!("chapter queue install skipped: the lock is poisoned");
+        return;
+    };
+    let active_uri = guard
+        .as_ref()
+        .and_then(|q| q.current().map(|c| c.file_uri.clone()));
+    let mut next = incoming;
+    if let Some(uri) = active_uri
+        && let Some(index) = next.items().iter().position(|c| c.file_uri == uri)
+        && next.set_current_index(index).is_err()
+    {
+        tracing::warn!(index, "chapter queue active index out of range");
+    }
+    *guard = Some(next);
+}
+
 fn signal_document_end(state: &AppState) {
     match shell_jni::command_document_end_to_kotlin() {
         Ok(()) => {}
@@ -2666,6 +2732,7 @@ pub fn run() {
             production: Mutex::new(None),
             stream_anchor_secs: Mutex::new(0.0),
             playback_watch: Mutex::new(PlaybackWatch::default()),
+            chapter_queue: Mutex::new(None),
         })
         .setup(|app| {
             // Voice assets ship inside the APK: extract them to a
@@ -3720,8 +3787,9 @@ pub mod commands {
                 Ok(serde_json::json!({ "status": "picker_launched" }))
             }
             Ok(BridgeAction::PickDirectory) => {
-                // T186: Dispatches pick directory (SAF tree picker) on Android shell.
-                // Full integration and JNI dispatch wired in T187 / T200.
+                // T200: launches the SAF tree picker; the shell scans the
+                // tree and the resulting queue is installed in AppState.
+                crate::shell_jni::pick_directory_from_shell()?;
                 Ok(serde_json::json!({ "status": "directory_picker_launched" }))
             }
             Ok(BridgeAction::NextChapter) => {
@@ -6181,6 +6249,25 @@ mod latch_persistence_tests {
 /// Kotlin (SC-035).
 pub mod publish {
     use super::AppState;
+
+    /// Directory-reading time-to-first-audio budget in seconds (spec 010 US1).
+    pub const DIRECTORY_TTFA_BUDGET_SECS: f64 = 3.0;
+
+    /// Chapter metadata published beside the mirror state: the
+    /// `chapter_index` (zero-based) and `chapter_count` of the active
+    /// directory queue, or `None` for a single-document reading.
+    #[must_use]
+    pub fn chapter_metadata(state: &AppState) -> Option<serde_json::Value> {
+        let guard = state.chapter_queue.lock().ok()?;
+        let queue = guard.as_ref()?;
+        let metadata = serde_json::json!({
+            "chapter_index": queue.current_index(),
+            "chapter_count": queue.len(),
+        });
+        drop(guard);
+        Some(metadata)
+    }
+
     use player::cli::SessionSnapshot;
     use player::surface::{
         Dismissal, Heading, MirrorState, Progress, SurfaceResolver, SurfaceSnapshot,
@@ -6276,6 +6363,12 @@ pub mod publish {
         };
 
         let mirror = frontend_mirror(snapshot.transport, snapshot.position_secs, surface);
+
+        if let (Some(app), Some(chapters)) =
+            (crate::shell_jni::installed_app(), chapter_metadata(state))
+        {
+            let _ = app.emit("tauri://channel/chapter-metadata", chapters);
+        }
 
         if let Some(app) = crate::shell_jni::installed_app() {
             let _ = app.emit("tauri://channel/mirror-publish", mirror.clone());

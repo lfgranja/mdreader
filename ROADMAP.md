@@ -12,8 +12,8 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────────────────┐
-│ NOW (Sprint Corrente - ~92% Concluído)                                                      │
-│ • Validar T184 e executar `/speckit.converge` na Spec 009 (SAF Ingestão pelo Título)         │
+│ NOW (Sprint Corrente - ~93% Concluído)                                                      │
+│ • ✅ Spec 009 CONVERGIDA (converge executado, 0 findings)                                    │
 │ • Completar Spec 010 — Directory Reading (26/42 tasks, 16 restantes)                        │
 │ • Limpeza de diretórios de bugs vazios em .specify/bugs/ (4 pendentes)                      │
 └─────────────────────────────────────────────────────────────────────────────────────────────┘
@@ -70,7 +70,7 @@
 | 006 | `lente-sinestesica-completa`| ✓ | ✓ | 55/55 | ✓ | ✓ | ✓ | Convergido completo | **CONVERGIDO** |
 | 007 | `sona-complete-design` | ✓ | ✓ | **29/29** | ✓ | ✓ | ✓ RMS instrumentation, canvas 5-layer, repeat button, T028 e T029 | Host tests green; zero achados pendentes | **CONVERGIDO (100%)** |
 | 008 | `ref-device-emulator` | ✓ | ✓ | 40/40 | ✓ | ✓ | Harness de emulação estrutural | Convergido completo | **CONVERGIDO** |
-| 009 | `open-file-from-title` | ✓ | ✓ | **26/27** | ✓ | ✓ | ✓ Storage Access Framework JNI, auto-play, redb offer dialog, recusa segura | T158–T183 concluídas; resta T184 (validação device ADB) | **Implementado / Pronto para converge** |
+| 009 | `open-file-from-title` | ✓ | ✓ | **26/27** (T184 = validação manual ADB) | ✓ | ✓ | ✓ Storage Access Framework JNI, auto-play, redb offer dialog, recusa segura | T158–T183 concluídas; `/speckit.converge` executado → **0 findings** (converged) | **CONVERGIDO (2026-11-03)** |
 | 010 | `directory-reading` | ✓ | ✓ | **26/42** | ✓ | ✓ | ✓ ChapterQueue, directory bookmarks, pre-roll 10s, SAF tree permissions | T185–T213 em progresso; 16 tasks restantes (T214–T229) | **Em progresso / Feature ativa** |
 
 ---
@@ -92,7 +92,7 @@
 
 ## 3. Análise Quantitativa e Qualitativa de Avanço
 
-### O que já percorremos (~92% do Produto Global):
+### O que já percorremos (~93% do Produto Global):
 - **Motor de Áudio e Playback Authority (100%):** O runtime Rust (`crates/player`, `crates/session`, `crates/diag`, `crates/engine-core`) gerencia soberanamente transporte, buffer, taxa pitch-preserving e `PositionClock` (audible progress puro).
 - **Design System SONA & Lente Sinestésica (100% Convergido):** Acessibilidade TalkBack (10/10), alto contraste para ambiente externo, visualizador de 5 camadas no canvas alimentado por RMS lock-free a ~20 Hz (`AtomicU32`) e botão repeat integrados (Spec 007 formalmente convergida — 29/29 tasks).
 - **Ingestão SAF & Bookmarking Durável (100% em código):** Abertura de arquivos Markdown pela caixa de título via Android SAF, cálculo de fingerprint Blake3, persistência atômica em `redb` a cada 20s e em pausas, e diálogo de retomada inteligente (`offerDialog`).
@@ -100,9 +100,9 @@
 - **Padrão de Qualidade e Otimização de CI:** Gates 1 a 8 verdes, clippy estrito sem `unwrap`/`expect`, paralelismo configurado via test-groups no `nextest.toml` e amostragem de proptest controlada. Histórico git limpo (apenas `dev` e `main`). 10 specs rastreadas (5 convergidas, 4 quase completas, 1 ativa).
 - **Governança e Spec Kit:** 10 assessments (7 completos, 3 parciais), 10 specs com artefatos completos, 11 bugs triados (7 fechados, 4 pendentes).
 
-### O que ainda falta (~8% para Fechamento Total):
-1. **Convergência Formal da Spec 009 (NOW):**
-   - Validar T184 e rodar `/speckit.converge specs/009-open-file-from-title`.
+### O que ainda falta (~7% para Fechamento Total):
+1. **✅ Convergência Formal da Spec 009 (CONCLUÍDA 2026-11-03):**
+   - `/speckit.converge` executado → 0 findings (converged). T184 (validação manual ADB) permanece como tarefa manual.
 2. **Completar Spec 010 — Directory Reading (NOW/NEXT):**
    - 16 tasks restantes (T214–T229): integração final, testes de convergência, documentação.
 3. **Benchmark Acústico em Hardware Real - SC-009 (NEXT):**

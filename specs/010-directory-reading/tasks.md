@@ -12,11 +12,11 @@
 
 **Purpose**: Scaffolding action variants, JNI signatures, and shared state tracking for directory picking and chapter flow.
 
-- [ ] T185 [P] Declare closed `ChapterStatus` enum (`Pending`, `Playing`, `Completed`, `Skipped`) and `ChapterItem` struct with serialization in `crates/player/src/queue.rs`.
-- [ ] T186 [P] Declare directory and chapter action variants (`PickDirectory`, `NextChapter`, `PreviousChapter`) in `BridgeAction` enum and register `"pick_directory"`, `"next_chapter"`, `"previous_chapter"` in `parse_action` in `src-tauri/src/lib.rs`.
-- [ ] T187 Declare `pick_directory_from_shell` JNI dispatch calling `ShellHost.pickDirectory()` with non-Android no-op in `src-tauri/src/shell_jni.rs`.
-- [ ] T188 [P] Add `DocIngest.pickDirectory(activity)` implementation using `ACTION_OPEN_DOCUMENT_TREE` with persistable read flags and single-active directory permission release in `android-shell/src/main/kotlin/app/mdreader/DocIngest.kt`.
-- [ ] T189 [P] Expose static `ShellHost.pickDirectory()` dispatch delegating to `DocIngest.pickDirectory(currentActivity)` in `android-shell/src/main/kotlin/app/mdreader/ShellHost.kt`.
+- [x] T185 [P] Declare closed `ChapterStatus` enum (`Pending`, `Playing`, `Completed`, `Skipped`) and `ChapterItem` struct with serialization in `crates/player/src/queue.rs`.
+- [x] T186 [P] Declare directory and chapter action variants (`PickDirectory`, `NextChapter`, `PreviousChapter`) in `BridgeAction` enum and register `"pick_directory"`, `"next_chapter"`, `"previous_chapter"` in `parse_action` in `src-tauri/src/lib.rs`.
+- [x] T187 Declare `pick_directory_from_shell` JNI dispatch calling `ShellHost.pickDirectory()` with non-Android no-op in `src-tauri/src/shell_jni.rs`.
+- [x] T188 [P] Add `DocIngest.pickDirectory(activity)` implementation using `ACTION_OPEN_DOCUMENT_TREE` with persistable read flags and single-active directory permission release in `android-shell/src/main/kotlin/app/mdreader/DocIngest.kt`.
+- [x] T189 [P] Expose static `ShellHost.pickDirectory()` dispatch delegating to `DocIngest.pickDirectory(currentActivity)` in `android-shell/src/main/kotlin/app/mdreader/ShellHost.kt`.
 
 ---
 

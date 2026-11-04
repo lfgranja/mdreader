@@ -88,34 +88,22 @@
 
 ### Tests for User Story 3 (TDD - Write First, MUST FAIL initially) ⚠️
 
-- [ ] T211 [P] [US3] Contract test in `src-tauri/tests/test_directory_contextual_skip.rs` asserting that `ACTION_SKIP_TO_NEXT` on the last section jumps to chapter $N+1$, and `ACTION_SKIP_TO_PREVIOUS` within the first 3 seconds jumps to chapter $N-1$.
-- [ ] T212 [P] [US3] Property-based test in `crates/player/tests/prop_invalid_chapter_skipping.rs` asserting that files > 93.636 bytes, 0 bytes, or non-UTF8 are marked `ChapterStatus::Skipped`, emit `DiagnosticKind::Failure(FormatUndeliverable)`, and do not crash or block subsequent valid chapters.
-- [ ] T213 [P] [US3] Unit test in `crates/player/tests/test_pre_roll_cancellation.rs` asserting that pre-synthesized buffer for chapter $N+1$ (10s pre-roll trigger) is cooperatively cancelled and purged upon manual seek or skip.
-
-### Implementation for User Story 3
-
-- [ ] T214 [US3] Implement contextual skip logic in `crates/player/src/skip.rs` combining heading boundary check with `ChapterQueue::next()` and `ChapterQueue::previous()`.
-- [ ] T215 [US3] Forward `ACTION_SKIP_TO_NEXT` and `ACTION_SKIP_TO_PREVIOUS` from `MediaMirror.kt` through shell JNI to contextual skip in `src-tauri/src/lib.rs`.
-- [ ] T216 [US3] Implement individual chapter byte budget validation (`MAX_DOC_BYTES = 93.636`) and UTF-8 verification with diagnostic failure logging in `crates/player/src/queue.rs`.
-- [ ] T217 [US3] Implement adaptive 10.0-second pre-roll synthesis trigger for chapter $N+1$ with cooperative cancellation token on manual skip/seek in `src-tauri/src/lib.rs`.
-- [ ] T218 [US3] Implement graceful refusal banner rendering and TalkBack notification for skipped corrupted files without stopping transport in `src-tauri/src/status_view.html`.
-
-**Checkpoint**: Full feature capability complete across all user scenarios and edge cases.
-
----
-
-## Phase 6: Polish, Verification & Quality Gates (Final Phase)
-
-**Purpose**: Formal execution of the project verification gate (Gates 1-8). Only these deterministic tests attest to success.
-
-- [ ] T219 Run formatting check: `cargo fmt --all -- --check`.
-- [ ] T220 Run all unit, integration, and property tests via nextest: `cargo nextest run --workspace`.
-- [ ] T221 Update and verify gate 2 test census against `scripts/expected-tests.txt`.
-- [ ] T222 Run clippy lint gate: `cargo clippy --workspace --all-targets -- -D warnings`.
-- [ ] T223 Run closed-set purity and shell-purity scans: `./scripts/check-shell-purity.sh` and gate 7 checks.
-- [ ] T224 Run supply chain security audit: `cargo deny check && cargo audit`.
-- [ ] T225 Execute full gate verification suite: `./scripts/verify.sh`.
-- [ ] T226 Perform manual and ADB verification of Scenarios 1–5 on Android target device per `specs/010-directory-reading/quickstart.md`.
+- [x] T211 [P] [US3] Contract test in `src-tauri/tests/test_directory_contextual_skip.rs` asserting that `ACTION_SKIP_TO_NEXT` on the last section jumps to chapter $N+1$, and `ACTION_SKIP_TO_PREVIOUS` within the first 3 seconds jumps to chapter $N-1$.
+- [x] T212 [P] [US3] Property-based test in `crates/player/tests/prop_invalid_chapter_skipping.rs` asserting that files > 93.636 bytes, 0 bytes, or non-UTF8 are marked `ChapterStatus::Skipped`, emit `DiagnosticKind::Failure(FormatUndeliverable)`, and do not crash or block subsequent valid chapters.
+- [x] T213 [P] [US3] Unit test in `crates/player/tests/test_pre_roll_cancellation.rs` asserting that pre-synthesized buffer for chapter $N+1$ (10s pre-roll trigger) is cooperatively cancelled and purged upon manual seek or skip.
+- [x] T214 [US3] Implement contextual skip logic in `crates/player/src/skip.rs` combining heading boundary check with `ChapterQueue::next()` and `ChapterQueue::previous()`.
+- [x] T215 [US3] Forward `ACTION_SKIP_TO_NEXT` and `ACTION_SKIP_TO_PREVIOUS` from `MediaMirror.kt` through shell JNI to contextual skip in `src-tauri/src/lib.rs`.
+- [x] T216 [US3] Implement individual chapter byte budget validation (`MAX_DOC_BYTES = 93.636`) and UTF-8 verification with diagnostic failure logging in `crates/player/src/queue.rs`.
+- [x] T217 [US3] Implement adaptive 10.0-second pre-roll synthesis trigger for chapter $N+1$ with cooperative cancellation token on manual skip/seek in `src-tauri/src/lib.rs`.
+- [x] T218 [US3] Implement graceful refusal banner rendering and TalkBack notification for skipped corrupted files without stopping transport in `src-tauri/src/status_view.html`.
+- [x] T219 Run formatting check: `cargo fmt --all -- --check`.
+- [x] T220 Run all unit, integration, and property tests via nextest: `cargo nextest run --workspace`.
+- [x] T221 Update and verify gate 2 test census against `scripts/expected-tests.txt`.
+- [x] T222 Run clippy lint gate: `cargo clippy --workspace --all-targets -- -D warnings`.
+- [x] T223 Run closed-set purity and shell-purity scans: `./scripts/check-shell-purity.sh` and gate 7 checks.
+- [x] T224 Run supply chain security audit: `cargo deny check && cargo audit`.
+- [x] T225 Execute full gate verification suite: `./scripts/verify.sh`.
+- [ ] T226 Perform manual and ADB verification of Scenarios 1–5 on Android target device per `specs/010-directory-reading/quickstart.md`. (Gate 9 build now succeeds: `cargo tauri android build --target aarch64 --debug` produced app-universal-debug.apk. Blocked on a stable Android device/emulator for install+run; emulator processes crash during cold boot in this host.)
 
 ---
 

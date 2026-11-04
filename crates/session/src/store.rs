@@ -527,7 +527,11 @@ impl BookmarkStore {
         let stored = self.get_directory_bookmark(&collection_fingerprint)?;
 
         let (offer, cold_start, offer_route) = stored.as_ref().map_or(
-            (OpenOffer::NoOffer, crate::offer::ColdStart::StartNow, "none"),
+            (
+                OpenOffer::NoOffer,
+                crate::offer::ColdStart::StartNow,
+                "none",
+            ),
             |bm| match bm.end_kind {
                 SessionEnd::Paused => (
                     OpenOffer::Continue {
@@ -871,8 +875,8 @@ mod tests {
     }
 
     #[test]
-    fn identical_bytes_at_any_path_share_the_stored_position(
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    fn identical_bytes_at_any_path_share_the_stored_position()
+    -> Result<(), Box<dyn std::error::Error>> {
         // FR-036: the key is the content hash, never
         // the path — the lookup carries no path at
         // all, so the same bytes opened "from
@@ -925,8 +929,8 @@ mod tests {
     }
 
     #[test]
-    fn last_rate_round_trips_through_a_reopened_tempdir_store(
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    fn last_rate_round_trips_through_a_reopened_tempdir_store()
+    -> Result<(), Box<dyn std::error::Error>> {
         // T042 / FR-019b: the store half of the
         // persistence wiring over a real redb file —
         // first use reads no rung; every write-on-change
@@ -1035,8 +1039,8 @@ mod tests {
     }
 
     #[test]
-    fn directory_bookmark_all_session_end_variants_roundtrip(
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    fn directory_bookmark_all_session_end_variants_roundtrip()
+    -> Result<(), Box<dyn std::error::Error>> {
         let dir = tempfile::tempdir()?;
         let path = dir.path().join("bookmarks.redb");
         let store = BookmarkStore::open(&path)?;

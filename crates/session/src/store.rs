@@ -551,11 +551,7 @@ impl BookmarkStore {
                     "none",
                 ),
             },
-<<<<<<< HEAD
-        };
-=======
         );
->>>>>>> origin/dev
 
         Ok(DirectoryOpenLookup {
             collection_fingerprint,

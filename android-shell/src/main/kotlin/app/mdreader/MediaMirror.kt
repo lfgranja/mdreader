@@ -87,7 +87,9 @@ import android.util.Log
  * pause, onSkipToNext to the legacy `skip_forward5s` wire
  * identifier, onSkipToPrevious to `skip_back5s`). Rust now
  * resolves both skip actions to section boundaries, with a
- * ten-second fallback for sectionless documents (FR-002).
+ * ten-second fallback for sectionless documents (FR-002); for a
+ * directory reading Rust also turns a skip past the last section, or
+ * a skip-back inside the first 3.0 s, into a chapter move (FR-012).
  * Neither is honoured locally. The Stop control has
  * no platform route — the session's action mask never
  * advertises it and no callback forwards it — because the

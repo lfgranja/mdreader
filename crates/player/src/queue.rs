@@ -162,6 +162,36 @@ pub struct ChapterTransition {
 }
 
 impl ChapterQueue {
+    /// Validates the bytes of chapter `index`; a refused chapter is marked
+    /// [`ChapterStatus::Skipped`] and never blocks later chapters.
+    ///
+    /// # Errors
+    ///
+    /// Returns the [`ChapterRefusal`] when the chapter was skipped.
+    pub fn admit_chapter_bytes(
+        &mut self,
+        index: usize,
+        bytes: &[u8],
+    ) -> Result<(), ChapterRefusal> {
+        let Some(item) = self.items.get_mut(index) else {
+            // An index outside the queue names no chapter: nothing to skip.
+            return Ok(());
+        };
+        match validate_chapter_bytes(bytes) {
+            Ok(_) => Ok(()),
+            Err(refusal) => {
+                item.playback_status = ChapterStatus::Skipped;
+                tracing::warn!(
+                    index,
+                    reason = %refusal,
+                    interruption = ?refusal.reason(),
+                    "chapter refused before synthesis; marked skipped"
+                );
+                Err(refusal)
+            }
+        }
+    }
+
     /// Performs the automatic gapless transition to the next chapter.
     ///
     /// Marks the current chapter `Completed`, activates the next one as
@@ -191,6 +221,50 @@ impl ChapterQueue {
             new_position_secs: 0.0,
         })
     }
+}
+
+/// Per-chapter byte budget (FR-013): the single `MAX_DOC_BYTES` cap applies to each file.
+pub const MAX_CHAPTER_BYTES: usize = crate::interruption::MAX_DOC_BYTES;
+
+/// Closed-set reasons a chapter's bytes are refused before synthesis (FR-013).
+#[derive(Error, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChapterRefusal {
+    /// The file has zero bytes.
+    #[error("chapter is empty")]
+    Empty,
+    /// The file exceeds [`MAX_CHAPTER_BYTES`].
+    #[error("chapter exceeds the {MAX_CHAPTER_BYTES}-byte budget")]
+    Oversize,
+    /// The file is not valid UTF-8.
+    #[error("chapter is not valid UTF-8")]
+    InvalidUtf8,
+}
+
+impl ChapterRefusal {
+    /// The interruption reason every refusal maps to (persistent, `FormatUndeliverable`).
+    #[must_use]
+    pub const fn reason(self) -> crate::interruption::InterruptionReason {
+        match self {
+            Self::Empty | Self::Oversize | Self::InvalidUtf8 => {
+                crate::interruption::InterruptionReason::FormatUndeliverable
+            }
+        }
+    }
+}
+
+/// Validates one chapter's raw bytes (size budget, then UTF-8).
+///
+/// # Errors
+///
+/// Returns the [`ChapterRefusal`] naming why the chapter cannot be read.
+pub fn validate_chapter_bytes(bytes: &[u8]) -> Result<&str, ChapterRefusal> {
+    if bytes.is_empty() {
+        return Err(ChapterRefusal::Empty);
+    }
+    if bytes.len() > MAX_CHAPTER_BYTES {
+        return Err(ChapterRefusal::Oversize);
+    }
+    std::str::from_utf8(bytes).map_err(|_| ChapterRefusal::InvalidUtf8)
 }
 
 /// Token parsed from a filename for natural alfanumeric sorting.

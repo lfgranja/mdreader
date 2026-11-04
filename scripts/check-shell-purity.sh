@@ -281,6 +281,10 @@ ALLOWLIST=(
   # occurrences are still adjudicated by Section 3 and by the T086
   # residue inventory below.
   "$SRC_TAURI/tests/test_resume_restarts_audio.rs"
+  # 010 directory contextual skip contract (T211): names the skip vocabulary
+  # only to pin Rust-side contextual chapter navigation; the mention IS the
+  # assertion, same shape as the purity tests above.
+  "$SRC_TAURI/tests/test_directory_contextual_skip.rs"
 
   # 005 surface-audit host checks
   "$SRC_TAURI/src/surface_audit/mod.rs"

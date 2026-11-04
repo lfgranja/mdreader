@@ -48,12 +48,16 @@ fn test_skip_to_next_on_last_section_advances_chapter() -> Result<(), Box<dyn st
     let advanced = player::skip::contextual_skip_forward(&mut queue, true)?;
     assert!(advanced);
     assert_eq!(queue.current_index(), 2);
-    assert_eq!(queue.current().map(|c| c.filename.as_str()), Some("03-estado.md"));
+    assert_eq!(
+        queue.current().map(|c| c.filename.as_str()),
+        Some("03-estado.md")
+    );
     Ok(())
 }
 
 #[test]
-fn test_skip_to_previous_within_3s_jumps_to_previous_chapter() -> Result<(), Box<dyn std::error::Error>> {
+fn test_skip_to_previous_within_3s_jumps_to_previous_chapter()
+-> Result<(), Box<dyn std::error::Error>> {
     let mut queue = sample_queue();
     assert_eq!(queue.current_index(), 1);
 
@@ -61,12 +65,16 @@ fn test_skip_to_previous_within_3s_jumps_to_previous_chapter() -> Result<(), Box
     let jumped_prev = player::skip::contextual_skip_backward(&mut queue, 1.5)?;
     assert!(jumped_prev);
     assert_eq!(queue.current_index(), 0);
-    assert_eq!(queue.current().map(|c| c.filename.as_str()), Some("01-intro.md"));
+    assert_eq!(
+        queue.current().map(|c| c.filename.as_str()),
+        Some("01-intro.md")
+    );
     Ok(())
 }
 
 #[test]
-fn test_skip_to_previous_after_3s_restarts_current_chapter() -> Result<(), Box<dyn std::error::Error>> {
+fn test_skip_to_previous_after_3s_restarts_current_chapter()
+-> Result<(), Box<dyn std::error::Error>> {
     let mut queue = sample_queue();
     assert_eq!(queue.current_index(), 1);
 
@@ -74,6 +82,9 @@ fn test_skip_to_previous_after_3s_restarts_current_chapter() -> Result<(), Box<d
     let jumped_prev = player::skip::contextual_skip_backward(&mut queue, 12.0)?;
     assert!(!jumped_prev);
     assert_eq!(queue.current_index(), 1);
-    assert_eq!(queue.current().map(|c| c.filename.as_str()), Some("02-arquitetura.md"));
+    assert_eq!(
+        queue.current().map(|c| c.filename.as_str()),
+        Some("02-arquitetura.md")
+    );
     Ok(())
 }

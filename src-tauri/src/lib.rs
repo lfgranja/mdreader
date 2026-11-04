@@ -273,6 +273,10 @@ pub struct AppState {
     /// other lock; always taken AFTER `session` and before
     /// `bookmark_store`, never nested.
     pub(crate) chapter_queue: Mutex<Option<player::queue::ChapterQueue>>,
+    /// The cancellable pre-roll of chapter N+1 (T217, FR-014): armed at
+    /// 10.0 s from the chapter end, cancelled and purged on any manual
+    /// skip or seek. Locked alone, never nested.
+    pub(crate) chapter_preroll: Mutex<player::skip::NextChapterPreRoll>,
 }
 
 impl std::fmt::Debug for AppState {
@@ -302,6 +306,7 @@ impl std::fmt::Debug for AppState {
             .field("stream_anchor_secs", &self.stream_anchor_secs)
             .field("playback_watch", &self.playback_watch)
             .field("chapter_queue", &self.chapter_queue)
+            .field("chapter_preroll", &self.chapter_preroll)
             .finish_non_exhaustive()
     }
 }
@@ -409,6 +414,7 @@ impl AppState {
             stream_anchor_secs: Mutex::new(0.0),
             playback_watch: Mutex::new(PlaybackWatch::default()),
             chapter_queue: Mutex::new(None),
+            chapter_preroll: Mutex::new(player::skip::NextChapterPreRoll::new()),
         }
     }
 
@@ -594,7 +600,11 @@ fn persist_bookmark(state: &AppState, position_secs: f64, end_kind: SessionEnd) 
     if let Ok(guard) = state.chapter_queue.lock()
         && let Some(queue) = guard.as_ref()
     {
-        let hashes: Vec<[u8; 32]> = queue.items().iter().map(|c| c.content_fingerprint).collect();
+        let hashes: Vec<[u8; 32]> = queue
+            .items()
+            .iter()
+            .map(|c| c.content_fingerprint)
+            .collect();
         let collection_fp = session::fingerprint::compute_collection_fingerprint(&hashes);
         let chapter_idx = u32::try_from(queue.current_index()).unwrap_or(0);
         let ts_ms = current_first_yield_ms(state);
@@ -649,7 +659,11 @@ fn delete_bookmark(state: &AppState) {
     if let Ok(mut guard) = state.chapter_queue.lock()
         && let Some(mut queue) = guard.take()
     {
-        let hashes: Vec<[u8; 32]> = queue.items().iter().map(|c| c.content_fingerprint).collect();
+        let hashes: Vec<[u8; 32]> = queue
+            .items()
+            .iter()
+            .map(|c| c.content_fingerprint)
+            .collect();
         let collection_fp = session::fingerprint::compute_collection_fingerprint(&hashes);
         let _ = queue.set_current_index(0);
         *guard = Some(queue);
@@ -2462,6 +2476,7 @@ fn playback_watch_tick(state: &AppState, watch: &mut PlaybackWatch) {
     };
 
     feed_audible_progress(state, position_secs, watch);
+    maybe_start_chapter_preroll(state, position_secs);
 
     // T158: the end-of-document drain is gated on the production:
     // while the producer still holds audio the reader has not heard,
@@ -2684,6 +2699,101 @@ fn advance_chapter_queue(state: &AppState) -> bool {
     }
 }
 
+/// Arm the chapter N+1 pre-roll once the current chapter is within
+/// [`player::skip::NEXT_CHAPTER_PREROLL_TRIGGER_SECS`] of its end (T217,
+/// FR-014). A single-document reading, the last chapter, or an already
+/// pending pre-roll arm nothing. Locks are taken alone, one at a time.
+fn maybe_start_chapter_preroll(state: &AppState, position_secs: f64) {
+    let (duration_secs, _) = commands::production_counters(state);
+    if duration_secs <= 0.0 {
+        return;
+    }
+    let next = {
+        let Ok(guard) = state.chapter_queue.lock() else {
+            return;
+        };
+        let Some(queue) = guard.as_ref() else {
+            return;
+        };
+        let next = queue.current_index().saturating_add(1);
+        if next >= queue.len() {
+            return;
+        }
+        next
+    };
+    let Ok(mut preroll) = state.chapter_preroll.lock() else {
+        tracing::warn!("chapter pre-roll skipped: the pre-roll lock is poisoned");
+        return;
+    };
+    if preroll.pending_chapter().is_some() || !preroll.should_trigger(duration_secs - position_secs)
+    {
+        return;
+    }
+    let _token = preroll.begin(next);
+    tracing::info!(chapter_index = next, "chapter pre-roll armed");
+}
+
+/// Cancel and purge the chapter N+1 pre-roll (T217): called on every
+/// manual skip or seek so stale pre-synthesized audio is never played.
+pub(crate) fn cancel_chapter_preroll(state: &AppState) {
+    if let Ok(mut preroll) = state.chapter_preroll.lock() {
+        preroll.cancel_and_purge();
+    } else {
+        tracing::warn!("chapter pre-roll cancel skipped: the pre-roll lock is poisoned");
+    }
+}
+
+/// Contextual skip for a directory reading (T215 / FR-012): the media
+/// `SKIP_TO_NEXT` / `SKIP_TO_PREVIOUS` actions reach here through the
+/// shell verbs. Returns `true` when the queue moved to another chapter
+/// (the caller must not also run the in-document skip).
+///
+/// Forward moves only when the document has no further section; backward
+/// moves only inside the first 3.0 s of the chapter.
+pub(crate) fn directory_contextual_skip(
+    state: &AppState,
+    verb: ShellVerb,
+    position_secs: f64,
+    on_last_section: bool,
+) -> bool {
+    let Ok(mut guard) = state.chapter_queue.lock() else {
+        tracing::warn!("contextual skip skipped: the chapter-queue lock is poisoned");
+        return false;
+    };
+    let Some(queue) = guard.as_mut() else {
+        return false;
+    };
+    let moved = match verb {
+        ShellVerb::SkipForward => player::skip::contextual_skip_forward(queue, on_last_section),
+        ShellVerb::SkipBackward => player::skip::contextual_skip_backward(queue, position_secs),
+        ShellVerb::Play
+        | ShellVerb::Pause
+        | ShellVerb::Stop
+        | ShellVerb::Complete
+        | ShellVerb::Interrupt
+        | ShellVerb::RateUp
+        | ShellVerb::RateDown
+        | ShellVerb::CycleVoiceNext
+        | ShellVerb::CycleVoicePrev
+        | ShellVerb::ResumeAtStored
+        | ShellVerb::StartOver
+        | ShellVerb::ChooseEngine
+        | ShellVerb::ExternalStart => return false,
+    };
+    drop(guard);
+    match moved {
+        Ok(true) => {
+            crate::cancel_chapter_preroll(state);
+            true
+        }
+        Ok(false) => false,
+        Err(error) => {
+            tracing::warn!(error = %error, "contextual skip refused");
+            false
+        }
+    }
+}
+
 /// Install or refresh the directory chapter queue (T200), idempotently.
 ///
 /// A repeated call (first with one chapter, later with the full list)
@@ -2706,14 +2816,11 @@ pub fn install_chapter_queue(state: &AppState, incoming: player::queue::ChapterQ
         let hashes: Vec<[u8; 32]> = next.items().iter().map(|c| c.content_fingerprint).collect();
         if let Ok(mut store_guard) = state.bookmark_store.lock()
             && let Some(store) = store_guard.as_mut()
+            && let Ok(lookup) = session::store::lookup_directory_on_open(store, &hashes)
+            && let Some(stored) = lookup.stored
+            && let Err(e) = next.set_current_index(stored.chapter_index as usize)
         {
-            if let Ok(lookup) = session::store::lookup_directory_on_open(store, &hashes) {
-                if let Some(stored) = lookup.stored {
-                    if let Err(e) = next.set_current_index(stored.chapter_index as usize) {
-                        tracing::warn!(error = %e, "could not restore directory chapter index");
-                    }
-                }
-            }
+            tracing::warn!(error = %e, "could not restore directory chapter index");
         }
     }
 
@@ -2776,6 +2883,7 @@ pub fn run() {
             stream_anchor_secs: Mutex::new(0.0),
             playback_watch: Mutex::new(PlaybackWatch::default()),
             chapter_queue: Mutex::new(None),
+            chapter_preroll: Mutex::new(player::skip::NextChapterPreRoll::new()),
         })
         .setup(|app| {
             // Voice assets ship inside the APK: extract them to a
@@ -4055,6 +4163,27 @@ pub mod commands {
         state: &AppState,
         verb: ShellVerb,
     ) -> Result<serde_json::Value, String> {
+        if matches!(verb, ShellVerb::SkipForward | ShellVerb::SkipBackward) {
+            // T217: a manual skip never plays pre-synthesized audio.
+            crate::cancel_chapter_preroll(state);
+            // T215: directory readings treat a skip past the last section
+            // (or inside the first 3.0 s) as a chapter move (FR-012).
+            let before = state
+                .session
+                .lock()
+                .map(|session| session.snapshot().position_secs)
+                .map_err(|e| e.to_string())?;
+            let (duration_secs, _) = production_counters(state);
+            let on_last_section = duration_secs > 0.0
+                && before + player::skip::CHAPTER_RESTART_WINDOW_SECS >= duration_secs;
+            if crate::directory_contextual_skip(state, verb, before, on_last_section) {
+                publish_current_state(state, None);
+                return Ok(serde_json::json!({
+                    "status": "chapter_changed",
+                    "position_secs": 0.0,
+                }));
+            }
+        }
         let (snapshot, previous_rate) = {
             let mut session = state.session.lock().map_err(|e| e.to_string())?;
             let previous_rate = session.snapshot().rate;
@@ -4940,7 +5069,7 @@ pub mod commands {
 
     /// The production's counters (T158): the measured duration so
     /// far and the samples the reading carries.
-    fn production_counters(state: &AppState) -> (f64, usize) {
+    pub(crate) fn production_counters(state: &AppState) -> (f64, usize) {
         let Ok(guard) = state.production.lock() else {
             return (0.0, 0);
         };

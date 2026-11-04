@@ -14,9 +14,7 @@ use engine_core::closed::SessionEnd;
 use proptest::prelude::*;
 use session::fingerprint::{compute_collection_fingerprint, fingerprint};
 use session::offer::{ColdStart, OpenOffer};
-use session::store::{
-    BookmarkStore, CompositeBookmark, StoredPosition, lookup_directory_on_open,
-};
+use session::store::{BookmarkStore, CompositeBookmark, StoredPosition, lookup_directory_on_open};
 use tempfile::tempdir;
 
 fn arb_chapter_hashes() -> impl Strategy<Value = Vec<[u8; 32]>> {

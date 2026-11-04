@@ -173,8 +173,23 @@ impl ChapterQueue {
         index: usize,
         bytes: &[u8],
     ) -> Result<(), ChapterRefusal> {
-        let _ = (index, bytes);
-        Err(ChapterRefusal::Empty)
+        let Some(item) = self.items.get_mut(index) else {
+            // An index outside the queue names no chapter: nothing to skip.
+            return Ok(());
+        };
+        match validate_chapter_bytes(bytes) {
+            Ok(_) => Ok(()),
+            Err(refusal) => {
+                item.playback_status = ChapterStatus::Skipped;
+                tracing::warn!(
+                    index,
+                    reason = %refusal,
+                    interruption = ?refusal.reason(),
+                    "chapter refused before synthesis; marked skipped"
+                );
+                Err(refusal)
+            }
+        }
     }
 
     /// Performs the automatic gapless transition to the next chapter.
@@ -242,9 +257,14 @@ impl ChapterRefusal {
 /// # Errors
 ///
 /// Returns the [`ChapterRefusal`] naming why the chapter cannot be read.
-pub const fn validate_chapter_bytes(bytes: &[u8]) -> Result<&str, ChapterRefusal> {
-    let _ = bytes;
-    Err(ChapterRefusal::Empty)
+pub fn validate_chapter_bytes(bytes: &[u8]) -> Result<&str, ChapterRefusal> {
+    if bytes.is_empty() {
+        return Err(ChapterRefusal::Empty);
+    }
+    if bytes.len() > MAX_CHAPTER_BYTES {
+        return Err(ChapterRefusal::Oversize);
+    }
+    std::str::from_utf8(bytes).map_err(|_| ChapterRefusal::InvalidUtf8)
 }
 
 /// Token parsed from a filename for natural alfanumeric sorting.

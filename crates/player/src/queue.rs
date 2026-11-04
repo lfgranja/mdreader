@@ -283,7 +283,7 @@ pub fn sort_natural(items: &mut [ChapterItem]) {
         match (a_is_index, b_is_index) {
             (true, false) => std::cmp::Ordering::Less,
             (false, true) => std::cmp::Ordering::Greater,
-            _ => {
+            (false, false) | (true, true) => {
                 let tokens_a = tokenize_natural(&a.filename);
                 let tokens_b = tokenize_natural(&b.filename);
                 tokens_a

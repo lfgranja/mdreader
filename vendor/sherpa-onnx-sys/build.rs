@@ -537,9 +537,26 @@ fn copy_to_tauri_android_jnilibs(
     if let Some(project_dir) = find_tauri_project_dir() {
         candidates.push(project_dir.join(&jni_base_suffix));
     }
-    // Fallback: CARGO_MANIFEST_DIR (works for non-Tauri setups).
     if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {
-        candidates.push(PathBuf::from(manifest_dir).join(&jni_base_suffix));
+        let manifest_path = PathBuf::from(manifest_dir);
+        // Walk up from the vendored crate's manifest dir to find the workspace
+        // root (the directory that contains `src-tauri/tauri.conf.json`).
+        // `find_tauri_project_dir` walks up from the host `target/` dir and
+        // lands on the repository root, which lacks `tauri.conf.json` (it lives
+        // under `src-tauri/`), so it returns None here. This fallback covers
+        // vendored build scripts whose CARGO_MANIFEST_DIR is nested under
+        // `vendor/`.
+        let mut cur = manifest_path.as_path();
+        while let Some(parent) = cur.parent() {
+            if parent.join("src-tauri").join("tauri.conf.json").exists() {
+                candidates.push(parent.join("src-tauri").join(&jni_base_suffix));
+                break;
+            }
+            cur = parent;
+        }
+        // Keep the existing direct-manifest-dir fallback for non-Tauri setups
+        // where jniLibs sits next to the manifest.
+        candidates.push(manifest_path.join(&jni_base_suffix));
     }
 
     let tauri_jni_base = candidates.iter().find(|p| {
@@ -567,8 +584,31 @@ fn copy_to_tauri_android_jnilibs(
             Some(stem) => {
                 if let Ok(prev) = fs::read_to_string(&version_file) {
                     if prev.trim() == stem {
-                        eprintln!("Skipping Tauri Android .so copy: already up-to-date ({stem})");
-                        return Ok(());
+                        // Only skip when the .so files are genuinely still
+                        // present. `tauri android init` (or a clean) can wipe
+                        // `jniLibs/<abi>/` while leaving the version marker
+                        // behind, which would otherwise ship an APK missing
+                        // `libsherpa-onnx-c-api.so` and crash at launch with
+                        // `UnsatisfiedLinkError`.
+                        let has_so = fs::read_dir(&dest_dir)
+                            .ok()
+                            .map(|rd| {
+                                rd.filter_map(|e| e.ok()).any(|e| {
+                                    e.path()
+                                        .file_name()
+                                        .and_then(OsStr::to_str)
+                                        .map_or(false, |n| {
+                                            n.contains(".so") && !n.contains("c++")
+                                        })
+                                })
+                            })
+                            .unwrap_or(false);
+                        if has_so {
+                            eprintln!("Skipping Tauri Android .so copy: already up-to-date ({stem})");
+                            return Ok(());
+                        }
+                        // Version matches but the .so files are missing:
+                        // fall through and re-copy them.
                     }
                 }
             }

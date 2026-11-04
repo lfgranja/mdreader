@@ -103,7 +103,7 @@
 - [x] T223 Run closed-set purity and shell-purity scans: `./scripts/check-shell-purity.sh` and gate 7 checks.
 - [x] T224 Run supply chain security audit: `cargo deny check && cargo audit`.
 - [x] T225 Execute full gate verification suite: `./scripts/verify.sh`.
-- [ ] T226 Perform manual and ADB verification of Scenarios 1–5 on Android target device per `specs/010-directory-reading/quickstart.md`. (BLOCKED: no Android device/emulator available; SDK lacks `emulator` binary and `adb devices` lists none. Re-run when a device/emulator is attached.)
+- [ ] T226 Perform manual and ADB verification of Scenarios 1–5 on Android target device per `specs/010-directory-reading/quickstart.md`. (Gate 9 build now succeeds: `cargo tauri android build --target aarch64 --debug` produced app-universal-debug.apk. Blocked on a stable Android device/emulator for install+run; emulator processes crash during cold boot in this host.)
 
 ---
 

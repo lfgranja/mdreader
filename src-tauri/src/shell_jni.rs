@@ -854,28 +854,28 @@ pub extern "C" fn Java_app_mdreader_DocIngest_onDocumentIngested(
     let mime_type = unsafe { JString::from_raw(mime_type) };
 
     let snapshot_path = match env.get_string(&snapshot_path) {
-        Ok(s) => s.into(),
+        Ok(s) => String::from(s),
         Err(e) => {
             tracing::error!("JNI onDocumentIngested: failed to get snapshot_path: {e}");
             return;
         }
     };
     let fingerprint_hex = match env.get_string(&fingerprint_hex) {
-        Ok(s) => s.into(),
+        Ok(s) => String::from(s),
         Err(e) => {
             tracing::error!("JNI onDocumentIngested: failed to get fingerprint_hex: {e}");
             return;
         }
     };
     let original_uri = match env.get_string(&original_uri) {
-        Ok(s) => s.into(),
+        Ok(s) => String::from(s),
         Err(e) => {
             tracing::error!("JNI onDocumentIngested: failed to get original_uri: {e}");
             return;
         }
     };
     let mime_type = match env.get_string(&mime_type) {
-        Ok(s) => s.into(),
+        Ok(s) => String::from(s),
         Err(e) => {
             tracing::error!("JNI onDocumentIngested: failed to get mime_type: {e}");
             return;
@@ -1422,7 +1422,7 @@ pub extern "C" fn Java_app_mdreader_DocIngest_onDirectorySelected(
     let manifest_json_obj = unsafe { JString::from_raw(manifest_json) };
 
     let tree_uri_str = match env.get_string(&tree_uri_obj) {
-        Ok(s) => s.into(),
+        Ok(s) => String::from(s),
         Err(e) => {
             tracing::error!("JNI onDirectorySelected: failed to get tree_uri: {e}");
             return;
@@ -1430,7 +1430,7 @@ pub extern "C" fn Java_app_mdreader_DocIngest_onDirectorySelected(
     };
 
     let root_name_str = match env.get_string(&root_name_obj) {
-        Ok(s) => s.into(),
+        Ok(s) => String::from(s),
         Err(e) => {
             tracing::error!("JNI onDirectorySelected: failed to get root_name: {e}");
             return;
@@ -1438,7 +1438,7 @@ pub extern "C" fn Java_app_mdreader_DocIngest_onDirectorySelected(
     };
 
     let manifest_json_str = match env.get_string(&manifest_json_obj) {
-        Ok(s) => s.into(),
+        Ok(s) => String::from(s),
         Err(e) => {
             tracing::error!("JNI onDirectorySelected: failed to get manifest_json: {e}");
             return;

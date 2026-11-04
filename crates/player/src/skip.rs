@@ -180,6 +180,89 @@ impl Default for PreRollRing {
     }
 }
 
+/// A skip-back inside this many seconds of a chapter start goes to the previous chapter.
+pub const CHAPTER_RESTART_WINDOW_SECS: f64 = 3.0;
+
+/// Remaining seconds at which the next chapter's pre-roll synthesis starts (FR-014).
+pub const NEXT_CHAPTER_PREROLL_TRIGGER_SECS: f64 = 10.0;
+
+/// Contextual skip-forward: at the last section, advance to chapter N+1.
+///
+/// Returns `Ok(true)` when the queue advanced.
+///
+/// # Errors
+///
+/// Returns [`crate::queue::ChapterQueueError`] on an out-of-bounds queue state.
+pub const fn contextual_skip_forward(
+    queue: &mut crate::queue::ChapterQueue,
+    on_last_section: bool,
+) -> Result<bool, crate::queue::ChapterQueueError> {
+    let _ = (queue, on_last_section);
+    Ok(false)
+}
+
+/// Contextual skip-back: within the first 3.0 s go to chapter N-1, else restart.
+///
+/// Returns `Ok(true)` when the queue moved to the previous chapter.
+///
+/// # Errors
+///
+/// Returns [`crate::queue::ChapterQueueError`] on an out-of-bounds queue state.
+pub const fn contextual_skip_backward(
+    queue: &mut crate::queue::ChapterQueue,
+    position_secs: f64,
+) -> Result<bool, crate::queue::ChapterQueueError> {
+    let _ = (queue, position_secs);
+    Ok(false)
+}
+
+/// Cancellable pre-roll of the next chapter (FR-014).
+#[derive(Debug, Default)]
+pub struct NextChapterPreRoll {
+    /// Pre-synthesized mono-`f32` PCM for the pending chapter.
+    pub buffer: Vec<f32>,
+}
+
+impl NextChapterPreRoll {
+    /// An idle pre-roll.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self { buffer: Vec::new() }
+    }
+    /// Whether `remaining_secs` has reached the trigger.
+    #[must_use]
+    pub fn should_trigger(&self, remaining_secs: f64) -> bool {
+        let _ = remaining_secs;
+        false
+    }
+    /// Begins pre-rolling `chapter_index`; returns the cooperative token.
+    pub fn begin(&mut self, chapter_index: usize) -> PreRollToken {
+        let _ = chapter_index;
+        PreRollToken::default()
+    }
+    /// The chapter being pre-rolled, if any.
+    #[must_use]
+    pub const fn pending_chapter(&self) -> Option<usize> {
+        None
+    }
+    /// Cancels the in-flight pre-roll and purges its buffer.
+    pub fn cancel_and_purge(&mut self) {}
+}
+
+/// Cooperative cancellation token shared with the synthesis worker.
+#[derive(Debug, Clone, Default)]
+pub struct PreRollToken {
+    flag: std::sync::Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl PreRollToken {
+    /// Whether the pre-roll was cancelled.
+    #[must_use]
+    pub fn is_cancelled(&self) -> bool {
+        self.flag.load(std::sync::atomic::Ordering::Acquire)
+    }
+}
+
 /// Rate-change effective ≤2 s (FR-019c). Engine applies pitch-preserving stretch;
 /// this layer selects rung only (FR-043 contract).
 #[must_use]

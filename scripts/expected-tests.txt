@@ -33,6 +33,7 @@ player::prop_first_audio_3s
 player::prop_focus
 player::prop_focus8
 player::prop_idle_drain
+player::prop_invalid_chapter_skipping
 player::prop_ladder
 player::prop_lifecycle
 player::prop_persist
@@ -59,6 +60,7 @@ player::test_focus_duck_pause_us2
 player::test_focus_intents_us2
 player::test_lockscreen_us4
 player::test_play_latency
+player::test_pre_roll_cancellation
 player::test_progress_cli
 player::test_removal_signals_us3
 player::test_routing_us3
@@ -94,6 +96,7 @@ src-tauri::repeat_control
 src-tauri::rms_payload_contract
 src-tauri::surface_inventory_count
 src-tauri::test_buffer_state_in_diag
+src-tauri::test_directory_contextual_skip
 src-tauri::test_directory_playback_contract
 src-tauri::test_in_app_play_functional
 src-tauri::test_kotlin_mirror_payload

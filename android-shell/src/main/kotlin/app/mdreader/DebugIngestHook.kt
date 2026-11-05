@@ -114,7 +114,7 @@ object DebugIngestHook {
                 if (ext !in setOf("md", "txt")) continue
                 val bytes = try { f.readBytes() } catch (_: Exception) { continue }
                 if (bytes.isEmpty() || bytes.size > DocIngest.MAX_DOC_BYTES) continue
-                if (!DocIngest.isTextUtf8(bytes)) continue
+                if (bytes.isEmpty() || bytes.any { it.toInt() == 0 }) continue
                 val hex = DocIngest.debugFingerprintHex(bytes)
                 val snap = DocIngest.debugWriteSnapshot(context, bytes, ext, hex)
                 chapters.put(JSONObject().apply {

@@ -18,12 +18,34 @@ adb shell getprop ro.product.model ro.build.version.sdk ro.product.cpu.abi > "$O
 adb shell pm list packages | grep -F "$PKG" > "$OUT/pkg.txt" 2>&1 || true
 grep -q "$PKG" "$OUT/pkg.txt" && pass "package installed" || fail "package missing"
 
-# Fixtures on device
-adb shell 'mkdir -p /sdcard/Download/mdreader-test-fixtures/md-dir' >/dev/null 2>&1 || true
-adb push /tmp/mdreader-test-fixtures/t184-teste.md /sdcard/Download/mdreader-test-fixtures/t184-teste.md > "$OUT/push.txt" 2>&1 || true
-adb push /tmp/mdreader-test-fixtures/md-dir /sdcard/Download/mdreader-test-fixtures/ > "$OUT/push_dir.txt" 2>&1 || true
-adb shell 'ls -R /sdcard/Download/mdreader-test-fixtures' > "$OUT/fixtures.txt" 2>&1 || true
-pass "fixtures pushed"
+# Fixtures on device (prefer app-internal files for debug/run-as accessibility)
+APP_FIX=/data/user/0/$PKG/files/mdreader-test-fixtures
+FIX_SRC=/tmp/mdreader-test-fixtures
+# ensure fixtures exist
+if [[ ! -f "$FIX_SRC/t184-teste.md" || ! -d "$FIX_SRC/md-dir" ]]; then
+  mkdir -p "$FIX_SRC/md-dir"
+  printf '# Teste T184\n\n## Seção 1\nConteúdo de teste para validação automatizada.\n\n## Seção 2\nMais conteúdo.\n' > "$FIX_SRC/t184-teste.md"
+  printf '# Introdução\nCapítulo 1.\n' > "$FIX_SRC/md-dir/01-introducao.md"
+  printf '# Arquitetura\nCapítulo 2.\n' > "$FIX_SRC/md-dir/02-arquitetura.md"
+  printf '# Conclusão\nCapítulo 10.\n' > "$FIX_SRC/md-dir/10-conclusao.md"
+  : > "$FIX_SRC/md-dir/04-vazio.md"
+  python3 -c "open('$FIX_SRC/md-dir/05-pesado.md','w').write('# Pesado\n'+('x'*100000))"
+  printf '\xff\xfe\x00' > "$FIX_SRC/md-dir/03-invalido.bin"
+  printf '# Final\nVálido.\n' > "$FIX_SRC/md-dir/06-final.md"
+fi
+if adb shell "run-as $PKG true" >/dev/null 2>&1; then
+  adb push "$FIX_SRC" /data/local/tmp/mdreader-test-fixtures > "$OUT/push.txt" 2>&1 || true
+  adb shell "run-as $PKG mkdir -p $APP_FIX/md-dir && cp /data/local/tmp/mdreader-test-fixtures/t184-teste.md $APP_FIX/ && cp /data/local/tmp/mdreader-test-fixtures/md-dir/* $APP_FIX/md-dir/" >> "$OUT/push.txt" 2>&1 || true
+  FIX_BASE="$APP_FIX"
+  pass "fixtures pushed to app-internal storage (run-as)"
+else
+  adb shell 'mkdir -p $FIX_BASE/md-dir' >/dev/null 2>&1 || true
+  adb push /tmp/mdreader-test-fixtures/t184-teste.md $FIX_BASE/t184-teste.md > "$OUT/push.txt" 2>&1 || true
+  adb push /tmp/mdreader-test-fixtures/md-dir /sdcard/Download/mdreader-test-fixtures/ > "$OUT/push_dir.txt" 2>&1 || true
+  FIX_BASE="/sdcard/Download/mdreader-test-fixtures"
+  pass "fixtures pushed to /sdcard/Download (run-as unavailable)"
+fi
+adb shell "ls -R $FIX_BASE 2>&1 || run-as $PKG ls -R files/mdreader-test-fixtures 2>&1" > "$OUT/fixtures.txt" 2>&1 || true
 
 adb logcat -c >/dev/null 2>&1 || true
 adb shell am force-stop "$PKG" >/dev/null 2>&1 || true
@@ -32,15 +54,16 @@ sleep 4
 
 # T184 Scenario 1: open new document (auto-ingest path via hook)
 log "--- T184 Scenario 1: open document via debug hook ---"
-adb shell am start -n "$PKG/.DebugIngestActivity" --es mode document --es path /sdcard/Download/mdreader-test-fixtures/t184-teste.md > "$OUT/t184_s1_am.txt" 2>&1 && pass "debug hook document intent sent" || fail "debug hook document intent failed"
+adb shell am start -n "$PKG/.DebugIngestActivity" --es mode document --es path $FIX_BASE/t184-teste.md > "$OUT/t184_s1_am.txt" 2>&1 && pass "debug hook document intent sent" || fail "debug hook document intent failed"
 sleep 5
+adb shell "run-as $PKG cat cache/debug_ingest_result.txt" > "$OUT/t184_s1_result.txt" 2>&1 || true
 adb logcat -d -t 400 > "$OUT/t184_s1_logcat.txt" 2>&1 || true
-grep -q 'DebugIngestActivity\|debugDeliverDocument\|onDocumentIngested\|t184-teste' "$OUT/t184_s1_logcat.txt" && pass "document ingest evidence in logcat" || warn "document ingest evidence not obvious in logcat (may still be delivered via JNI)"
+if grep -q "^ok:" "$OUT/t184_s1_result.txt" 2>/dev/null || grep -q 'DebugIngestActivity\|debugDeliverDocument\|onDocumentIngested\|t184-teste' "$OUT/t184_s1_logcat.txt"; then pass "document ingest evidence captured (result/logcat)"; else warn "document ingest evidence not obvious (see $OUT/t184_s1_result.txt)"; fi
 adb shell dumpsys media_session > "$OUT/t184_s1_media.txt" 2>&1 || true
 
 # T184 Scenario 2: reopen same doc (hook again) - resume/offer is Rust/app behavior
 log "--- T184 Scenario 2: reopen document ---"
-adb shell am start -n "$PKG/.DebugIngestActivity" --es mode document --es path /sdcard/Download/mdreader-test-fixtures/t184-teste.md > "$OUT/t184_s2_am.txt" 2>&1 || true
+adb shell am start -n "$PKG/.DebugIngestActivity" --es mode document --es path $FIX_BASE/t184-teste.md > "$OUT/t184_s2_am.txt" 2>&1 || true
 sleep 4
 adb logcat -d -t 300 > "$OUT/t184_s2_logcat.txt" 2>&1 || true
 pass "reopen document intent sent (resume/offer UI behavior requires app-state observation)"
@@ -53,10 +76,11 @@ log "--- T226: directory ingest via debug hook ---"
 adb shell am force-stop "$PKG" >/dev/null 2>&1 || true
 adb shell am start -W -n "$PKG/.MainActivity" >/dev/null 2>&1 || true
 sleep 3
-adb shell am start -n "$PKG/.DebugIngestActivity" --es mode directory --es path /sdcard/Download/mdreader-test-fixtures/md-dir > "$OUT/t226_dir_am.txt" 2>&1 && pass "debug hook directory intent sent" || fail "debug hook directory intent failed"
+adb shell am start -n "$PKG/.DebugIngestActivity" --es mode directory --es path $FIX_BASE/md-dir > "$OUT/t226_dir_am.txt" 2>&1 && pass "debug hook directory intent sent" || fail "debug hook directory intent failed"
 sleep 8
+adb shell "run-as $PKG cat cache/debug_ingest_result.txt" > "$OUT/t226_result.txt" 2>&1 || true
 adb logcat -d -t 500 > "$OUT/t226_logcat.txt" 2>&1 || true
-grep -q 'debug ingest result\|chapters=\|onDirectorySelected\|directory' "$OUT/t226_logcat.txt" && pass "directory ingest evidence in logcat" || warn "directory ingest evidence not obvious in logcat"
+if grep -q "^ok:directory" "$OUT/t226_result.txt" 2>/dev/null || grep -q 'debug ingest result\|chapters=\|onDirectorySelected\|directory' "$OUT/t226_logcat.txt"; then pass "directory ingest evidence captured (result/logcat)"; else warn "directory ingest evidence not obvious (see $OUT/t226_result.txt)"; fi
 
 adb shell dumpsys activity services "$PKG" > "$OUT/services.txt" 2>&1 || true
 adb shell screencap -p /sdcard/t184t226hook.png >/dev/null 2>&1 && adb pull /sdcard/t184t226hook.png "$OUT/screen.png" >/dev/null 2>&1 || true

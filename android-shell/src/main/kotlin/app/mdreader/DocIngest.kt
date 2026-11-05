@@ -675,6 +675,30 @@ object DocIngest {
         mimeType: String
     )
 
+    // --- Debug/test automation hooks (BuildConfig.DEBUG-gated callers only) ---
+    internal fun debugDeliverDocument(
+        context: Context,
+        bytes: ByteArray,
+        extension: String,
+        originalUri: String,
+        mimeType: String,
+        sourceName: String
+    ) {
+        val hex = bytesToHex(blake3_256(bytes))
+        val snapshot = writeSnapshot(context, bytes, extension, hex)
+        currentSnapshot = snapshot
+        trimSnapshots(context, snapshot)
+        onDocumentIngested(snapshot.absolutePath, hex, originalUri, mimeType)
+        Log.i(TAG, "debugDeliverDocument: $sourceName -> ${snapshot.absolutePath}")
+    }
+
+    internal fun debugFingerprintHex(bytes: ByteArray): String = bytesToHex(blake3_256(bytes))
+    internal fun debugWriteSnapshot(context: Context, bytes: ByteArray, extension: String, fingerprintHex: String): File =
+        writeSnapshot(context, bytes, extension, fingerprintHex)
+    internal fun debugDispatchDirectory(treeUri: String, rootName: String, chapters: JSONArray) {
+        dispatchManifest(Uri.parse(treeUri), rootName, chapters)
+    }
+
     /**
      * BLAKE3-256 hasher — delegates to Rust via JNI for exact match
      * with `session::fingerprint::fingerprint`.

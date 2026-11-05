@@ -21,8 +21,28 @@ import org.json.JSONObject
  */
 object DebugIngestHook {
     private const val TAG = "DebugIngestHook"
+    @Volatile private var nativeLoaded = false
 
     fun isEnabled(): Boolean = BuildConfig.DEBUG
+
+    private fun ensureNativeLoaded(): Boolean {
+        if (nativeLoaded) return true
+        return try {
+            // Tauri Android loads the app's Rust library; name follows the package/lib.
+            System.loadLibrary("src_tauri")
+            nativeLoaded = true
+            true
+        } catch (e: Throwable) {
+            try {
+                System.loadLibrary("app_lib")
+                nativeLoaded = true
+                true
+            } catch (_: Throwable) {
+                Log.w(TAG, "Native library not loaded for debug hook", e)
+                false
+            }
+        }
+    }
 
     @JvmStatic
     fun ingestFile(context: Context, path: String): String {
@@ -35,6 +55,7 @@ object DebugIngestHook {
             return "refused:${DocIngest.REFUSAL_FORMAT_UNDELIVERABLE}:size"
         }
         return try {
+            if (!ensureNativeLoaded()) return "error:native-not-loaded"
             val bytes = file.readBytes()
             DocIngest.debugDeliverDocument(
                 context,
@@ -45,7 +66,7 @@ object DebugIngestHook {
                 file.name
             )
             "ok:document:${file.absolutePath}"
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(TAG, "debug ingestFile failed", e)
             "error:${e.javaClass.simpleName}:${e.message}"
         }
@@ -55,26 +76,23 @@ object DebugIngestHook {
     fun ingestUri(context: Context, uriString: String): String {
         if (!BuildConfig.DEBUG) return "refused:not-debug"
         return try {
+            if (!ensureNativeLoaded()) return "error:native-not-loaded"
             val uri = Uri.parse(uriString)
-            val resolver = context.contentResolver
-            val bytes = resolver.openInputStream(uri)?.use { it.readBytes() }
-                ?: return "error:unreadable-uri"
-            val name = uri.lastPathSegment ?: "document"
-            val extension = name.substringAfterLast('.', "").lowercase().ifEmpty { "txt" }
-            if (extension !in setOf("md", "txt")) return "error:unsupported-extension:$extension"
-            if (bytes.size > DocIngest.MAX_DOC_BYTES) {
-                return "refused:${DocIngest.REFUSAL_FORMAT_UNDELIVERABLE}:size"
+            if (uri.scheme == "file") {
+                return ingestFile(context, uri.path ?: "")
             }
-            DocIngest.debugDeliverDocument(
-                context,
-                bytes,
-                extension,
-                uri.toString(),
-                if (extension == "md") "text/markdown" else "text/plain",
-                name
-            )
+            val extension = when {
+                uriString.endsWith(".md", true) -> "md"
+                uriString.endsWith(".txt", true) -> "txt"
+                else -> "txt"
+            }
+            val mime = if (extension == "md") "text/markdown" else "text/plain"
+            val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                ?: return "error:unreadable-uri:$uriString"
+            if (bytes.size > DocIngest.MAX_DOC_BYTES) return "refused:${DocIngest.REFUSAL_FORMAT_UNDELIVERABLE}:size"
+            DocIngest.debugDeliverDocument(context, bytes, extension, uriString, mime, uri.lastPathSegment ?: "document")
             "ok:uri:$uriString"
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(TAG, "debug ingestUri failed", e)
             "error:${e.javaClass.simpleName}:${e.message}"
         }
@@ -83,41 +101,35 @@ object DebugIngestHook {
     @JvmStatic
     fun ingestDirectory(context: Context, dirPath: String): String {
         if (!BuildConfig.DEBUG) return "refused:not-debug"
-        val root = File(dirPath)
-        if (!root.isDirectory) return "error:not-a-directory:$dirPath"
+        val dir = File(dirPath)
+        if (!dir.isDirectory) return "error:not-a-directory:$dirPath"
         return try {
+            if (!ensureNativeLoaded()) return "error:native-not-loaded"
             val chapters = JSONArray()
-            fun addFile(file: File, relativePath: String) {
-                val ext = file.extension.lowercase()
-                if (ext !in setOf("md", "txt")) return
-                val bytes = file.readBytes()
-                if (bytes.size > DocIngest.MAX_DOC_BYTES) return
+            var ordinal = 1
+            val files = dir.listFiles().orEmpty().sortedWith { a, b -> DocIngest.naturalCompare(a.name, b.name) }
+            for (f in files) {
+                if (!f.isFile) continue
+                val ext = f.extension.lowercase()
+                if (ext !in setOf("md", "txt")) continue
+                val bytes = try { f.readBytes() } catch (_: Exception) { continue }
+                if (bytes.isEmpty() || bytes.size > DocIngest.MAX_DOC_BYTES) continue
+                if (!DocIngest.isTextUtf8(bytes)) continue
                 val hex = DocIngest.debugFingerprintHex(bytes)
-                val snapshot = DocIngest.debugWriteSnapshot(context, bytes, ext, hex)
-                chapters.put(
-                    JSONObject()
-                        .put("filename", file.name)
-                        .put("snapshot_path", snapshot.absolutePath)
-                        .put("relative_path", relativePath)
-                        .put("byte_size", bytes.size)
-                        .put("fingerprint_hex", hex)
-                )
-                if (chapters.length() == 1) {
-                    DocIngest.debugDispatchDirectory(root.toURI().toString(), root.name, chapters)
-                }
-            }
-            val rootFiles = root.listFiles()?.filter { it.isFile }?.sortedWith { a, b -> DocIngest.naturalCompare(a.name, b.name) } ?: emptyList()
-            val rootDirs = root.listFiles()?.filter { it.isDirectory }?.sortedWith { a, b -> DocIngest.naturalCompare(a.name, b.name) } ?: emptyList()
-            rootFiles.forEach { addFile(it, it.name) }
-            rootDirs.forEach { dir ->
-                dir.listFiles()?.filter { it.isFile }?.sortedWith { a, b -> DocIngest.naturalCompare(a.name, b.name) }?.forEach {
-                    addFile(it, "${dir.name}/${it.name}")
-                }
+                val snap = DocIngest.debugWriteSnapshot(context, bytes, ext, hex)
+                chapters.put(JSONObject().apply {
+                    put("ordinal", ordinal++)
+                    put("sourceName", f.name)
+                    put("sourceUri", f.toURI().toString())
+                    put("snapshotPath", snap.absolutePath)
+                    put("mimeType", if (ext == "md") "text/markdown" else "text/plain")
+                    put("fingerprintHex", hex)
+                })
             }
             if (chapters.length() == 0) return "error:no-chapters"
-            DocIngest.debugDispatchDirectory(root.toURI().toString(), root.name, chapters)
-            "ok:directory:${root.absolutePath}:chapters=${chapters.length()}"
-        } catch (e: Exception) {
+            DocIngest.debugDispatchDirectory(dir.toURI().toString(), dir.name ?: "Directory", chapters)
+            "ok:directory:${dir.absolutePath}:chapters=${chapters.length()}"
+        } catch (e: Throwable) {
             Log.e(TAG, "debug ingestDirectory failed", e)
             "error:${e.javaClass.simpleName}:${e.message}"
         }

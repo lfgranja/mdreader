@@ -551,6 +551,8 @@ sleep 4
 
 # T184 Scenario 1: open new document (auto-ingest path via hook)
 log "--- T184 Scenario 1: open document via debug hook ---"
+adb shell "run-as $PKG rm -f cache/debug_ingest_result.txt" >/dev/null 2>&1 || true
+adb logcat -c >/dev/null 2>&1 || true
 # FR-008/SC runtime evidence helpers (T018/T024/T067 normal path)
 EV_BUILD_ID="pkg=$(adb shell dumpsys package "$PKG" 2>/dev/null | tr -d '\r' | grep -E 'versionName=|versionCode=' | head -2 | tr '\n' ';' | sed 's/;$/ /' || echo unknown)"
 EV_DEV_ID="serial=$SERIAL;$(adb shell getprop ro.product.model 2>/dev/null | tr -d '\r');sdk=$(adb shell getprop ro.build.version.sdk 2>/dev/null | tr -d '\r');abi=$(adb shell getprop ro.product.cpu.abi 2>/dev/null | tr -d '\r')"

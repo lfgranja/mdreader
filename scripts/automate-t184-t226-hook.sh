@@ -551,19 +551,44 @@ sleep 4
 
 # T184 Scenario 1: open new document (auto-ingest path via hook)
 log "--- T184 Scenario 1: open document via debug hook ---"
+# FR-008/SC runtime evidence helpers (T018/T024/T067 normal path)
+EV_BUILD_ID="pkg=$(adb shell dumpsys package "$PKG" 2>/dev/null | tr -d '\r' | grep -E 'versionName=|versionCode=' | head -2 | tr '\n' ';' | sed 's/;$/ /' || echo unknown)"
+EV_DEV_ID="serial=$SERIAL;$(adb shell getprop ro.product.model 2>/dev/null | tr -d '\r');sdk=$(adb shell getprop ro.build.version.sdk 2>/dev/null | tr -d '\r');abi=$(adb shell getprop ro.product.cpu.abi 2>/dev/null | tr -d '\r')"
+EV_RETENTION="out_dir=$OUT;reviewer_accessible=local-host-path"
+emit_op_evidence() {
+  local op="$1" fixture="$2" corr="$3" result_file="$4" logcat_file="$5" diag_files="$6" out_json="$7"
+  local raw cache_ws corr_ch crash
+  raw=$(tr -d '\r\n' < "$result_file" 2>/dev/null || true)
+  [[ -z "$raw" ]] && raw="inconclusive:no-cache-result"
+  cache_ws="unavailable"
+  if [[ -s "$result_file" ]] && ! grep -qiE 'No such file|inaccessible|Permission denied|run-as:|not found|inconclusive:no-cache' "$result_file" 2>/dev/null; then cache_ws="written"; fi
+  corr_ch="none"
+  if [[ -n "$raw" && "$raw" != inconclusive:* ]]; then corr_ch="authoritative-only"; fi
+  if grep -qiE 'DebugIngestActivity|debug ingest result|chapters=' "$logcat_file" 2>/dev/null; then corr_ch="corroborated"; fi
+  crash="not-detected"
+  if grep -E 'FATAL EXCEPTION|ANR in '"$PKG" "$logcat_file" >/dev/null 2>&1; then crash="detected"; fi
+  build_device_evidence_json "$raw" "$cache_ws" "$corr_ch" "$op" "$fixture" "$EV_BUILD_ID" "$EV_DEV_ID" "$diag_files" "$crash" "${TS}-${op}-${corr}" "$OUT" "$EV_RETENTION" > "$out_json"
+  log "FR-008 evidence ($op/$corr): $out_json status=$(python3 -c "import json,sys; d=json.load(open('$out_json')); print(d.get('status','?'))" 2>/dev/null || echo ?)"
+}
+
 adb shell am start -n "$PKG/.DebugIngestActivity" --es mode document --es path $FIX_BASE/t184-teste.md > "$OUT/t184_s1_am.txt" 2>&1 && pass "debug hook document intent sent" || fail "debug hook document intent failed"
 sleep 5
 adb shell "run-as $PKG cat cache/debug_ingest_result.txt" > "$OUT/t184_s1_result.txt" 2>&1 || true
 adb logcat -d -t 400 > "$OUT/t184_s1_logcat.txt" 2>&1 || true
 if grep -q "^ok:" "$OUT/t184_s1_result.txt" 2>/dev/null || grep -q 'DebugIngestActivity\|debugDeliverDocument\|onDocumentIngested\|t184-teste' "$OUT/t184_s1_logcat.txt"; then pass "document ingest evidence captured (result/logcat)"; else warn "document ingest evidence not obvious (see $OUT/t184_s1_result.txt)"; fi
 adb shell dumpsys media_session > "$OUT/t184_s1_media.txt" 2>&1 || true
+emit_op_evidence "document" "$FIX_BASE/t184-teste.md" "t184_s1" "$OUT/t184_s1_result.txt" "$OUT/t184_s1_logcat.txt" "$OUT/t184_s1_result.txt,$OUT/t184_s1_logcat.txt,$OUT/t184_s1_media.txt" "$OUT/t184_s1_fr008.json"
 
 # T184 Scenario 2: reopen same doc (hook again) - resume/offer is Rust/app behavior
 log "--- T184 Scenario 2: reopen document ---"
+adb shell "run-as $PKG rm -f cache/debug_ingest_result.txt" >/dev/null 2>&1 || true
+adb logcat -c >/dev/null 2>&1 || true
 adb shell am start -n "$PKG/.DebugIngestActivity" --es mode document --es path $FIX_BASE/t184-teste.md > "$OUT/t184_s2_am.txt" 2>&1 || true
 sleep 4
+adb shell "run-as $PKG cat cache/debug_ingest_result.txt" > "$OUT/t184_s2_result.txt" 2>&1 || true
 adb logcat -d -t 300 > "$OUT/t184_s2_logcat.txt" 2>&1 || true
-pass "reopen document intent sent (resume/offer UI behavior requires app-state observation)"
+pass "reopen document intent sent (resume/offer UI behavior requires app-state observation; cache/logcat captured)"
+emit_op_evidence "document" "$FIX_BASE/t184-teste.md" "t184_s2_reopen" "$OUT/t184_s2_result.txt" "$OUT/t184_s2_logcat.txt" "$OUT/t184_s2_result.txt,$OUT/t184_s2_logcat.txt" "$OUT/t184_s2_fr008.json"
 
 # T184 Scenario 3/4: cancellation/a11y are UI-specific; hook covers programmatic open path
 warn "T184 Scenario 3 (SAF cancel) and Scenario 4 (keyboard/TalkBack focus) remain UI/SAF interaction scenarios; hook validates ingest/open path without picker."
@@ -573,11 +598,14 @@ log "--- T226: directory ingest via debug hook ---"
 adb shell am force-stop "$PKG" >/dev/null 2>&1 || true
 adb shell am start -W -n "$PKG/.MainActivity" >/dev/null 2>&1 || true
 sleep 3
+adb shell "run-as $PKG rm -f cache/debug_ingest_result.txt" >/dev/null 2>&1 || true
+adb logcat -c >/dev/null 2>&1 || true
 adb shell am start -n "$PKG/.DebugIngestActivity" --es mode directory --es path $FIX_BASE/md-dir > "$OUT/t226_dir_am.txt" 2>&1 && pass "debug hook directory intent sent" || fail "debug hook directory intent failed"
 sleep 8
 adb shell "run-as $PKG cat cache/debug_ingest_result.txt" > "$OUT/t226_result.txt" 2>&1 || true
 adb logcat -d -t 500 > "$OUT/t226_logcat.txt" 2>&1 || true
 if grep -q "^ok:directory" "$OUT/t226_result.txt" 2>/dev/null || grep -q 'debug ingest result\|chapters=\|onDirectorySelected\|directory' "$OUT/t226_logcat.txt"; then pass "directory ingest evidence captured (result/logcat)"; else warn "directory ingest evidence not obvious (see $OUT/t226_result.txt)"; fi
+emit_op_evidence "directory" "$FIX_BASE/md-dir" "t226" "$OUT/t226_result.txt" "$OUT/t226_logcat.txt" "$OUT/t226_result.txt,$OUT/t226_logcat.txt" "$OUT/t226_fr008.json"
 
 adb shell dumpsys activity services "$PKG" > "$OUT/services.txt" 2>&1 || true
 adb shell screencap -p /sdcard/t184t226hook.png >/dev/null 2>&1 && adb pull /sdcard/t184t226hook.png "$OUT/screen.png" >/dev/null 2>&1 || true
@@ -598,6 +626,9 @@ cat > "$OUT/REPORT.md" << MD
 
 ## Evidence
 - summary: $OUT/summary.txt
+- T184 s1 FR-008: $OUT/t184_s1_fr008.json
+- T184 s2 FR-008: $OUT/t184_s2_fr008.json
+- T226 FR-008: $OUT/t226_fr008.json
 - T184 s1 result: $OUT/t184_s1_result.txt
 - T184 s1 logcat: $OUT/t184_s1_logcat.txt
 - T184 s2 logcat: $OUT/t184_s2_logcat.txt
@@ -606,6 +637,7 @@ cat > "$OUT/REPORT.md" << MD
 - screenshot/ui: $OUT/screen.png, $OUT/ui.xml
 
 ## Limitations (manual/visual)
+- Hook evidence is programmatic non-UI only; `full_parent_completion_claimed=false` for T184/T226 parents. SAF cancel/keyboard/TalkBack across SAF/title UI remain residuals.
 - SAF cancel behavior and keyboard/TalkBack focus across SAF/title UI cannot be fully proven by am/debug hook; requires manual accessibility check.
 MD
 log "Report: $OUT/REPORT.md"

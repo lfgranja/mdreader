@@ -16,6 +16,15 @@ NORM_MODE=""
 NORM_PATH=""
 NORM_URI=""
 NORM_DATA_URI=""
+EV_OPERATION="document"
+EV_FIXTURE=""
+EV_BUILD=""
+EV_DEVICE=""
+EV_DIAG=""
+EV_CRASH="unknown"
+EV_CORR_KEY=""
+EV_LOCATION=""
+EV_RETENTION=""
 
 # Parse contract/report flags early (no side effects). Preserve positional SERIAL for
 # normal device runs by collecting non-contract positionals.
@@ -40,10 +49,22 @@ while (($#)); do
     --print-directory-uri-contract) CONTRACT_MODE="print-directory-uri-contract"; shift ;;
     --print-intent-parse-contract) CONTRACT_MODE="print-intent-parse-contract"; shift ;;
     --normalize-debug-ingest-intent) CONTRACT_MODE="normalize-debug-ingest-intent"; shift ;;
+    --build-device-evidence) CONTRACT_MODE="build-device-evidence"; shift ;;
     --mode) NORM_MODE="${2:-}"; if (($# >= 2)); then shift 2; else shift; fi ;;
     --path) NORM_PATH="${2:-}"; if (($# >= 2)); then shift 2; else shift; fi ;;
     --uri) NORM_URI="${2:-}"; if (($# >= 2)); then shift 2; else shift; fi ;;
     --data-uri) NORM_DATA_URI="${2:-}"; if (($# >= 2)); then shift 2; else shift; fi ;;
+    --raw-outcome) RAW_OUTCOME="${2:-}"; if (($# >= 2)); then shift 2; else shift; fi ;;
+    --cache-write-status) CACHE_WRITE_STATUS="${2:-}"; if (($# >= 2)); then shift 2; else shift; fi ;;
+    --operation) EV_OPERATION="${2:-}"; if (($# >= 2)); then shift 2; else shift; fi ;;
+    --fixture-reference) EV_FIXTURE="${2:-}"; if (($# >= 2)); then shift 2; else shift; fi ;;
+    --build-identity) EV_BUILD="${2:-}"; if (($# >= 2)); then shift 2; else shift; fi ;;
+    --device-identity) EV_DEVICE="${2:-}"; if (($# >= 2)); then shift 2; else shift; fi ;;
+    --diagnostic-capture) EV_DIAG="${2:-}"; if (($# >= 2)); then shift 2; else shift; fi ;;
+    --crash-anr-status) EV_CRASH="${2:-}"; if (($# >= 2)); then shift 2; else shift; fi ;;
+    --correlation-key) EV_CORR_KEY="${2:-}"; if (($# >= 2)); then shift 2; else shift; fi ;;
+    --reviewer-accessible-location) EV_LOCATION="${2:-}"; if (($# >= 2)); then shift 2; else shift; fi ;;
+    --retention-scope) EV_RETENTION="${2:-}"; if (($# >= 2)); then shift 2; else shift; fi ;;
     *) POSITIONAL+=("$1"); shift ;;
   esac
 done
@@ -95,6 +116,87 @@ report_schema_json() {
   emit_json '{"scope_class":"programmatic-non-ui","full_parent_completion_claimed":false,"authoritative_cache_channel":"cache/debug_ingest_result.txt","cache_write_failure_must_not_imply_authoritative_success":true,"authoritative_cache_success":"<false unless cache written+parseable+authoritative; never true on cache write failure without corroboration>","fixture_reference":"<required>","operation":"<document|directory|uri>","outcome":"<explicit parseable>","build_identity":"<required>","device_identity":"<required>","diagnostic_capture":"<required>","crash_anr_status":"<required>","residual_scope_note":"Native SAF picker UI/a11y residuals remain open (FR-009/FR-012).","preferred_location_or_channel":"<required>","effective_location_or_channel":"<required>","cache_write_status":"<written|unavailable|failed:<reason>>","write_status":"<written|unavailable|failed:<reason>>","reviewer_accessible_location":"<required>","retention_scope":"<required>","correlation_key":"<request/evidence/run id>","channel_corroboration":"<authoritative-only|corroborated|conflicting|inconclusive|none|blocked>","corroboration":"<explicit corroboration state>","cache_write_failure_without_corroboration_outcomes":["inconclusive","blocked"],"no_silent_authoritative_cache_success_on_write_failure":true,"counters":{"attempted":"<int>","precondition_blocked":"<int>","in_denominator":"<int>","explicit_within_budget":"<int>","inconclusive":"<int>","sc001":{"attempted":"<int>","requested_exercisable_runs":"<int>","exercised_runs":"<int>","blocked_runs":"<int>","precondition_blocked":"<int>","inconclusive_runs":"<int>","formula":"exercised_runs / max(requested_exercisable_runs - blocked_runs,1) ; SC-001 >=0.95"},"sc002":{"in_denominator":"<int>","eligible_explicit_runs":"<int>","explicit_within_budget_runs":"<int>","explicit_within_budget":"<int>","inconclusive_runs":"<int>","formula":"explicit_within_budget_runs / max(eligible_explicit_runs,1) ; SC-002 >=0.95"}}}'
 }
 
+
+
+build_device_evidence_json() {
+  local raw_outcome="$1" cache_write_status="$2" corroboration="$3" operation="$4" fixture_reference="$5" build_identity="$6" device_identity="$7" diagnostic_capture="$8" crash_anr_status="$9"
+  shift 9
+  local correlation_key="${1:-}" reviewer_location="${2:-}" retention_scope="${3:-}"
+  python3 - "$raw_outcome" "$cache_write_status" "$corroboration" "$operation" "$fixture_reference" "$build_identity" "$device_identity" "$diagnostic_capture" "$crash_anr_status" "$correlation_key" "$reviewer_location" "$retention_scope" <<'PYEV'
+import json, sys
+raw, cache, corr, op, fixture, build, device, diag, crash, corr_key, loc, retention = sys.argv[1:13]
+corr = (corr or "none").strip().lower()
+crash = (crash or "unknown").strip().lower()
+if crash not in {"not-detected","detected","unknown"}: crash = "unknown"
+# reuse channel attribution semantics
+is_written = cache == "written"
+is_corr = ("corroborat" in corr) and corr not in {"none","inconclusive","blocked","conflicting"}
+raw_status = "inconclusive"
+if raw.startswith("blocked:"): raw_status = "blocked"
+elif raw.startswith("ok:"): raw_status = "pass"
+elif raw.startswith("error:") or raw.startswith("refused:"): raw_status = "fail"
+elif raw.startswith("inconclusive"): raw_status = "inconclusive"
+# crash/ANR unknown or detected never explicit pass
+status = raw_status
+if crash in {"unknown","detected"} and status == "pass":
+    status = "inconclusive" if crash == "unknown" else "fail"
+if status not in {"pass","fail","blocked"}:
+    status = "inconclusive" if status != "blocked" else "blocked"
+explicit_within_budget = status in {"pass","fail"} and crash == "not-detected"
+counts_as_explicit_pass = explicit_within_budget
+counts_as_pass = False
+counts_as_full_pass = False
+passed = False
+is_pass = False
+classification = status
+if status == "blocked": classification = "blocked"
+elif status == "inconclusive": classification = "inconclusive"
+elif status == "fail": classification = "fail"
+authoritative_cache_success = bool(is_written and raw_status in {"pass","fail"} and crash=="not-detected" and corr in {"authoritative-only","authoritative","none",""})
+effective = "cache/debug_ingest_result.txt" if is_written and authoritative_cache_success else ("corroborated-fallback" if is_corr and not is_written else ("unavailable" if not is_written else "cache/debug_ingest_result.txt"))
+sc001 = {"attempted":"<int-or-1>","precondition_blocked": 1 if status=="blocked" else 0,"exercised_runs": 1 if status in {"pass","fail","inconclusive"} else 0,"inconclusive_runs": 1 if status=="inconclusive" else 0}
+sc002 = {"in_denominator": 1 if status in {"pass","fail","inconclusive"} else 0,"explicit_within_budget_runs": 1 if explicit_within_budget else 0,"explicit_within_budget": 1 if explicit_within_budget else 0,"inconclusive_runs": 1 if status=="inconclusive" else 0}
+o = {
+  "scope_class":"programmatic-non-ui",
+  "evidence_scope":"programmatic-non-ui",
+  "full_parent_completion_claimed": False,
+  "residual_scope_note":"Native SAF picker UI/a11y residuals remain open (FR-009/FR-012). Hook/device evidence is programmatic non-UI only.",
+  "fixture_reference": fixture,
+  "operation": op,
+  "outcome": raw,
+  "status": status,
+  "outcome_status": status,
+  "classification": classification,
+  "normalized_outcome": classification,
+  "build_identity": build,
+  "device_identity": device,
+  "diagnostic_capture": diag,
+  "crash_anr_status": crash,
+  "crash_anr_unknown_not_pass": True,
+  "preferred_location_or_channel":"cache/debug_ingest_result.txt",
+  "effective_location_or_channel": effective,
+  "write_status": cache,
+  "cache_write_status": cache,
+  "reviewer_accessible_location": loc,
+  "retention_scope": retention,
+  "correlation_key": corr_key,
+  "corroboration": corr,
+  "channel_corroboration": corr,
+  "authoritative_cache_success": authoritative_cache_success,
+  "explicit_within_budget": explicit_within_budget,
+  "counts_as_explicit_pass": counts_as_explicit_pass,
+  "counts_as_pass": counts_as_pass,
+  "counts_as_full_pass": counts_as_full_pass,
+  "passed": passed,
+  "is_pass": is_pass,
+  "sc001_counters": sc001,
+  "sc002_counters": sc002,
+  "counters": {"attempted":"<int>","precondition_blocked":"<int>","in_denominator":"<int>","explicit_within_budget":"<int>","inconclusive":"<int>","sc001":sc001,"sc002":sc002},
+  "classification_counters": {"sc001":sc001,"sc002":sc002}
+}
+print(json.dumps(o, sort_keys=True))
+PYEV
+}
 
 activity_channel_contract_json() {
   emit_json '{"authoritative_cache_channel":"cache/debug_ingest_result.txt","cache_write_failure_must_not_imply_authoritative_success":true,"write_status_required":true,"corroboration_required":true,"no_corroboration_outcomes":["inconclusive","blocked"],"fallback_without_corroboration":["inconclusive","blocked"],"notes":"If cache/debug_ingest_result.txt cannot be written/unavailable, never imply authoritative cache success; require explicit write_status and corroboration-aware attribution."}'
@@ -270,6 +372,10 @@ if [[ "$CONTRACT_MODE" == "print-intent-parse-contract" ]]; then
 fi
 if [[ "$CONTRACT_MODE" == "normalize-debug-ingest-intent" ]]; then
   normalize_debug_ingest_intent_json "$NORM_MODE" "$NORM_PATH" "$NORM_URI" "$NORM_DATA_URI"
+  exit 0
+fi
+if [[ "$CONTRACT_MODE" == "build-device-evidence" ]]; then
+  build_device_evidence_json "$RAW_OUTCOME" "$CACHE_WRITE_STATUS" "$CORROBORATION_VALUE" "$EV_OPERATION" "$EV_FIXTURE" "$EV_BUILD" "$EV_DEVICE" "$EV_DIAG" "$EV_CRASH" "$EV_CORR_KEY" "$EV_LOCATION" "$EV_RETENTION"
   exit 0
 fi
 

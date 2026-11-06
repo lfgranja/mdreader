@@ -158,7 +158,7 @@ Run `check` (non-mutating, fail-closed) at every point below. Run `apply` when `
 | `mode` / `operation` | `apply` or `check`, plus options (`--dry-run`, `--json`, etc.). |
 | `repo_root`, `canonical_overlay_root`, `gen_dir` | Bounded paths evaluated. |
 | `detected_overlay_format_version` | CHK024 result. |
-| `dependency_layout_results` | `DEP/ASM-012-*` validations relevant to scope. |
+| `dependency_layout_results` | `DEP/ASM-012-*` validations relevant to scope (implemented by `check-debug-ingest-overlay.sh`; per-check `pass`/`fail`/`blocked`/`not-applicable`, fail-closed for required claims). |
 | `managed_targets[]` | Per-target status/path/source/expected/actual/remediation/hash summary. |
 | `overall_status` | `pass|fail|blocked` (`apply` may also report no-op/pass detail). |
 | `captured_at_utc` | RFC3339 timestamp or `unavailable:<reason>`. |

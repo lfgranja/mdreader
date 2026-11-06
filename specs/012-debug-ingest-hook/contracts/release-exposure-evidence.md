@@ -69,3 +69,8 @@ Dex/class scanning may be recorded as supplemental evidence. Because debug hook 
 
 - Gate 9 is the authoritative Android build gate and runs outside `scripts/verify.sh` (constitution/repo workflow). FR-010 checks are release/device-aware; integrate as explicit opt-in/feature validation or release-candidate checks, not as silent dependencies of host-only gates 1–8.
 - Any change to debug hook component name, intent action, manifest placement, or canonical source paths must update this check and related contracts. Release-exposure checks MUST NOT rely on non-durable `src-tauri/gen/**` files as canonical inputs except as explicit materialization targets verified by FR-011 apply/check.
+
+
+## Mechanization fields (T042/FR-010, fail-closed)
+
+`check-debug-ingest-release-exposure.sh` modes: `static|runtime|full`. `--adb-runner` / `DEBUG_INGEST_ADB_RUNNER` may be injected for host-testable D3 contract execution; direct adb is not auto-run by fail-closed contract checks. Output MUST include tool provenance, bound `artifact_identity`/`install_identity` as applicable, per-dimension D1–D4 status/details, and `satisfies_fr010_sc004`/overall classification. `overall=pass` for `mode=full` only with D1–D4 pass and bound identities (`install_identity.verified_release_non_debug=true` for runtime/full claims). `class_presence_note` required when class scan runs. Missing required inputs/tools/identity => `blocked-not-evaluated`/non-full as applicable with `satisfies_fr010_sc004=false`; never full FR-010/SC-004 pass. (CHK021: no gen patch; no weakening of FR-010.)

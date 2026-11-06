@@ -103,7 +103,14 @@
 - [x] T223 Run closed-set purity and shell-purity scans: `./scripts/check-shell-purity.sh` and gate 7 checks.
 - [x] T224 Run supply chain security audit: `cargo deny check && cargo audit`.
 - [x] T225 Execute full gate verification suite: `./scripts/verify.sh`.
-- [ ] T226 Perform manual and ADB verification of Scenarios 1–5 on Android target device per `specs/010-directory-reading/quickstart.md`. (Gate 9 build now succeeds: `cargo tauri android build --target aarch64 --debug` produced app-universal-debug.apk. Blocked on a stable Android device/emulator for install+run; emulator processes crash during cold boot in this host.)
+- [ ] T226 Perform manual and ADB verification of Scenarios 1–5 on Android target device per `specs/010-directory-reading/quickstart.md`. Not fully complete from debug-hook evidence alone (012/FR-012). full_parent_completion_claimed=false. (Gate 9 build now succeeds: `cargo tauri android build --target aarch64 --debug` produced app-universal-debug.apk. Blocked on a stable Android device/emulator for install+run; emulator processes crash during cold boot in this host.)
+  - [ ] T226-PROG Programmatic non-UI directory ingest/manifest-dispatch/filtering evidence via Spec 012 hook — open, no evidence linked yet. full_parent_completion_claimed=false.
+  - [ ] T226-RES-SAF-TREE Scenario 1 real SAF tree selection/TTFA/UI observation — open, manual/UI.
+  - [ ] T226-RES-TRANSITION Scenario 2 gapless transition/visual/live-region — open.
+  - [ ] T226-RES-RESUME-UI Scenario 3 kill/reopen resume offer dialog/choices — open.
+  - [ ] T226-RES-HARDWARE-CONTROLS Scenario 4 Bluetooth/lock-screen/MediaSession contextual skip — open.
+  - [ ] T226-RES-INVALID-ENTRIES-UI Scenario 5 resilience during real directory selection/playback UX — open (hook may provide supporting evidence only).
+  - [ ] T226-RES-A11Y-PICKER Native picker/directory selection accessibility/TalkBack/keyboard traversal — open.
 
 ---
 

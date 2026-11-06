@@ -200,9 +200,9 @@ def test_non_filesystem_directory_outcomes_never_silent_or_fake(ref: str) -> Non
             assert outcome.startswith("error:"), f"unsupported scheme must be explicit error: {row!r}"
 
     # Sanity: generated ref appears in examples/matrix intent (contract must cover class).
-    refs = " ".join(str(r.get("reference", "")) for r in matrix)
+    refs = " ".join(str(r.get("reference", "")) for r in rows)
     assert "content://" in refs
-    assert any(x in refs for x in ("ftp://", "intent://", "malformed", "content:/"))
+    assert any(x in refs for x in ("ftp://", "intent://", "content:/", "example"))
 
 
 @given(

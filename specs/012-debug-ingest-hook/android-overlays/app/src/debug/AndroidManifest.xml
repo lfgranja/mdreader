@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Canonical FR-011 debug-only overlay source. Materialized into
+         src-tauri/gen/android/app/src/debug/AndroidManifest.xml by
+         scripts/apply-debug-ingest-overlay.sh; generated tree is never canonical. -->
+    <application>
+        <activity
+            android:name="app.mdreader.DebugIngestActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="app.mdreader.action.DEBUG_INGEST" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

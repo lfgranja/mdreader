@@ -182,6 +182,22 @@ def evaluate_dependency_layout(root: Path, gen_dir: Path, canonical_root: Path) 
 
 
 def target_row(tid: str, target: Path, canonical: Path | None, status: str, action: str, expected: str, actual: str, remediation: str, canon_bytes: bytes | None = None, target_bytes: bytes | None = None) -> dict:
+    row = {
+        "id": tid,
+        "status": status,
+        "action": action,
+        "target_path": str(target),
+        "path": str(target),
+        "canonical_source": str(canonical) if canonical else "n/a",
+        "expected": expected,
+        "actual": actual,
+        "remediation": remediation,
+    }
+    if canon_bytes is not None:
+        row["canonical_sha256"] = sha256_bytes(canon_bytes)
+    if target_bytes is not None:
+        row["actual_sha256"] = sha256_bytes(target_bytes)
+    return row
 
 
 def scan_forbidden_exposure(gen_dir: Path) -> list[dict]:

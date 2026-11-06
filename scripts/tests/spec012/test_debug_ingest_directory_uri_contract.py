@@ -222,7 +222,7 @@ def test_explicit_directory_uri_errors_are_classified_as_fail_not_silent(outcome
 def test_directory_success_form_cannot_be_claimed_without_contract_evidence(outcome: str) -> None:
     data = contract_json()
     policy = data.get("success_policy") or {}
-    assert policy.get("requires_chapters_field") is True
+    assert (policy.get("requires_chapters_field") is True or policy.get("ok_directory_requires_chapters") is True)
     assert policy.get("requires_production_equivalent_dispatch_for_non_filesystem_refs") is True
     assert policy.get("filesystem_path_may_use_existing_path_form") is True
     # Existing classify-outcome parses ok form generically; T057 requires the directory

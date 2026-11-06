@@ -294,7 +294,8 @@ def test_t063_red_runtime_mode_requires_negative_adb_invocation_evidence_shape(s
     command_evidence = d3.get("adb_command") or d3.get("command") or d3.get("commands") or d3.get("invocation_command")
     assert command_evidence, "T063: runtime must bind explicit ADB/component/action invocation command evidence"
     command_text = json.dumps(command_evidence, sort_keys=True)
-    assert serial in command_text or serial in json.dumps(d3, sort_keys=True)
+    serial_json = json.dumps(serial)[1:-1]
+    assert serial in command_text or serial in json.dumps(d3, sort_keys=True) or serial_json in json.dumps(d3, sort_keys=True)
     assert "DebugIngestActivity" in command_text or "app.mdreader/.DebugIngestActivity" in json.dumps(d3, sort_keys=True)
     assert "DEBUG_INGEST" in command_text or "DEBUG_INGEST" in json.dumps(d3, sort_keys=True)
     assert "hook_success_detected" in d3, "T063: runtime D3 must explicitly report hook_success_detected"

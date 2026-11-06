@@ -12,6 +12,10 @@ CLASSIFY_VALUE=""
 CACHE_WRITE_STATUS=""
 RAW_OUTCOME=""
 CORROBORATION_VALUE="none"
+NORM_MODE=""
+NORM_PATH=""
+NORM_URI=""
+NORM_DATA_URI=""
 
 # Parse contract/report flags early (no side effects). Preserve positional SERIAL for
 # normal device runs by collecting non-contract positionals.
@@ -33,6 +37,13 @@ while (($#)); do
     --cache-write-status) CACHE_WRITE_STATUS="${2:-}"; if (($# >= 2)); then shift 2; else shift; fi ;;
     --raw-outcome) RAW_OUTCOME="${2:-}"; if (($# >= 2)); then shift 2; else shift; fi ;;
     --corroboration) CORROBORATION_VALUE="${2:-}"; if (($# >= 2)); then shift 2; else shift; fi ;;
+    --print-directory-uri-contract) CONTRACT_MODE="print-directory-uri-contract"; shift ;;
+    --print-intent-parse-contract) CONTRACT_MODE="print-intent-parse-contract"; shift ;;
+    --normalize-debug-ingest-intent) CONTRACT_MODE="normalize-debug-ingest-intent"; shift ;;
+    --mode) NORM_MODE="${2:-}"; if (($# >= 2)); then shift 2; else shift; fi ;;
+    --path) NORM_PATH="${2:-}"; if (($# >= 2)); then shift 2; else shift; fi ;;
+    --uri) NORM_URI="${2:-}"; if (($# >= 2)); then shift 2; else shift; fi ;;
+    --data-uri) NORM_DATA_URI="${2:-}"; if (($# >= 2)); then shift 2; else shift; fi ;;
     *) POSITIONAL+=("$1"); shift ;;
   esac
 done
@@ -87,6 +98,64 @@ report_schema_json() {
 
 activity_channel_contract_json() {
   emit_json '{"authoritative_cache_channel":"cache/debug_ingest_result.txt","cache_write_failure_must_not_imply_authoritative_success":true,"write_status_required":true,"corroboration_required":true,"no_corroboration_outcomes":["inconclusive","blocked"],"fallback_without_corroboration":["inconclusive","blocked"],"notes":"If cache/debug_ingest_result.txt cannot be written/unavailable, never imply authoritative cache success; require explicit write_status and corroboration-aware attribution."}'
+}
+
+
+
+directory_uri_contract_json() {
+  emit_json '{"scope_class":"programmatic-non-ui","operation":"directory","same_production_path_required":true,"silent_fallback_allowed":false,"fake_success_allowed":false,"full_parent_completion_claimed":false,"undocumented_ambiguous_success_allowed":false,"required_outcomes":{"production_equivalent_success":"ok:directory:<absolute-path-or-production-equivalent-directory-ref>:chapters=<n>","unsupported_or_unresolvable_failure_prefix":"error:"},"reference_classes":{"content_tree":"requires production-equivalent-support-or-explicit-error (content:// tree/document via same production directory-open/manifest-dispatch path when feasible, else explicit diagnosable error:*)","content_document":"requires production-equivalent-support-or-explicit-error","malformed_content":"requires explicit-error","unsupported_scheme":"requires explicit-error (never silent fallback/fake ok)"},"classification_matrix":{"content://com.example/tree/primary%3Amd":{"outcome":"error:unsupported-directory-uri:content://-requires-production-equivalent-dispatch-or-explicit-diagnostic","silent_fallback":false,"fake_success":false,"production_equivalent_dispatch":false},"content://com.example/document/primary%3Amd":{"outcome":"error:unsupported-directory-uri:content://-requires-production-equivalent-dispatch-or-explicit-diagnostic","silent_fallback":false,"fake_success":false,"production_equivalent_dispatch":false},"ftp://example.invalid/tree":{"outcome":"error:unsupported-directory-uri-scheme:ftp","silent_fallback":false,"fake_success":false},"intent://scan/#Intent;scheme=content;end":{"outcome":"error:unsupported-directory-uri-scheme:intent","silent_fallback":false,"fake_success":false},"/app-accessible/filesystem/path":{"outcome":"ok:directory:/app-accessible/filesystem/path:chapters=<n>","silent_fallback":false,"fake_success":false,"production_equivalent_dispatch":true,"chapters_required":true}},"success_policy":{"ok_directory_requires_chapters":true,"production_equivalent_dispatch_required_for_non_filesystem_refs":true,"filesystem_path_may_use_existing_path_form":true,"non_filesystem_ref_requires_contract_check":"fail-closed diagnosable error:* unless production-equivalent dispatch proven; never fake success"},"notes":"FR-003 FR-005 FR-007 US2 US2-AC1 ASM-012-INGEST-SOT: directory refs beyond app-accessible filesystem paths (content:// tree/document, unsupported/malformed) must route through the same production directory-open/manifest-dispatch path when feasible or return explicit diagnosable error:*; never silent fallback/fake/ambiguous success. T226 residual split remains; full_parent_completion_claimed=false."}'
+}
+
+intent_parse_contract_json() {
+  emit_json '{"scope_class":"programmatic-non-ui-debug-intent","contract_mode":"host-deterministic","side_effects":"none (no adb/device/mkdir)","authority_boundary":"validates debug-only intent parsing/normalization/validation semantics; production ingest remains in Kotlin/Rust/JNI (DebugIngestActivity/Hook/DocIngest snapshot-fingerprint + JNI callback/manifest dispatch), FR-004/FR-005 ASM-012-INGEST-SOT; not a parallel production ingest path","mode_aliases":{"document":["document","file","open_document"],"directory":["directory","dir","tree","open_directory"],"uri":["uri"]},"precedence":"U1/FR-003/FR-007: in document/directory modes when path present, path wins before uri/data-uri (intent data). uri mode uses uri/data-uri.","missing_input_errors":{"document":"error:missing-path-or-uri","directory":"error:missing-directory-path","uri":"error:missing-uri"},"unknown_mode":"error:unknown-mode:<normalized-input>","output":"machine-readable JSON with normalized_mode/status/error_class/reference_source/selected_reference","notes":"FR-002 FR-003 FR-007 T013/T020/I1 host-contract fallback (no CHK021 gen patch)."}'
+}
+
+normalize_debug_ingest_intent_json() {
+  local mode="$1" path="$2" uri="$3" data_uri="$4"
+  python3 - "$mode" "$path" "$uri" "$data_uri" <<'PYN'
+import json, sys
+mode_in = (sys.argv[1] or "").strip()
+path = sys.argv[2] or ""
+uri = sys.argv[3] or ""
+data_uri = sys.argv[4] or ""
+low = mode_in.lower() or "document"
+doc = {"document","file","open_document"}
+direc = {"directory","dir","tree","open_directory"}
+def err(code, msg=None):
+    o = {
+      "ok": False, "valid": False, "status":"error", "error_class": code,
+      "error": code, "outcome": code, "result": code,
+      "mode_input": mode_in, "normalized_mode": low,
+      "message": msg or code,
+    }
+    print(json.dumps(o, sort_keys=True)); raise SystemExit
+if low in doc:
+    nm = "document"
+    if path:
+        print(json.dumps({"ok":True,"valid":True,"status":"normalized","normalized_mode":nm,"operation":nm,"mode_input":mode_in,"selected_reference":path,"selected_reference_source":"path","reference_source":"path","resolved_from":"path","uri_ignored_due_to_path_precedence": bool(uri or data_uri),"data_uri_ignored_due_to_path_precedence": bool(data_uri)}, sort_keys=True)); raise SystemExit
+    ref = uri or data_uri
+    if ref:
+        src = "uri" if uri else "data-uri"
+        print(json.dumps({"ok":True,"valid":True,"status":"normalized","normalized_mode":nm,"operation":nm,"mode_input":mode_in,"selected_reference":ref,"selected_reference_source":src,"reference_source":src,"resolved_from":src}, sort_keys=True)); raise SystemExit
+    err("error:missing-path-or-uri")
+if low in direc:
+    nm = "directory"
+    if path:
+        print(json.dumps({"ok":True,"valid":True,"status":"normalized","normalized_mode":nm,"operation":nm,"mode_input":mode_in,"selected_reference":path,"selected_reference_source":"path","reference_source":"path","resolved_from":"path","uri_ignored_due_to_path_precedence": bool(uri or data_uri),"data_uri_ignored_due_to_path_precedence": bool(data_uri)}, sort_keys=True)); raise SystemExit
+    ref = uri or data_uri
+    if ref:
+        src = "uri" if uri else "data-uri"
+        print(json.dumps({"ok":True,"valid":True,"status":"normalized","normalized_mode":nm,"operation":nm,"mode_input":mode_in,"selected_reference":ref,"selected_reference_source":src,"reference_source":src,"resolved_from":src}, sort_keys=True)); raise SystemExit
+    err("error:missing-directory-path")
+if low == "uri":
+    nm = "uri"
+    ref = uri or data_uri
+    if ref:
+        src = "uri" if uri else "data-uri"
+        print(json.dumps({"ok":True,"valid":True,"status":"normalized","normalized_mode":nm,"operation":nm,"mode_input":mode_in,"selected_reference":ref,"selected_reference_source":src,"reference_source":src,"resolved_from":src}, sort_keys=True)); raise SystemExit
+    err("error:missing-uri")
+err(f"error:unknown-mode:{low}")
+PYN
 }
 
 classify_channel_attribution_json() {
@@ -189,6 +258,18 @@ if [[ "$CONTRACT_MODE" == "print-activity-channel-contract" ]]; then
 fi
 if [[ "$CONTRACT_MODE" == "classify-channel-attribution" ]]; then
   classify_channel_attribution_json "$CACHE_WRITE_STATUS" "$RAW_OUTCOME" "$CORROBORATION_VALUE"
+  exit 0
+fi
+if [[ "$CONTRACT_MODE" == "print-directory-uri-contract" ]]; then
+  directory_uri_contract_json
+  exit 0
+fi
+if [[ "$CONTRACT_MODE" == "print-intent-parse-contract" ]]; then
+  intent_parse_contract_json
+  exit 0
+fi
+if [[ "$CONTRACT_MODE" == "normalize-debug-ingest-intent" ]]; then
+  normalize_debug_ingest_intent_json "$NORM_MODE" "$NORM_PATH" "$NORM_URI" "$NORM_DATA_URI"
   exit 0
 fi
 

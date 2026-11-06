@@ -9,7 +9,7 @@ Validation/run guide for the debug-only ingest automation seam (T184/T226 progra
 - Debug-capable Android target: physical device or emulator with the **correct debug ABI artifact** installed. Current known physical device: `adb-53cf9aa7-4VfOJ6._adb-tls-connect._tcp` (2201117TY, SDK 33, arm64-v8a).
 - App package: `app.mdreader`.
 - Feature docs: [`spec.md`](./spec.md), [`contracts/debug-ingest-automation.md`](./contracts/debug-ingest-automation.md), [`contracts/release-exposure-evidence.md`](./contracts/release-exposure-evidence.md), [`contracts/t184-t226-residual-tracking.md`](./contracts/t184-t226-residual-tracking.md), [`contracts/durable-overlay-materialization.md`](./contracts/durable-overlay-materialization.md).
- +  - Before coding precedence-dependent behavior/tests, confirm actual `path` + `uri`/intent-data precedence in `DebugIngestActivity.kt` / `DebugIngestHook.kt` (current behavior: `--es path` takes precedence over intent `data`/`--es uri`; `file://` data/URI is routed via its path where supported) and synchronize contract, data-model, tasks, and tests.
+- Before coding precedence-dependent behavior/tests, confirm actual `path` + `uri`/intent-data precedence in `DebugIngestActivity.kt` / `DebugIngestHook.kt` (current behavior: `--es path` takes precedence over intent `data`/`--es uri`; `file://` data/URI is routed via its path where supported) and synchronize contract, data-model, tasks, and tests.
 ## 1. FR-011 — Apply/verify durable debug overlay (CHK018 run points)
 
 Run `check-debug-ingest-overlay.sh` (non-mutating, fail-closed) and `apply-debug-ingest-overlay.sh` when check fails or canonical/targets changed at: local bootstrap/setup; after `tauri android init` or known Android gen regeneration; after canonical overlay/hook/debug-manifest changes; after Tauri/Android toolchain/template/Gradle/AGP/NDK/SDK changes affecting gen; in CI bootstrap/Android debug jobs for Spec 012; before T184/T226 validation campaigns or SC-006 evidence.
@@ -84,7 +84,7 @@ Expected outcomes (programmatic non-UI scope):
 - directory: `ok:directory:.../md-dir:chapters=<n>` where `<n>` matches production filtering of the fixture set (state fixture composition/expected filtering in evidence)
 - no crash/ANR indicators in captured evidence (`unknown` is not absence/pass)
 - report explicitly states residual native SAF picker cancel and TalkBack/keyboard traversal remain unverified
- +  - evidence includes FR-008 minimum fields and correlation key/run identity (source of truth: `spec.md` §FR-008 normative minimum; contracts/data-model/tasks are additive only)
+- evidence includes FR-008 minimum fields and correlation key/run identity (source of truth: `spec.md` §FR-008 normative minimum; contracts/data-model/tasks are additive only)
 ## 5. FR-012 — Record split residual status
 
 Update/report T184/T226 using [`contracts/t184-t226-residual-tracking.md`](./contracts/t184-t226-residual-tracking.md):
@@ -113,6 +113,6 @@ Expected evidence:
 
 - [ ] FR-011 apply/check passes after any `gen` refresh.
 - [ ] Debug hook produces explicit `ok:*`/`error:*` for document+directory fixtures on accessible paths.
- +  - [ ] Evidence includes crash/ANR status, residual UI-only scope, and FR-008 minimum fields (normative: `spec.md` §FR-008; contracts/data-model/tasks additive only).
+- [ ] Evidence includes crash/ANR status, residual UI-only scope, and FR-008 minimum fields (normative: `spec.md` §FR-008; contracts/data-model/tasks additive only).
 - [ ] T184/T226 split tracking applied; no full completion claimed from hook-only evidence.
 - [ ] FR-010 release exposure bundle recorded before claiming release absence.

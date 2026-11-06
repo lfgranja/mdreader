@@ -18,6 +18,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class DebugIngestSeamSmokeTest {
+    @Test
+    fun debugPackageIsTargeted() {
         val appContext = InstrumentationRegistry.getInstrumentation().targetContext
         assertEquals("app.mdreader", appContext.packageName)
     }

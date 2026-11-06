@@ -9,6 +9,9 @@ HOOK_SCRIPT_NAME="automate-t184-t226-hook.sh"
 JSON_MODE=false
 CONTRACT_MODE=""
 CLASSIFY_VALUE=""
+CACHE_WRITE_STATUS=""
+RAW_OUTCOME=""
+CORROBORATION_VALUE="none"
 
 # Parse contract/report flags early (no side effects). Preserve positional SERIAL for
 # normal device runs by collecting non-contract positionals.
@@ -25,6 +28,11 @@ while (($#)); do
       ;;
     --print-report-schema) CONTRACT_MODE="print-report-schema"; shift ;;
     --print-residual-rules) CONTRACT_MODE="print-residual-rules"; shift ;;
+    --print-activity-channel-contract) CONTRACT_MODE="print-activity-channel-contract"; shift ;;
+    --classify-channel-attribution) CONTRACT_MODE="classify-channel-attribution"; shift ;;
+    --cache-write-status) CACHE_WRITE_STATUS="${2:-}"; if (($# >= 2)); then shift 2; else shift; fi ;;
+    --raw-outcome) RAW_OUTCOME="${2:-}"; if (($# >= 2)); then shift 2; else shift; fi ;;
+    --corroboration) CORROBORATION_VALUE="${2:-}"; if (($# >= 2)); then shift 2; else shift; fi ;;
     *) POSITIONAL+=("$1"); shift ;;
   esac
 done
@@ -40,7 +48,7 @@ PY
 
 # FR-008 minimum fields (spec.md §FR-008) + corroboration/channel fields for contract output.
 fr008_json() {
-  emit_json '{"scope_class":"programmatic-non-ui","fixture_reference":"<fixture/reference>","operation":"<document|directory|uri>","outcome":"<ok:*|error:*|refused:*|blocked:*|inconclusive>","build_identity":"<build/debug APK identity or unavailable:<reason>>","device_identity":"<serial/model/sdk/abi or unavailable:<reason>>","diagnostic_capture":"<logcat/report/screenshot paths or unavailable:<reason>>","crash_anr_status":"<not-detected|detected|unknown>","residual_scope_note":"Programmatic scope only; native SAF picker UI/a11y residuals remain open (FR-009/FR-012).","preferred_location_or_channel":"cache/debug_ingest_result.txt (authoritative when parseable)","effective_location_or_channel":"<effective path/channel>","write_status":"unavailable","reviewer_accessible_location":"<reviewer-accessible path or unavailable:<reason>>","retention_scope":"Until covered EV/RES/TASK/FR/SC IDs are decided/closed or per repo policy; not required in ignored dirs.","channel":"cache/logcat/script","corroboration":"authoritative-only|corroborated|conflicting|inconclusive (per contract)","full_parent_completion_claimed":false}'
+  emit_json '{"scope_class":"programmatic-non-ui","authoritative_cache_channel":"cache/debug_ingest_result.txt","cache_write_failure_must_not_imply_authoritative_success":true,"authoritative_cache_success":false,"write_status":"unavailable","corroboration":"none","fixture_reference":"<fixture/reference>","operation":"<document|directory|uri>","outcome":"<ok:*|error:*|refused:*|blocked:*|inconclusive>","build_identity":"<build/debug APK identity or unavailable:<reason>>","device_identity":"<serial/model/sdk/abi or unavailable:<reason>>","diagnostic_capture":"<logcat/report/screenshot paths or unavailable:<reason>>","crash_anr_status":"<not-detected|detected|unknown>","residual_scope_note":"Programmatic scope only; native SAF picker UI/a11y residuals remain open (FR-009/FR-012).","preferred_location_or_channel":"cache/debug_ingest_result.txt (authoritative when parseable/written)","effective_location_or_channel":"<effective path/channel or unavailable>","reviewer_accessible_location":"<repo-relative evidence path, artifact path, or unavailable:<reason>>","retention_scope":"<host evidence retained; device capture as documented; unavailable:<reason>>","correlation_key":"<request/evidence/run id>","channel_corroboration":"<authoritative-only when cache written and parseable; corroborated/conflicting/inconclusive/none/blocked otherwise>","cache_required_for_attribution":false,"parseable_result_required":true,"cache_absent_or_unparseable_requires_corroboration":true,"cache_write_failure_without_corroboration_outcomes":["inconclusive","blocked"],"counts_toward_sc002_denominator_when_corroborated":true,"crash_anr_unknown_not_pass":true,"no_parseable_result_requires_explicit_status":true}'
 }
 
 print_contract_json() {
@@ -73,7 +81,65 @@ PY
 }
 
 report_schema_json() {
-  emit_json '{"scope_class":"programmatic-non-ui","full_parent_completion_claimed":false,"fixture_reference":"<required>","operation":"<document|directory|uri>","outcome":"<explicit parseable>","build_identity":"<required>","device_identity":"<required>","diagnostic_capture":"<required>","crash_anr_status":"<required>","residual_scope_note":"Native SAF picker UI/a11y residuals remain open (FR-009/FR-012).","preferred_location_or_channel":"<required>","effective_location_or_channel":"<required>","write_status":"<written|unavailable|failed:<reason>>","reviewer_accessible_location":"<required>","retention_scope":"<required>","correlation_key":"<request/evidence/run id>","channel_corroboration":"<authoritative/corroborated/conflicting/inconclusive>","counters":{"attempted":0,"precondition_blocked":0,"in_denominator":0,"explicit_within_budget":0,"inconclusive":0},"formulae":{"sc-001":"SC-001: 100% of attempted runs whose fixtures meet app-accessibility precondition execute without human picker interaction; blocked:fixture-inaccessible reported separately.","sc-002":"SC-002: >=95% (0.95) of in-denominator runs produce explicit parseable success or diagnosable failure within 2 minutes; blocked excluded, inconclusive not explicit until rerun resolves."},"formulae_text":"SC-001 and SC-002 formulae: SC-001 fixture-precondition pass rate; SC-002 >= 95% / 0.95 explicit-within-budget over in-denominator runs."}'
+  emit_json '{"scope_class":"programmatic-non-ui","full_parent_completion_claimed":false,"authoritative_cache_channel":"cache/debug_ingest_result.txt","cache_write_failure_must_not_imply_authoritative_success":true,"authoritative_cache_success":"<false unless cache written+parseable+authoritative; never true on cache write failure without corroboration>","fixture_reference":"<required>","operation":"<document|directory|uri>","outcome":"<explicit parseable>","build_identity":"<required>","device_identity":"<required>","diagnostic_capture":"<required>","crash_anr_status":"<required>","residual_scope_note":"Native SAF picker UI/a11y residuals remain open (FR-009/FR-012).","preferred_location_or_channel":"<required>","effective_location_or_channel":"<required>","cache_write_status":"<written|unavailable|failed:<reason>>","write_status":"<written|unavailable|failed:<reason>>","reviewer_accessible_location":"<required>","retention_scope":"<required>","correlation_key":"<request/evidence/run id>","channel_corroboration":"<authoritative-only|corroborated|conflicting|inconclusive|none|blocked>","corroboration":"<explicit corroboration state>","cache_write_failure_without_corroboration_outcomes":["inconclusive","blocked"],"no_silent_authoritative_cache_success_on_write_failure":true,"counters":{"sc001":{"requested_exercisable_runs":"<int>","exercised_runs":"<int>","blocked_runs":"<int>","inconclusive_runs":"<int>","formula":"exercised_runs / max(requested_exercisable_runs - blocked_runs,1)"},"sc002":{"eligible_explicit_runs":"<int>","explicit_within_budget_runs":"<int>","inconclusive_runs":"<int>","formula":"explicit_within_budget_runs / max(eligible_explicit_runs,1)"}}}'
+}
+
+
+activity_channel_contract_json() {
+  emit_json '{"authoritative_cache_channel":"cache/debug_ingest_result.txt","cache_write_failure_must_not_imply_authoritative_success":true,"write_status_required":true,"corroboration_required":true,"no_corroboration_outcomes":["inconclusive","blocked"],"fallback_without_corroboration":["inconclusive","blocked"],"notes":"If cache/debug_ingest_result.txt cannot be written/unavailable, never imply authoritative cache success; require explicit write_status and corroboration-aware attribution."}'
+}
+
+classify_channel_attribution_json() {
+  local cache_write_status="$1"
+  local raw_outcome="$2"
+  local corroboration="$3"
+  python3 - "$cache_write_status" "$raw_outcome" "$corroboration" <<'PYATTR'
+import json, sys
+cache = sys.argv[1] or "unavailable"
+raw = sys.argv[2] or ""
+corr = (sys.argv[3] or "none").strip().lower()
+corr_explicit = corr if corr else "none"
+is_written = cache == "written"
+is_corr = ("corroborat" in corr_explicit) and corr_explicit not in {"none", "inconclusive", "blocked", "conflicting"}
+is_conflict = corr_explicit == "conflicting"
+raw_status = "unknown"
+if raw.startswith("blocked:"): raw_status = "blocked"
+elif raw.startswith("ok:"): raw_status = "pass"
+elif raw.startswith("error:") or raw.startswith("refused:"): raw_status = "fail"
+elif raw.startswith("inconclusive"): raw_status = "inconclusive"
+authoritative_cache_success = bool(is_written and raw_status in {"pass","fail","blocked"} and corr_explicit in {"authoritative-only","authoritative","none",""})
+if authoritative_cache_success and corr_explicit in {"none",""}:
+    corr_explicit = "authoritative-only"
+if is_written and authoritative_cache_success and not is_conflict:
+    status = raw_status; counts = raw_status in {"pass","fail"}; explicit = counts
+    channel_attr = "authoritative-cache"; eff = "cache/debug_ingest_result.txt"
+elif is_written and is_conflict:
+    status = "inconclusive"; counts=False; explicit=False; authoritative_cache_success=False
+    channel_attr="conflicting"; eff="cache/debug_ingest_result.txt+conflicting-corroboration"
+elif not is_written and is_corr and raw_status in {"pass","fail","blocked"}:
+    status = raw_status; counts = raw_status in {"pass","fail"}; explicit=counts
+    authoritative_cache_success=False; channel_attr="corroborated-fallback"; eff=f"corroborated:{corr_explicit}"
+elif not is_written and corr_explicit == "blocked":
+    status="blocked"; counts=False; explicit=False; authoritative_cache_success=False
+    channel_attr="blocked"; eff="blocked"
+else:
+    status="inconclusive"; counts=False; explicit=False; authoritative_cache_success=False
+    channel_attr="fail-closed-no-authoritative-cache"; eff="unavailable" if not is_written else "cache/debug_ingest_result.txt"
+if corr_explicit in {"authoritative-only","authoritative"} and not is_written:
+    corr_explicit="none"; status="inconclusive"; explicit=False; counts=False; channel_attr="fail-closed-no-authoritative-cache"
+print(json.dumps({
+  "raw_outcome": raw, "cache_write_status": cache, "write_status": cache,
+  "corroboration": corr_explicit, "channel_corroboration": corr_explicit,
+  "authoritative_cache_success": bool(authoritative_cache_success),
+  "status": status, "outcome_status": status,
+  "explicit_within_budget": bool(explicit), "counts_as_explicit_pass": bool(explicit),
+  "counts_toward_sc002_denominator": bool(counts),
+  "channel_attribution": channel_attr,
+  "effective_location_or_channel": eff,
+  "preferred_location_or_channel": "cache/debug_ingest_result.txt",
+  "authoritative_cache_channel": "cache/debug_ingest_result.txt",
+}, sort_keys=True))
+PYATTR
 }
 
 residual_rules_json() {
@@ -115,6 +181,14 @@ if [[ "$CONTRACT_MODE" == "print-report-schema" ]]; then
 fi
 if [[ "$CONTRACT_MODE" == "print-residual-rules" ]]; then
   residual_rules_json
+  exit 0
+fi
+if [[ "$CONTRACT_MODE" == "print-activity-channel-contract" ]]; then
+  activity_channel_contract_json
+  exit 0
+fi
+if [[ "$CONTRACT_MODE" == "classify-channel-attribution" ]]; then
+  classify_channel_attribution_json "$CACHE_WRITE_STATUS" "$RAW_OUTCOME" "$CORROBORATION_VALUE"
   exit 0
 fi
 

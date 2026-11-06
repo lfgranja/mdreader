@@ -85,6 +85,13 @@ def test_check_fails_closed_on_missing_required_debug_target(tmp_path: Path) -> 
 
 def test_apply_is_idempotent_when_aligned(tmp_path: Path) -> None:
     gen = tmp_path / "gen/app"
+    # T066/FR-011: source-set wiring is part of dependency/layout validation;
+    # provide verifiable wiring so aligned managed targets can reach pass.
+    (gen / "app").mkdir(parents=True, exist_ok=True)
+    (gen / "app" / "build.gradle.kts").write_text(
+        'android { sourceSets["main"].java.srcDir("android-shell/src/main/kotlin") }\n',
+        encoding="utf-8",
+    )
     first = run_script(APPLY, ["--root", str(REPO), "--gen-dir", str(gen), "--json"])
     r1 = parse_json_or_fail(first)
     assert r1.get("overall_status") in {"pass", "blocked", "fail"}

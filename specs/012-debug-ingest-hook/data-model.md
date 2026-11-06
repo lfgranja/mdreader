@@ -203,3 +203,16 @@ Traceable dependency, precondition, or validated/bounded assumption used by auto
 | `evidence_refs` | list[string] | required on non-pass or when claim depends on it | Traceable evidence/decision refs. |
 
 **Rules:** records make hidden dependencies explicit (NFR-012-MAINT-004). A claim that depends on a failed/blocked required record is invalid for that scope and MUST be reported explicitly; optional dependencies may degrade scope only with explicit `not-applicable`/bounded evidence.
+
+
+## 14. Host Contract Modes (additive, host-deterministic; 2026-11-06)
+
+| Mode | Output/role | Integrity |
+|---|---|---|
+| `--print-activity-channel-contract` / `--classify-channel-attribution` | Cache/channel attribution; unwritten authoritative cache never implies success | FR-006/FR-008 |
+| `--print-intent-parse-contract` / `--normalize-debug-ingest-intent` | Debug-only intent parse/normalize/validation (aliases, U1 precedence, missing-input errors); no side effects | I1/T057 fallback; **not** parallel production ingest; ASM-012-INGEST-SOT; CHK021 no gen mutation |
+| `--print-directory-uri-contract` | Directory ref classification; unsupported/unresolvable => explicit `error:*`, no fake/ambiguous success | FR-002/FR-007 |
+| `--build-device-evidence` | FR-008 minimum per-op builder; SC counters hooks; `unknown|detected` crash non-pass | `full_parent_completion_claimed=false` |
+| `--print-device-run-contract` / `--classify-device-run` | Normal device-run evidence wiring/classification (result-file/status/identity/crash/corroboration) | T018/T024/T067/T028; executed runs require bound attributable FR-008/SC evidence |
+
+FR-008 minimum field set remains authoritative in `spec.md` §FR-008; additive fields (including contract counters/classification helpers) must not weaken it (NFR-012-MAINT-005).

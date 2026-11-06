@@ -65,7 +65,7 @@ Host-deterministic contract smoke (no adb/device side effects, TDD support): `--
 ./scripts/automate-t184-t226-hook.sh --print-intent-parse-contract --json
 ./scripts/automate-t184-t226-hook.sh --normalize-debug-ingest-intent --mode document --path /tmp/f.md --json
 ./scripts/automate-t184-t226-hook.sh --print-directory-uri-contract --json
-./scripts/automate-t184-t226-hook.sh --build-device-evidence --serial <serial> --package app.mdreader --result-file /tmp/fr008.json --correlation-key run-1 --json
+./scripts/automate-t184-t226-hook.sh --build-device-evidence --raw-outcome ok:document:/tmp/f.md --cache-write-status written --corroboration authoritative-only --operation document --fixture-reference /tmp/f.md --build-identity debug:app.mdreader --device-identity <serial> --diagnostic-capture logcat://run1 --crash-anr-status not-detected --correlation-key run-1 --reviewer-accessible-location /tmp --retention-scope spec012-t049 --json
 ./scripts/automate-t184-t226-hook.sh --print-device-run-contract --json
 ./scripts/automate-t184-t226-hook.sh --classify-device-run --result-file <fr008.json> --json
 ./scripts/automate-t184-t226-hook.sh --help --json

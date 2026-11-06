@@ -104,7 +104,10 @@
 
 **Purpose**: Address remaining gaps and deferred validation from the convergence assessment.
 
-- [ ] T184 [US1] [US2] [US3] Perform live on-device manual/ADB validation of Scenarios 1–4 on target Android device or emulator per quickstart.md and document validation transcript (partial T183 execution).
+- [ ] T184 [US1] [US2] [US3] Perform live on-device manual/ADB validation of Scenarios 1–4 on target Android device or emulator per quickstart.md and document validation transcript (partial T183 execution). Not fully complete from debug-hook evidence alone (012/FR-012).
+  - [ ] T184-PROG [US1][US2][US3] Programmatic non-UI document ingest/routing through production path via Spec 012 debug hook — satisfied only for exercised non-UI scope when evidence exists. Status: open (no 012 evidence linked yet). Evidence refs: <pending>. full_parent_completion_claimed=false.
+  - [ ] T184-RES-SAF-CANCEL [US2] Scenario 3: native SAF cancel/back while playing; playback/metadata unchanged — residual UI, not covered by hook. Status: open.
+  - [ ] T184-RES-A11Y [US2][US3] Scenario 4: keyboard/focus-visible/TalkBack traversal/announcement/focus restoration across native picker/title UI — residual accessibility/UI, not covered by hook. Status: open.
 
 ---
 

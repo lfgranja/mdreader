@@ -8,6 +8,14 @@ OUT="./t184-t226-hook-$TS"
 mkdir -p "$OUT"
 adb() { "$ADB" -s "$SERIAL" "$@"; }
 
+usage(){ cat <<USAGE
+Usage: scripts/automate-t184-t226-hook.sh [serial] [package]
+Spec 012 debug hook automation (T184/T226 programmatic scope). Options for
+contract-test modes may be added; fail-closed on missing preconditions/evidence.
+USAGE
+}
+for a in "$@"; do case "$a" in --help|-h) usage; exit 0;; esac; done
+
 log(){ echo "$*" | tee -a "$OUT/summary.txt"; }
 pass(){ log "PASS: $*"; }
 fail(){ log "FAIL: $*"; }

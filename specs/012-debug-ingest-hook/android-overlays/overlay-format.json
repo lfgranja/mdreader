@@ -1,0 +1,6 @@
+{
+  "format_version": "1",
+  "feature": "012-debug-ingest-hook",
+  "canonical_root": "specs/012-debug-ingest-hook/android-overlays/app/src",
+  "notes": "Detectable by FR-011 apply/check. Backward-compatible evolution preferred; incompatible changes require migration note and synchronized updates per contracts/durable-overlay-materialization.md (CHK022/CHK024)."
+}

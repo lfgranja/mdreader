@@ -97,6 +97,22 @@ Preferred-output failure remains attributable: if corroborated by an authorized 
 
 Evidence-sufficiency dependencies (CHK030-evidence): `DEP-012-EVIDENCE-CHANNELS` (ADB/logcat/channels), `ASM-012-MANUAL-A11Y` (manual a11y/device/system controls outside hook), and `ASM-012-CHAPTERS-INTERP` (`chapters=<n>` vs production filtering + fixture composition/expected filtering) MUST be explicit; missing sufficiency blocks the affected claim.
 
+
+## Host-deterministic contract modes (no adb/device side effects)
+
+`scripts/automate-t184-t226-hook.sh` provides host-deterministic, machine-readable contract modes for TDD/CI/contract validation without adb/device execution. They MUST NOT weaken existing modes or FR-008/FR-010/FR-012 semantics.
+
+| Mode | Purpose | Key fields/notes |
+|---|---|---|
+| `--print-contract`, `--classify-outcome`, `--print-report-schema`, `--print-residual-rules` | Core hook/report/residual contracts | Existing; preserved. |
+| `--print-activity-channel-contract`, `--classify-channel-attribution` | FR-006/FR-008 cache/channel attribution | Unwritten/unavailable authoritative cache must not imply success; `write_status`/corroboration explicit; `crash_anr_status=unknown` never pass; `full_parent_completion_claimed=false`. |
+| `--print-intent-parse-contract`, `--normalize-debug-ingest-intent` | T013/T020/I1 host-contract fallback (FR-002/FR-003/FR-007) | Validates debug-only parsing/normalization/validation semantics (aliases, U1 precedence, missing-input errors). **Not** a parallel production ingest path; Kotlin/Rust/JNI remain production authority (ASM-012-INGEST-SOT). No CHK021/`src-tauri/gen/**` mutation. |
+| `--print-directory-uri-contract` | Directory URI/ref semantics (FR-002/FR-007) | Non-filesystem refs must route through production-equivalent directory-open/manifest-dispatch when supported or return explicit diagnosable `error:*`; never silent fallback/fake/ambiguous success. |
+| `--build-device-evidence` | FR-008 per-op evidence object builder (host-deterministic) | Emits FR-008 minimum fields, `programmatic-non-ui`, `full_parent_completion_claimed=false`, SC-001/SC-002 counter hooks, `crash_anr_status unknown|detected` non-pass semantics. |
+| `--print-device-run-contract`, `--classify-device-run [--result-file ...]` | T018/T024/T067 normal device-run evidence wiring contract | Classifies/wires per-run evidence shape (blocked:fixture-inaccessible/busy/cold-start, inconclusive, explicit non-pass cases) for normal adb/device execution support without weakening host contracts. Runtime adb execution remains opt-in/non-attesting unless complete bound evidence is captured. |
+
+**Integrity notes (CHK021/T042/T028):** host-contract fallback modes (intent/dir-uri parse/normalize, device evidence builders/classifiers) do not authorize `src-tauri/gen/**` patches, generated Gradle/Tauri mutation, or parallel production ingest routes. T042 release mechanization requires fail-closed D1–D4/full identity binding; `static`/`runtime`/`blocked-not-evaluated` never satisfy FR-010/SC-004. T028 FR-008 report gaps are closed only by attributable machine-readable evidence in executed runs with SC denominators/formulae/correlation/build identity/retention as applicable.
+
 ## FR-011 Overlay Format & Ownership (CHK022/CHK024)
 
 Normative durability/apply/check semantics are defined in [`durable-overlay-materialization.md`](./durable-overlay-materialization.md). Summary (must stay synchronized): canonical overlay root `specs/012-debug-ingest-hook/android-overlays/app/src/` declares/detects a format version (implementation-defined marker; normative requirement). `apply/check` report detected version. Backward-compatible materialization preferred; incompatible evolution requires migration note, synchronized updates to canonical targets + checks + contracts/docs + future tasks, and evidence. Missing/unknown version => `v1-implicit` only if explicitly documented by check contract, else `fail`/`blocked`. Hook-surface changes (`component`, action, canonical/target paths, result grammar/channels, run points, residual IDs) require synchronized updates and CHK001/CHK002 reviewer handoff.

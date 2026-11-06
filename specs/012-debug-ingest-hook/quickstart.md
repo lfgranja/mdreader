@@ -55,15 +55,25 @@ adb -s <serial> push /tmp/mdreader-test-fixtures /data/local/tmp/mdreader-test-f
 adb -s <serial> shell "run-as app.mdreader mkdir -p /data/user/0/app.mdreader/files/mdreader-test-fixtures/md-dir"
 adb -s <serial> shell "run-as app.mdreader cp /data/local/tmp/mdreader-test-fixtures/t184-teste.md /data/user/0/app.mdreader/files/mdreader-test-fixtures/"
 adb -s <serial> shell "run-as app.mdreader cp /data/local/tmp/mdreader-test-fixtures/md-dir/* /data/user/0/app.mdreader/files/mdreader-test-fixtures/md-dir/"
-```
-
 ## 4. Run programmatic T184/T226 validation (debug seam)
 
+Deterministic host contract helpers (no adb/device side effects, safe for contract tests): `--help [--json]` (`--json` emits FR-008 contract JSON), `--print-contract [--json]` emits `directory_result` (`chapters`, `chapters_field`, `evidence_required`, `fixture_composition`, `expected_filtering`), result prefixes, and `full_parent_completion_claimed=false`; `--classify-outcome <value> [--json]` classifies per SC-001/SC-002; `--print-report-schema [--json]` emits FR-008/FR-009/FR-012/SC counters/formulae (machine fields include `correlation_key`, `channel_corroboration`, additive counter/formula objects); `--print-residual-rules [--json]` emits FR-012 lifecycle rules. These modes take precedence over normal device automation.
+
 ```bash
-./scripts/automate-t184-t226-hook.sh <serial> app.mdreader
+# host-deterministic contract helpers (no device side effects)
+./scripts/automate-t184-t226-hook.sh --help --json
+./scripts/automate-t184-t226-hook.sh --print-contract --json
+./scripts/automate-t184-t226-hook.sh --classify-outcome "ok:directory:/tmp/x:chapters=2" --json
+./scripts/automate-t184-t226-hook.sh --print-report-schema --json
+./scripts/automate-t184-t226-hook.sh --print-residual-rules --json
 ```
 
-Direct ADB smoke:
+```bash
+# opt-in device automation (requires debug APK on target device/emulator); non-attesting unless executed with bound evidence
+./scripts/automate-t184-t226-hook.sh [serial]   # package defaults to app.mdreader (PKG env override in script)
+```
+
+Direct ADB smoke (opt-in device/debug-ABI step; non-attesting unless executed with bound evidence):
 
 ```bash
 adb -s <serial> shell am force-stop app.mdreader
@@ -84,35 +94,34 @@ Expected outcomes (programmatic non-UI scope):
 - directory: `ok:directory:.../md-dir:chapters=<n>` where `<n>` matches production filtering of the fixture set (state fixture composition/expected filtering in evidence)
 - no crash/ANR indicators in captured evidence (`unknown` is not absence/pass)
 - report explicitly states residual native SAF picker cancel and TalkBack/keyboard traversal remain unverified
-- evidence includes FR-008 minimum fields and correlation key/run identity (source of truth: `spec.md` §FR-008 normative minimum; contracts/data-model/tasks are additive only)
-## 5. FR-012 — Record split residual status
+- evidence includes FR-008 minimum fields and correlation key/run identity (source of truth: `spec.md` §FR-008 normative minimum; contracts/data-model/tasks additive only). Machine-readable fields from `--print-report-schema`/`--help --json`/`--print-contract` (e.g., `scope_class`, `fixture_reference`, `operation`, `outcome`, `build_identity`, `device_identity`, `diagnostic_capture`, `crash_anr_status`, `residual_scope_note`, `preferred_location_or_channel`, `effective_location_or_channel`, `write_status`, `reviewer_accessible_location`, `retention_scope`, `correlation_key`, `channel_corroboration`; `--help --json` also emits `channel`/`corroboration` fields) are additive and MUST remain semantically consistent with FR-008/data-model terminology.
 
 Update/report T184/T226 using [`contracts/t184-t226-residual-tracking.md`](./contracts/t184-t226-residual-tracking.md):
 - mark `T184-PROG`/`T226-PROG` satisfied **only for exercised non-UI scope** with evidence links and `full_parent_completion_claimed=false`;
 - update owning task files `specs/009-open-file-from-title/tasks.md` and `specs/010-directory-reading/tasks.md` (no orphan ad-hoc-only evidence);
 - keep residual items open/verified/accepted-risk/deferred per lifecycle rules; accepted-risk does not complete parent while blocking;
 - never mark T184/T226 fully complete from debug-hook evidence alone.
-## 6. FR-010 — Release/non-debug exposure evidence (release candidate)
+## 6. FR-010 — Release/non-debug exposure evidence (opt-in, non-attesting; release candidate/T049/T050)
 
-Build/install the release/non-debug artifact under test, then run the combined check:
+Build/install the release/non-debug artifact under test (opt-in device/release step), then run the combined check. Do **not** attest FR-010/SC-004 from commands alone or partial/blocked runs; only executed evidence with bound artifact/install identity counts.
 
 ```bash
-# planned/contracted command (implement in tasks)
+# planned/contracted command (implement in tasks); opt-in release-candidate/T049/T050 evidence run
 ./scripts/check-debug-ingest-release-exposure.sh --mode full --variant universalRelease \
   --apk src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk \
   --serial <serial> --evidence-dir ./release-exposure-evidence-$(date -u +%Y%m%dT%H%M%SZ)
 ```
 
-Expected evidence:
+Expected evidence (only when actually executed and complete):
 - static merged/packaged manifest and artifact scan show no `DebugIngestActivity` / `DEBUG_INGEST` / exported hook surface;
 - runtime negative invocation on installed release cannot resolve/start hook and has verified install identity;
 - report binds results to exact artifact hashes, tool/path, and device/install identity;
 - class presence, if reported, includes `class_presence_note` (insufficient proof);
-- missing required inputs or impossible full evidence => `blocked/not-evaluated` (or fail closed per mode), which MUST NOT satisfy FR-010/SC-004.
+- missing required inputs or impossible full evidence => `blocked/not-evaluated` (or fail closed per mode), which MUST NOT satisfy FR-010/SC-004 and is non-attesting.
 ## Validation checklist
 
 - [ ] FR-011 apply/check passes after any `gen` refresh.
-- [ ] Debug hook produces explicit `ok:*`/`error:*` for document+directory fixtures on accessible paths.
+- [ ] Opt-in device step executed with evidence: debug hook produces explicit `ok:*`/`error:*` for document+directory fixtures on accessible paths (non-attesting until executed).
 - [ ] Evidence includes crash/ANR status, residual UI-only scope, and FR-008 minimum fields (normative: `spec.md` §FR-008; contracts/data-model/tasks additive only).
 - [ ] T184/T226 split tracking applied; no full completion claimed from hook-only evidence.
-- [ ] FR-010 release exposure bundle recorded before claiming release absence.
+- [ ] Opt-in FR-010/T049/T050 release exposure bundle executed and recorded with bound identity before claiming release absence (blocked/not-evaluated is non-attesting).

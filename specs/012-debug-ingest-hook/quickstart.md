@@ -57,16 +57,25 @@ adb -s <serial> shell "run-as app.mdreader cp /data/local/tmp/mdreader-test-fixt
 adb -s <serial> shell "run-as app.mdreader cp /data/local/tmp/mdreader-test-fixtures/md-dir/* /data/user/0/app.mdreader/files/mdreader-test-fixtures/md-dir/"
 ## 4. Run programmatic T184/T226 validation (debug seam)
 
-Deterministic host contract helpers (no adb/device side effects, safe for contract tests): `--help [--json]` (`--json` emits FR-008 contract JSON), `--print-contract [--json]` emits `directory_result` (`chapters`, `chapters_field`, `evidence_required`, `fixture_composition`, `expected_filtering`), result prefixes, and `full_parent_completion_claimed=false`; `--classify-outcome <value> [--json]` classifies per SC-001/SC-002; `--print-report-schema [--json]` emits FR-008/FR-009/FR-012/SC counters/formulae (machine fields include `correlation_key`, `channel_corroboration`, additive counter/formula objects); `--print-residual-rules [--json]` emits FR-012 lifecycle rules. These modes take precedence over normal device automation.
+Host-deterministic contract smoke (no adb/device side effects, TDD support): `--help [--json]`, `--print-contract [--json]`, `--classify-outcome <value> [--json]`, `--print-report-schema [--json]`, and `--print-residual-rules [--json]` remain supported; implemented host-deterministic modes (no adb):
 
 ```bash
-# host-deterministic contract helpers (no device side effects)
+# host-deterministic contract smoke / modes (no adb/device side effects)
+./scripts/automate-t184-t226-hook.sh --print-activity-channel-contract --json
+./scripts/automate-t184-t226-hook.sh --print-intent-parse-contract --json
+./scripts/automate-t184-t226-hook.sh --normalize-debug-ingest-intent --mode document --path /tmp/f.md --json
+./scripts/automate-t184-t226-hook.sh --print-directory-uri-contract --json
+./scripts/automate-t184-t226-hook.sh --build-device-evidence --serial <serial> --package app.mdreader --result-file /tmp/fr008.json --correlation-key run-1 --json
+./scripts/automate-t184-t226-hook.sh --print-device-run-contract --json
+./scripts/automate-t184-t226-hook.sh --classify-device-run --result-file <fr008.json> --json
 ./scripts/automate-t184-t226-hook.sh --help --json
 ./scripts/automate-t184-t226-hook.sh --print-contract --json
 ./scripts/automate-t184-t226-hook.sh --classify-outcome "ok:directory:/tmp/x:chapters=2" --json
 ./scripts/automate-t184-t226-hook.sh --print-report-schema --json
 ./scripts/automate-t184-t226-hook.sh --print-residual-rules --json
 ```
+
+Integrity (CHK021/T042/T028): no gen/parallel ingest (ASM-012-INGEST-SOT); T042 non-full release never satisfies FR-010/SC-004; T028 executed runs need attributable FR-008/SC evidence; `crash_anr_status unknown` is not pass; `full_parent_completion_claimed=false`.
 
 ```bash
 # opt-in device automation (requires debug APK on target device/emulator); non-attesting unless executed with bound evidence

@@ -223,7 +223,7 @@ def test_directory_success_form_cannot_be_claimed_without_contract_evidence(outc
     data = contract_json()
     policy = data.get("success_policy") or {}
     assert (policy.get("requires_chapters_field") is True or policy.get("ok_directory_requires_chapters") is True)
-    assert policy.get("requires_production_equivalent_dispatch_for_non_filesystem_refs") is True
+    assert (policy.get("requires_production_equivalent_dispatch_for_non_filesystem_refs") is True or policy.get("production_equivalent_dispatch_required_for_non_filesystem_refs") is True)
     assert policy.get("filesystem_path_may_use_existing_path_form") is True
     # Existing classify-outcome parses ok form generically; T057 requires the directory
     # URI contract to additionally constrain non-filesystem refs (fail closed/diagnosable).

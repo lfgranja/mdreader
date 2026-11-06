@@ -25,6 +25,8 @@ EV_CRASH="unknown"
 EV_CORR_KEY=""
 EV_LOCATION=""
 EV_RETENTION=""
+EV_RESULT_FILE=""
+EV_STATUS_FLAG=""
 
 # Parse contract/report flags early (no side effects). Preserve positional SERIAL for
 # normal device runs by collecting non-contract positionals.
@@ -50,6 +52,10 @@ while (($#)); do
     --print-intent-parse-contract) CONTRACT_MODE="print-intent-parse-contract"; shift ;;
     --normalize-debug-ingest-intent) CONTRACT_MODE="normalize-debug-ingest-intent"; shift ;;
     --build-device-evidence) CONTRACT_MODE="build-device-evidence"; shift ;;
+    --print-device-run-contract) CONTRACT_MODE="print-device-run-contract"; shift ;;
+    --classify-device-run) CONTRACT_MODE="classify-device-run"; shift ;;
+    --result-file) EV_RESULT_FILE="${2:-}"; if (($# >= 2)); then shift 2; else shift; fi ;;
+    --status-flag) EV_STATUS_FLAG="${2:-}"; if (($# >= 2)); then shift 2; else shift; fi ;;
     --mode) NORM_MODE="${2:-}"; if (($# >= 2)); then shift 2; else shift; fi ;;
     --path) NORM_PATH="${2:-}"; if (($# >= 2)); then shift 2; else shift; fi ;;
     --uri) NORM_URI="${2:-}"; if (($# >= 2)); then shift 2; else shift; fi ;;
@@ -116,6 +122,110 @@ report_schema_json() {
   emit_json '{"scope_class":"programmatic-non-ui","full_parent_completion_claimed":false,"authoritative_cache_channel":"cache/debug_ingest_result.txt","cache_write_failure_must_not_imply_authoritative_success":true,"authoritative_cache_success":"<false unless cache written+parseable+authoritative; never true on cache write failure without corroboration>","fixture_reference":"<required>","operation":"<document|directory|uri>","outcome":"<explicit parseable>","build_identity":"<required>","device_identity":"<required>","diagnostic_capture":"<required>","crash_anr_status":"<required>","residual_scope_note":"Native SAF picker UI/a11y residuals remain open (FR-009/FR-012).","preferred_location_or_channel":"<required>","effective_location_or_channel":"<required>","cache_write_status":"<written|unavailable|failed:<reason>>","write_status":"<written|unavailable|failed:<reason>>","reviewer_accessible_location":"<required>","retention_scope":"<required>","correlation_key":"<request/evidence/run id>","channel_corroboration":"<authoritative-only|corroborated|conflicting|inconclusive|none|blocked>","corroboration":"<explicit corroboration state>","cache_write_failure_without_corroboration_outcomes":["inconclusive","blocked"],"no_silent_authoritative_cache_success_on_write_failure":true,"counters":{"attempted":"<int>","precondition_blocked":"<int>","in_denominator":"<int>","explicit_within_budget":"<int>","inconclusive":"<int>","sc001":{"attempted":"<int>","requested_exercisable_runs":"<int>","exercised_runs":"<int>","blocked_runs":"<int>","precondition_blocked":"<int>","inconclusive_runs":"<int>","formula":"exercised_runs / max(requested_exercisable_runs - blocked_runs,1) ; SC-001 >=0.95"},"sc002":{"in_denominator":"<int>","eligible_explicit_runs":"<int>","explicit_within_budget_runs":"<int>","explicit_within_budget":"<int>","inconclusive_runs":"<int>","formula":"explicit_within_budget_runs / max(eligible_explicit_runs,1) ; SC-002 >=0.95"}}}'
 }
 
+
+
+
+
+device_run_contract_json() {
+  python3 - <<'PYDR'
+import json
+fr = [
+ "scope_class","operation","outcome","build_identity","device_identity",
+ "diagnostic_capture","crash_anr_status","residual_scope_note",
+ "preferred_location_or_channel","effective_location_or_channel","write_status",
+ "reviewer_accessible_location","retention_scope","correlation_key","corroboration",
+ "full_parent_completion_claimed"
+]
+print(json.dumps({
+ "contract":"device-run-evidence-wiring","scope_class":"programmatic-non-ui",
+ "fr008_minimum_fields":fr,"fr008_required_fields":fr,
+ "required_fields":fr,"minimum_fields":fr,
+ "full_parent_completion_claimed":False,
+ "crash_anr_unknown_not_pass":True,
+ "blocked_inconclusive_explicit_non_pass":True,
+ "sc001_counters":["attempted","precondition_blocked","in_denominator","explicit_within_budget","inconclusive"],
+ "sc002_counters":["attempted","precondition_blocked","in_denominator","explicit_within_budget","inconclusive"],
+ "deterministic_host_only":True,
+ "notes":"FR-006/FR-008/SC-001/SC-002 device-run evidence wiring contract; --build-device-evidence/--classify-device-run host-deterministic, no adb."
+}, sort_keys=True))
+PYDR
+}
+
+classify_device_run_json() {
+  local raw_outcome="$1" cache_write_status="$2" corroboration="$3" operation="$4" fixture_reference="$5" build_identity="$6" device_identity="$7" diagnostic_capture="$8" crash_anr_status="$9"
+  shift 9
+  local correlation_key="${1:-}" reviewer_location="${2:-}" retention_scope="${3:-}" result_file="${4:-}" status_flag="${5:-}"
+  python3 - "$raw_outcome" "$cache_write_status" "$corroboration" "$operation" "$fixture_reference" "$build_identity" "$device_identity" "$diagnostic_capture" "$crash_anr_status" "$correlation_key" "$reviewer_location" "$retention_scope" "$result_file" "$status_flag" <<'PYDR'
+import json, sys, os, re
+raw, cache, corr, op, fixture, build, device, diag, crash, corr_key, loc, retention, result_file, status_flag = sys.argv[1:15]
+# load result-file if provided
+if result_file and os.path.exists(result_file):
+    txt=open(result_file,'r',encoding='utf-8',errors='replace').read().strip()
+    try:
+        obj=json.loads(txt)
+        raw = str(obj.get('raw_outcome') or obj.get('outcome') or obj.get('result') or obj.get('status') or raw or txt)
+        cache = str(obj.get('cache_write_status') or obj.get('write_status') or cache or 'unavailable')
+        corr = str(obj.get('corroboration') or obj.get('channel_corroboration') or corr or 'none')
+        op = str(obj.get('operation') or op or 'document')
+        fixture = str(obj.get('fixture_reference') or fixture or '')
+        build = str(obj.get('build_identity') or build or '')
+        device = str(obj.get('device_identity') or device or '')
+        diag = str(obj.get('diagnostic_capture') or diag or '')
+        crash = str(obj.get('crash_anr_status') or crash or 'unknown')
+        corr_key = str(obj.get('correlation_key') or corr_key or '')
+        loc = str(obj.get('reviewer_accessible_location') or loc or '')
+        retention = str(obj.get('retention_scope') or retention or '')
+    except Exception:
+        low=txt.lower()
+        if txt: raw=txt
+        if 'chapters=' in low or 'directory' in low: op='directory'
+        if 'no_cache' in low or 'unavailable' in low: cache='unavailable'
+if status_flag:
+    raw = status_flag if not raw else (raw + '|' + status_flag)
+corr = (corr or 'none').strip().lower()
+crash = (crash or 'unknown').strip().lower()
+if crash not in {'not-detected','detected','unknown'}: crash='unknown'
+raw_s = str(raw or '')
+low = raw_s.lower()
+status='inconclusive'
+if low.startswith('blocked:') or 'blocked:fixture-inaccessible' in low or 'blocked:busy' in low or 'blocked:cold-start' in low or 'blocked:cold_start' in low:
+    status='blocked'
+elif low.startswith('ok:'):
+    status='pass'
+elif low.startswith('error:') or low.startswith('refused:'):
+    status='fail'
+elif 'inconclusive' in low:
+    status='inconclusive'
+# unknown/detected crash never explicit pass
+if crash in {'unknown','detected'} and status=='pass':
+    status='inconclusive' if crash=='unknown' else 'fail'
+explicit = status in {'pass','fail'} and crash=='not-detected'
+is_written = str(cache)=='written'
+authoritative_cache_success = bool(is_written and status in {'pass','fail'} and crash=='not-detected' and corr in {'authoritative-only','authoritative','none',''})
+effective = 'cache/debug_ingest_result.txt' if (is_written and (status in {'pass','fail','blocked'})) else ('corroborated-fallback' if ('corroborat' in corr and not is_written) else ('unavailable' if not is_written else 'cache/debug_ingest_result.txt'))
+sc = {'attempted':1,'precondition_blocked':1 if status=='blocked' else 0,'in_denominator':1 if status in {'pass','fail','inconclusive'} else 0,'explicit_within_budget':1 if explicit else 0,'inconclusive':1 if status=='inconclusive' else 0}
+o={
+ 'scope_class':'programmatic-non-ui','evidence_scope':'programmatic-non-ui',
+ 'full_parent_completion_claimed':False,
+ 'residual_scope_note':'Native SAF picker UI/a11y residuals remain open (FR-009/FR-012). Hook/device evidence is programmatic non-UI only.',
+ 'operation':op,'outcome':raw_s,'raw_outcome':raw_s,'status':status,'outcome_status':status,
+ 'classification':status,'normalized_outcome':status,
+ 'fixture_reference':fixture,'build_identity':build,'device_identity':device,'diagnostic_capture':diag,
+ 'crash_anr_status':crash,'crash_anr_unknown_not_pass':True,
+ 'preferred_location_or_channel':'cache/debug_ingest_result.txt',
+ 'effective_location_or_channel':effective,
+ 'write_status':cache,'cache_write_status':cache,
+ 'reviewer_accessible_location':loc,'retention_scope':retention,'correlation_key':corr_key,
+ 'corroboration':corr,'channel_corroboration':corr,
+ 'authoritative_cache_success':authoritative_cache_success,
+ 'explicit_within_budget':explicit,'counts_as_explicit_pass':explicit,
+ 'counts_as_pass':False,'counts_as_full_pass':False,'passed':False,'is_pass':False,
+ 'sc001_counters':sc,'sc002_counters':sc,'counters':{'sc001':sc,'sc002':sc,**sc},
+ 'classification_counters':{'sc001':sc,'sc002':sc}
+}
+print(json.dumps(o, sort_keys=True))
+PYDR
+}
 
 
 build_device_evidence_json() {
@@ -376,6 +486,14 @@ if [[ "$CONTRACT_MODE" == "normalize-debug-ingest-intent" ]]; then
 fi
 if [[ "$CONTRACT_MODE" == "build-device-evidence" ]]; then
   build_device_evidence_json "$RAW_OUTCOME" "$CACHE_WRITE_STATUS" "$CORROBORATION_VALUE" "$EV_OPERATION" "$EV_FIXTURE" "$EV_BUILD" "$EV_DEVICE" "$EV_DIAG" "$EV_CRASH" "$EV_CORR_KEY" "$EV_LOCATION" "$EV_RETENTION"
+  exit 0
+fi
+if [[ "$CONTRACT_MODE" == "print-device-run-contract" ]]; then
+  device_run_contract_json
+  exit 0
+fi
+if [[ "$CONTRACT_MODE" == "classify-device-run" ]]; then
+  classify_device_run_json "$RAW_OUTCOME" "$CACHE_WRITE_STATUS" "$CORROBORATION_VALUE" "$EV_OPERATION" "$EV_FIXTURE" "$EV_BUILD" "$EV_DEVICE" "$EV_DIAG" "$EV_CRASH" "$EV_CORR_KEY" "$EV_LOCATION" "$EV_RETENTION" "$EV_RESULT_FILE" "$EV_STATUS_FLAG"
   exit 0
 fi
 

@@ -203,3 +203,10 @@ This section integrates focused deep research for Spec 012. It supplements Decis
 - Retention/index: store evidence under a documented spec-local or script-defined path with stable naming; maintain an index/summary that maps evidence to T184/T226 scope (exercised vs residual).
 - Traceability matrix: every evidence record states which scenario/check IDs it satisfies and which residual UI/accessibility items remain open (reinforces Decision 3).
 - Redaction/minimization: never record secrets/tokens; redact device serials or personal paths when sharing externally; capture only the minimum fixture/content needed for deterministic proof.
+
+
+## Decision 5 — Host-deterministic contract modes and T018/T024/T067 wiring (2026-11-06, reconciliation)
+
+- **Decision**: Add host-deterministic hook modes (`--print-activity-channel-contract`, `--classify-channel-attribution`, `--print-intent-parse-contract`, `--normalize-debug-ingest-intent`, `--print-directory-uri-contract`, `--build-device-evidence`, `--print-device-run-contract`, `--classify-device-run`) for RED/PBT/CI and normal device-run FR-008/SC classification support. Intent/dir-uri parse/normalize modes are debug-validation helpers only (I1 option B fallback), not parallel production ingest routes; ASM-012-INGEST-SOT/Kotlin/Rust/JNI remain authority. Device-run modes emit `full_parent_completion_claimed=false`, `crash_anr_status unknown|detected` non-pass semantics, and explicit blocked/inconclusive/busy/cold-start handling.
+- **Rationale**: Enables host TDD without adb while preserving fail-closed FR-008/FR-010/FR-012 semantics; supports T028/T018/T024/T067 evidence wiring gaps without CHK021 gen mutation.
+- **Integrity**: CHK021 (no `src-tauri/gen/**`/generated Gradle/Tauri patch without recorded decision), T042 (FR-010 full only D1–D4 + bound identities; non-full/blocked never satisfy SC-004), T028 (per-run attributable FR-008/SC evidence required for executed claims).

@@ -142,7 +142,7 @@
 ### RED Tests for US4 (write first, must fail before US4 implementation)
 
 - [x] T033 [P] [US4] Add failing FR-011 conditional androidTest assertions in `scripts/tests/spec012/test_debug_ingest_overlay_contract.py`: canonical androidTest source present => target required/materializable; source absent => `not-applicable`; emulator execution note does not change durability (FR-013/SC-006). **Covered by T008 overlay contract tests; GREEN 2026-11-05 (9 passed).**
-- [ ] T034 [P] [US4] Add failing smoke-test source/intent contract assertions (static) in `scripts/tests/spec012/test_t184_t226_residual_contract.py` or a dedicated `scripts/tests/spec012/test_androidtest_smoke_contract.py`: `DebugIngestSeamSmokeTest.kt` references debug-only component/action contract and makes no manual SAF picker/UI traversal claim.
+- [x] T034 [P] [US4] Add failing smoke-test source/intent contract assertions (static) in `scripts/tests/spec012/test_t184_t226_residual_contract.py` or a dedicated `scripts/tests/spec012/test_androidtest_smoke_contract.py`: `DebugIngestSeamSmokeTest.kt` references debug-only component/action contract and makes no manual SAF picker/UI traversal claim. **Static contract satisfied 2026-11-05** (`test_androidtest_smoke_scaffold_is_static_contract_only` passes after scaffold update commit `86828bec`); instrumented execution remains `executed-*`/`blocked` per B1 (see T037/T049).
 
 ### Implementation for US4 (blocked until T033–T034 RED)
 

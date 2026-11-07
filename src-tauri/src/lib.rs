@@ -5298,7 +5298,7 @@ pub mod commands {
             .is_some_and(|p| p.generation == generation && p.started)
     }
 
-    fn commit_produced_unit(
+    pub(crate) fn commit_produced_unit(
         state: &AppState,
         generation: u64,
         unit_index: usize,
@@ -9797,4 +9797,68 @@ mod ttfa_013_tests {
         assert!(!commands::pump_production_demand(&state).expect("pump"));
         let generation = commands::invalidate_production_generation(&state);
         assert!(!commands::production_running_for_generation(&state, generation));
+    }
+
+
+    #[test]
+    fn t003_stale_generation_does_not_commit_or_start_production() -> Result<(), String> {
+        let state = AppState::test_state();
+        let generation = commands::invalidate_production_generation(&state);
+        // Install production for this generation manually via internal state.
+        {
+            let mut guard = state.production.lock().map_err(|e| e.to_string())?;
+            *guard = Some(Production {
+                generation,
+                segments: Vec::new(),
+                sections: Vec::new(),
+                next_unit: 0,
+                samples_before_entry: 0,
+                pending: std::collections::VecDeque::from([0.0_f32; 220]),
+                total_samples: 0,
+                played_samples: 0,
+                next_section: 0,
+                started: false,
+            });
+        }
+        // Invalidate to a newer generation; stale commit must not hand over/start.
+        let newer = commands::invalidate_production_generation(&state);
+        assert!(newer > generation);
+        assert!(!commands::production_running_for_generation(&state, generation));
+        assert!(!commands::production_running_for_generation(&state, newer));
+        // Bounded production for stale generation is a no-op.
+        commands::produce_bounded(&state, generation, 2).map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    #[test]
+    fn t013_resume_offset_trims_samples_before_entry() -> Result<(), String> {
+        let state = AppState::test_state();
+        let generation = commands::invalidate_production_generation(&state);
+        {
+            let mut guard = state.production.lock().map_err(|e| e.to_string())?;
+            *guard = Some(Production {
+                generation,
+                segments: Vec::new(),
+                sections: Vec::new(),
+                next_unit: 0,
+                samples_before_entry: 100,
+                pending: std::collections::VecDeque::new(),
+                total_samples: 0,
+                played_samples: 0,
+                next_section: 0,
+                started: false,
+            });
+        }
+        // Commit 220 samples with 100 trimmed => 120 pending/played contribution.
+        commands::commit_produced_unit(&state, generation, 0, &[0.0_f32; 220], 0, 100)
+            .map_err(|e| e.to_string())?;
+        let (pending, played, before_entry) = {
+            let guard = state.production.lock().map_err(|e| e.to_string())?;
+            let production = guard.as_ref().ok_or("missing production")?;
+            (production.pending.len(), production.played_samples, production.samples_before_entry)
+        };
+        assert_eq!(pending, 120, "only useful audio after resume trim should be pending");
+        assert_eq!(played, 120);
+        assert_eq!(before_entry, 0);
+        Ok(())
     }

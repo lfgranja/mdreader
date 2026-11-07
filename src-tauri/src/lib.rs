@@ -266,6 +266,8 @@ pub struct AppState {
     /// Producer demand signal (013): watch/startup may request bounded
     /// synthesis work; actual CPU-bound synthesis runs off async tick/caller.
     pub(crate) production_wake: AtomicBool,
+    /// 013 TTFA: prevents concurrent producer drivers.
+    pub(crate) producer_driving: AtomicBool,
     /// The place the current audio queue was anchored at when it
     /// opened (`0.0` for a fresh reading, `start_offset_secs` for a
     /// cold-start resume or re-anchor). The backend's clock counts
@@ -313,6 +315,7 @@ impl std::fmt::Debug for AppState {
             .field("production", &self.production)
             .field("playback_generation", &self.playback_generation)
             .field("production_wake", &self.production_wake)
+            .field("producer_driving", &self.producer_driving)
             .field("stream_anchor_secs", &self.stream_anchor_secs)
             .field("playback_watch", &self.playback_watch)
             .field("chapter_queue", &self.chapter_queue)
@@ -426,6 +429,7 @@ impl AppState {
             production: Mutex::new(None),
             playback_generation: AtomicU64::new(0),
             production_wake: AtomicBool::new(false),
+            producer_driving: AtomicBool::new(false),
             stream_anchor_secs: Mutex::new(0.0),
             playback_watch: Mutex::new(PlaybackWatch::default()),
             chapter_queue: Mutex::new(None),
@@ -2451,6 +2455,37 @@ struct PlaybackWatch {
 /// The backend is the only clock that advances on consumed
 /// speech samples (FR-015); the session clock is the position
 /// authority every ack, bookmark, and publish reads. This tick
+/// Test-only watch tick: no AppHandle/producer spawn; checks progress/end state.
+#[cfg(test)]
+fn playback_watch_tick_test(state: &AppState, watch: &mut PlaybackWatch) {
+    let transport = {
+        let Ok(guard) = state.session.lock() else { return; };
+        guard.snapshot().transport
+    };
+    match transport {
+        TransportState::Playing => {}
+        TransportState::Stopped | TransportState::Completed => {
+            *watch = PlaybackWatch::default();
+            return;
+        }
+        TransportState::Paused | TransportState::Interrupted => return,
+    }
+    let (drained, position_secs) = {
+        let Ok(guard) = state.backend.lock() else { return; };
+        let Some(backend) = guard.as_ref() else { return; };
+        (backend.is_drained(), backend.position_secs())
+    };
+    feed_audible_progress(state, position_secs, watch);
+    maybe_start_chapter_preroll(state, position_secs);
+    if drained && !commands::production_running(state) {
+        if advance_chapter_queue(state) { return; }
+        signal_document_end(state);
+        return;
+    }
+    let _ = maybe_republish_progress(state, watch);
+    commands::watch_signal_production(state);
+}
+
 /// is the single place the two meet: the delta since the last
 /// tick is credited while `Playing`, so a paused session never
 /// advances and a missed tick is caught up whole.
@@ -3026,6 +3061,7 @@ pub fn run() {
             production: Mutex::new(None),
             playback_generation: AtomicU64::new(0),
             production_wake: AtomicBool::new(false),
+            producer_driving: AtomicBool::new(false),
             stream_anchor_secs: Mutex::new(0.0),
             playback_watch: Mutex::new(PlaybackWatch::default()),
             chapter_queue: Mutex::new(None),
@@ -5298,10 +5334,63 @@ pub mod commands {
     }
 
     /// 013 TTFA: watch-safe demand pump. Must not synthesize on async tick.
-    /// Returns whether production still appears active; actual bounded synthesis
-    /// is performed by producer tasks/explicit non-watch drivers.
+    /// Hands over already-pending audio for the current generation only.
     pub(crate) fn pump_production_demand(state: &AppState) -> Result<bool, OpenError> {
-        Ok(production_running(state))
+        let generation = current_playback_generation(state);
+        if generation == 0 {
+            return Ok(false);
+        }
+        if !production_generation_matches(state, generation) {
+            return Ok(false);
+        }
+        let _ = handover_pending_for_generation(state, generation)?;
+        Ok(production_running_for_generation(state, generation))
+    }
+
+    /// 013 TTFA: request bounded background production for current generation.
+    /// Serialized by `producer_driving`; CPU-bound synthesis runs on blocking executor.
+    pub(crate) fn request_background_production(app: &tauri::AppHandle, state: &AppState) {
+        let generation = current_playback_generation(state);
+        if generation == 0 || !production_running(state) {
+            return;
+        }
+        state.production_wake.store(true, Ordering::Release);
+        if state
+            .producer_driving
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .is_err()
+        {
+            return;
+        }
+        let app = app.clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            let state = app.state::<AppState>();
+            let result = (|| -> Result<(), OpenError> {
+                while state.production_wake.swap(false, Ordering::AcqRel) {
+                    let g = current_playback_generation(&state);
+                    if g == 0 || !production_running_for_generation(&state, g) {
+                        break;
+                    }
+                    produce_bounded(&state, g, 2)?;
+                    if production_running_for_generation(&state, g) {
+                        // keep wake if still pending work and room may open later
+                        state.production_wake.store(true, Ordering::Release);
+                        std::thread::sleep(std::time::Duration::from_millis(20));
+                    }
+                }
+                Ok(())
+            })();
+            state.producer_driving.store(false, Ordering::Release);
+            if let Err(error) = result {
+                let g = current_playback_generation(&state);
+                if production_running_for_generation(&state, g) {
+                    // 013: generation-safe failure; invalidate and abandon coherently.
+                    let _ = invalidate_production_generation(&state);
+                    abandon_playing_landing(&state);
+                    tracing::warn!(error=%error, "013 background production failed");
+                }
+            }
+        });
     }
 
     /// Start the production (T158): install the document's audio
@@ -9680,7 +9769,7 @@ mod ttfa_013_tests {
             let mut session = state.session.lock().expect("session lock");
             let _ = session.execute(player::cli::ShellVerb::Play);
         }
-        crate::abandon_playing_landing(&state);
+        commands::abandon_playing_landing(&state);
         let snapshot = state.session.lock().expect("session lock").snapshot();
         assert_ne!(snapshot.transport, TransportState::Playing);
     }

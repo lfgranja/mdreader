@@ -1218,11 +1218,23 @@ pub fn pick_document_from_shell() -> Result<(), String> {
         .attach_current_thread()
         .map_err(|error| format!("shell JNI: attach failed: {error}"))?;
 
+    // Ensure JVM handle and ShellHost class are cached when called via Tauri IPC
+    capture_jvm(env.as_ptr());
+
     let class = get_shell_host_class()?;
 
-    let _ = env
+    let result = env
         .call_static_method(class, "pickDocument", "()Z", &[])
         .map_err(|error| format!("shell JNI: ShellHost.pickDocument failed: {error}"))?;
+    match result {
+        jni::objects::JValue::Bool(launched) if !launched => {
+            return Err(
+                "shell JNI: ShellHost.pickDocument returned false — no active activity or picker launch refused"
+                    .to_string(),
+            );
+        }
+        _ => {}
+    }
     Ok(())
 }
 

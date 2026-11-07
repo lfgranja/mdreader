@@ -1176,10 +1176,21 @@
   // the screen holds no document, and the verb channel carries
   // none, so a synthesis wire would reach the synthesis entry
   // empty and be refused (the control would never start or resume
-  // a reading at all). The pause arm is the toggle's other half.
-  els.btnPlayPause.addEventListener('click', () => {
-    sendAction(state.transport === 'playing' ? 'pause' : 'resume_at_stored');
-  });
+  async function sendAction(action) {
+    const payload = { action };
+    if (fingerprint) payload.fingerprint = fingerprint;
+    try {
+      const res = await invoke('run_mobile_plugin', payload);
+      if (res && res.transport) {
+        state.transport = res.transport;
+        renderTransport();
+      }
+      await refreshStatusView();
+    } catch (e) {
+      console.error(`Action ${action} failed:`, e);
+      throw e;
+    }
+  }
 
   els.btnStop.addEventListener('click', async () => {
     await sendAction('stop');
@@ -1277,6 +1288,16 @@
       showPickerError(`Não foi possível abrir o seletor de arquivos: ${err}`);
       if (els.titleCard) {
         els.titleCard.focus();
+      }
+    });
+  }
+
+  if (els.titleCard) {
+    els.titleCard.addEventListener('click', triggerDocumentPicker);
+    els.titleCard.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        triggerDocumentPicker();
       }
     });
   }

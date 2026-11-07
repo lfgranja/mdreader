@@ -1191,7 +1191,7 @@
       await refreshStatusView();
     } catch (e) {
       console.error(`Action ${action} failed:`, e);
-      await refreshStatusView();
+      throw e;
     }
   }
 
@@ -1307,6 +1307,13 @@
       showPickerError(`Não foi possível abrir o seletor de arquivos: ${err}`);
       if (els.titleCard) {
         els.titleCard.focus();
+      }
+  if (els.titleCard) {
+    els.titleCard.addEventListener('click', triggerDocumentPicker);
+    els.titleCard.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        triggerDocumentPicker();
       }
     });
   }

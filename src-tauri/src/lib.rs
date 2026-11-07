@@ -2365,7 +2365,10 @@ fn spawn_production_driver_task(app: &tauri::AppHandle) {
             let state = driver.state::<AppState>();
             let wake = state.production_wake.swap(false, Ordering::AcqRel);
             let generation = state.playback_generation.load(Ordering::Acquire);
-            if !wake || generation == 0 || !commands::production_running_for_generation(&state, generation) {
+            if !wake
+                || generation == 0
+                || !commands::production_running_for_generation(&state, generation)
+            {
                 continue;
             }
             state.production_wake.store(true, Ordering::Release);
@@ -5447,7 +5450,13 @@ pub mod commands {
     }
 
     /// 013 TTFA: watch tick must not synthesize. It may only signal demand.
-    #[cfg_attr(not(test), expect(dead_code, reason = "013 test seam for watch demand signaling; runtime tick uses production_wake atomics directly"))]
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "013 test seam for watch demand signaling; runtime tick uses production_wake atomics directly"
+        )
+    )]
     pub(crate) fn watch_signal_production(state: &AppState) {
         if production_running(state) {
             request_production_wake(state);
@@ -5456,7 +5465,13 @@ pub mod commands {
 
     /// 013 TTFA: watch-safe demand pump. Must not synthesize on async tick.
     /// Hands over already-pending audio for the current generation only.
-    #[cfg_attr(not(test), expect(dead_code, reason = "013 test/helper seam; runtime continuation uses driver task"))]
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "013 test/helper seam; runtime continuation uses driver task"
+        )
+    )]
     pub(crate) fn pump_production_demand(state: &AppState) -> Result<bool, OpenError> {
         let generation = current_playback_generation(state);
         if generation == 0 {
@@ -5471,7 +5486,13 @@ pub mod commands {
 
     /// 013 TTFA: request bounded background production for current generation.
     /// Serialized by `producer_driving`; CPU-bound synthesis runs on blocking executor.
-    #[cfg_attr(not(test), expect(dead_code, reason = "013 alternate driver API; runtime uses spawn_production_driver_task + produce_bounded_public"))]
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "013 alternate driver API; runtime uses spawn_production_driver_task + produce_bounded_public"
+        )
+    )]
     pub(crate) fn request_background_production(app: &tauri::AppHandle, state: &AppState) {
         let generation = current_playback_generation(state);
         if generation == 0 || !production_running(state) {

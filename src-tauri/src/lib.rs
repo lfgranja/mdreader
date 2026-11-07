@@ -5726,12 +5726,9 @@ pub mod commands {
     ///
     /// # Errors
     ///
-    /// * [`OpenError::Synthesis`] when a chunk cannot be synthesized
-    ///   by the bound offline engine.
-    /// * [`OpenError::NoStart`] when the session lock is poisoned.
     /// The production is over (T158): the document's audio has all
-    ///   been handed over. The measured timeline reaches the session
-    ///   once more and the surface is published again.
+    /// been handed over. The measured timeline reaches the session
+    /// once more and the surface is published again.
     fn finish_production(state: &AppState) {
         let finished = {
             let Ok(mut guard) = state.production.lock() else {

@@ -59,7 +59,7 @@
 
 ### RED
 
-- [~] T007 [P] [US1] Host hook-driven test `ttfa_013_tests::t007_produce_bounded_commits_first_useful_audio_via_synth_hook` proves `produce_bounded` commits first useful synthesized unit (next_unit/total advanced, pending or started). Full multi-segment no-full-loop/end-to-end startup proof still pending.
+- [~] T007 [P] [US1] Host hook-driven tests prove bounded first-useful commit (`t007_produce_bounded_commits_first_useful_audio_via_synth_hook`) and multi-segment incrementality (`t007_produce_bounded_commits_first_unit_without_draining_all_segments`, only first unit advanced). Full `stream_synthesis`/`play_document` end-to-end startup proof still pending.
 - [ ] T008 [P] [US1] Add failing test: producer continues under `queue_room`/`MAX_PREROLL_SECS` backpressure without dropping committed audio and without blocking cpal callback contract assumptions (host-level queue/admission assertions acceptable where direct callback test is impractical).
 
 ### Implementation

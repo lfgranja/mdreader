@@ -140,3 +140,37 @@ Subagent `Tauri013Research` (authoritative sources): Tauri v2 Calling Rust/State
 - `SC-SAFE-001`/FR failure path strengthened (host): synthesis error propagates without corrupting production state. Still missing: full `play_document` failure matrix proving no healthy `Playing` publish and coherent abandon/refusal in all failure points.
 - `SC-TTFA-001` remains **blocked/unproven** (device controlled `play_to_audio_ms` smoke required). T232/T233 unchanged.
 - MDMV `validate` (R4) / `release` (R7): **not satisfied** — device proof and full SC/regression evidence incomplete.
+
+## 2026-11-07 autonomous continuation 4 (device smoke attempt, blocked)
+
+### Attempted
+- Verified 2201117TY connected (`adb-53cf9aa7-4VfOJ6._adb-tls-connect._tcp`) and 013 debug APK installed (2026-11-07 09:38:23).
+- Created `/data/local/tmp/013-ttfa-smoke.md` and triggered `app.mdreader/.DebugIngestActivity --es mode document --es path /data/local/tmp/013-ttfa-smoke.md` → `ok:document:/data/local/tmp/013-ttfa-smoke.md` (log: `debugDeliverDocument`, snapshot written). `debug_ingest_result.txt` read OK.
+
+### Blocker (honest)
+- `DebugIngestActivity`/`debugDeliverDocument` **delivered the document snapshot but did not start controlled playback**; `diagnostic-record.jsonl` tail showed no new `play_to_audio_measured`/`play_to_audio_ms` records (only prior progress records; no file growth attributable to TTFA measurement). During sampling, ADB reported device transiently unavailable (`adb ... not found` on one command; later connectivity should be rechecked before manual smoke).
+- **No TTFA proof obtained.** `SC-TTFA-001` remains blocked/unproven. Controlled cold open + high-offset resume + switch/cancel + 5+ min smoke requires a playback-trigger path (manual UI or debug StartNow command not found in Kotlin shell) and fresh diagnostic capture.
+
+### Manual unblock steps (2201117TY, 013 debug installed)
+1. Reconnect/verify device: `adb devices -l` (expect 2201117TY).
+2. Mark baseline: note current `diagnostic-record.jsonl` size/time.
+3. Open `app.mdreader`, load a known document (or `/data/local/tmp/013-ttfa-smoke.md` if UI can open it), perform **StartNow**; wait for audible/first consumed sample.
+4. Capture: `adb -s <serial> shell run-as app.mdreader cat /data/data/app.mdreader/diagnostic-record.jsonl > /tmp/mdreader-013-diag.jsonl && rg 'play_to_audio_measured|play_to_audio_ms' /tmp/mdreader-013-diag.jsonl | tail -n 20`.
+5. Repeat for **high-offset resume** (document with stored high `position_secs`), **switch/cancel during startup**, and **5+ min playback**.
+6. Append raw `play_to_audio_ms` values + `position_secs`/scenario labels to 013 `converge.md`/`quickstart.md`; update SC mapping and T232/T233 honestly. Do not claim improvement without this evidence.
+
+## 2026-11-07 autonomous continuation 5 (stale synth-result discard proof)
+
+### Code/test
+- `83fa3f1e` `test(ttfa): discard stale 013 synth result after invalidation`
+  - `t018_stale_synth_result_after_invalidation_is_discarded`: hook-driven test simulates cancellation/invalidation completing while sync synth returns; `produce_bounded` discards stale result (no active production for stale generation, current generation advanced, no production running).
+
+### Fresh host evidence
+- `cargo fmt --all` clean.
+- `cargo clippy -p src-tauri --lib -- -D warnings` — clean.
+- `cargo nextest run -p src-tauri --lib ttfa_013_tests` — **11 passed**.
+- `cargo nextest run -p src-tauri --lib playback_watch_tests ttfa_013_tests --test test_resume_restarts_audio --test test_play_to_audio_measured` — **16 passed**.
+
+### Honest status delta
+- `SC-CANCEL-001` further strengthened (host): stale commit discard, stale bounded no-op, stale demand/handover discard, generation-checked enqueue/start, and stale synth-result discard after invalidation during hook-simulated sync synth. Still missing: real async return-path integration across all publish/`after_execute`/session/timeline side effects and full switch/stop/re-anchor matrix.
+- Device `SC-TTFA-001` remains `blocked:device_ttfa_smoke` (manual controlled playback capture required). R4/R7 not satisfied. T232/T233 unchanged.

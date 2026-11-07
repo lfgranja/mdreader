@@ -5383,10 +5383,10 @@ pub mod commands {
         let Ok(mut guard) = state.production.lock() else {
             return;
         };
-        if let Some(production) = guard.as_mut() {
-            if production.generation == generation {
-                production.started = true;
-            }
+        if let Some(production) = guard.as_mut()
+            && production.generation == generation
+        {
+            production.started = true;
         }
     }
 
@@ -5453,7 +5453,7 @@ pub mod commands {
             return;
         }
         let app = app.clone();
-        let _ = tauri::async_runtime::spawn_blocking(move || {
+        drop(tauri::async_runtime::spawn_blocking(move || {
             let state = app.state::<AppState>();
             let result = (|| -> Result<(), OpenError> {
                 while state.production_wake.swap(false, Ordering::AcqRel) {

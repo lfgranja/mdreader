@@ -9667,10 +9667,9 @@ mod ttfa_013_tests {
     #[test]
     fn t003_stale_generation_cannot_target_active_production() {
         let state = AppState::test_state();
-        let gen = commands::invalidate_production_generation(&state);
-        assert_eq!(commands::current_playback_generation(&state), gen);
-        // No production installed for new generation; stale commit paths must be no-ops.
-        assert!(!commands::production_running_for_generation_public(&state, gen.saturating_sub(1)));
+        let generation = commands::invalidate_production_generation(&state);
+        assert_eq!(commands::current_playback_generation(&state), generation);
+        assert!(!commands::production_running_for_generation(&state, generation.saturating_sub(1)));
         assert!(!commands::production_running(&state));
     }
 
@@ -9681,7 +9680,7 @@ mod ttfa_013_tests {
             let mut session = state.session.lock().expect("session lock");
             let _ = session.execute(player::cli::ShellVerb::Play);
         }
-        commands::abandon_playing_landing(&state);
+        crate::abandon_playing_landing(&state);
         let snapshot = state.session.lock().expect("session lock").snapshot();
         assert_ne!(snapshot.transport, TransportState::Playing);
     }

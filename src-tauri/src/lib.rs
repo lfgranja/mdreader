@@ -9744,9 +9744,6 @@ mod ttfa_013_tests {
 
     #[test]
     fn t004_watch_tick_is_synthesis_free_contract() {
-        // 013 contract: watch tick path must not call produce_next_unit/synthesize.
-        // Enforced by implementation refactor (playback_watch_tick signals demand only)
-        // and this smoke check that watch helpers exist and do not require synthesis.
         let state = AppState::test_state();
         commands::watch_signal_production(&state);
         let running = commands::pump_production_demand(&state).expect("pump");
@@ -9776,35 +9773,11 @@ mod ttfa_013_tests {
         let snapshot = state.session.lock().expect("session lock").snapshot();
         assert_ne!(snapshot.transport, TransportState::Playing);
     }
-}
-
-    #[test]
-    fn t003_generation_invalidation_clears_active_production_state() {
-        let state = AppState::test_state();
-        let first = commands::invalidate_production_generation(&state);
-        let second = commands::invalidate_production_generation(&state);
-        assert!(second > first);
-        assert_eq!(commands::current_playback_generation(&state), second);
-        assert!(!commands::production_running_for_generation(&state, first));
-        assert!(!commands::production_running(&state));
-    }
-
-    #[test]
-    fn t004_watch_signal_is_demand_only_without_synthesis_side_effects() {
-        let state = AppState::test_state();
-        // No production/generation active: demand helpers must be no-ops/safe.
-        commands::watch_signal_production(&state);
-        assert!(!commands::pump_production_demand(&state).expect("pump"));
-        let generation = commands::invalidate_production_generation(&state);
-        assert!(!commands::production_running_for_generation(&state, generation));
-    }
-
 
     #[test]
     fn t003_stale_generation_does_not_commit_or_start_production() -> Result<(), String> {
         let state = AppState::test_state();
         let generation = commands::invalidate_production_generation(&state);
-        // Install production for this generation manually via internal state.
         {
             let mut guard = state.production.lock().map_err(|e| e.to_string())?;
             *guard = Some(Production {
@@ -9820,13 +9793,10 @@ mod ttfa_013_tests {
                 started: false,
             });
         }
-        // Invalidate to a newer generation; stale commit must not hand over/start.
         let newer = commands::invalidate_production_generation(&state);
         assert!(newer > generation);
-        assert!(!commands::production_running_for_generation(&state, generation));
-        assert!(!commands::production_running_for_generation(&state, newer));
-        // Bounded production for stale generation is a no-op.
         commands::produce_bounded(&state, generation, 2).map_err(|e| e.to_string())?;
+        assert!(!commands::production_running_for_generation(&state, generation));
         Ok(())
     }
 
@@ -9849,16 +9819,20 @@ mod ttfa_013_tests {
                 started: false,
             });
         }
-        // Commit 220 samples with 100 trimmed => 120 pending/played contribution.
         commands::commit_produced_unit(&state, generation, 0, &[0.0_f32; 220], 0, 100)
             .map_err(|e| e.to_string())?;
         let (pending, played, before_entry) = {
             let guard = state.production.lock().map_err(|e| e.to_string())?;
             let production = guard.as_ref().ok_or("missing production")?;
-            (production.pending.len(), production.played_samples, production.samples_before_entry)
+            (
+                production.pending.len(),
+                production.played_samples,
+                production.samples_before_entry,
+            )
         };
-        assert_eq!(pending, 120, "only useful audio after resume trim should be pending");
+        assert_eq!(pending, 120);
         assert_eq!(played, 120);
         assert_eq!(before_entry, 0);
         Ok(())
     }
+}

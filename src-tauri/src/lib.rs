@@ -9837,4 +9837,51 @@ mod ttfa_013_tests {
         assert_eq!(before_entry, 0);
         Ok(())
     }
+
+    #[test]
+    fn t003_commit_produced_unit_ignores_stale_generation() -> Result<(), String> {
+        let state = AppState::test_state();
+        let generation = commands::invalidate_production_generation(&state);
+        {
+            let mut guard = state.production.lock().map_err(|e| e.to_string())?;
+            *guard = Some(Production {
+                generation,
+                segments: Vec::new(),
+                sections: Vec::new(),
+                next_unit: 0,
+                samples_before_entry: 0,
+                pending: std::collections::VecDeque::from([0.1_f32; 10]),
+                total_samples: 10,
+                played_samples: 10,
+                next_section: 0,
+                started: true,
+            });
+        }
+        let newer = commands::invalidate_production_generation(&state);
+        {
+            let mut guard = state.production.lock().map_err(|e| e.to_string())?;
+            *guard = Some(Production {
+                generation: newer,
+                segments: Vec::new(),
+                sections: Vec::new(),
+                next_unit: 0,
+                samples_before_entry: 0,
+                pending: std::collections::VecDeque::from([0.2_f32; 3]),
+                total_samples: 3,
+                played_samples: 3,
+                next_section: 0,
+                started: true,
+            });
+        }
+        commands::commit_produced_unit(&state, generation, 0, &[0.0_f32; 220], 0, 0)
+            .map_err(|e| e.to_string())?;
+        let (pending, played) = {
+            let guard = state.production.lock().map_err(|e| e.to_string())?;
+            let production = guard.as_ref().ok_or("missing production")?;
+            (production.pending.len(), production.total_samples)
+        };
+        assert_eq!(pending, 3);
+        assert_eq!(played, 3);
+        Ok(())
+    }
 }

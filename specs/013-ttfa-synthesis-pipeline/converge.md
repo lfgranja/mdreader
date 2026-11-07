@@ -44,3 +44,30 @@
 2. Harden producer: no synth in `produce_bounded` when called from disallowed paths? ensure startup first-useful uses blocking-safe path explicitly; complete commit guards before every enqueue/start/publish.
 3. Run `cargo clippy -p src-tauri`/relevant gates; fix 013 warnings where appropriate.
 4. Build/install debug on 2201117TY, capture fresh `play_to_audio_ms` for cold open/high-offset resume/switch/startup cancel; update converge with proof or `blocked:<reason>`.
+
+
+## 2026-11-07 host verification wave (autonomous)
+
+### Implementation/test commits (targeted)
+- `776c2956` test(ttfa): strengthen 013 host generation/watch contracts
+- `a50303a3` fix(ttfa): clean finish_production doc comment
+- `ecf73f36` test(ttfa): add 013 host stale-generation and resume-trim tests
+- `7e3b63d5` test(ttfa): fix 013 host tests for stale generation and resume trim
+- `7cd9e576` style(ttfa): fmt 013 test assertion
+- `13651c81` test(ttfa): cover stale 013 commit side-effect discard
+
+### Host evidence
+- `cargo fmt --all` — clean.
+- `cargo clippy -p src-tauri --lib -- -D warnings` — clean.
+- `cargo nextest run -p src-tauri --lib ttfa_013_tests` — **6 passed**:
+  - stale generation cannot target active production
+  - stale generation does not commit/start production (bounded producer no-op)
+  - stale `commit_produced_unit` ignores stale generation and does not mutate current production
+  - watch tick/demand helper is synthesis-free contract smoke
+  - abandon landing never leaves healthy `Playing` (FR-001/005 seam)
+  - resume offset trims `samples_before_entry` sample-accurately (220 -> 120 useful samples)
+- `cargo nextest run -p src-tauri --test test_play_to_audio_measured --test test_resume_restarts_audio` — **9 passed**.
+
+### Honest status
+- Host contract/invariant progress is stronger, but **013 is not complete**: full hook-driven first-useful/resume end-to-end proofs, complete stale side-effect audit (enqueue/start/backend handover/publish), and full FR-001/005 cancel/failure matrix remain pending.
+- **TTFA proof blocked**: 2201117TY connected (`adb-53cf9aa7-4VfOJ6._adb-tls-connect._tcp`, `app.mdreader` installed) but rebuilt debug 013 binary + controlled `play_to_audio_ms` smoke/capture not executed in this wave. Do not claim `SC-TTFA-001..004` pass or T232/T233 complete.

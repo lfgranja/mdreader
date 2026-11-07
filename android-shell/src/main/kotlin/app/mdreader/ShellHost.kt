@@ -416,8 +416,8 @@ object ShellHost {
     fun pickDocument(): Boolean {
         val activity = currentActivity
         if (activity == null) {
-            Log.w(TAG, "pickDocument: no active activity attached")
-            return false
+            Log.e(TAG, "pickDocument: no active activity attached")
+            throw IllegalStateException("No active activity attached for document picker")
         }
         return DocIngest.pickDocument(activity)
     }

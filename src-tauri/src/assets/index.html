@@ -1245,6 +1245,20 @@
 
   // T167: Document picker trigger via Title Card
   let pickerDebounceTimer = null;
+  function clearPickerDebounce() {
+    if (pickerDebounceTimer) {
+      clearTimeout(pickerDebounceTimer);
+      pickerDebounceTimer = null;
+    }
+  }
+  function showPickerError(message) {
+    const banner = document.getElementById('reasonBanner');
+    if (banner) {
+      banner.textContent = message;
+      banner.style.display = 'block';
+    }
+    console.error('Failed to launch document picker:', message);
+  }
   function triggerDocumentPicker() {
     if (pickerDebounceTimer) {
       return;
@@ -1254,26 +1268,15 @@
     }, 500);
 
     sendAction('pick_document').then(() => {
+      clearPickerDebounce();
       if (els.titleCard) {
         els.titleCard.focus();
       }
     }).catch((err) => {
-      console.error('Failed to launch document picker:', err);
+      clearPickerDebounce();
+      showPickerError(`Não foi possível abrir o seletor de arquivos: ${err}`);
       if (els.titleCard) {
         els.titleCard.focus();
-      }
-    });
-  }
-
-  if (els.titleCard) {
-    els.titleCard.addEventListener('click', () => {
-      triggerDocumentPicker();
-    });
-
-    els.titleCard.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        triggerDocumentPicker();
       }
     });
   }

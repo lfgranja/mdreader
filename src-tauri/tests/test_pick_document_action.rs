@@ -60,3 +60,33 @@ fn status_view_title_card_has_picker_affordances() {
         "status_view.html must have tabindex=0 on title container for keyboard focus"
     );
 }
+
+#[test]
+fn status_view_has_picker_error_feedback() {
+    // Contract test for the bug fix: title box click must surface
+    // picker-launch errors to the user instead of failing silently.
+    assert!(
+        STATUS_VIEW.contains("showPickerError"),
+        "status_view.html must have showPickerError for user-visible picker failure feedback"
+    );
+    assert!(
+        STATUS_VIEW.contains("clearPickerDebounce"),
+        "status_view.html must have clearPickerDebounce to release debounce lock on both success and error"
+    );
+    assert!(
+        STATUS_VIEW.contains("Não foi possível abrir o seletor de arquivos"),
+        "status_view.html must show a user-visible error message in pt-BR"
+    );
+}
+
+#[test]
+fn bridge_reports_pick_document_false_return() {
+    // Contract test for the bug fix: ShellHost.pickDocument returning
+    // false (no active activity) must be surfaced as an error, not
+    // silently ignored with `let _ =`.
+    const SHELL_JNI: &str = include_str!("../src/shell_jni.rs");
+    assert!(
+        SHELL_JNI.contains("ShellHost.pickDocument returned false"),
+        "shell_jni.rs must surface pickDocument false return as an error"
+    );
+}

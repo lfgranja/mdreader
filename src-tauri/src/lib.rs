@@ -10085,4 +10085,56 @@ mod ttfa_013_tests {
         assert_eq!(pending, 0);
         Ok(())
     }
+
+    #[test]
+    fn t018_stale_synth_result_after_invalidation_is_discarded() -> Result<(), String> {
+        use adapter_synthesis::chunk::{BoundaryKind, DocumentSegment, SourceRange};
+        let state = AppState::test_state();
+        let generation = commands::invalidate_production_generation(&state);
+        {
+            let mut guard = state.production.lock().map_err(|e| e.to_string())?;
+            *guard = Some(Production {
+                generation,
+                segments: vec![DocumentSegment {
+                    content: "hello".into(),
+                    source_range: SourceRange {
+                        line_start: 1,
+                        col_start: 1,
+                        line_end: 1,
+                        col_end: 6,
+                    },
+                    boundary_kind: BoundaryKind::Paragraph,
+                    segment_index: 0,
+                    resume_point: None,
+                }],
+                sections: Vec::new(),
+                next_unit: 0,
+                samples_before_entry: 0,
+                pending: std::collections::VecDeque::new(),
+                total_samples: 0,
+                played_samples: 0,
+                next_section: 0,
+                started: false,
+            });
+        }
+        let state_ref: &'static AppState = Box::leak(Box::new(state));
+        commands::install_test_synth_hook(Box::new(move |_seg| {
+            // Simulate cancellation completing while sync synth "runs":
+            // newer generation invalidates; result must be discarded.
+            let _ = commands::invalidate_production_generation(state_ref);
+            Ok(vec![0.0_f32; 220])
+        }));
+        let result = commands::produce_bounded(state_ref, generation, 1);
+        commands::clear_test_synth_hook();
+        result.map_err(|e| e.to_string())?;
+        assert!(
+            !commands::production_running_for_generation(state_ref, generation),
+            "stale generation must not remain active"
+        );
+        let current = commands::current_playback_generation(state_ref);
+        assert_ne!(current, generation);
+        // No production should exist for the stale generation; invalidation cleared it.
+        assert!(!commands::production_running(state_ref));
+        Ok(())
+    }
 }

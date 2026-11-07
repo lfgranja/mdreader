@@ -2361,7 +2361,7 @@ fn spawn_production_driver_task(app: &tauri::AppHandle) {
     drop(tauri::async_runtime::spawn(async move {
         let mut ticker = tokio::time::interval(std::time::Duration::from_millis(50));
         loop {
-            ticker.tick().await;
+            let _instant = ticker.tick().await;
             let state = driver.state::<AppState>();
             let wake = state.production_wake.swap(false, Ordering::AcqRel);
             let generation = state.playback_generation.load(Ordering::Acquire);
@@ -2488,6 +2488,7 @@ struct PlaybackWatch {
 /// speech samples (FR-015); the session clock is the position
 /// authority every ack, bookmark, and publish reads. This tick
 /// Test-only watch tick: no AppHandle/producer spawn; checks progress/end state.
+#[cfg(test)]
 #[cfg(test)]
 fn playback_watch_tick_test(state: &AppState, watch: &mut PlaybackWatch) {
     let transport = {
@@ -5181,6 +5182,10 @@ pub mod commands {
         *TEST_SYNTH_HOOK.lock().expect("test synth hook") = Some(hook);
     }
     #[cfg(test)]
+    #[expect(
+        dead_code,
+        reason = "013 host test seam; used by targeted/future tests"
+    )]
     pub(crate) fn clear_test_synth_hook() {
         *TEST_SYNTH_HOOK.lock().expect("test synth hook") = None;
     }

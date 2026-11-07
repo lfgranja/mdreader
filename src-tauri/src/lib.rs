@@ -9796,7 +9796,9 @@ mod ttfa_013_tests {
         let newer = commands::invalidate_production_generation(&state);
         assert!(newer > generation);
         commands::produce_bounded(&state, generation, 2).map_err(|e| e.to_string())?;
-        assert!(!commands::production_running_for_generation(&state, generation));
+        assert!(!commands::production_running_for_generation(
+            &state, generation
+        ));
         Ok(())
     }
 

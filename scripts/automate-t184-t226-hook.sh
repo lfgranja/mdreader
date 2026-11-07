@@ -28,6 +28,7 @@ EV_RETENTION=""
 EV_RESULT_FILE=""
 EV_STATUS_FLAG=""
 
+AGG_INPUTS=()
 # Parse contract/report flags early (no side effects). Preserve positional SERIAL for
 # normal device runs by collecting non-contract positionals.
 POSITIONAL=()
@@ -53,8 +54,16 @@ while (($#)); do
     --normalize-debug-ingest-intent) CONTRACT_MODE="normalize-debug-ingest-intent"; shift ;;
     --build-device-evidence) CONTRACT_MODE="build-device-evidence"; shift ;;
     --print-device-run-contract) CONTRACT_MODE="print-device-run-contract"; shift ;;
+    --print-run-aggregation-contract) CONTRACT_MODE="print-run-aggregation-contract"; shift ;;
+    --aggregate-device-evidence) CONTRACT_MODE="aggregate-device-evidence"; shift ;;
     --classify-device-run) CONTRACT_MODE="classify-device-run"; shift ;;
     --result-file) EV_RESULT_FILE="${2:-}"; if (($# >= 2)); then shift 2; else shift; fi ;;
+    --inputs)
+      shift
+      while (($#)) && [[ "$1" != --* ]]; do
+        AGG_INPUTS+=("$1"); shift
+      done
+      ;;
     --status-flag) EV_STATUS_FLAG="${2:-}"; if (($# >= 2)); then shift 2; else shift; fi ;;
     --mode) NORM_MODE="${2:-}"; if (($# >= 2)); then shift 2; else shift; fi ;;
     --path) NORM_PATH="${2:-}"; if (($# >= 2)); then shift 2; else shift; fi ;;
@@ -426,6 +435,91 @@ PYATTR
 residual_rules_json() {
   emit_json '{"allowed_statuses":["accepted-risk","deferred","open","verified"],"accepted_risk_requires":["owner","decision","rationale","scope","evidence"],"accepted_risk_completes_parent_when_blocking":false,"verified_requires":["evidence refs appropriate to scope"],"deferred_requires":["owner","decision ref","rationale"],"parent_completion_rule":"Parent T184/T226 fully complete only when all required *-PROG and required residual items are verified or explicitly re-scoped by a recorded decision (never implicit).","full_parent_completion_claimed_from_hook_evidence":false}'
 }
+print_run_aggregation_contract_json() {
+  emit_json '{"contract":"device-run-evidence-aggregation","scope_class":"programmatic-non-ui","side_effects":"none (no adb/device/mkdir)","full_parent_completion_claimed":false,"fr008_minimum_fields":["fixture_reference","operation","outcome","build_identity","device_identity","diagnostic_capture","crash_anr_status","residual_scope_note","preferred_location_or_channel","effective_location_or_channel","write_status","reviewer_accessible_location","retention_scope","correlation_key","corroboration","full_parent_completion_claimed"],"sc001_counters":["attempted","precondition_blocked","in_denominator","explicit_within_budget","inconclusive"],"sc002_counters":["attempted","precondition_blocked","in_denominator","explicit_within_budget","inconclusive"],"sc001_formula":"exercised_runs / max(requested_exercisable_runs - blocked_runs,1)","sc002_formula":"explicit_within_budget_runs / max(eligible_explicit_runs,1)","hw_matrix":"not-evaluated","sw_matrix":"not-evaluated","hw_sw_matrix_pass":false,"crash_anr_unknown_not_pass":true,"crash_anr_detected_not_pass":true,"blocked_excluded_from_denominator":true,"inconclusive_not_explicit_pass":true,"correlation_key":"<aggregate correlation/run id or unavailable:<reason>>","build_identity":"<aggregated build identity or unavailable:<reason>>","device_identity":"<aggregated device identity or unavailable:<reason>>","reviewer_accessible_location":"<repo-relative evidence path or unavailable:<reason>>","retention_scope":"<retention scope or unavailable:<reason>>","input_format":"per-op FR-008 JSON files passed via --inputs (repeatable)","output":"aggregate machine-readable JSON with SC-001/SC-002 totals, classification, and integrity invariants"}'
+}
+
+aggregate_device_evidence_json() {
+  python3 - "${AGG_INPUTS[@]}" <<'PYAGG'
+import json, sys, os
+inputs = sys.argv[1:]
+totals = {"attempted":0,"precondition_blocked":0,"in_denominator":0,"explicit_within_budget":0,"inconclusive":0}
+builds=set(); devices=set(); correlations=set(); retentions=set(); reviewers=set()
+has_pass=False; has_blocked_or_inconclusive=False; crash_unknown_or_detected=False
+for inp in inputs:
+    try:
+        with open(inp,'r',encoding='utf-8',errors='replace') as f:
+            d=json.load(f)
+    except Exception:
+        continue
+    ctr=d.get("counters") or {}
+    for k in totals:
+        v=ctr.get(k)
+        if isinstance(v,bool): continue
+        if isinstance(v,(int,float)): totals[k]+=int(v)
+    for k in totals:
+        v=d.get(k)
+        if isinstance(v,bool): continue
+        if isinstance(v,(int,float)): totals[k]+=int(v)
+    for key,target in [("build_identity",builds),("device_identity",devices),("correlation_key",correlations),("retention_scope",retentions),("reviewer_accessible_location",reviewers)]:
+        v=d.get(key)
+        if v and isinstance(v,str) and v!="unavailable": target.add(v)
+    status=str(d.get("status") or d.get("classification") or d.get("aggregate_status") or "").lower()
+    if status in ("pass","ok","explicit","success"): has_pass=True
+    if status in ("blocked","inconclusive"): has_blocked_or_inconclusive=True
+    crash=str(d.get("crash_anr_status") or "").lower()
+    if crash in ("unknown","detected"): crash_unknown_or_detected=True
+
+def uniq_or_unavailable(s):
+    if not s: return "unavailable"
+    if len(s)==1: return next(iter(s))
+    return "; ".join(sorted(s))
+
+if has_blocked_or_inconclusive or crash_unknown_or_detected:
+    classification="inconclusive"
+elif has_pass and totals["in_denominator"]>0:
+    classification="pass"
+else:
+    classification="inconclusive"
+
+explicit_pass_count = totals["explicit_within_budget"] if not crash_unknown_or_detected else 0
+
+print(json.dumps({
+  "contract":"device-run-evidence-aggregation",
+  "scope_class":"programmatic-non-ui",
+  "side_effects":"none (no adb/device/mkdir)",
+  "full_parent_completion_claimed":False,
+  "operation":"aggregate",
+  "inputs":len(inputs),
+  "sc001_counters":totals,
+  "sc002_counters":dict(totals),
+  "counters":totals,
+  "classification":classification,
+  "aggregate_status":classification,
+  "status":classification,
+  "explicit_within_budget":explicit_pass_count,
+  "explicit_pass_count":explicit_pass_count,
+  "passed_count":0,
+  "counts_as_pass":False,
+  "counts_as_full_pass":False,
+  "full_pass":False,
+  "hw_matrix":"not-evaluated",
+  "sw_matrix":"not-evaluated",
+  "hw_sw_matrix_pass":False,
+  "crash_anr_unknown_not_pass":True,
+  "crash_anr_detected_not_pass":True,
+  "blocked_excluded_from_denominator":True,
+  "inconclusive_not_explicit_pass":True,
+  "correlation_key":uniq_or_unavailable(correlations),
+  "build_identity":uniq_or_unavailable(builds),
+  "device_identity":uniq_or_unavailable(devices),
+  "reviewer_accessible_location":uniq_or_unavailable(reviewers),
+  "retention_scope":uniq_or_unavailable(retentions),
+  "crash_anr_status":"unknown" if crash_unknown_or_detected else "not-detected",
+}, sort_keys=True))
+PYAGG
+}
+
 
 usage(){
   cat <<'USAGE'
@@ -496,6 +590,15 @@ if [[ "$CONTRACT_MODE" == "classify-device-run" ]]; then
   classify_device_run_json "$RAW_OUTCOME" "$CACHE_WRITE_STATUS" "$CORROBORATION_VALUE" "$EV_OPERATION" "$EV_FIXTURE" "$EV_BUILD" "$EV_DEVICE" "$EV_DIAG" "$EV_CRASH" "$EV_CORR_KEY" "$EV_LOCATION" "$EV_RETENTION" "$EV_RESULT_FILE" "$EV_STATUS_FLAG"
   exit 0
 fi
+if [[ "$CONTRACT_MODE" == "print-run-aggregation-contract" ]]; then
+  print_run_aggregation_contract_json
+  exit 0
+fi
+if [[ "$CONTRACT_MODE" == "aggregate-device-evidence" ]]; then
+  aggregate_device_evidence_json "${AGG_INPUTS[@]+"${AGG_INPUTS[@]}"}"
+  exit 0
+fi
+
 
 # ---- Normal device automation mode (may have side effects) ----
 SERIAL="${1:-adb-53cf9aa7-4VfOJ6._adb-tls-connect._tcp}"

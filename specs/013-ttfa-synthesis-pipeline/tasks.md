@@ -39,7 +39,7 @@
 
 ### RED (write first)
 
-- [~] T003 (smoke test added; full stale-commit side-effect matrix pending) [US1][US3] In `src-tauri/tests/test_ttfa_synthesis_pipeline.rs`, add failing tests that a stale production generation cannot commit PCM, cannot start backend/playback for stale request, and cannot publish healthy started state after invalidation/switch/stop. Cover race-shaped case: result arrives after generation changed.
+- [~] T003 (host tests added: stale active target, stale bounded no-op/no-start, stale commit side-effect discard; enqueue/start/publish matrix still pending) [US1][US3] In `src-tauri/tests/test_ttfa_synthesis_pipeline.rs`, add failing tests that a stale production generation cannot commit PCM, cannot start backend/playback for stale request, and cannot publish healthy started state after invalidation/switch/stop. Cover race-shaped case: result arrives after generation changed.
 - [~] T004 (runtime watch synthesis-free refactor+smoke; stronger structural assertion pending) [P] [US1][US2] In `src-tauri/tests/test_ttfa_synthesis_pipeline.rs`, add failing test/contract assertion that `playback_watch_tick`/watch path does not perform synthesis (`produce_next_unit`/`adapter_synthesis::synth::synthesize`) and remains lightweight for production advancement (observation/wake only).
 
 ### Implementation (blocked until T003–T004 RED)
@@ -66,7 +66,7 @@
 
 - [~] T009 (spawn_blocking demand driver + bounded produce_bounded; startup still performs bounded inline first-useful work; dedicated robustness pending) [US1] Move CPU-bound synthesis in `src-tauri/src/lib.rs` off async watch/critical caller path: bounded `tauri::async_runtime::spawn_blocking` units or dedicated producer thread. Snapshot segment/production inputs under short locks, call `adapter_synthesis::synth::synthesize` outside locks, validate generation, commit under short locks.
 - [x] T010 [US1] Refactor `playback_watch_tick` in `src-tauri/src/lib.rs` to be synthesis-free: keep audible progress crediting, crossing/republish, chapter pre-roll arm, drain/end gated by `production_running`/buffer state; replace direct `advance_production` synthesis with wake/signal or safe non-blocking coordination to producer.
-- [~] T011 (startup reordered to first-useful before Playing publish; full FR matrix pending) [US1] Preserve FR-001/005-safe startup in `play_document`/open path (`src-tauri/src/lib.rs`): no healthy audible playing publish before first valid useful-audio start/handoff for current generation; failures use `abandon_playing_landing`/named refusal paths.
+- [~] T011 (startup reordered to first-useful before Playing publish; abandon_landing seam tested; full FR matrix pending) [US1] Preserve FR-001/005-safe startup in `play_document`/open path (`src-tauri/src/lib.rs`): no healthy audible playing publish before first valid useful-audio start/handoff for current generation; failures use `abandon_playing_landing`/named refusal paths.
 - [ ] T012 [US1] Re-run RED tests T004/T007/T008/T003 for MVP scope; record GREEN evidence in task notes/commit body (non-attesting until Phase 7).
 
 **Checkpoint**: MVP — fast first useful audio path and non-synthesizing watch, with stale-generation safety.

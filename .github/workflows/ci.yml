@@ -1,0 +1,185 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  PROPTEST_CASES: "32"
+  RUST_BACKTRACE: short
+
+jobs:
+  host-gates:
+    name: Host gates (verify.sh 1-8 subset + supply chain)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Linux dependencies (Tauri/GTK/WebKit)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends             build-essential curl wget file pkg-config             libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev             libayatana-appindicator3-dev librsvg2-dev             libasound2-dev clang
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          workspaces: |
+            . -> target
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: nextest
+
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@cargo-deny
+
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@cargo-audit
+
+      - name: Gate 1 — format
+        run: cargo fmt --all -- --check
+
+      - name: Gate 2 — tests (nextest workspace)
+        run: cargo nextest run --workspace --profile ci
+
+      - name: Gate 2 — expected-tests two-way diff
+        run: |
+          set -euo pipefail
+          cargo nextest list --workspace 2>/dev/null             | grep -E "::"             | sed -E 's/ .*//'             | sort -u > /tmp/nextest-live.txt
+          test -s /tmp/nextest-live.txt
+          test -f scripts/expected-tests.txt
+          sort -u scripts/expected-tests.txt > /tmp/expected.txt
+          missing="$(comm -23 /tmp/expected.txt /tmp/nextest-live.txt || true)"
+          unexpected="$(comm -13 /tmp/expected.txt /tmp/nextest-live.txt || true)"
+          if [ -n "$missing" ] || [ -n "$unexpected" ]; then
+            [ -n "$missing" ] && { echo "missing (pinned, not live):"; echo "$missing"; }
+            [ -n "$unexpected" ] && { echo "unexpected (live, not pinned):"; echo "$unexpected"; }
+            exit 1
+          fi
+
+      - name: Gate 3 — docs
+        run: cargo doc --workspace --no-deps
+
+      - name: Gate 4 — clippy (lint compliance)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Gate 5 — supply chain (cargo-deny + cargo-audit)
+        run: |
+          cargo deny check advisories licenses bans sources
+          cargo audit
+
+      - name: Gate 6 — deny-list scan
+        run: |
+          set -euo pipefail
+          PATTERN='(^|["/ ,])(tts-rs|onnx|sherpa|candle|burn|tch|llm|llama-cpp-2|llama-rs|rust-bert|openai|async-openai|openai-api|langchain|langchain-rust|edge-tts-rs)(["/ ,]|$)'
+          if grep -rnE --include=Cargo.toml --exclude-dir=target --exclude-dir=.git "$PATTERN" .; then exit 1; fi
+          if grep -nE "$PATTERN" Cargo.lock; then exit 1; fi
+
+      - name: Gate 7 — closed-set (no catch-all in crates/*/src)
+        run: |
+          set -euo pipefail
+          hits="$(find crates -path '*/src/*.rs' -type f -print0 | xargs -0 -r awk '{ code=$0; sub(/\/\/.*$/,"",code); if (code ~ /_[[:space:]]*=>/) print FILENAME ":" FNR ": " $0 }' || true)"
+          if [ -n "$hits" ]; then echo "$hits"; exit 1; fi
+
+      - name: Gate 8 — engine-handoff conformance (feature-scoped)
+        run: |
+          cargo nextest run -p engine-core             --test test_engine_handoff_us1             --test test_standin_conformance_us5             --test prop_pitch             --test standin_shape
+          cargo nextest run -p player --test prop_transport_math
+          echo 'gate-8-full: DEFERRED (owner=synthesis)'
+
+      - name: Named checks — manifest/shell-purity
+        run: |
+          bash scripts/check-manifest.sh
+          bash scripts/check-shell-purity.sh
+
+      - name: Full verify.sh (authoritative local gate runner)
+        run: bash scripts/verify.sh
+
+  android-build:
+    name: Android build (gate 9, aarch64 debug)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    needs: host-gates
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && !github.event.pull_request.draft)
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          android: false
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: false
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends             build-essential curl wget file pkg-config             libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev             libayatana-appindicator3-dev librsvg2-dev             libasound2-dev clang unzip
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Android SDK/NDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK and platform tools
+        run: |
+          sdkmanager --install "ndk;27.0.12077973" "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+
+      - name: Setup Rust toolchain + Android target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          workspaces: |
+            . -> target
+
+      - name: Install Tauri CLI
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-tauri
+
+      - name: Gate 9 — Android build (aarch64 debug)
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.0.12077973
+          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.0.12077973
+        run: cargo tauri android build --target aarch64 --debug
+
+      - name: Upload debug APK artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-universal-debug-apk
+          path: src-tauri/gen/android/app/build/outputs/apk/universal/debug/*.apk
+          if-no-files-found: warn
+          retention-days: 14

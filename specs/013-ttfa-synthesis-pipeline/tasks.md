@@ -39,13 +39,13 @@
 
 ### RED (write first)
 
-- [~] T003 (host tests: stale active target, stale bounded no-op/no-start, stale commit side-effect discard, stale commit mutates no current production; hook-driven first-useful commit covered by T007 host test; enqueue/start/publish matrix still pending) [US1][US3] In `src-tauri/tests/test_ttfa_synthesis_pipeline.rs`, add failing tests that a stale production generation cannot commit PCM, cannot start backend/playback for stale request, and cannot publish healthy started state after invalidation/switch/stop. Cover race-shaped case: result arrives after generation changed.
+- [~] T003 (host tests: stale active target, stale bounded no-op/no-start, stale commit side-effect discard, stale commit mutates no current production; hook-driven first-useful commit covered by T007 host test; `enqueue_chunk_for_generation`/`start_backend_for_generation` added; full publish/enqueue-start-after-return matrix still pending) [US1][US3] In `src-tauri/tests/test_ttfa_synthesis_pipeline.rs`, add failing tests that a stale production generation cannot commit PCM, cannot start backend/playback for stale request, and cannot publish healthy started state after invalidation/switch/stop. Cover race-shaped case: result arrives after generation changed.
 - [~] T004 (runtime watch synthesis-free refactor+smoke; stronger structural assertion pending) [P] [US1][US2] In `src-tauri/tests/test_ttfa_synthesis_pipeline.rs`, add failing test/contract assertion that `playback_watch_tick`/watch path does not perform synthesis (`produce_next_unit`/`adapter_synthesis::synth::synthesize`) and remains lightweight for production advancement (observation/wake only).
 
 ### Implementation (blocked until T003–T004 RED)
 
 - [~] T005 (generation/wake/driver fields and invalidation wired; full transition coverage pending) [US3] Add generation/cancellation control to `AppState` and production flow in `src-tauri/src/lib.rs` (e.g. monotonic `AtomicU64` generation + current production generation; invalidation helpers). Ensure open/switch/stop/re-anchor/chapter transitions invalidate old generation; keep lock scope short.
-- [~] T006 (commit/start paths generation-checked in refactored flow; exhaustive guard audit pending) [US1][US3] Refactor production commit path in `src-tauri/src/lib.rs` so `enqueue_chunk`/`start_backend`/timeline/session commit/publish helpers check current generation and discard stale work with no side effects.
+- [~] T006 (commit/start paths generation-checked in refactored flow; `handover_pending_for_generation` uses generation-checked backend enqueue/start; exhaustive guard audit across publish/session/timeline/after_execute still pending) [US1][US3] Refactor production commit path in `src-tauri/src/lib.rs` so `enqueue_chunk`/`start_backend`/timeline/session commit/publish helpers check current generation and discard stale work with no side effects.
 
 **Checkpoint**: stale work cannot affect active playback; watch-synth coupling is identified and ready to remove.
 

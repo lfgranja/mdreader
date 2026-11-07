@@ -76,3 +76,31 @@
 - `cargo tauri android build --debug --target aarch64` completed: `src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk`.
 - Installed on `adb-53cf9aa7-4VfOJ6._adb-tls-connect._tcp` / 2201117TY (2026-11-07 09:38:23, `app.mdreader` debug, v0.1.0/1000). `run-as` diagnostic tail was empty in sampled read.
 - **Still blocked for proof**: controlled TTFA smoke not executed (needs reproducible StartNow/open flow, optional high-offset resume/switch/cancel/5+ min checks) to capture fresh `play_to_audio_ms` and compare to baseline. No automated UI path executed here; claiming improvement would be invalid.
+
+## 2026-11-07 autonomous continuation (host hardening + research integration)
+
+### Deep research (high-reliability, 2024-2026, integrated)
+Subagent `Tauri013Research` (authoritative sources): Tauri v2 Calling Rust/State/async runtime docs, `tauri::async_runtime::spawn_blocking` docs.rs (tauri 2.12.x line), Tokio `spawn_blocking`/`JoinHandle::abort` (non-abortable once started), Tokio `Mutex` guidance, cpal 0.18.1 UPGRADING/`DeviceTrait` callbacks, Android AAudio guide, Tauri #14694 contention/deadlock risk signal, sherpa-onnx 1.13.8 refs from baseline.
+- **Supports 013 Option A**: bounded CPU synthesis off UI/watch/cpal callback; generation/token stale-result discard at every side-effect boundary; short `std::sync::Mutex` critical sections, no guard across `.await`; FR-001/005 no healthy `Playing` before valid first-useful handoff/start; correctness-first resume (`samples_before_entry`) unless exact timeline invariants proven.
+- **Risks to track**: `spawn_blocking` work cannot be aborted mid-inference (discard after return only); Android lock contention/deadlock class risk (Tauri #14694 shape) — keep locks short, avoid nested/cross-thread lock+backend/cpal interactions; cpal callback must remain allocation/block/wait free.
+
+### Implementation hardening (targeted)
+- `9a77909f` `fix(ttfa): harden 013 enqueue/start with generation checks` — replaced unguarded legacy `enqueue_chunk`/`start_backend` path with generation-checked `enqueue_chunk_for_generation`/`start_backend_for_generation`; removed unused legacy wrappers; `handover_pending_for_generation` uses checked backend side effects.
+
+### Host evidence (fresh)
+- `cargo fmt --all` clean.
+- `cargo clippy -p src-tauri --lib -- -D warnings` — **clean**.
+- `cargo nextest run -p src-tauri --lib ttfa_013_tests` — **7 passed** (includes hook-driven `t007_produce_bounded_commits_first_useful_audio_via_synth_hook`, stale `commit_produced_unit` discard, resume trim, abandon landing, watch/demand smoke).
+- `cargo nextest run -p src-tauri --lib playback_watch_tests ttfa_013_tests --test test_resume_restarts_audio` — **12 passed** (playback watch + 013 + resume restart).
+- `cargo nextest run -p src-tauri --test test_play_to_audio_measured --test test_resume_restarts_audio` — **9 passed** (previous wave, still relevant).
+
+### SC mapping (honest, current)
+- `SC-TTFA-001` **blocked/unproven**: 2201117TY debug APK installed (013 build), but no controlled fresh `play_to_audio_ms` capture/comparison yet. Baseline remains 1659–17309 ms common; 45878–120422 ms high-offset extremes.
+- `SC-TTFA-002` **partial host**: hook-driven produce_bounded commits first useful unit; end-to-end startup multi-segment/full timeline proof pending.
+- `SC-RESUME-001` **partial host**: sample-trim invariant proven at commit boundary; first-useful high-offset/resume end-to-end proof pending.
+- `SC-CANCEL-001` **partial host**: stale generation target/commit discard and bounded no-op tests pass; full enqueue/start/backend handover/publish side-effect matrix and async completion-after-cancel proofs pending.
+- `SC-SAFE-001` **partial host**: `abandon_playing_landing` seam tested; startup reordered to first-useful before `Playing` publish; full FR-001/005 cancel/failure matrix pending.
+- `SC-REG-001` **partial**: targeted TTFA/watch/resume/play-to-audio regressions pass on host; broader gates/device smoke/60s pre-roll/underrun/5+ min playback not executed as full 013 proof. **T232/T233 not complete.**
+
+### MDMV flow status
+`intake/research/problem/concept/clarify/decision/spec/plan/tasks` artifacts exist for 013 (`decision=go`, Option A). Implementation/converge advanced autonomously with TDD evidence; **validate/release not performed** (R4/R7-style gates/evidence incomplete; device proof missing). No `specify.bug.*` flow opened (no separately reported bug artifact beyond 013 task scope).

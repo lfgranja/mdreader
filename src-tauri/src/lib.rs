@@ -5182,12 +5182,8 @@ pub mod commands {
         *TEST_SYNTH_HOOK.lock().expect("test synth hook") = Some(hook);
     }
     #[cfg(test)]
-    #[expect(
-        dead_code,
-        reason = "013 host test seam; used by targeted/future tests"
-    )]
     pub(crate) fn clear_test_synth_hook() {
-        *TEST_SYNTH_HOOK.lock().expect("test synth hook") = None;
+        let _ = TEST_SYNTH_HOOK.lock().expect("test synth hook").take();
     }
     #[cfg(test)]
     fn take_test_synth_hook() -> Option<TestSynthHook> {
@@ -5382,12 +5378,12 @@ pub mod commands {
             return Ok(0);
         }
         let samples = piece.len();
-        enqueue_chunk(state, piece)?;
+        enqueue_chunk_for_generation(state, generation, piece)?;
         if !production_started_for_generation(state, generation) {
             if !production_generation_matches(state, generation) {
                 return Ok(0);
             }
-            start_backend(state)?;
+            start_backend_for_generation(state, generation)?;
             if !production_generation_matches(state, generation) {
                 return Ok(0);
             }
@@ -5887,10 +5883,20 @@ pub mod commands {
     /// (T113 / FR-003): the chunk is enqueued as its OWN buffer, so
     /// the queue never holds a whole-document accumulator — the
     /// first chunk is audible while the rest still synthesizes.
-    fn enqueue_chunk(state: &AppState, chunk: Vec<f32>) -> Result<(), OpenError> {
+    fn enqueue_chunk_for_generation(
+        state: &AppState,
+        generation: u64,
+        chunk: Vec<f32>,
+    ) -> Result<(), OpenError> {
+        if !production_generation_matches(state, generation) {
+            return Ok(());
+        }
         let backend = state.backend.lock().map_err(|error| OpenError::Backend {
             reason: error.to_string(),
         })?;
+        if !production_generation_matches(state, generation) {
+            return Ok(());
+        }
         let device = backend.as_ref().ok_or_else(|| OpenError::Backend {
             reason: "no audio backend".to_string(),
         })?;
@@ -5906,10 +5912,16 @@ pub mod commands {
     /// The stream starts on the FIRST chunk the streaming path queued
     /// (T113 / FR-003): the audio begins while the rest of the
     /// document is still being synthesized.
-    fn start_backend(state: &AppState) -> Result<(), OpenError> {
+    fn start_backend_for_generation(state: &AppState, generation: u64) -> Result<(), OpenError> {
+        if !production_generation_matches(state, generation) {
+            return Ok(());
+        }
         let backend = state.backend.lock().map_err(|error| OpenError::Backend {
             reason: error.to_string(),
         })?;
+        if !production_generation_matches(state, generation) {
+            return Ok(());
+        }
         let device = backend.as_ref().ok_or_else(|| OpenError::Backend {
             reason: "no audio backend".to_string(),
         })?;

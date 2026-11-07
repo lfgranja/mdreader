@@ -9884,4 +9884,58 @@ mod ttfa_013_tests {
         assert_eq!(played, 3);
         Ok(())
     }
+
+    #[test]
+    fn t007_produce_bounded_commits_first_useful_audio_via_synth_hook() -> Result<(), String> {
+        use adapter_synthesis::chunk::{BoundaryKind, DocumentSegment, SourceRange};
+        let state = AppState::test_state();
+        let generation = commands::invalidate_production_generation(&state);
+        {
+            let mut guard = state.production.lock().map_err(|e| e.to_string())?;
+            *guard = Some(Production {
+                generation,
+                segments: vec![DocumentSegment {
+                    content: "hello".into(),
+                    source_range: SourceRange {
+                        line_start: 1,
+                        col_start: 1,
+                        line_end: 1,
+                        col_end: 6,
+                    },
+                    boundary_kind: BoundaryKind::Paragraph,
+                    segment_index: 0,
+                    resume_point: None,
+                }],
+                sections: Vec::new(),
+                next_unit: 0,
+                samples_before_entry: 0,
+                pending: std::collections::VecDeque::new(),
+                total_samples: 0,
+                played_samples: 0,
+                next_section: 0,
+                started: false,
+            });
+        }
+        commands::install_test_synth_hook(Box::new(|_seg| Ok(vec![0.0_f32; 220])));
+        let result = commands::produce_bounded(&state, generation, 1);
+        commands::clear_test_synth_hook();
+        result.map_err(|e| e.to_string())?;
+        let (pending, next_unit, total, started) = {
+            let guard = state.production.lock().map_err(|e| e.to_string())?;
+            let production = guard.as_ref().ok_or("missing production")?;
+            (
+                production.pending.len(),
+                production.next_unit,
+                production.total_samples,
+                production.started,
+            )
+        };
+        assert_eq!(next_unit, 1);
+        assert_eq!(total, 220);
+        assert!(
+            started || pending > 0,
+            "first useful audio must be committed/started: pending={pending} started={started}"
+        );
+        Ok(())
+    }
 }

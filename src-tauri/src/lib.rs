@@ -45,7 +45,7 @@
 )]
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 
 use diag::writer::{
     DeviceEvent, ErrorValue, EventKind, FocusValue, RecordEvent, SessionEndValue, TransportValue,
@@ -806,9 +806,9 @@ fn teardown_outgoing_session(state: &AppState) {
     } else {
         tracing::warn!("the FR-015 clock was not closed: the state lock is poisoned");
     }
-    // The outgoing production is dropped (T158): the incoming
-    // document's audio is the only audio, and the outgoing
-    // document's producer never hands its audio over.
+    // 013 TTFA: invalidate stale production before dropping state so workers
+    // cannot enqueue/start/commit after the document switch boundary.
+    let _ = commands::invalidate_production_generation(state);
     if let Ok(mut guard) = state.production.lock() {
         *guard = None;
     } else {
@@ -3199,6 +3199,7 @@ pub fn run() {
 
 pub mod commands {
     //! Plugin commands exposed via IPC.
+    use std::sync::atomic::Ordering;
 
     use super::permissions::{self, PermissionSnapshot};
     use super::{
@@ -5099,7 +5100,7 @@ pub mod commands {
                     .is_some_and(|p| p.generation == generation && !p.pending.is_empty())
             };
             if has_pending {
-                handover_pending_for_generation(state, generation)?;
+                let _ = handover_pending_for_generation(state, generation)?;
                 if !production_generation_matches(state, generation) {
                     return Ok(());
                 }
@@ -5137,7 +5138,7 @@ pub mod commands {
                 return Ok(());
             }
             commit_produced_unit(state, generation, unit_index, chunk, total_samples, samples_before_entry)?;
-            handover_pending_for_generation(state, generation)?;
+            let _ = handover_pending_for_generation(state, generation)?;
             produced = produced.saturating_add(1);
             if !production_generation_matches(state, generation) {
                 return Ok(());
@@ -5296,6 +5297,13 @@ pub mod commands {
         }
     }
 
+    /// 013 TTFA: watch-safe demand pump. Must not synthesize on async tick.
+    /// Returns whether production still appears active; actual bounded synthesis
+    /// is performed by producer tasks/explicit non-watch drivers.
+    pub(crate) fn pump_production_demand(state: &AppState) -> Result<bool, OpenError> {
+        Ok(production_running(state))
+    }
+
     /// Start the production (T158): install the document's audio
     /// work and deliver the FIRST unit, so the first audible speech
     /// arrives while the rest of the document is still being
@@ -5320,15 +5328,13 @@ pub mod commands {
         sections: &[DocumentSection],
         state: &AppState,
         start_offset_secs: f64,
+        generation: u64,
     ) -> Result<(), OpenError> {
         let production = Production {
+            generation,
             segments: segments.to_vec(),
             sections: sections.to_vec(),
             next_unit: 0,
-            // The samples before the resume entry are never played
-            // (FR-009): the count is the exact sample index the
-            // resolved position names, and it shrinks as the units
-            // arrive.
             samples_before_entry: sample_index_of(start_offset_secs),
             pending: VecDeque::new(),
             total_samples: 0,
@@ -5344,34 +5350,32 @@ pub mod commands {
             };
             *guard = Some(production);
         }
-        // The FIRST unit is produced, and the first piece reaches the
-        // backend as its OWN buffer — never an accumulator the whole
-        // document's PCM was grown into (FR-003). The stream starts
-        // on it: the first audible speech arrives while the rest of
-        // the document is still being produced (FR-003 / SC-002).
-        while pending_samples(state) == 0 && produce_next_unit(state)? {}
-        let piece = take_piece(state, queue_room(state));
-        enqueue_chunk(state, piece)?;
-        // The stream starts on the first piece (T152 pins the block:
-        // the measured window is never closed at the stream start).
-        if !production_started(state) {
-            start_backend(state)?;
-            mark_production_started(state);
+        request_production_wake(state);
+        // 013 TTFA: produce until first useful audio is committed/started for
+        // current generation (correctness-first, sample-accurate trim).
+        while production_generation_matches(state, generation)
+            && !production_started_for_generation(state, generation)
+        {
+            let has_segments = {
+                let Ok(guard) = state.production.lock() else { return Ok(()); };
+                guard.as_ref().is_some_and(|p| p.generation == generation && p.next_unit < p.segments.len())
+            };
+            if !has_segments {
+                break;
+            }
+            produce_bounded(state, generation, 1)?;
         }
-        // T152: the play-to-audio clock closes on the first CONSUMED
-        // sample — the backend's audible clock leaving zero. The
-        // STREAM START is not it: the first buffer is consumed on the
-        // NEXT audio callback, and the device's output latency stands
-        // between the two, so a window closed here would under-report
-        // the FR-003 bound (FR-003 / SC-002). The closer declines
-        // until the consumption is observed — here, or at the next
-        // observation the watch makes.
-        note_first_consumed_sample(state);
-        // The production advances once more: the window takes the
-        // next unit as fast as the device drains it (T158), and the
-        // rest of the document is produced while the first unit
-        // plays (FR-003).
-        let _advanced = advance_production(state)?;
+        if production_generation_matches(state, generation) && production_running_for_generation(state, generation) {
+            let _ = produce_bounded(state, generation, 1);
+        }
+        if !production_generation_matches(state, generation) {
+            return Err(OpenError::NoStart {
+                reason: String::from("production was invalidated before start"),
+            });
+        }
+        if !production_started_for_generation(state, generation) && pending_samples_for_generation(state, generation) == 0 {
+            return Err(OpenError::NoSegments);
+        }
         Ok(())
     }
 
@@ -5395,33 +5399,23 @@ pub mod commands {
     /// * [`OpenError::Backend`] when the backend refuses the chunk or
     ///   the stream start — a refusal, never a silent start (FR-005).
     pub(crate) fn advance_production(state: &AppState) -> Result<bool, OpenError> {
-        // The production is over when every unit has been produced
-        // and the last audio has been handed over.
-        let finished = {
-            let Ok(guard) = state.production.lock() else {
-                return Ok(false);
+        // 013 TTFA: bounded, generation-safe step. Callers on async watch ticks
+        // must not use this for CPU-bound synthesis; watch uses `watch_signal_production`.
+        // This path may still be used by non-watch callers; it performs at most one
+        // bounded handoff/production step for the current generation.
+        let generation = current_playback_generation(state);
+        if generation == 0 || !production_running_for_generation(state, generation) {
+            let finished = {
+                let Ok(guard) = state.production.lock() else { return Ok(false); };
+                guard.as_ref().is_none_or(|p| p.next_unit >= p.segments.len() && p.pending.is_empty())
             };
-            let Some(production) = guard.as_ref() else {
-                return Ok(false);
-            };
-            production.next_unit >= production.segments.len() && production.pending.is_empty()
-        };
-        if finished {
-            finish_production(state);
-            return Ok(false);
-        }
-        if pending_samples(state) == 0 {
-            // The window's room decides whether the next unit is
-            // produced: a full window means the device has not
-            // caught up, and the producer WAITS (T158) rather than
-            // producing audio the queue would drop.
-            if queue_room(state) == 0 {
-                return Ok(true);
+            if finished {
+                finish_production(state);
             }
-            let _unit = produce_next_unit(state)?;
+            return Ok(production_running(state));
         }
-        let _handed = handover_pending(state)?;
-        Ok(true)
+        produce_bounded(state, generation, 1)?;
+        Ok(production_running_for_generation(state, generation))
     }
 
     /// The resident window's room, in samples (T158): the samples it
@@ -5767,6 +5761,7 @@ pub mod commands {
     /// transport-change entry explains the stall the earlier landing
     /// would otherwise show (the diagnostic record's own scanner).
     pub(crate) fn abandon_playing_landing(state: &AppState) {
+        let _ = invalidate_production_generation(state);
         let snapshot = {
             let Ok(mut session) = state.session.lock() else {
                 tracing::warn!(
@@ -5783,6 +5778,7 @@ pub mod commands {
             session.snapshot()
         };
         record_transport_change(state, &snapshot, ShellVerb::Pause);
+        publish_current_state(state, None);
     }
 
     /// Open (or reuse) the audio backend (T019 / FR-005): the
@@ -6047,120 +6043,64 @@ pub mod commands {
         filename: &str,
         start_offset_secs: f64,
     ) -> Result<serde_json::Value, OpenError> {
-        // The FR-017 diagnostic record (T097): the play-to-audio
-        // clock opens here — the request instant — and the first
-        // audible audio of this request closes it.
+        // 013 TTFA + FR-001/005: open request/prepare/backend, then produce and
+        // enqueue first useful audio before publishing healthy Playing.
         note_play_request(state);
-        let (segments, sections) = prepare_session_document(document, state, filename)?;
-
-        // T113 / FR-003 ≤3 s first-audible: the backend is opened
-        // once, and the STREAMING synthesis hands the first chunk to
-        // it — and starts the stream — while the rest of the document
-        // is still being synthesized. The first audible speech
-        // therefore does not wait for the whole document (SC-002).
-        //
-        // The device handshake runs BEFORE the landing: a device
-        // that refuses the handoff never reaches the playing state,
-        // so a silent session is never reported as playing
-        // (FR-001 / FR-005).
-        open_backend(state)?;
-
-        // T143: the landing on `Playing` happens BEFORE the first
-        // chunk reaches the backend. The durable write (FR-007's
-        // 20 s heartbeat), the in-RAM tracking (FR-002's audible
-        // clock) and the per-section entries (FR-017) are all gated
-        // on the playing state — landing here makes them live for
-        // the whole synthesis window, not only after it.
-        //
-        // The document's blake3 fingerprint (FR-036 / T059) — the key
-        // the 20 s heartbeat bookmark persistence writes under (T011) —
-        // is the same one `open_document` routes through. The FR-018
-        // switch already recorded it (`switch_to_document`), so this
-        // body never records a fingerprint of its own: the switch owns
-        // the handover, and the durable save it performs must land
-        // under the OUTGOING document's key.
-        {
-            let mut session = state.session.lock().map_err(|e| OpenError::NoStart {
-                reason: e.to_string(),
-            })?;
-            let _landed = session
-                .execute(ShellVerb::Play)
-                .map_err(|e| OpenError::NoStart {
-                    reason: e.to_string(),
-                })?;
-        }
-
-        // The session's position opens AT the resume entry
-        // (T110): the audible clock is the only advance path
-        // (FR-002), so the resume credits the offset it entered
-        // at. The audio and the position authority agree on where
-        // the reading is.
+        let generation = state
+            .playback_generation
+            .fetch_add(1, Ordering::AcqRel)
+            .saturating_add(1);
+        state.production_wake.store(true, Ordering::Release);
+        let (segments, sections) = match prepare_session_document(document, state, filename) {
+            Ok(value) => value,
+            Err(error) => {
+                let _ = invalidate_production_generation(state);
+                return Err(error);
+            }
+        };
+        open_backend(state).inspect_err(|_| {
+            let _ = invalidate_production_generation(state);
+        })?;
         if let Ok(mut guard) = state.stream_anchor_secs.lock() {
             *guard = start_offset_secs;
         }
         if let Ok(mut guard) = state.playback_watch.lock() {
             *guard = crate::PlaybackWatch::default();
         }
-        if start_offset_secs > 0.0 {
-            let Ok(mut session) = state.session.lock() else {
-                return Err(OpenError::NoStart {
-                    reason: "the session lock is poisoned".to_string(),
-                });
-            };
-            session.on_audible_progress(start_offset_secs);
-        }
-        let snapshot = {
-            let Ok(session) = state.session.lock() else {
-                return Err(OpenError::NoStart {
-                    reason: "the session lock is poisoned".to_string(),
-                });
-            };
-            session.snapshot()
-        };
 
-        // Open the FR-015 clock on the landed Playing
-        // transport (T011).
-        after_execute(state, &snapshot, ShellVerb::Play);
-
-        // T143: the lock-screen surface (FR-011 / FR-014) is
-        // published AFTER the landing, so the published state IS the
-        // playing one — the surface exists while the audio plays.
-        publish_current_state(state, None);
-
-        // T158: the production BEGINS here — the first unit is
-        // produced and handed over, so the first audible speech
-        // arrives while the rest of the document is still being
-        // produced (FR-003 / SC-002).
-        //
-        // The production then advances with the DEVICE's demand: the
-        // audio reaches the resident window only as fast as the
-        // window can take it, so the queue's bound never has to drop
-        // the overrun. The reading never skips a stretch of the
-        // document, and the reported place — credited from the
-        // consumed samples alone (FR-002) — always names the audio
-        // the reader actually heard.
-        if let Err(error) = stream_synthesis(&segments, &sections, state, start_offset_secs) {
-            // The reading never reached the audio: the session
-            // leaves the playing state, so a silent session is never
-            // reported as playing (FR-001 / FR-005).
+        if let Err(error) = stream_synthesis(&segments, &sections, state, start_offset_secs, generation) {
+            let _ = invalidate_production_generation(state);
             abandon_playing_landing(state);
             return Err(error);
         }
-        // The MEASURED timeline so far: the spoken duration measured
-        // up to now and the samples the reading carries (FR-009).
-        // The production measures the rest as it goes, and the
-        // session's own timeline follows it (FR-013).
-        let (duration_secs, pcm_samples) = production_counters(state);
+        if !production_generation_matches(state, generation) || !production_started_for_generation(state, generation) {
+            let _ = invalidate_production_generation(state);
+            abandon_playing_landing(state);
+            return Err(OpenError::Backend {
+                reason: String::from("playback did not reach a valid started state"),
+            });
+        }
 
-        // The FR-017 diagnostic record (T097): the buffer state
-        // the session started with — the pre-roll seconds still
-        // buffered at the open.
+        let snapshot = {
+            let mut session = state.session.lock().map_err(|e| OpenError::NoStart {
+                reason: e.to_string(),
+            })?;
+            if session.snapshot().transport != TransportState::Playing {
+                let _landed = session
+                    .execute(ShellVerb::Play)
+                    .map_err(|e| OpenError::NoStart { reason: e.to_string() })?;
+            }
+            if start_offset_secs > 0.0 && session.snapshot().position_secs < start_offset_secs {
+                session.on_audible_progress(start_offset_secs - session.snapshot().position_secs);
+            }
+            session.snapshot()
+        };
+        after_execute(state, &snapshot, ShellVerb::Play);
         record_buffer_state(state, &snapshot);
-
-        // Publish mirror snapshot after successful play start —
-        // the same helper every verb path uses.
         publish_current_state(state, None);
+        request_production_wake(state);
 
+        let (duration_secs, pcm_samples) = production_counters(state);
         Ok(serde_json::json!({
             "status": "playing",
             "segments": segments.len(),

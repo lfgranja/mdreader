@@ -9976,4 +9976,113 @@ mod ttfa_013_tests {
         );
         Ok(())
     }
+
+    #[test]
+    fn t007_produce_bounded_commits_first_unit_without_draining_all_segments() -> Result<(), String>
+    {
+        use adapter_synthesis::chunk::{BoundaryKind, DocumentSegment, SourceRange};
+        let mk = |i: u64, text: &str| DocumentSegment {
+            content: text.into(),
+            source_range: SourceRange {
+                line_start: i as u32 + 1,
+                col_start: 1,
+                line_end: i as u32 + 1,
+                col_end: 2,
+            },
+            boundary_kind: BoundaryKind::Paragraph,
+            segment_index: i,
+            resume_point: None,
+        };
+        let state = AppState::test_state();
+        let generation = commands::invalidate_production_generation(&state);
+        {
+            let mut guard = state.production.lock().map_err(|e| e.to_string())?;
+            *guard = Some(Production {
+                generation,
+                segments: vec![mk(0, "a"), mk(1, "b"), mk(2, "c")],
+                sections: Vec::new(),
+                next_unit: 0,
+                samples_before_entry: 0,
+                pending: std::collections::VecDeque::new(),
+                total_samples: 0,
+                played_samples: 0,
+                next_section: 0,
+                started: false,
+            });
+        }
+        commands::install_test_synth_hook(Box::new(|_seg| Ok(vec![0.0_f32; 220])));
+        let result = commands::produce_bounded(&state, generation, 1);
+        commands::clear_test_synth_hook();
+        result.map_err(|e| e.to_string())?;
+        let (next_unit, total, remaining_segments) = {
+            let guard = state.production.lock().map_err(|e| e.to_string())?;
+            let production = guard.as_ref().ok_or("missing production")?;
+            (
+                production.next_unit,
+                production.total_samples,
+                production.segments.len(),
+            )
+        };
+        assert_eq!(next_unit, 1, "only first useful unit should be produced");
+        assert_eq!(total, 220);
+        assert_eq!(
+            remaining_segments, 3,
+            "all segments remain; production is incremental"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn t019_synthesis_hook_error_propagates_without_corrupting_production() -> Result<(), String> {
+        use adapter_synthesis::chunk::{BoundaryKind, DocumentSegment, SourceRange};
+        let state = AppState::test_state();
+        let generation = commands::invalidate_production_generation(&state);
+        {
+            let mut guard = state.production.lock().map_err(|e| e.to_string())?;
+            *guard = Some(Production {
+                generation,
+                segments: vec![DocumentSegment {
+                    content: "hello".into(),
+                    source_range: SourceRange {
+                        line_start: 1,
+                        col_start: 1,
+                        line_end: 1,
+                        col_end: 6,
+                    },
+                    boundary_kind: BoundaryKind::Paragraph,
+                    segment_index: 0,
+                    resume_point: None,
+                }],
+                sections: Vec::new(),
+                next_unit: 0,
+                samples_before_entry: 0,
+                pending: std::collections::VecDeque::new(),
+                total_samples: 0,
+                played_samples: 0,
+                next_section: 0,
+                started: false,
+            });
+        }
+        commands::install_test_synth_hook(Box::new(|_seg| {
+            Err(OpenError::Synthesis {
+                reason: "hook failure".into(),
+            })
+        }));
+        let result = commands::produce_bounded(&state, generation, 1);
+        commands::clear_test_synth_hook();
+        assert!(result.is_err(), "synthesis failure must propagate");
+        let (next_unit, total, pending) = {
+            let guard = state.production.lock().map_err(|e| e.to_string())?;
+            let production = guard.as_ref().ok_or("missing production")?;
+            (
+                production.next_unit,
+                production.total_samples,
+                production.pending.len(),
+            )
+        };
+        assert_eq!(next_unit, 0, "failed unit must not advance production");
+        assert_eq!(total, 0);
+        assert_eq!(pending, 0);
+        Ok(())
+    }
 }

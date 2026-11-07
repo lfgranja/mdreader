@@ -71,3 +71,8 @@
 ### Honest status
 - Host contract/invariant progress is stronger, but **013 is not complete**: full hook-driven first-useful/resume end-to-end proofs, complete stale side-effect audit (enqueue/start/backend handover/publish), and full FR-001/005 cancel/failure matrix remain pending.
 - **TTFA proof blocked**: 2201117TY connected (`adb-53cf9aa7-4VfOJ6._adb-tls-connect._tcp`, `app.mdreader` installed) but rebuilt debug 013 binary + controlled `play_to_audio_ms` smoke/capture not executed in this wave. Do not claim `SC-TTFA-001..004` pass or T232/T233 complete.
+
+### Device build/install (no TTFA proof yet)
+- `cargo tauri android build --debug --target aarch64` completed: `src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk`.
+- Installed on `adb-53cf9aa7-4VfOJ6._adb-tls-connect._tcp` / 2201117TY (2026-11-07 09:38:23, `app.mdreader` debug, v0.1.0/1000). `run-as` diagnostic tail was empty in sampled read.
+- **Still blocked for proof**: controlled TTFA smoke not executed (needs reproducible StartNow/open flow, optional high-offset resume/switch/cancel/5+ min checks) to capture fresh `play_to_audio_ms` and compare to baseline. No automated UI path executed here; claiming improvement would be invalid.

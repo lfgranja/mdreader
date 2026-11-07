@@ -2353,6 +2353,35 @@ fn sample_index_of(offset_secs: f64) -> usize {
 /// handle (never a borrowed `State`), so it outlives the setup
 /// closure; each tick takes every state lock alone — no two are
 /// ever held together, exactly like the heartbeat.
+
+/// 013 TTFA: drive bounded production off async ticks/UI. Wakes on demand flag.
+fn spawn_production_driver_task(app: &tauri::AppHandle) {
+    use std::sync::atomic::Ordering;
+    let driver = app.clone();
+    drop(tauri::async_runtime::spawn(async move {
+        let mut ticker = tokio::time::interval(std::time::Duration::from_millis(50));
+        loop {
+            ticker.tick().await;
+            let state = driver.state::<AppState>();
+            let wake = state.production_wake.swap(false, Ordering::AcqRel);
+            let generation = state.playback_generation.load(Ordering::Acquire);
+            if !wake || generation == 0 || !commands::production_running_for_generation(&state, generation) {
+                continue;
+            }
+            state.production_wake.store(true, Ordering::Release);
+            let app_for_block = driver.clone();
+            let handle = tauri::async_runtime::spawn_blocking(move || {
+                let state = app_for_block.state::<AppState>();
+                let current = state.playback_generation.load(Ordering::Acquire);
+                if current == 0 {
+                    return;
+                }
+                let _ = commands::produce_bounded_public(&state, current, 2);
+            });
+            let _ = handle.await;
+        }
+    }));
+}
 fn spawn_playback_watch_task(app: &tauri::AppHandle) {
     let watch_handle = app.clone();
     let _watch_task = tauri::async_runtime::spawn(async move {
@@ -3186,6 +3215,7 @@ pub fn run() {
             // republishes the mirror at consumed-unit crossings,
             // and commands the document-end teardown when the
             // stream drains.
+            spawn_production_driver_task(app.app_handle());
             spawn_playback_watch_task(app.app_handle());
 
             // The FR-032c offer-window task (T110): the parked
@@ -5417,6 +5447,7 @@ pub mod commands {
     }
 
     /// 013 TTFA: watch tick must not synthesize. It may only signal demand.
+    #[cfg_attr(not(test), expect(dead_code, reason = "013 test seam for watch demand signaling; runtime tick uses production_wake atomics directly"))]
     pub(crate) fn watch_signal_production(state: &AppState) {
         if production_running(state) {
             request_production_wake(state);
@@ -5425,6 +5456,7 @@ pub mod commands {
 
     /// 013 TTFA: watch-safe demand pump. Must not synthesize on async tick.
     /// Hands over already-pending audio for the current generation only.
+    #[cfg_attr(not(test), expect(dead_code, reason = "013 test/helper seam; runtime continuation uses driver task"))]
     pub(crate) fn pump_production_demand(state: &AppState) -> Result<bool, OpenError> {
         let generation = current_playback_generation(state);
         if generation == 0 {
@@ -5439,6 +5471,7 @@ pub mod commands {
 
     /// 013 TTFA: request bounded background production for current generation.
     /// Serialized by `producer_driving`; CPU-bound synthesis runs on blocking executor.
+    #[cfg_attr(not(test), expect(dead_code, reason = "013 alternate driver API; runtime uses spawn_production_driver_task + produce_bounded_public"))]
     pub(crate) fn request_background_production(app: &tauri::AppHandle, state: &AppState) {
         let generation = current_playback_generation(state);
         if generation == 0 || !production_running(state) {
@@ -5671,8 +5704,8 @@ pub mod commands {
     ///   by the bound offline engine.
     /// * [`OpenError::NoStart`] when the session lock is poisoned.
     /// The production is over (T158): the document's audio has all
-    /// been handed over. The measured timeline reaches the session
-    /// once more and the surface is published again.
+    ///   been handed over. The measured timeline reaches the session
+    ///   once more and the surface is published again.
     fn finish_production(state: &AppState) {
         let finished = {
             let Ok(mut guard) = state.production.lock() else {

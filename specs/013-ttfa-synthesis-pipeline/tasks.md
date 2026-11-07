@@ -28,7 +28,7 @@
 
 **Purpose**: establish targeted TTFA/production test scaffolding and baseline evidence hooks.
 
-- [ ] T001 Create targeted test module `src-tauri/tests/test_ttfa_synthesis_pipeline.rs` with shared helpers for `AppState`/production setup, fake or controllable synthesis boundaries where feasible, and generation assertions; prefer host-checkable seams over real sherpa inference in unit-level RED where possible. Record `N/A:<reason>` if a seam is unavailable and use integration-style harness.
+- [~] T001 (ttfa_013_tests module used as targeted host harness; dedicated integration file optional) Create targeted test module `src-tauri/tests/test_ttfa_synthesis_pipeline.rs` with shared helpers for `AppState`/production setup, fake or controllable synthesis boundaries where feasible, and generation assertions; prefer host-checkable seams over real sherpa inference in unit-level RED where possible. Record `N/A:<reason>` if a seam is unavailable and use integration-style harness.
 - [x] T002 [P] Capture baseline evidence references in `specs/013-ttfa-synthesis-pipeline/quickstart.md` (append evidence log section): device 2201117TY `play_to_audio_ms` range from handoff, code refs (`play_document`, `stream_synthesis`, `produce_next_unit`, `advance_production`, `playback_watch_tick`), and current watch→synth coupling observation.
 
 ---
@@ -39,7 +39,7 @@
 
 ### RED (write first)
 
-- [~] T003 (host tests added: stale active target, stale bounded no-op/no-start, stale commit side-effect discard; enqueue/start/publish matrix still pending) [US1][US3] In `src-tauri/tests/test_ttfa_synthesis_pipeline.rs`, add failing tests that a stale production generation cannot commit PCM, cannot start backend/playback for stale request, and cannot publish healthy started state after invalidation/switch/stop. Cover race-shaped case: result arrives after generation changed.
+- [~] T003 (host tests: stale active target, stale bounded no-op/no-start, stale commit side-effect discard, stale commit mutates no current production; hook-driven first-useful commit covered by T007 host test; enqueue/start/publish matrix still pending) [US1][US3] In `src-tauri/tests/test_ttfa_synthesis_pipeline.rs`, add failing tests that a stale production generation cannot commit PCM, cannot start backend/playback for stale request, and cannot publish healthy started state after invalidation/switch/stop. Cover race-shaped case: result arrives after generation changed.
 - [~] T004 (runtime watch synthesis-free refactor+smoke; stronger structural assertion pending) [P] [US1][US2] In `src-tauri/tests/test_ttfa_synthesis_pipeline.rs`, add failing test/contract assertion that `playback_watch_tick`/watch path does not perform synthesis (`produce_next_unit`/`adapter_synthesis::synth::synthesize`) and remains lightweight for production advancement (observation/wake only).
 
 ### Implementation (blocked until T003–T004 RED)
@@ -59,7 +59,7 @@
 
 ### RED
 
-- [ ] T007 [P] [US1] Add failing test in `src-tauri/tests/test_ttfa_synthesis_pipeline.rs`: `stream_synthesis`/play startup does not loop through all units before first enqueue/start for a multi-segment document (first-useful early handoff). Use controllable harness; if real synth required, mark with explicit device/slow reason and provide host-checkable structural test alternative.
+- [~] T007 [P] [US1] Host hook-driven test `ttfa_013_tests::t007_produce_bounded_commits_first_useful_audio_via_synth_hook` proves `produce_bounded` commits first useful synthesized unit (next_unit/total advanced, pending or started). Full multi-segment no-full-loop/end-to-end startup proof still pending.
 - [ ] T008 [P] [US1] Add failing test: producer continues under `queue_room`/`MAX_PREROLL_SECS` backpressure without dropping committed audio and without blocking cpal callback contract assumptions (host-level queue/admission assertions acceptable where direct callback test is impractical).
 
 ### Implementation

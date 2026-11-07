@@ -44,7 +44,7 @@
     reason = "every duplicate is third-party-forced at newest-release pins: the Tauri 2 / Android / desktop dependency tree carries base64 0.21+0.22+0.23, bitflags 1+2, cpufeatures 0.2+0.3, hashbrown 0.12+0.17, heck 0.4+0.5, indexmap 1+2, jni 0.21+0.22, jni-sys 0.3+0.4, miniz_oxide 0.8+0.9, png 0.17+0.18, proc-macro-crate 1+2+3, r-efi 5+6, schemars 0.8+0.9+1, serde_spanned 0.6+1, syn 1+2+3, thiserror 1+2, thiserror-impl 1+2, toml_datetime 0.6+1, toml_edit 0.19+0.20+0.25 and winnow 0.5+1 — cargo cannot unify across semver majors, crates.io shows no newer unifying release, and supply-chain governance for these transitive duplicates belongs to cargo-deny, not this lint"
 )]
 
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::sync::Mutex;
 
 use diag::writer::{
@@ -6090,8 +6090,11 @@ pub mod commands {
                     .execute(ShellVerb::Play)
                     .map_err(|e| OpenError::NoStart { reason: e.to_string() })?;
             }
-            if start_offset_secs > 0.0 && session.snapshot().position_secs < start_offset_secs {
-                session.on_audible_progress(start_offset_secs - session.snapshot().position_secs);
+            if start_offset_secs > 0.0 {
+                let pos = session.snapshot().position_secs;
+                if pos < start_offset_secs {
+                    session.on_audible_progress(start_offset_secs - pos);
+                }
             }
             session.snapshot()
         };
@@ -9641,5 +9644,45 @@ mod playback_watch_tests {
         let second = commands::dispatch_document_end(&state)?;
         assert_eq!(second["changed"], serde_json::Value::from(false));
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod ttfa_013_tests {
+    use super::*;
+    use crate::commands;
+    use engine_core::closed::TransportState;
+
+    #[test]
+    fn t004_watch_tick_is_synthesis_free_contract() {
+        // 013 contract: watch tick path must not call produce_next_unit/synthesize.
+        // Enforced by implementation refactor (playback_watch_tick signals demand only)
+        // and this smoke check that watch helpers exist and do not require synthesis.
+        let state = AppState::test_state();
+        commands::watch_signal_production(&state);
+        let running = commands::pump_production_demand(&state).expect("pump");
+        assert!(!running);
+    }
+
+    #[test]
+    fn t003_stale_generation_cannot_target_active_production() {
+        let state = AppState::test_state();
+        let gen = commands::invalidate_production_generation(&state);
+        assert_eq!(commands::current_playback_generation(&state), gen);
+        // No production installed for new generation; stale commit paths must be no-ops.
+        assert!(!commands::production_running_for_generation_public(&state, gen.saturating_sub(1)));
+        assert!(!commands::production_running(&state));
+    }
+
+    #[test]
+    fn t011_abandon_landing_never_leaves_healthy_playing() {
+        let state = AppState::test_state();
+        {
+            let mut session = state.session.lock().expect("session lock");
+            let _ = session.execute(player::cli::ShellVerb::Play);
+        }
+        commands::abandon_playing_landing(&state);
+        let snapshot = state.session.lock().expect("session lock").snapshot();
+        assert_ne!(snapshot.transport, TransportState::Playing);
     }
 }

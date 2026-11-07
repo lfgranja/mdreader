@@ -9851,6 +9851,32 @@ mod ttfa_013_tests {
     }
 
     #[test]
+    fn t018_pump_production_demand_ignores_stale_generation() -> Result<(), String> {
+        let state = AppState::test_state();
+        let generation = commands::invalidate_production_generation(&state);
+        {
+            let mut guard = state.production.lock().map_err(|e| e.to_string())?;
+            *guard = Some(Production {
+                generation,
+                segments: Vec::new(),
+                sections: Vec::new(),
+                next_unit: 0,
+                samples_before_entry: 0,
+                pending: std::collections::VecDeque::from([0.3_f32; 64]),
+                total_samples: 64,
+                played_samples: 0,
+                next_section: 0,
+                started: true,
+            });
+        }
+        let _newer = commands::invalidate_production_generation(&state);
+        // Current generation has no production; stale pending must not be handed over.
+        let running = commands::pump_production_demand(&state).map_err(|e| e.to_string())?;
+        assert!(!running);
+        Ok(())
+    }
+
+    #[test]
     fn t003_commit_produced_unit_ignores_stale_generation() -> Result<(), String> {
         let state = AppState::test_state();
         let generation = commands::invalidate_production_generation(&state);

@@ -2353,7 +2353,7 @@ fn sample_index_of(offset_secs: f64) -> usize {
 /// handle (never a borrowed `State`), so it outlives the setup
 /// closure; each tick takes every state lock alone — no two are
 /// ever held together, exactly like the heartbeat.
-
+///
 /// 013 TTFA: drive bounded production off async ticks/UI. Wakes on demand flag.
 fn spawn_production_driver_task(app: &tauri::AppHandle) {
     use std::sync::atomic::Ordering;
@@ -2379,7 +2379,7 @@ fn spawn_production_driver_task(app: &tauri::AppHandle) {
                 if current == 0 {
                     return;
                 }
-                let _ = commands::produce_bounded_public(&state, current, 2);
+                let _ = commands::produce_bounded(&state, current, 2);
             });
             let _ = handle.await;
         }
@@ -5192,7 +5192,7 @@ pub mod commands {
     /// 013 TTFA: run bounded production steps off async tick/UI caller.
     /// Synthesizes at most `max_units` segments outside state locks, commits only
     /// when generation still current, respects `queue_room`/60s backpressure.
-    fn produce_bounded(
+    pub(crate) fn produce_bounded(
         state: &AppState,
         generation: u64,
         max_units: usize,
@@ -5490,7 +5490,7 @@ pub mod commands {
         not(test),
         expect(
             dead_code,
-            reason = "013 alternate driver API; runtime uses spawn_production_driver_task + produce_bounded_public"
+            reason = "013 alternate driver API; runtime uses spawn_production_driver_task + produce_bounded"
         )
     )]
     pub(crate) fn request_background_production(app: &tauri::AppHandle, state: &AppState) {

@@ -43,3 +43,23 @@ cargo clippy --workspace --all-targets -- -D warnings
 - `14dcc4c1`/`d85b358b` test(ttfa): initial 013 lib smoke tests T003/T004/T011 passing (`cargo nextest run -p src-tauri --lib playback_watch_tests ttfa_013_tests` => 8 passed).
 - Baseline refs: `play_document`/`prepare_session_document`/`stream_synthesis`/`produce_next_unit`/`advance_production`/`playback_watch_tick` in `src-tauri/src/lib.rs`; device 2201117TY `play_to_audio_ms` 1659–17309ms common, 45878–120422ms high-offset extremes.
 - Remaining: full TDD coverage for resume/high-offset first-useful (T013-T017), stronger stale-commit/FR-001/005 tests (T018-T019), host gate sweep, 2201117TY smoke for TTFA claim.
+
+## Final autonomous host snapshot (2026-11-07, continuation 6)
+
+### Verified
+- `cargo fmt --all` — clean
+- `cargo clippy -p src-tauri --lib -- -D warnings` — clean
+- `cargo nextest run -p src-tauri --lib ttfa_013_tests` — **11 passed**
+- `cargo nextest run -p src-tauri --lib playback_watch_tests ttfa_013_tests --test test_resume_restarts_audio --test test_play_to_audio_measured` — **16 passed**
+- 013 debug APK: `src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk` installed on 2201117TY (`adb-53cf9aa7-4VfOJ6._adb-tls-connect._tcp`, 2026-11-07 09:38:23, `app.mdreader` debug v0.1.0/1000)
+
+### Blocked (not faked)
+- **Device TTFA proof `blocked:device_ttfa_smoke`**: `DebugIngestActivity` document ingest succeeded (`ok:document:/data/local/tmp/013-ttfa-smoke.md`, snapshot logged) but no controlled playback started; `/data/data/app.mdreader/diagnostic-record.jsonl` showed no fresh `play_to_audio_ms`. Manual controlled StartNow, high-offset resume, switch/cancel during startup, and 5+ min playback/underrun capture required.
+- **MDMV R4/R7**: not satisfied. **T232/T233**: unchanged.
+
+### Capture command (after manual controlled playback)
+```sh
+adb -s adb-53cf9aa7-4VfOJ6._adb-tls-connect._tcp shell \
+  run-as app.mdreader cat /data/data/app.mdreader/diagnostic-record.jsonl > /tmp/mdreader-013-diag.jsonl
+rg 'play_to_audio_measured|play_to_audio_ms|position_secs' /tmp/mdreader-013-diag.jsonl | tail -n 40
+```

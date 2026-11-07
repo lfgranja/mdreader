@@ -1217,24 +1217,33 @@ pub fn pick_document_from_shell() -> Result<(), String> {
     let mut env = vm
         .attach_current_thread()
         .map_err(|error| format!("shell JNI: attach failed: {error}"))?;
-
-    // Ensure JVM handle and ShellHost class are cached when called via Tauri IPC
-    capture_jvm(env.as_ptr());
+    // JVM handle already captured above; no-op if already set.
+    if SHELL_HOST_CLASS.get().is_none() {
+        match env.find_class("app/mdreader/ShellHost") {
+            Ok(class) => match env.new_global_ref(class) {
+                Ok(global_ref) => {
+                    let _ = SHELL_HOST_CLASS.set(global_ref);
+                }
+                Err(error) => {
+                    tracing::warn!(
+                        error = error.to_string(),
+                        "shell JNI: failed to create GlobalRef for ShellHost"
+                    );
+                }
+            },
+            Err(error) => {
+                tracing::warn!(
+                    error = error.to_string(),
+                    "shell JNI: failed to find ShellHost on entry thread"
+                );
+            }
+        }
+    }
 
     let class = get_shell_host_class()?;
-
-    let result = env
+    let _ = env
         .call_static_method(class, "pickDocument", "()Z", &[])
-        .map_err(|error| format!("shell JNI: ShellHost.pickDocument failed: {error}"))?;
-    match result {
-        jni::objects::JValue::Bool(launched) if !launched => {
-            return Err(
-                "shell JNI: ShellHost.pickDocument returned false — no active activity or picker launch refused"
-                    .to_string(),
-            );
-        }
-        _ => {}
-    }
+        .map_err(|error| format!("shell JNI: ShellHook.pickDocument failed: {error}"))?;
     Ok(())
 }
 

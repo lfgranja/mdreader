@@ -44,8 +44,8 @@
     reason = "every duplicate is third-party-forced at newest-release pins: the Tauri 2 / Android / desktop dependency tree carries base64 0.21+0.22+0.23, bitflags 1+2, cpufeatures 0.2+0.3, hashbrown 0.12+0.17, heck 0.4+0.5, indexmap 1+2, jni 0.21+0.22, jni-sys 0.3+0.4, miniz_oxide 0.8+0.9, png 0.17+0.18, proc-macro-crate 1+2+3, r-efi 5+6, schemars 0.8+0.9+1, serde_spanned 0.6+1, syn 1+2+3, thiserror 1+2, thiserror-impl 1+2, toml_datetime 0.6+1, toml_edit 0.19+0.20+0.25 and winnow 0.5+1 — cargo cannot unify across semver majors, crates.io shows no newer unifying release, and supply-chain governance for these transitive duplicates belongs to cargo-deny, not this lint"
 )]
 
-use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, AtomicU64};
 
 use diag::writer::{
     DeviceEvent, ErrorValue, EventKind, FocusValue, RecordEvent, SessionEndValue, TransportValue,
@@ -2459,7 +2459,9 @@ struct PlaybackWatch {
 #[cfg(test)]
 fn playback_watch_tick_test(state: &AppState, watch: &mut PlaybackWatch) {
     let transport = {
-        let Ok(guard) = state.session.lock() else { return; };
+        let Ok(guard) = state.session.lock() else {
+            return;
+        };
         guard.snapshot().transport
     };
     match transport {
@@ -2471,14 +2473,20 @@ fn playback_watch_tick_test(state: &AppState, watch: &mut PlaybackWatch) {
         TransportState::Paused | TransportState::Interrupted => return,
     }
     let (drained, position_secs) = {
-        let Ok(guard) = state.backend.lock() else { return; };
-        let Some(backend) = guard.as_ref() else { return; };
+        let Ok(guard) = state.backend.lock() else {
+            return;
+        };
+        let Some(backend) = guard.as_ref() else {
+            return;
+        };
         (backend.is_drained(), backend.position_secs())
     };
     feed_audible_progress(state, position_secs, watch);
     maybe_start_chapter_preroll(state, position_secs);
     if drained && !commands::production_running(state) {
-        if advance_chapter_queue(state) { return; }
+        if advance_chapter_queue(state) {
+            return;
+        }
         signal_document_end(state);
         return;
     }
@@ -5113,16 +5121,49 @@ pub mod commands {
             .is_some_and(|production| production.generation == generation)
     }
 
-    fn synthesize_segment(segment: &adapter_synthesis::chunk::DocumentSegment) -> Result<Vec<f32>, OpenError> {
+    fn synthesize_segment(
+        segment: &adapter_synthesis::chunk::DocumentSegment,
+    ) -> Result<Vec<f32>, OpenError> {
+        #[cfg(test)]
+        if let Some(hook) = take_test_synth_hook() {
+            let result = hook(segment);
+            install_test_synth_hook(hook);
+            return result;
+        }
         adapter_synthesis::synth::synthesize(segment).map_err(|failure| OpenError::Synthesis {
             reason: format!("{failure:?}"),
         })
     }
 
+    #[cfg(test)]
+    type TestSynthHook = Box<
+        dyn Fn(&adapter_synthesis::chunk::DocumentSegment) -> Result<Vec<f32>, OpenError>
+            + Send
+            + Sync,
+    >;
+    #[cfg(test)]
+    static TEST_SYNTH_HOOK: std::sync::Mutex<Option<TestSynthHook>> = std::sync::Mutex::new(None);
+    #[cfg(test)]
+    pub(crate) fn install_test_synth_hook(hook: TestSynthHook) {
+        *TEST_SYNTH_HOOK.lock().expect("test synth hook") = Some(hook);
+    }
+    #[cfg(test)]
+    pub(crate) fn clear_test_synth_hook() {
+        *TEST_SYNTH_HOOK.lock().expect("test synth hook") = None;
+    }
+    #[cfg(test)]
+    fn take_test_synth_hook() -> Option<TestSynthHook> {
+        TEST_SYNTH_HOOK.lock().expect("test synth hook").take()
+    }
+
     /// 013 TTFA: run bounded production steps off async tick/UI caller.
     /// Synthesizes at most `max_units` segments outside state locks, commits only
     /// when generation still current, respects `queue_room`/60s backpressure.
-    fn produce_bounded(state: &AppState, generation: u64, max_units: usize) -> Result<(), OpenError> {
+    fn produce_bounded(
+        state: &AppState,
+        generation: u64,
+        max_units: usize,
+    ) -> Result<(), OpenError> {
         if max_units == 0 || !production_generation_matches(state, generation) {
             return Ok(());
         }
@@ -5130,7 +5171,9 @@ pub mod commands {
         while produced < max_units && production_generation_matches(state, generation) {
             let room = queue_room(state);
             let has_pending = {
-                let Ok(guard) = state.production.lock() else { return Ok(()); };
+                let Ok(guard) = state.production.lock() else {
+                    return Ok(());
+                };
                 guard
                     .as_ref()
                     .is_some_and(|p| p.generation == generation && !p.pending.is_empty())
@@ -5151,8 +5194,12 @@ pub mod commands {
             }
             // Snapshot next unit under short lock; synthesize outside locks.
             let snapshot = {
-                let Ok(guard) = state.production.lock() else { return Ok(()); };
-                let Some(production) = guard.as_ref() else { return Ok(()); };
+                let Ok(guard) = state.production.lock() else {
+                    return Ok(());
+                };
+                let Some(production) = guard.as_ref() else {
+                    return Ok(());
+                };
                 if production.generation != generation {
                     return Ok(());
                 }
@@ -5173,14 +5220,23 @@ pub mod commands {
             if !production_generation_matches(state, generation) {
                 return Ok(());
             }
-            commit_produced_unit(state, generation, unit_index, chunk, total_samples, samples_before_entry)?;
+            commit_produced_unit(
+                state,
+                generation,
+                unit_index,
+                chunk,
+                total_samples,
+                samples_before_entry,
+            )?;
             let _ = handover_pending_for_generation(state, generation)?;
             produced = produced.saturating_add(1);
             if !production_generation_matches(state, generation) {
                 return Ok(());
             }
             let done = {
-                let Ok(guard) = state.production.lock() else { return Ok(()); };
+                let Ok(guard) = state.production.lock() else {
+                    return Ok(());
+                };
                 guard.as_ref().is_some_and(|p| {
                     p.generation == generation
                         && p.next_unit >= p.segments.len()
@@ -5196,8 +5252,12 @@ pub mod commands {
     }
 
     fn production_started_for_generation(state: &AppState, generation: u64) -> bool {
-        let Ok(guard) = state.production.lock() else { return false; };
-        guard.as_ref().is_some_and(|p| p.generation == generation && p.started)
+        let Ok(guard) = state.production.lock() else {
+            return false;
+        };
+        guard
+            .as_ref()
+            .is_some_and(|p| p.generation == generation && p.started)
     }
 
     fn commit_produced_unit(
@@ -5215,8 +5275,12 @@ pub mod commands {
         let unit_start_secs = timeline_secs(total_samples);
         let unit_end_secs = timeline_secs(unit_end_samples);
         let section_index = {
-            let Ok(mut guard) = state.production.lock() else { return Ok(()); };
-            let Some(production) = guard.as_mut() else { return Ok(()); };
+            let Ok(mut guard) = state.production.lock() else {
+                return Ok(());
+            };
+            let Some(production) = guard.as_mut() else {
+                return Ok(());
+            };
             if production.generation != generation || production.next_unit != unit_index {
                 return Ok(());
             }
@@ -5245,8 +5309,12 @@ pub mod commands {
         let dropped = samples_before_entry.min(chunk.len());
         let chunk = pcm_from_sample(&chunk, dropped);
         {
-            let Ok(mut guard) = state.production.lock() else { return Ok(()); };
-            let Some(production) = guard.as_mut() else { return Ok(()); };
+            let Ok(mut guard) = state.production.lock() else {
+                return Ok(());
+            };
+            let Some(production) = guard.as_mut() else {
+                return Ok(());
+            };
             if production.generation != generation || production.next_unit != unit_index {
                 return Ok(());
             }
@@ -5261,7 +5329,10 @@ pub mod commands {
         Ok(())
     }
 
-    fn handover_pending_for_generation(state: &AppState, generation: u64) -> Result<usize, OpenError> {
+    fn handover_pending_for_generation(
+        state: &AppState,
+        generation: u64,
+    ) -> Result<usize, OpenError> {
         if !production_generation_matches(state, generation) {
             return Ok(0);
         }
@@ -5289,17 +5360,29 @@ pub mod commands {
     }
 
     fn take_piece_for_generation(state: &AppState, generation: u64, room: usize) -> Vec<f32> {
-        if room == 0 { return Vec::new(); }
-        let Ok(mut guard) = state.production.lock() else { return Vec::new(); };
-        let Some(production) = guard.as_mut() else { return Vec::new(); };
-        if production.generation != generation { return Vec::new(); }
+        if room == 0 {
+            return Vec::new();
+        }
+        let Ok(mut guard) = state.production.lock() else {
+            return Vec::new();
+        };
+        let Some(production) = guard.as_mut() else {
+            return Vec::new();
+        };
+        if production.generation != generation {
+            return Vec::new();
+        }
         let take = producer::admits(0, room, production.pending.len());
-        if take == 0 { return Vec::new(); }
+        if take == 0 {
+            return Vec::new();
+        }
         production.pending.drain(..take).collect()
     }
 
     fn mark_production_started_for_generation(state: &AppState, generation: u64) {
-        let Ok(mut guard) = state.production.lock() else { return; };
+        let Ok(mut guard) = state.production.lock() else {
+            return;
+        };
         if let Some(production) = guard.as_mut() {
             if production.generation == generation {
                 production.started = true;
@@ -5309,7 +5392,9 @@ pub mod commands {
 
     fn finish_production_if_current(state: &AppState, generation: u64) {
         let finished = {
-            let Ok(mut guard) = state.production.lock() else { return; };
+            let Ok(mut guard) = state.production.lock() else {
+                return;
+            };
             if guard.as_ref().is_some_and(|p| p.generation == generation) {
                 guard.take()
             } else {
@@ -5322,8 +5407,13 @@ pub mod commands {
     }
 
     fn pending_samples_for_generation(state: &AppState, generation: u64) -> usize {
-        let Ok(guard) = state.production.lock() else { return 0; };
-        guard.as_ref().filter(|p| p.generation == generation).map_or(0, |p| p.pending.len())
+        let Ok(guard) = state.production.lock() else {
+            return 0;
+        };
+        guard
+            .as_ref()
+            .filter(|p| p.generation == generation)
+            .map_or(0, |p| p.pending.len())
     }
 
     /// 013 TTFA: watch tick must not synthesize. It may only signal demand.
@@ -5363,7 +5453,7 @@ pub mod commands {
             return;
         }
         let app = app.clone();
-        tauri::async_runtime::spawn_blocking(move || {
+        let _ = tauri::async_runtime::spawn_blocking(move || {
             let state = app.state::<AppState>();
             let result = (|| -> Result<(), OpenError> {
                 while state.production_wake.swap(false, Ordering::AcqRel) {
@@ -5446,15 +5536,21 @@ pub mod commands {
             && !production_started_for_generation(state, generation)
         {
             let has_segments = {
-                let Ok(guard) = state.production.lock() else { return Ok(()); };
-                guard.as_ref().is_some_and(|p| p.generation == generation && p.next_unit < p.segments.len())
+                let Ok(guard) = state.production.lock() else {
+                    return Ok(());
+                };
+                guard
+                    .as_ref()
+                    .is_some_and(|p| p.generation == generation && p.next_unit < p.segments.len())
             };
             if !has_segments {
                 break;
             }
             produce_bounded(state, generation, 1)?;
         }
-        if production_generation_matches(state, generation) && production_running_for_generation(state, generation) {
+        if production_generation_matches(state, generation)
+            && production_running_for_generation(state, generation)
+        {
             let _ = produce_bounded(state, generation, 1);
         }
         if !production_generation_matches(state, generation) {
@@ -5462,7 +5558,9 @@ pub mod commands {
                 reason: String::from("production was invalidated before start"),
             });
         }
-        if !production_started_for_generation(state, generation) && pending_samples_for_generation(state, generation) == 0 {
+        if !production_started_for_generation(state, generation)
+            && pending_samples_for_generation(state, generation) == 0
+        {
             return Err(OpenError::NoSegments);
         }
         Ok(())
@@ -5495,8 +5593,12 @@ pub mod commands {
         let generation = current_playback_generation(state);
         if generation == 0 || !production_running_for_generation(state, generation) {
             let finished = {
-                let Ok(guard) = state.production.lock() else { return Ok(false); };
-                guard.as_ref().is_none_or(|p| p.next_unit >= p.segments.len() && p.pending.is_empty())
+                let Ok(guard) = state.production.lock() else {
+                    return Ok(false);
+                };
+                guard
+                    .as_ref()
+                    .is_none_or(|p| p.next_unit >= p.segments.len() && p.pending.is_empty())
             };
             if finished {
                 finish_production(state);
@@ -6157,12 +6259,16 @@ pub mod commands {
             *guard = crate::PlaybackWatch::default();
         }
 
-        if let Err(error) = stream_synthesis(&segments, &sections, state, start_offset_secs, generation) {
+        if let Err(error) =
+            stream_synthesis(&segments, &sections, state, start_offset_secs, generation)
+        {
             let _ = invalidate_production_generation(state);
             abandon_playing_landing(state);
             return Err(error);
         }
-        if !production_generation_matches(state, generation) || !production_started_for_generation(state, generation) {
+        if !production_generation_matches(state, generation)
+            || !production_started_for_generation(state, generation)
+        {
             let _ = invalidate_production_generation(state);
             abandon_playing_landing(state);
             return Err(OpenError::Backend {
@@ -6177,7 +6283,9 @@ pub mod commands {
             if session.snapshot().transport != TransportState::Playing {
                 let _landed = session
                     .execute(ShellVerb::Play)
-                    .map_err(|e| OpenError::NoStart { reason: e.to_string() })?;
+                    .map_err(|e| OpenError::NoStart {
+                        reason: e.to_string(),
+                    })?;
             }
             if start_offset_secs > 0.0 {
                 let pos = session.snapshot().position_secs;
@@ -9758,7 +9866,10 @@ mod ttfa_013_tests {
         let state = AppState::test_state();
         let generation = commands::invalidate_production_generation(&state);
         assert_eq!(commands::current_playback_generation(&state), generation);
-        assert!(!commands::production_running_for_generation(&state, generation.saturating_sub(1)));
+        assert!(!commands::production_running_for_generation(
+            &state,
+            generation.saturating_sub(1)
+        ));
         assert!(!commands::production_running(&state));
     }
 

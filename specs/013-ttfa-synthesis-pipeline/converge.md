@@ -104,3 +104,20 @@ Subagent `Tauri013Research` (authoritative sources): Tauri v2 Calling Rust/State
 
 ### MDMV flow status
 `intake/research/problem/concept/clarify/decision/spec/plan/tasks` artifacts exist for 013 (`decision=go`, Option A). Implementation/converge advanced autonomously with TDD evidence; **validate/release not performed** (R4/R7-style gates/evidence incomplete; device proof missing). No `specify.bug.*` flow opened (no separately reported bug artifact beyond 013 task scope).
+
+## 2026-11-07 autonomous continuation 2 (host side-effect audit/tests)
+
+### Code/test
+- `abf55fc4` `test(ttfa): cover stale 013 pump demand discard` — host test proves `pump_production_demand` does not hand over stale pending audio when current generation has no production.
+- `9a77909f` (amended/clean) remains the 013 generation-checked backend handover hardening.
+
+### Fresh host evidence
+- `cargo fmt --all` clean.
+- `cargo clippy -p src-tauri --lib -- -D warnings` — clean.
+- `cargo nextest run -p src-tauri --lib ttfa_013_tests` — **8 passed** (adds `t018_pump_production_demand_ignores_stale_generation`).
+- `cargo nextest run -p src-tauri --lib playback_watch_tests ttfa_013_tests --test test_resume_restarts_audio --test test_play_to_audio_measured` — **13 passed**.
+
+### Honest status delta
+- `SC-CANCEL-001` strengthened on host: stale commit discard + stale bounded producer no-op + stale demand/handover no-op + generation-checked enqueue/start. Still missing: async synth completion returning after invalidation with real hook-driven `produce_bounded`/startup path, and exhaustive publish/`after_execute`/timeline side-effect audit.
+- `SC-TTFA-001` still **blocked/unproven** (no controlled 2201117TY `play_to_audio_ms` capture). APK installed; smoke not executed.
+- All other SCs remain partial/blocked as previously recorded; T232/T233 unchanged.

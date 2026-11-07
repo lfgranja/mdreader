@@ -9777,3 +9777,24 @@ mod ttfa_013_tests {
         assert_ne!(snapshot.transport, TransportState::Playing);
     }
 }
+
+    #[test]
+    fn t003_generation_invalidation_clears_active_production_state() {
+        let state = AppState::test_state();
+        let first = commands::invalidate_production_generation(&state);
+        let second = commands::invalidate_production_generation(&state);
+        assert!(second > first);
+        assert_eq!(commands::current_playback_generation(&state), second);
+        assert!(!commands::production_running_for_generation(&state, first));
+        assert!(!commands::production_running(&state));
+    }
+
+    #[test]
+    fn t004_watch_signal_is_demand_only_without_synthesis_side_effects() {
+        let state = AppState::test_state();
+        // No production/generation active: demand helpers must be no-ops/safe.
+        commands::watch_signal_production(&state);
+        assert!(!commands::pump_production_demand(&state).expect("pump"));
+        let generation = commands::invalidate_production_generation(&state);
+        assert!(!commands::production_running_for_generation(&state, generation));
+    }

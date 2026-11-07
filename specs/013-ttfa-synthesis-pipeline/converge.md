@@ -121,3 +121,22 @@ Subagent `Tauri013Research` (authoritative sources): Tauri v2 Calling Rust/State
 - `SC-CANCEL-001` strengthened on host: stale commit discard + stale bounded producer no-op + stale demand/handover no-op + generation-checked enqueue/start. Still missing: async synth completion returning after invalidation with real hook-driven `produce_bounded`/startup path, and exhaustive publish/`after_execute`/timeline side-effect audit.
 - `SC-TTFA-001` still **blocked/unproven** (no controlled 2201117TY `play_to_audio_ms` capture). APK installed; smoke not executed.
 - All other SCs remain partial/blocked as previously recorded; T232/T233 unchanged.
+
+## 2026-11-07 autonomous continuation 3 (host TDD expansion)
+
+### Code/test
+- `31e79210` `test(ttfa): cover 013 incremental first-useful and synth errors`
+  - `t007_produce_bounded_commits_first_unit_without_draining_all_segments`: hook-driven multi-segment production advances only first useful unit (`next_unit=1`, `total_samples=220`, 3 segments remain) — host evidence against unnecessary full-document loop in bounded first-useful step.
+  - `t019_synthesis_hook_error_propagates_without_corrupting_production`: synth hook failure propagates; production not advanced/corrupted (`next_unit=0`, `total=0`, `pending=0`).
+
+### Fresh host evidence
+- `cargo fmt --all` clean.
+- `cargo clippy -p src-tauri --lib -- -D warnings` — clean.
+- `cargo nextest run -p src-tauri --lib ttfa_013_tests` — **10 passed**.
+- `cargo nextest run -p src-tauri --lib playback_watch_tests ttfa_013_tests --test test_resume_restarts_audio --test test_play_to_audio_measured` — **15 passed**.
+
+### Honest status delta
+- `SC-TTFA-002` strengthened (host): bounded producer commits first useful unit without draining all segments. Still missing: end-to-end startup `play_document`/`stream_synthesis` proof across real segment list + backend/start/publish invariants.
+- `SC-SAFE-001`/FR failure path strengthened (host): synthesis error propagates without corrupting production state. Still missing: full `play_document` failure matrix proving no healthy `Playing` publish and coherent abandon/refusal in all failure points.
+- `SC-TTFA-001` remains **blocked/unproven** (device controlled `play_to_audio_ms` smoke required). T232/T233 unchanged.
+- MDMV `validate` (R4) / `release` (R7): **not satisfied** — device proof and full SC/regression evidence incomplete.

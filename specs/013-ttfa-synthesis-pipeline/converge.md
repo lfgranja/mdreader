@@ -174,3 +174,20 @@ Subagent `Tauri013Research` (authoritative sources): Tauri v2 Calling Rust/State
 ### Honest status delta
 - `SC-CANCEL-001` further strengthened (host): stale commit discard, stale bounded no-op, stale demand/handover discard, generation-checked enqueue/start, and stale synth-result discard after invalidation during hook-simulated sync synth. Still missing: real async return-path integration across all publish/`after_execute`/session/timeline side effects and full switch/stop/re-anchor matrix.
 - Device `SC-TTFA-001` remains `blocked:device_ttfa_smoke` (manual controlled playback capture required). R4/R7 not satisfied. T232/T233 unchanged.
+
+## 2026-11-07 autonomous continuation 7 (uncontrolled device observation, not 013 proof)
+
+### Observation (read-only, uncontrolled, attribution uncertain)
+After foregrounding `app.mdreader` and sending `input keyevent 126` (media play) on 2201117TY, diagnostics recorded a fresh session for doc `4326c1eb5d6435ab...`:
+- `session_start` `ts_ms=1794090344394`, `position_secs=0.0`, `replay_secs=0.000`
+- `transport_change action=play` `ts_ms=1794090344401`
+- `buffer preroll_secs=43.125 preroll_cap_secs=60.000 dropped_samples=0` `ts_ms=1794090344402`
+- `transport_change action=progress play_to_audio_ms=3536 position_secs=5.985759637188209` `ts_ms=1794090344777`
+
+### Why this is NOT `SC-TTFA-001` proof
+- **Attribution uncertain**: 013 debug APK was installed at 2026-11-07 09:38:23; the running `app.mdreader` process may or may not have reloaded the new native library after `adb install -r` (process restart/reload not verified). This measurement cannot be credited to 013 changes.
+- **Uncontrolled scenario**: triggered by foreground+media key, not a documented controlled cold StartNow/high-offset resume/switch-cancel protocol; different document than 013 smoke fixture; preroll was 43.125s (cap 60s) — mechanism details not isolated.
+- **Single sample, no baseline pairing** for this exact scenario/build.
+
+### Status
+`SC-TTFA-001` remains **blocked/unproven**. To prove 013: force-stop/relaunch `app.mdreader` after install (or confirm new process/lib), run controlled scenarios, capture labeled raw `play_to_audio_ms` rows, compare to baseline/high-offset extremes.

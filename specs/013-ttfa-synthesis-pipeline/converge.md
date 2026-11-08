@@ -191,3 +191,25 @@ After foregrounding `app.mdreader` and sending `input keyevent 126` (media play)
 
 ### Status
 `SC-TTFA-001` remains **blocked/unproven**. To prove 013: force-stop/relaunch `app.mdreader` after install (or confirm new process/lib), run controlled scenarios, capture labeled raw `play_to_audio_ms` rows, compare to baseline/high-offset extremes.
+
+## 2026-11-07 user-controlled smoke evidence (provided by engineer; uncontrolled/attribution-cautious)
+
+### Provided user scenario notes (verbatim-ish)
+- Cenário A (`saf-real-play-test.md`, 473 B): ~10s TTFA; app indisponível ~15–20s (tela preta), bloqueia uso do app/celular; botões desabilitados após terminar.
+- Cenário B (`relatorio_...md`, 8,60 KB): travou, bloqueou app/celular >3 min para TTFA; iniciou às 19:00; "Continuar de onde parei": ~10s TTFA; demora nas transições; botões Avançar/Retroceder/Recomeçar/2x inoperantes. Segunda execução: TTFA ~60s; "Continuar": ~60s; demora nas transições.
+- Cenário C (`aula 02 modulo 01.md`, 44,64 KB): não abriu, contorno ciano ao redor da Caixa de Título; sem erro. Segunda execução: mesmo. Terceira (`relatorio...`): TTFA ~15s; não permite trocar arquivo durante pré-síntese (app indisponível ~15–20s); após liberar, trocou para `saf-real-play-test.md` (~10s); botões 100% desabilitados após reprodução.
+- Cenário D (`relatorio...`, 8,60 KB): TTFA ~15s (app indisponível ~15–20s); transições ~30s, 10s, 100s, 108s; pausou no meio da 5ª seção; performance degradando; play novamente: TTA >5 min; waveform parou; degradação app/celular; force-stop.
+
+### Diagnostic tail captured (mixed/uncontrolled, 2201117TY)
+`/tmp/mdreader-013-diag.jsonl` (1794027651495..1794094943602) and `/tmp/mdreader-013-diag-CenarioA.jsonl` (1794081875586..1794091736421) show:
+- repeated `start_refused cause=no_start` failures
+- `device_refused cause=backend` (ts 1794082839781)
+- several session starts with high `position_secs` and very high TTFA: `play_to_audio_ms=110466` (position 115.6), `120422` (position 147.1), `16815`, `17309`, `17050`, `10766`, `10717`, `10592`, `10071`, `8659`, `7468`, `7314`, `6310`, `4725`, `4589`, `4565`, `4371`, `4341`, `3862`, `3536`, `5271`
+- short docs: `play_to_audio_ms=4589/1659/4565/4725` for doc `33ea974b...`
+- buffer `preroll_secs` observed 3.4–43.2, `preroll_cap_secs=60.000`, `dropped_samples=0` in sampled records
+
+### Interpretation (honest)
+- This is **real user-observed degradation** (UI freeze/black screen, disabled controls, huge TTFA for high offsets, failed/cancelled starts). It corroborates baseline severity and current 013 **host-proven** generation/stale/cancellation invariants not yet reaching device playback path cleanly.
+- **Still not a controlled 013 proof**: scenarios were interleaved, some before/after force-stop; 013 debug APK install time 2026-11-07 09:38:23 vs diagnostic timestamps ~18:44–19:40; process/native-lib reload not verified; no clean before/after pairing; no isolated cold StartNow/high-offset/switch-cancel/5+min protocol captured.
+- **`SC-TTFA-001` remains blocked/unproven**. `SC-TTFA-002`, `SC-RESUME-001`, `SC-CANCEL-001`, `SC-SAFE-001`, `SC-REG-001` remain partial; **T232/T233 unchanged/not complete**; **R4/R7 not satisfied**.
+- Additional observed defects (controls disabled, speed button no effect, switch blocked during synthesis, black screen) are likely outside pure 013 TTFA scheduling or indicate broader regressions; should be tracked separately if needed (not silently claimed as 013).

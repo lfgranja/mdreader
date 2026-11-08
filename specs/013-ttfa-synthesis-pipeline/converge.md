@@ -213,3 +213,16 @@ After foregrounding `app.mdreader` and sending `input keyevent 126` (media play)
 - **Still not a controlled 013 proof**: scenarios were interleaved, some before/after force-stop; 013 debug APK install time 2026-11-07 09:38:23 vs diagnostic timestamps ~18:44–19:40; process/native-lib reload not verified; no clean before/after pairing; no isolated cold StartNow/high-offset/switch-cancel/5+min protocol captured.
 - **`SC-TTFA-001` remains blocked/unproven**. `SC-TTFA-002`, `SC-RESUME-001`, `SC-CANCEL-001`, `SC-SAFE-001`, `SC-REG-001` remain partial; **T232/T233 unchanged/not complete**; **R4/R7 not satisfied**.
 - Additional observed defects (controls disabled, speed button no effect, switch blocked during synthesis, black screen) are likely outside pure 013 TTFA scheduling or indicate broader regressions; should be tracked separately if needed (not silently claimed as 013).
+
+## 2026-11-07 continuation 9 (automated smoke attempt on 2201117TY)
+
+### Automated attempt (read-only, no new 013 code changes)
+- Force-stopped and relaunched `app.mdreader`; diagnostic size before ingest: **227730 bytes**.
+- Triggered `app.mdreader/.DebugIngestActivity --es mode document --es path /data/local/tmp/013-ttfa-smoke.md` → `ok:document:/data/local/tmp/013-ttfa-smoke.md` (`debug_ingest_result.txt` read OK).
+- Waited 12s + 20s; diagnostic size remained **227730 bytes**; tail showed only prior session (`doc=4326c1eb...`, paused at 211.02s) and **no new `session_start`/`play_to_audio_ms`/`start_refused`**.
+- `monkey -p app.mdreader` injected one event but did not produce a new controlled playback session.
+
+### Conclusion (honest)
+- Automated trigger delivered the document snapshot but **did not start playback/produce TTFA measurement** on this device. `SC-TTFA-001` remains **blocked/unproven**.
+- 013 debug APK install time is 2026-11-07 09:38:23; process relaunched in this attempt, but no playback occurred to attribute.
+- Manual UI interaction (StartNow) or a debug playback intent is still required; no evidence fabricated.

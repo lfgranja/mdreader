@@ -46,7 +46,7 @@ use std::ffi::c_void;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Mutex, OnceLock};
 
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::AppState;
 use crate::commands::run_mobile_plugin;
@@ -1388,18 +1388,98 @@ pub fn handle_directory_selected(
         "Directory manifest parsed and natural-sorted successfully"
     );
 
-    if let Some(app) = installed_app() {
-        use tauri::Emitter;
-        let event_payload = serde_json::json!({
-            "type": "directory_selected",
-            "tree_uri": tree_uri,
-            "root_name": root_name,
-            "total_chapters": queue.len(),
-            "first_chapter": queue.current().map(|c| &c.filename),
+    let Some(app) = installed_app() else {
+        return Err("installed_app is None: cannot start directory playback".to_string());
+    };
+    let state = app.state::<crate::AppState>();
+
+    // Install the chapter queue and check for directory resume (T233/FR-009).
+    let resume = crate::install_chapter_queue(&state, queue.clone());
+
+    // Open the chapter and start playback (TTFA < 3.0s). If resume offers
+    // continuation, open at stored offset; the UI offer dialog is driven by
+    // the published offer route from the document open path.
+    if let Some(chapter) = queue.current() {
+        let snapshot_path = &chapter.file_uri;
+        let filename = &chapter.filename;
+        let _start_offset = resume.map_or(0.0, |r| {
+            if r.offer_route == crate::OfferRoute::InAppDialog {
+                0.0
+            } else {
+                r.offset_secs
+            }
         });
-        if let Err(e) = app.emit("tauri://channel/directory-selected", event_payload) {
-            tracing::warn!(error = %e, "Failed to emit directory-selected event");
+        match std::fs::read(snapshot_path) {
+            Ok(bytes) => {
+                // T233/FR-009: interrupted resume (no dialog) starts at offset;
+                // paused resume parks the open behind the in-app offer dialog.
+                let open_result = if let Some(r) = resume {
+                    if r.offer_route == crate::OfferRoute::InAppDialog {
+                        // Park document for offer resolution; open without auto-play,
+                        // then let the UI offer dialog drive resume_at_stored/start_over.
+                        crate::commands::open_document_bytes_named(&state, bytes.clone(), filename)
+                            .map(|_| ())
+                            .map_err(|e| e.to_string())?;
+                        crate::park_directory_resume(
+                            &state,
+                            std::str::from_utf8(&bytes).unwrap_or_default(),
+                            filename,
+                            r.offset_secs,
+                        );
+                        Ok(())
+                    } else if r.offset_secs > 0.0 {
+                        crate::commands::play_document(
+                            std::str::from_utf8(&bytes).unwrap_or_default(),
+                            &state,
+                            filename,
+                            r.offset_secs,
+                        )
+                        .map(|_| ())
+                        .map_err(|e| e.to_string())
+                    } else {
+                        crate::commands::open_document_bytes_named(&state, bytes, filename)
+                            .map(|_| ())
+                            .map_err(|e| e.to_string())
+                    }
+                } else {
+                    crate::commands::open_document_bytes_named(&state, bytes, filename)
+                        .map(|_| ())
+                        .map_err(|e| e.to_string())
+                };
+                if let Err(e) = open_result {
+                    tracing::error!(
+                        error = %e,
+                        snapshot_path = %snapshot_path,
+                        "Failed to open directory chapter"
+                    );
+                }
+            }
+            Err(e) => {
+                tracing::error!(
+                    error = %e,
+                    snapshot_path = %snapshot_path,
+                    "Failed to read chapter snapshot"
+                );
+            }
         }
+    }
+
+    let event_payload = serde_json::json!({
+        "type": "directory_selected",
+        "tree_uri": tree_uri,
+        "root_name": root_name,
+        "total_chapters": queue.len(),
+        "first_chapter": queue.current().map(|c| &c.filename),
+        "resume_chapter_index": resume.map(|r| r.chapter_index),
+        "resume_offset_secs": resume.map(|r| r.offset_secs),
+        "offer_route": resume.map(|r| match r.offer_route {
+            crate::OfferRoute::InAppDialog => "in_app_dialog",
+            crate::OfferRoute::LockScreenResume => "lockscreen_resume",
+            crate::OfferRoute::NoRoute => "none",
+        }),
+    });
+    if let Err(e) = app.emit("tauri://channel/directory-selected", event_payload) {
+        tracing::warn!(error = %e, "Failed to emit directory-selected event");
     }
 
     Ok(())

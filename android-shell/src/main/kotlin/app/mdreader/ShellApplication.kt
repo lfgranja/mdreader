@@ -122,14 +122,19 @@ class ShellApplication : Application() {
         }
 
         override fun onActivityPaused(activity: Activity) {
-            if (ShellHost.currentActivity === activity) {
-                ShellHost.currentActivity = null
-            }
+            // Keep currentActivity alive across the SAF picker round-trip:
+            // onActivityResult fires before onActivityResumed, so clearing
+            // here would make the result unreachable (the ingest never
+            // runs). Clear only on destroy.
         }
 
         override fun onActivitySaveInstanceState(activity: Activity, state: Bundle) {}
 
-        override fun onActivityDestroyed(activity: Activity) {}
+        override fun onActivityDestroyed(activity: Activity) {
+            if (ShellHost.currentActivity === activity) {
+                ShellHost.currentActivity = null
+            }
+        }
     }
 
     private companion object {

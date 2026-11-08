@@ -62,7 +62,7 @@ use serde_json::Value;
 
 use adapter_synthesis::EngineFailure;
 use adapter_synthesis::chunk::{DocumentSegment, split_document};
-use adapter_synthesis::synth::synthesize;
+use adapter_synthesis::synth::{Voice, synthesize};
 use diag::writer::{
     DiagnosticWriter, EventKind, RecordEvent, TransportValue, detail_from_pairs, detail_keys,
 };
@@ -201,7 +201,7 @@ fn measure_play_to_audio_ms() -> Result<u128, HarnessError> {
     let started = Instant::now();
     let segments = split_document(FIXTURE_DOCUMENT, "");
     let first: &DocumentSegment = segments.first().ok_or(HarnessError::NoSegment)?;
-    let buffer = synthesize(first).map_err(HarnessError::Engine)?;
+    let buffer = synthesize(first, Voice::Faber).map_err(HarnessError::Engine)?;
     if buffer.is_empty() {
         return Err(HarnessError::EmptyBuffer);
     }

@@ -2516,7 +2516,7 @@ fn playback_watch_tick_test(state: &AppState, watch: &mut PlaybackWatch) {
     };
     feed_audible_progress(state, position_secs, watch);
     maybe_start_chapter_preroll(state, position_secs);
-    if drained && !commands::production_running(state) {
+    if drained && !crate::commands::production_running(state) {
         if advance_chapter_queue(state) {
             return;
         }
@@ -2584,7 +2584,7 @@ fn playback_watch_tick(state: &AppState, watch: &mut PlaybackWatch) {
     // while the producer still holds audio the reader has not heard,
     // an empty queue is the producer WAITING for the device, never
     // the end of the document.
-    if drained && !commands::production_running(state) {
+    if drained && !crate::commands::production_running(state) {
         // T200: a directory reading moves to the next chapter without
         // tearing the stream down; only the last chapter ends the reading.
         if advance_chapter_queue(state) {
@@ -3120,6 +3120,22 @@ pub fn run() {
                     }
                 }
             }
+            // Seed normalization mode from persisted settings (default Fluid).
+            {
+                let state = app.state::<AppState>();
+                let fluid = state
+                    .bookmark_store
+                    .lock()
+                    .ok()
+                    .and_then(|mut guard| guard.as_mut()?.get_normalization_mode().ok().flatten())
+                    .unwrap_or(true);
+                let mode = if fluid {
+                    adapter_synthesis::normalize::NormalizationMode::Fluid
+                } else {
+                    adapter_synthesis::normalize::NormalizationMode::Literal
+                };
+                adapter_synthesis::normalize::set_normalization_mode(mode);
+            }
 
             // Get the AppState for bookmark store initialization and permission gate
             let app_state = app.state::<AppState>();
@@ -3264,6 +3280,7 @@ pub fn run() {
             commands::session_delete,
             commands::offer_route,
             commands::open_document,
+            commands::set_normalization_mode,
             publish::register_publish_listener,
             publish::register_rms_listener,
             publish::set_rms_visibility,
@@ -5164,9 +5181,11 @@ pub mod commands {
             install_test_synth_hook(hook);
             return result;
         }
-        adapter_synthesis::synth::synthesize(segment).map_err(|failure| OpenError::Synthesis {
-            reason: format!("{failure:?}"),
-        })
+        adapter_synthesis::synth::synthesize(segment, adapter_synthesis::Voice::Faber).map_err(
+            |failure| OpenError::Synthesis {
+                reason: format!("{failure:?}"),
+            },
+        )
     }
 
     #[cfg(test)]
@@ -6132,6 +6151,11 @@ pub mod commands {
         Ok((segments, sections))
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        clippy::redundant_clone,
+        reason = "play_document owns the full open+synth+publish flow; clones moved into async spawn"
+    )]
     pub(crate) fn play_document(
         document: &str,
         state: &AppState,
@@ -6163,6 +6187,72 @@ pub mod commands {
             *guard = crate::PlaybackWatch::default();
         }
 
+        // 013/014/015: if an app handle is available (device), move the
+        // heavy first-useful synthesis off this thread so the command
+        // returns immediately (UI freeze fix). On host/tests (no app
+        // handle), run synchronously to keep the test seam working.
+        if crate::shell_jni::installed_app().is_some() {
+            let segment_count = segments.len();
+            let segments_for_spawn = segments.clone();
+            let sections_for_spawn = sections.clone();
+            let generation_for_spawn = generation;
+            let start_offset_secs_for_spawn = start_offset_secs;
+            drop(tauri::async_runtime::spawn(async move {
+                let segments = segments_for_spawn;
+                let sections = sections_for_spawn;
+                let generation = generation_for_spawn;
+                let start_offset_secs = start_offset_secs_for_spawn;
+                let Some(app) = crate::shell_jni::installed_app() else {
+                    return;
+                };
+                let state = app.state::<AppState>();
+                // Wait for state to be available (it should be already).
+                let result =
+                    stream_synthesis(&segments, &sections, &state, start_offset_secs, generation);
+                if let Err(error) = result {
+                    let _ = invalidate_production_generation(&state);
+                    abandon_playing_landing(&state);
+                    tracing::warn!(error=%error, "background initial synthesis failed");
+                    return;
+                }
+                if !production_generation_matches(&state, generation)
+                    || !production_started_for_generation(&state, generation)
+                {
+                    let _ = invalidate_production_generation(&state);
+                    abandon_playing_landing(&state);
+                    return;
+                }
+                // Publish state for the frontend.
+                let snapshot = {
+                    let Ok(mut session) = state.session.lock() else {
+                        return;
+                    };
+                    if session.snapshot().transport != TransportState::Playing {
+                        let _ = session.execute(ShellVerb::Play);
+                    }
+                    if start_offset_secs > 0.0 {
+                        let pos = session.snapshot().position_secs;
+                        if pos < start_offset_secs {
+                            session.on_audible_progress(start_offset_secs - pos);
+                        }
+                    }
+                    session.snapshot()
+                };
+                after_execute(&state, &snapshot, ShellVerb::Play);
+                record_buffer_state(&state, &snapshot);
+                publish_current_state(&state, None);
+                request_production_wake(&state);
+            }));
+            // Return immediately with a "synthesizing" status.
+            return Ok(serde_json::json!({
+                "status": "synthesizing",
+                "segments": segment_count,
+                "position_secs": 0.0,
+                "transport": "synthesizing",
+            }));
+        }
+
+        // Host/test path: synchronous (original behavior).
         if let Err(error) =
             stream_synthesis(&segments, &sections, state, start_offset_secs, generation)
         {
@@ -6454,6 +6544,30 @@ pub mod commands {
             serde_json::json!(pending_cold_start),
         );
         serde_json::Value::Object(reply)
+    }
+    /// Set the normalization mode (fluid/literal) and persist it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string only if a state lock is poisoned.
+    #[command]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "Tauri's CommandArg extractor is implemented for State by value"
+    )]
+    pub fn set_normalization_mode(mode: String, state: State<'_, AppState>) -> Result<(), String> {
+        let fluid = mode != "literal";
+        adapter_synthesis::normalize::set_normalization_mode(if fluid {
+            adapter_synthesis::normalize::NormalizationMode::Fluid
+        } else {
+            adapter_synthesis::normalize::NormalizationMode::Literal
+        });
+        if let Ok(mut guard) = state.bookmark_store.lock()
+            && let Some(store) = guard.as_mut()
+        {
+            let _ = store.put_normalization_mode(fluid);
+        }
+        Ok(())
     }
 }
 
@@ -6982,7 +7096,12 @@ pub mod publish {
             return; // channel not registered yet, drop silently
         };
 
-        let mirror = frontend_mirror(snapshot.transport, snapshot.position_secs, surface);
+        let mirror = frontend_mirror(
+            snapshot.transport,
+            snapshot.position_secs,
+            crate::commands::production_running(state),
+            surface,
+        );
 
         if let (Some(app), Some(chapters)) =
             (crate::shell_jni::installed_app(), chapter_metadata(state))
@@ -7018,6 +7137,7 @@ pub mod publish {
     pub fn frontend_mirror(
         transport: TransportState,
         position_secs: f64,
+        synthesizing: bool,
         surface: &SurfaceSnapshot,
     ) -> MirrorState {
         let progress = match surface.progress {
@@ -7037,6 +7157,7 @@ pub mod publish {
         MirrorState {
             transport,
             position_secs,
+            synthesizing,
             progress,
             progress_label: pt_br_progress_label(&surface.progress),
         }

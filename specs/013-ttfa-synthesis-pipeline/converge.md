@@ -226,3 +226,37 @@ After foregrounding `app.mdreader` and sending `input keyevent 126` (media play)
 - Automated trigger delivered the document snapshot but **did not start playback/produce TTFA measurement** on this device. `SC-TTFA-001` remains **blocked/unproven**.
 - 013 debug APK install time is 2026-11-07 09:38:23; process relaunched in this attempt, but no playback occurred to attribute.
 - Manual UI interaction (StartNow) or a debug playback intent is still required; no evidence fabricated.
+
+## 2026-11-07 controlled device smoke (executed, attributed)
+
+Environment: 2201117TY (SDK 33, `adb-53cf9aa7-4VfOJ6._adb-tls-connect._tcp`), 013 debug APK installed 2026-11-07 09:38:23, process force-stopped + relaunched before each scenario for native-lib attribution. Captures: `/tmp/mdreader-013-diag-{cold-startnow,high-offset-resume,switch-cancel,long-playback}.jsonl`.
+
+### Scenario A — Cold StartNow
+- Doc: `/data/local/tmp/t184-teste.md` (new fingerprint, no stored position).
+- Result: `play_to_audio_ms=1204` ms at `position_secs=1.81`, `preroll_secs=5.590`, `preroll_cap_secs=60.000`, `dropped_samples=0`.
+- A second cold doc (`/data/local/tmp/medium.md`, 80 KB) measured `play_to_audio_ms=8908` ms at `position_secs=8.86`, `preroll_secs=18.541`, cap 60, dropped 0 (heavier synthesis cost visible).
+
+### Scenario B — High-offset resume (attribution-cautious)
+- Phase 1: played `/data/local/tmp/medium.md` ~60 s then paused; stored position `63.32 s` (`session_end reason=paused`).
+- Phase 2: re-ingested same doc, triggered resume via media keyevent 126.
+- Measured resume: `play_to_audio_ms=12967` ms at `position_secs=14.30` (session started at stored `8.86 s` from an intermediate cold re-play, not the 63.32 s pause point). Clean high-offset (60 s+) resume attribution was **not** achieved; the multi-session interleaving prevented a single paired measurement.
+- Status: partial/blocked for SC-RESUME-001 on device; host invariant (sample trim) remains the proof.
+
+### Scenario C — Switch/cancel during startup
+- Ingested `medium.md` then immediately ingested `t184-teste.md` (1 s gap).
+- Result: only the short doc played (`play_to_audio_ms=5190` ms); medium doc produced no audible `play_to_audio_ms`; no `FATAL EXCEPTION`/`ANR` in logcat.
+- Supports SC-CANCEL-001 at device level (stale work discarded, no crash).
+
+### Scenario D — Sustained playback / underrun
+- Played `medium.md` ~2 min (capture window); observed `preroll_cap_secs=60.000` and `dropped_samples=0` in all sampled `buffer` records; no underrun/gap indicator; `play_to_audio_ms=13763` at `position_secs=20.82`.
+- Monkey stress (200 events): no crash/ANR.
+
+### SC mapping (updated 2026-11-07)
+- `SC-TTFA-001`: partial — cold TTFA 1.2 s (short doc) and 8.9 s (80 KB doc) measured on 013 debug build; no >45 s extreme in these controlled runs, but baseline pairing for the same doc/scenario is not available, so "material improvement vs 1.6–17.3 s baseline" is not provable from this evidence alone. Not claimed proven.
+- `SC-TTFA-002`: partial host + device (watch non-synthesizing not directly measured on device; no synth-in-tick evidence captured).
+- `SC-RESUME-001`: partial (host sample-trim invariant proven; device high-offset resume not cleanly attributed).
+- `SC-CANCEL-001`: strengthened (host stale-discard tests + device switch/cancel no stale audio/no crash).
+- `SC-SAFE-001`: partial host (abandon_landing seam + startup reorder); device shows no false healthy Playing in captured runs.
+- `SC-REG-001`: partial (targeted host regressions + device smoke + monkey stable; full 5+ min not completed — capture window ~2 min).
+- `T232/T233`: unchanged, not complete.
+- `R4/R7`: not satisfied (no full gate sweep/release review performed).

@@ -168,7 +168,7 @@ use adapter_synthesis::failure::{
 use adapter_synthesis::format_check::{
     DECLARED_CHANNELS, DECLARED_RATE_HZ, DECLARED_WIDTH_BITS, check_delivery, check_format,
 };
-use adapter_synthesis::synth::synthesize;
+use adapter_synthesis::synth::{Voice, synthesize};
 
 /// The distinctive marker placed inside a segment's
 /// `content` to observe whether document prose can reach
@@ -537,7 +537,7 @@ proptest! {
             "a non-empty document yields at least one segment"
         );
         for segment in &segments {
-            match synthesize(segment) {
+            match synthesize(segment, Voice::Faber) {
                 Ok(pcm_data) => {
                     prop_assert!(
                         !pcm_data.is_empty(),
@@ -609,7 +609,7 @@ proptest! {
             "the fixture must place the sentinel inside a segment's content"
         );
         for segment in &segments {
-            match synthesize(segment) {
+            match synthesize(segment, Voice::Faber) {
                 Ok(pcm_data) => {
                     let rendered = format!("{pcm_data:?}");
                     prop_assert!(
@@ -676,7 +676,7 @@ proptest! {
         );
         for segment in &segments {
             let expected_position = segment.resume_point.unwrap_or(segment.source_range);
-            match synthesize(segment) {
+            match synthesize(segment, Voice::Faber) {
                 Ok(_pcm_data) => {
                     // The chunk's source_range_ref echo is
                     // pinned by
@@ -750,7 +750,7 @@ fn delivery_leaves_the_delivered_segments_untouched() {
     let segments = split_document(source, "document-hash");
     let snapshot = segments.clone();
     for segment in &segments {
-        match synthesize(segment) {
+        match synthesize(segment, Voice::Faber) {
             Ok(_pcm_data) => {}
             Err(failure) => {
                 assert!(

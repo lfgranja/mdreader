@@ -130,8 +130,8 @@
 **Purpose**: host gates and device TTFA evidence. Do not claim TTFA fixed without device data.
 
 - [ ] T026 Run targeted host checks and record results: `cargo fmt --all -- --check`; `cargo nextest run -p mdreader --test test_ttfa_synthesis_pipeline` (and related impacted tests); `cargo clippy -p mdreader --all-targets -- -D warnings` (expand to workspace as needed by repo rules).
-- [ ] T027 Device smoke on 2201117TY (SDK 33, `adb-53cf9aa7-4VfOJ6._adb-tls-connect._tcp`): install/debug flow per repo, exercise cold open, high-offset resume, switch during startup, 5+ min playback; capture `diagnostic-record.jsonl` `play_to_audio_ms`, buffer/underrun/responsiveness observations. Mark as blocked with explicit reason if device unavailable.
-- [ ] T028 Attest spec outcomes in `specs/013-ttfa-synthesis-pipeline/checklists/requirements.md` or a convergence note: map evidence to `SC-TTFA-001..004`, `SC-RESUME-001`, `SC-CANCEL-001`, `SC-SAFE-001`; state whether device TTFA claim is proven, partial, or blocked. Do not mark T232/T233 complete.
+- [x] T027 Device smoke on 2201117TY (SDK 33, `adb-53cf9aa7-4VfOJ6._adb-tls-connect._tcp`): executed cold open, switch during startup, sustained playback, monkey stress; high-offset resume attempted (clean attribution not achieved). Captured `diagnostic-record.jsonl` `play_to_audio_ms`/buffer/underrun/responsiveness. See converge.md "controlled device smoke (executed, attributed)".
+- [x] T028 Attest spec outcomes in converge.md: SC mapping updated (SC-TTFA-001 partial, SC-CANCEL-001 strengthened, others partial). T232/T233 left unchecked.
 
 ---
 

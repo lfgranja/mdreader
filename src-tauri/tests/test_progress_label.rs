@@ -80,7 +80,7 @@ fn frontend_mirror_carries_progress_label_only_when_determinate() -> Result<(), 
     for k in 1..=3 {
         for n in (k + 1)..=5 {
             let surface = determinate(k, n, u64::from(100 * k / n), 100);
-            let mirror = frontend_mirror(TransportState::Playing, 12.0, &surface);
+            let mirror = frontend_mirror(TransportState::Playing, 12.0, false, &surface);
             let encoded = serde_json::to_value(mirror)?;
             let label = encoded.get("progress_label").ok_or(
                 "T094: the frontend MirrorState must carry progress_label for determinate",
@@ -92,7 +92,7 @@ fn frontend_mirror_carries_progress_label_only_when_determinate() -> Result<(), 
             );
         }
     }
-    let mirror = frontend_mirror(TransportState::Paused, 0.0, &indeterminate());
+    let mirror = frontend_mirror(TransportState::Paused, 0.0, false, &indeterminate());
     let encoded = serde_json::to_value(mirror)?;
     assert!(
         encoded.get("progress_label").is_none(),
@@ -114,7 +114,7 @@ fn frontend_mirror_carries_progress_label_only_when_determinate() -> Result<(), 
 #[test]
 fn the_pt_br_progress_label_translates_the_content_offset_fragment() -> Result<(), Box<dyn Error>> {
     let surface = determinate(2, 5, 40, 100);
-    let mirror = frontend_mirror(TransportState::Playing, 12.0, &surface);
+    let mirror = frontend_mirror(TransportState::Playing, 12.0, false, &surface);
     let encoded = serde_json::to_value(mirror)?;
     let label = encoded
         .get("progress_label")

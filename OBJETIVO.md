@@ -1,4 +1,4 @@
-# Objetivo do Projeto — mdreader / Ressoa Audio Media Shell
+# Objetivo do Projeto — mdreader / Ressa Audio Media Shell
 
 **Referência:** `AGENTS.md`, `.specify/memory/constitution.md` v2.0.0 (amended 2026-10-28), `specs/001-android-media-shell/`, `ROADMAP.md`.
 
@@ -14,15 +14,40 @@ Um leitor de documentos Markdown (`mdreader`, produto **Ressa**) voltado a áudi
 - Constituição: governança de gates (1–8), supply-chain (`deny` + `audit`), closed-set (rate ladder `[0.75,1.0,1.25,1.5,1.75,2.0,4.0]`, 7 `EventKind`, 9 `EventKind` no diag, 7 confirmações de `EarconKind`), design-dir (`DESIGN-SONA`) como fonte de verdade de tokens/paleta.
 - `specs/`: 10 features rastreadas (001 shell → 010 directory-reading); 10 assessments (7 completos, 3 parciais).
 
+## Estado de convergência por spec (2026-11-04)
+
+| Spec | Nome | Tasks | Estado | Evidência |
+|---|---|---|---|---|
+| 001 | android-media-shell | 140/151 | Núcleo convergido | gate-8-shell PASS; gate-8-full DEFERRED (owner=synthesis) |
+| 002 | fr-024-synthesis-adapter | 80/89 | Implementado; SC-009 deferrado | V3_ATTESTATION_2026-10-10.md; V4 pendente |
+| 003 | reference-device | 12/12 | Harness pronto; aguarda device físico | Emulador OK |
+| 004 | ressoa-dogfood-build | 172/173 (T051 manual) | CONVERGIDO (2026-11-03) | `/speckit.converge` → 0 findings |
+| 005 | adopt-design-sona | 55/55 | CONVERGIDO | TalkBack 10/10; gates 1–8 host OK |
+| 006 | lente-sinestesica-completa | 55/55 | CONVERGIDO | — |
+| 007 | sona-complete-design | 29/29 | CONVERGIDO (100%) | RMS, canvas 5-layer, repeat button, T028/T029 |
+| 008 | ref-device-emulator | 40/40 | CONVERGIDO | — |
+| 009 | open-file-from-title | 26/27 (T184 manual) | CONVERGIDO (2026-11-03) | `/speckit.converge` → 0 findings |
+| 010 | directory-reading | 26/42 | Em progresso (feature ativa) | Decisão GO 2026-11-03; T214–T229 restantes |
+
+## Presença pública e GTM (pesquisa web 2026-11-04)
+
+- **Repositório público:** `https://github.com/lfgranja/mdreader` — 0 stars, 0 forks, **138 issues abertas**, linguagem Rust, branch default `dev`. Descrição do repositório: "A driving-first, offline-first Markdown read-aloud app for Android. Rust + Tauri v2 + Svelte 5."
+- **Nome do produto:** o README do repositório usa **`mdreader (Ressa)`** (não "Ressoa"). Os docs do projeto devem usar **Ressa** como nome do produto; `mdreader` permanece como nome do repositório/pacote (`app.mdreader`).
+- **Stack real:** Rust + Tauri v2 + Svelte 5 (frontend em Svelte 5, não destacado nos docs locais até esta atualização).
+- **Design system:** DESIGN-SONA v2.2.0 (`DESIGN-SONA/CHANGELOG.md`, `DESIGN-SONA/VERSION`); selo "Ressonador Canônico" em `DESIGN-SONA/assets/logo/seal-engine-ressonador.svg` — host-facing only, nunca em notificação/lock-screen/superfícies in-app.
+- **Pegada pública fora do repositório:** NENHUMA indexada em PT/EN/ES (sem Google Play, sem F-Droid, sem artigos/reviews). Confirma que a fase **LATER** (Go-To-Market, ASO, publicação) ainda não iniciou; as 138 issues do GitHub ainda não estão mapeadas no spec kit (`assess → specify → plan → tasks`).
+
 ## Mercado e contexto competitivo (pesquisa 2026)
 
 ### Tamanho e dinâmica do mercado
+
 - O mercado global de apps de TTS (text-to-speech) está em crescimento acelerado, impulsionado por acessibilidade, produtividade e consumo de conteúdo em áudio.
 - Apps dominantes: **Speechify** (~$139/ano, cloud-based, exige internet), **NaturalReader** (~$16-20/mês ou $99-199/ano, híbrido), **ElevenReader** (ElevenLabs, freemium com créditos), **Voice Dream Reader** ($19.99 one-time, iOS-only, offline Acapela voices).
 - **Lacuna identificada:** Nenhum concorrente principal é 100% offline, air-gapped, e otimizado para Markdown. Speechify e NaturalReader exigem cloud; Voice Dream é iOS-only; @Voice/TTSReader focam em PDFs/EPUBs, não Markdown.
 
 ### Posicionamento competitivo (UVP)
-| Atributo | Ressoa (mdreader) | Speechify | NaturalReader | Voice Dream Reader |
+
+| Atributo | Ressa (mdreader) | Speechify | NaturalReader | Voice Dream Reader |
 |---|---|---|---|---|
 | Offline 100% | ✅ Zero internet | ❌ Cloud obrigatório | ⚠️ Parcial | ✅ Acapela local |
 | Privacidade (air-gapped) | ✅ Dados nunca saem | ❌ Texto enviado à nuvem | ❌ Cloud | ⚠️ Parcial |
@@ -32,6 +57,7 @@ Um leitor de documentos Markdown (`mdreader`, produto **Ressa**) voltado a áudi
 | TTS engine | Piper pt-BR (sherpa-onnx) | Cloud neural | Cloud neural | Acapela offline |
 
 ### Tendências relevantes (2026)
+
 - **Anti-subscription fatigue:** Usuários de produtividade (devs, pesquisadores, estudantes) cada vez mais preferem pagamento único ("Pay Once, Own Forever") a assinaturas recorrentes.
 - **Privacy-first / data sovereignty:** Regulamentações (GDPR, LGPD) e consciência de privacidade impulsionam demanda por apps air-gapped. "Cloud transcription tools expose your private conversations" — narrativa forte.
 - **Offline AI:** Modelos locais (Piper, sherpa-onnx) permitem inferência on-device com custo zero de servidor por minuto de áudio.
@@ -58,6 +84,7 @@ Um leitor de documentos Markdown (`mdreader`, produto **Ressa**) voltado a áudi
 ## Monetização (pesquisa 2026)
 
 ### Modelo recomendado: Freemium + Licença Perpétua (Pay Once, Own Forever)
+
 Conforme as melhores práticas de monetização para apps utilitários/produtividade no ecossistema Android:
 
 1. **Nível Gratuito (Core Experience):**
@@ -71,6 +98,7 @@ Conforme as melhores práticas de monetização para apps utilitários/produtivi
    - **Alinhamento de custo:** Como a inferência roda localmente no chip do usuário, a infraestrutura tem custo zero de servidor por minuto de áudio. Oferecer compra única elimina a fadiga de assinaturas e atrai fortemente a comunidade de desenvolvedores e entusiastas de produtividade (comparável ao Voice Dream Reader: $19.99 one-time, iOS-only).
 
 ### Canais de distribuição
+
 - **Google Play Store** (principal): ASO otimizado para nicho Markdown/TTS/offline.
 - **F-Droid** (secundário): Alinhado com filosofia open-source e privacy-first; atrai comunidade técnica.
 - **GitHub Releases** (terciário): Builds debug/release para early adopters e testers.
@@ -79,7 +107,7 @@ Conforme as melhores práticas de monetização para apps utilitários/produtivi
 
 Diferente da Apple App Store, o algoritmo do Google Play indexa o título (30 caracteres), a descrição curta (80 caracteres) e toda a descrição completa (até 4000 caracteres):
 
-- **Title (30 chars):** `Ressoa: Leitor Markdown Áudio`
+- **Title (30 chars):** `Ressa: Leitor Markdown Áudio`
 - **Short Description (80 chars):** `Transforme suas notas Markdown e textos em audiobooks offline com voz neural.`
 - **Full Description (4000 chars):** Estrutura focada em densidade semântica (3–5 repetições orgânicas de palavras-chave centrais) destacando:
   - *Privacidade Absoluta:* Zero conexão externa ou permissões de rede.
@@ -88,7 +116,9 @@ Diferente da Apple App Store, o algoritmo do Google Play indexa o título (30 ca
 - **Canais Iniciais Orgânicos:** Divulgação direta nas comunidades `r/ObsidianMD`, `r/PKMS`, Hacker News e fóruns de acessibilidade visual.
 
 ### Palavras-chave alvo (ASO)
+
 `markdown reader`, `text to speech`, `offline TTS`, `audiobook reader`, `leitor markdown`, `voz neural offline`, `privacy-first reader`, `notas de voz`, `obsidian reader`, `logseq audio`.
 
 ---
-*Criado: 2026-10-26 · Atualizado: 2026-11-03 · Autor: processo speckit (assessment + specify + plan + tasks) + pesquisa de mercado 2026 · Fonte: `.specify/memory/constitution.md`, `AGENTS.md`, `specs/*/spec.md`, pesquisa web*
+
+*Criado: 2026-10-26 · Atualizado: 2026-11-04 · Autor: processo speckit (assessment + specify + plan + tasks) + pesquisa de mercado 2026 · Fonte: `.specify/memory/constitution.md`, `AGENTS.md`, `specs/*/spec.md`, pesquisa web, `github.com/lfgranja/mdreader`*

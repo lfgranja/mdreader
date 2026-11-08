@@ -131,7 +131,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use proptest::prelude::*;
 
 use adapter_synthesis::chunk::split_document;
-use adapter_synthesis::synth::synthesize;
+use adapter_synthesis::synth::{Voice, synthesize};
 
 /// The production app-shell source under observation.
 ///
@@ -1006,7 +1006,7 @@ proptest! {
 
         // The production engine synthesizes the first chunk: the
         // audio the production path must hand to the backend first.
-        let first_chunk = synthesize(&segments[0]).map_err(PropError::Engine)?;
+        let first_chunk = synthesize(&segments[0], Voice::Faber).map_err(PropError::Engine)?;
         prop_assert!(
             !first_chunk.is_empty(),
             "the production engine delivered an empty first chunk — the adapter's fail-closed contract is broken",

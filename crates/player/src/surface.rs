@@ -290,6 +290,10 @@ pub struct MirrorState {
     /// seconds (FR-002 / FR-003), mirrored — never
     /// computed here.
     pub position_secs: f64,
+    /// Whether synthesis is currently running in the
+    /// background (UI hint for waveform/dot state).
+    #[serde(default)]
+    pub synthesizing: bool,
     /// The progress indication (FR-028a), determinate
     /// iff the duration was known at session start.
     pub progress: Progress,

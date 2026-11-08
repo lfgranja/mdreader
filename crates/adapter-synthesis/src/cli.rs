@@ -37,7 +37,7 @@ use crate::chunk::{BoundaryKind, DocumentSegment, SourceRange, split_document};
 use crate::failure::{EngineError, EngineFailure};
 use crate::format_check::{check_delivery, check_format};
 use crate::synth::synthesize;
-use crate::{AlignmentGranularity, SsmlLevel, declared_capabilities};
+use crate::{AlignmentGranularity, SsmlLevel, Voice, declared_capabilities, set_voice};
 
 /// The program name: the name the generated parser
 /// reports under, and the argument [`run`] prepends when
@@ -260,15 +260,18 @@ enum Command {
         duration_ms: f64,
     },
     /// Synthesize a document to PCM (`synthesize`) with
-    /// the embedded Piper pt-BR `faber` voice — real
-    /// mono-`f32` at 22 050 Hz — failing closed on a
-    /// voice-load, engine-process-death, interior-NUL,
-    /// or delivery-rate condition.
+    /// the embedded Piper pt-BR voice — real mono-`f32` at
+    /// 22 050 Hz — failing closed on a voice-load,
+    /// engine-process-death, interior-NUL, or
+    /// delivery-rate condition.
     Synthesize {
         /// Read the document from this file instead of
         /// stdin.
         #[arg(long)]
         input: Option<PathBuf>,
+        /// The synthesis voice to use (`faber` or `lula`).
+        #[arg(long, value_enum, default_value = "faber")]
+        voice: Voice,
     },
 }
 
@@ -305,9 +308,10 @@ fn execute(cli: Cli, stdin: &mut dyn Read, stdout: &mut dyn Write) -> Result<(),
             check_delivery(rate_hz, channels, width_bits, pcm_samples, duration_ms)?;
             write_payload(stdout, &verification_payload("check_delivery", cli.format)?)
         }
-        Command::Synthesize { input } => {
+        Command::Synthesize { input, voice } => {
+            set_voice(voice);
             let document = read_document(input, stdin)?;
-            let payload = synthesize_payload(&document, cli.format)?;
+            let payload = synthesize_payload(&document, voice, cli.format)?;
             write_payload(stdout, &payload)
         }
     }
@@ -419,14 +423,18 @@ fn verification_payload(
 /// [`EngineFailure`] is routed through the failure
 /// half of the protocol, never a silent empty buffer
 /// (R2/R7; SC-035).
-fn synthesize_payload(document: &str, format: OutputFormat) -> Result<String, CliError> {
+fn synthesize_payload(
+    document: &str,
+    voice: Voice,
+    format: OutputFormat,
+) -> Result<String, CliError> {
     let segments = split_document(document, "");
     let mut pcm_samples: usize = 0;
     for segment in &segments {
         // A failing segment routes through the failure half
         // of the protocol: nothing is written to stdout, and
         // the named failure is reported.
-        let buffer = synthesize(segment)?;
+        let buffer = synthesize(segment, voice)?;
         // The bound is unreachable for any buffer that fits
         // in memory (a `usize::MAX`-sample buffer would
         // need exabytes of `f32`), so the total saturates

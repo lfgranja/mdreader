@@ -1,7 +1,7 @@
 //! Property tests for `crates/adapter-synthesis` task **T019** — the
 //! byte-budget chunk split (`src/chunk.rs`).
 //!
-//! Spec anchors: **FR-024a** (adapter splits Markdown into ≤ 5000-byte
+//! Spec anchors: **FR-024a** (adapter splits Markdown into ≤ 2000-byte
 //! chunks at paragraph/heading boundaries before synthesis), data-model
 //! rules **R3** (`DocumentSegment.byte_length <= 5000`, measured in
 //! bytes, not characters), **R4** (the adapter owns the split; the
@@ -10,7 +10,7 @@
 //! `Sentence` member at v1), checklist **CHK016** (adapter-interface:
 //! `byte_length <= 5000` is a hard bound, split at paragraph/heading),
 //! and **CHK001/CHK002/CHK008** (segment-resume: splitting fully
-//! specified, `DocumentSegment` fields, the 5000-byte limit is a hard
+//! specified, `DocumentSegment` fields, the 2000-byte limit is a hard
 //! upper bound, not a target). All invariants are normative per
 //! **`API_CONTRACT` §2** (frozen interface, §2.1 rules 1–12) and §0
 //! global rules.
@@ -28,7 +28,7 @@
 //! Rigor).
 //!
 //! The proptest generator deliberately composes documents that exceed
-//! the 5000-byte budget (2..40 blocks of 0..1200 bytes each,
+//! the 2000-byte budget (2..40 blocks of 0..1200 bytes each,
 //! multi-byte words, blank-line separated), because a property that
 //! only ever observes sub-budget documents is vacuous — exactly the
 //! defect being fixed here (the old file mapped `lines()` locally and
@@ -63,7 +63,7 @@ proptest! {
 // headings/paragraphs/blank runs built from multi-byte text (API_CONTRACT
 // §2.1 rule 5). The generator composes 2..40 blocks of 0..1200 bytes
 // each — a plausible mid-sized Portuguese document — so cases routinely
-// exceed 5000 bytes and the property is not vacuous.
+// exceed 2000 bytes and the property is not vacuous.
 //
 // Also defended, per case: `byte_length()` equals the content's byte
 // count (rule 2 of this task); 0-based strictly-increasing

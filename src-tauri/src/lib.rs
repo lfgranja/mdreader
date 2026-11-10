@@ -2959,7 +2959,6 @@ pub(crate) struct DirectoryResume {
 ///
 /// A repeated call (first with one chapter, later with the full list)
 /// replaces the item list while keeping the active chapter when its
-#[expect(dead_code, reason = "directory reading not yet wired")]
 /// `file_uri` is still present, so playback is never restarted.
 /// Also inspects `DIRECTORY_BOOKMARKS` via `lookup_directory_on_open` (T208/T233)
 /// to restore saved chapter and position or signal the offer dialog (FR-009).

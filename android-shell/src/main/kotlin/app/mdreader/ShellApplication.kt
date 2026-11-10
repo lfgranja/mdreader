@@ -122,14 +122,18 @@ class ShellApplication : Application() {
         }
 
         override fun onActivityPaused(activity: Activity) {
-            if (ShellHost.currentActivity === activity) {
-                ShellHost.currentActivity = null
-            }
+            // Do NOT null out currentActivity on pause: onActivityResult is dispatched
+            // to the calling Activity before onResume runs when returning from SAF picker
+            // (DocumentsUI) or system dialogs. Annulling here drops the result silently.
         }
 
         override fun onActivitySaveInstanceState(activity: Activity, state: Bundle) {}
 
-        override fun onActivityDestroyed(activity: Activity) {}
+        override fun onActivityDestroyed(activity: Activity) {
+            if (ShellHost.currentActivity === activity) {
+                ShellHost.currentActivity = null
+            }
+        }
     }
 
     private companion object {

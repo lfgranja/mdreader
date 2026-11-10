@@ -13,10 +13,12 @@ dependencies = [
  "ndk-context",
  "ndk-sys",
  "proptest",
+ "regex",
  "serde",
  "serde_json",
  "sherpa-onnx",
  "thiserror 1.0.69",
+ "tracing",
 ]
 
 [[package]]

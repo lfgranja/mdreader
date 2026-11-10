@@ -58,6 +58,7 @@ player::prop_surface
 player::prop_transport_math
 player::prop_waveform_us2
 player::t069_adapter_declaration_consumption
+player::test_audio_cache
 player::test_earcon_mirror
 player::test_external_start_us1
 player::test_failover_us5

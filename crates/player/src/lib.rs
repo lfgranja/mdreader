@@ -11,6 +11,7 @@
 
 pub mod backend;
 pub mod buffer;
+pub mod cache;
 pub mod cli;
 pub mod earcon;
 pub mod focus;

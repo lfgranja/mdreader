@@ -20,6 +20,8 @@ pub mod cli;
 pub mod consume;
 pub mod failure;
 pub mod format_check;
+pub mod normalize;
+pub mod prosody;
 pub mod reg;
 pub mod synth;
 
@@ -67,3 +69,7 @@ pub use crate::failure::{
     EngineError, EngineFailure, FailureCondition, FailureReportError, MAX_CONDITION_DETAIL_CHARS,
     MAX_OFFER_MS,
 };
+pub use crate::normalize::{
+    NormalizationMode, normalization_mode, normalize_for_speech, set_normalization_mode,
+};
+pub use crate::prosody::{ProsodyPlan, plan_for_segment};

@@ -1,10 +1,14 @@
+adapter-synthesis
 adapter-synthesis::audio_chunk
 adapter-synthesis::cli_protocol
+adapter-synthesis::normalize_invariants
 adapter-synthesis::prop_chunk
 adapter-synthesis::prop_chunk_refined
 adapter-synthesis::prop_declare
 adapter-synthesis::prop_format
 adapter-synthesis::prop_segmentation_shapes
+adapter-synthesis::prosody_invariants
+adapter-synthesis::prosody_unit
 adapter-synthesis::t045_adapter_observability_consumer
 adapter-synthesis::t059_prop_declare_fr024
 adapter-synthesis::unit_consume

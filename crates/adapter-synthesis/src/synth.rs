@@ -58,6 +58,9 @@ use crate::failure::{
 use crate::format_check::{
     DECLARED_CHANNELS, DECLARED_RATE_HZ, DECLARED_WIDTH_BITS, check_delivery,
 };
+use crate::normalize::{normalization_mode, normalize_for_speech};
+use crate::prosody::plan_for_segment;
+use std::time::Instant;
 
 /// Runtime override for the voice asset directory.
 ///
@@ -193,6 +196,7 @@ pub fn synthesize(segment: &DocumentSegment) -> Result<Vec<f32>, EngineFailure> 
     // unreachable for this request. Refusing here keeps the
     // named-failure-over-silence rule intact instead of letting the
     // dependency panic on `CString::new` (R2/R7).
+    let synth_start = Instant::now();
     if segment.content.contains('\0') {
         return Err(named_failure(
             FailureCondition::TransportUnreachable,
@@ -200,9 +204,13 @@ pub fn synthesize(segment: &DocumentSegment) -> Result<Vec<f32>, EngineFailure> 
             segment,
         ));
     }
+    let spoken = normalize_for_speech(&segment.content, normalization_mode());
     let Some(audio) = tts.generate_with_config(
-        &segment.content,
-        &GenerationConfig::default(),
+        &spoken,
+        &GenerationConfig {
+            speed: plan_for_segment(segment).speed(),
+            ..GenerationConfig::default()
+        },
         // No progress callback: the whole buffer is returned
         // at once. The concrete `fn`-pointer type satisfies
         // the `FnMut(&[f32], f32) -> bool` bound so the
@@ -287,6 +295,14 @@ pub fn synthesize(segment: &DocumentSegment) -> Result<Vec<f32>, EngineFailure> 
         let condition = condition_for_format_error(deviation);
         return Err(named_failure(condition, condition.detail(), segment));
     }
+    tracing::info!(
+        target: "adapter_synthesis::synth",
+        segment_index = segment.segment_index,
+        samples = sample_count,
+        duration_ms = %format!("{:.1}", duration_ms),
+        synth_ms = synth_start.elapsed().as_millis(),
+        "segment synthesized"
+    );
     Ok(samples.to_vec())
 }
 

@@ -106,6 +106,19 @@ target/
 # Spec Kit generated skills & integrations
 .agents/skills/speckit-*
 .specify/integrations/
+.specify/validations/
+
+# Ephemeral test, device automation & temporary validation logs
+.tmp-gradle/
+build-tmp/
+.maestro/
+device-automation-*/
+device-validation-*/
+device-validation-*.md
+emulator-validation-*/
+ressoa-validation-*/
+t184-t226-*/
+*.bak*
 
 # Tauri capabilities generated
 src-tauri/capabilities/

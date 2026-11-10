@@ -255,7 +255,7 @@ object DocIngest {
             // A missing native library is recorded as a diagnostic
             // log — the snapshot stands and the event is never
             // dropped silently (the ShellHost idiom).
-            try {
+            val ingestStatus = try {
                 onDocumentIngested(
                     result.snapshotPath,
                     result.fingerprintHex,
@@ -264,8 +264,17 @@ object DocIngest {
                 )
             } catch (error: UnsatisfiedLinkError) {
                 Log.e(TAG, "Ingest channel unavailable: ${error.message}")
+                -1
             }
-            IngestOutcome.Accepted(result)
+            
+            val outcome = when (ingestStatus) {
+                0 -> IngestOutcome.Accepted(result)
+                1 -> IngestOutcome.Unreadable
+                2 -> IngestOutcome.Refused(REFUSAL_FORMAT_UNDELIVERABLE)
+                else -> IngestOutcome.Unreadable
+            }
+            
+            outcome
         } catch (e: Exception) {
             Log.e(TAG, "Snapshot write failed; the picker is re-prompted", e)
             IngestOutcome.Unreadable
@@ -668,12 +677,13 @@ object DocIngest {
      * Native callback to Rust after successful document ingestion.
      * Forwards snapshot path, fingerprint, original URI, and MIME type.
      */
+    @JvmStatic
     private external fun onDocumentIngested(
         snapshotPath: String,
         fingerprintHex: String,
         originalUri: String,
         mimeType: String
-    )
+    ): Int
 
     // --- Debug/test automation hooks (BuildConfig.DEBUG-gated callers only) ---
     internal fun debugDeliverDocument(
@@ -688,8 +698,8 @@ object DocIngest {
         val snapshot = writeSnapshot(context, bytes, extension, hex)
         currentSnapshot = snapshot
         trimSnapshots(context, snapshot)
-        onDocumentIngested(snapshot.absolutePath, hex, originalUri, mimeType)
-        Log.i(TAG, "debugDeliverDocument: $sourceName -> ${snapshot.absolutePath}")
+        val status = onDocumentIngested(snapshot.absolutePath, hex, originalUri, mimeType)
+        Log.i(TAG, "debugDeliverDocument: $sourceName -> ${snapshot.absolutePath} (jniStatus=$status)")
     }
 
     internal fun debugFingerprintHex(bytes: ByteArray): String = bytesToHex(blake3_256(bytes))

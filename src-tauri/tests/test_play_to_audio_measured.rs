@@ -62,7 +62,11 @@ const CLOSE_CALL: &str = "take_play_to_audio_ms(";
 
 /// The backend's stream start: the call that opens the output
 /// stream. The stream start is NOT the first audible speech.
-const STREAM_START: &str = "start_backend(";
+///
+/// The 013 generation-safe rename (`start_backend` →
+/// `start_backend_for_generation`) is tracked here so the contract
+/// test follows the production vocabulary.
+const STREAM_START: &str = "start_backend_for_generation(";
 
 // ===========================================================================
 // The bridge — the production source

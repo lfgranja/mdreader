@@ -111,6 +111,8 @@ const SETTINGS: TableDefinition<&str, &[u8]> = TableDefinition::new("settings");
 /// stored under (FR-019b).
 const LAST_RATE_KEY: &str = "last_rate";
 
+const LAST_NORMALIZATION_MODE_KEY: &str = "last_normalization_mode";
+
 /// The stored bookmark entry (storage-schema.md): the last
 /// spoken position under the document's content fingerprint (FR-044).
 ///
@@ -655,6 +657,37 @@ impl BookmarkStore {
                 rate_from_slice(bytes)
             })
             .transpose()
+    }
+
+    /// Persist the normalization mode (true = Fluid).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the store write fails.
+    pub fn put_normalization_mode(&mut self, fluid: bool) -> Result<(), Error> {
+        let write_tx = self.db.begin_write()?;
+        {
+            let mut table = write_tx.open_table(SETTINGS)?;
+            let value = [u8::from(!fluid)];
+            let _previous = table.insert(LAST_NORMALIZATION_MODE_KEY, value.as_slice())?;
+        }
+        write_tx.commit()?;
+        Ok(())
+    }
+
+    /// Read the persisted normalization mode.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the store read fails.
+    pub fn get_normalization_mode(&mut self) -> Result<Option<bool>, Error> {
+        let read_tx = self.db.begin_read()?;
+        let table = read_tx.open_table(SETTINGS)?;
+        let guard = table.get(LAST_NORMALIZATION_MODE_KEY)?;
+        Ok(guard.map(|entry| {
+            let bytes = entry.value();
+            bytes.first().copied().unwrap_or(0) == 0
+        }))
     }
 }
 

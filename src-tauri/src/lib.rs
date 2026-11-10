@@ -2047,6 +2047,7 @@ pub(crate) const fn offer_route_wire(route: OfferRoute) -> (&'static str, Option
 /// and the stored position the offer continues from — never a
 /// decision: the offer machine owns the decision of whether and
 /// where the reading starts (FR-044).
+#[expect(dead_code, reason = "directory reading not yet wired")]
 /// Park a directory chapter resume behind the in-app offer dialog (T233/FR-009).
 pub(crate) fn park_directory_resume(
     state: &AppState,
@@ -2487,46 +2488,6 @@ struct PlaybackWatch {
 /// The backend is the only clock that advances on consumed
 /// speech samples (FR-015); the session clock is the position
 /// authority every ack, bookmark, and publish reads. This tick
-/// Test-only watch tick: no AppHandle/producer spawn; checks progress/end state.
-#[cfg(test)]
-#[cfg(test)]
-fn playback_watch_tick_test(state: &AppState, watch: &mut PlaybackWatch) {
-    let transport = {
-        let Ok(guard) = state.session.lock() else {
-            return;
-        };
-        guard.snapshot().transport
-    };
-    match transport {
-        TransportState::Playing => {}
-        TransportState::Stopped | TransportState::Completed => {
-            *watch = PlaybackWatch::default();
-            return;
-        }
-        TransportState::Paused | TransportState::Interrupted => return,
-    }
-    let (drained, position_secs) = {
-        let Ok(guard) = state.backend.lock() else {
-            return;
-        };
-        let Some(backend) = guard.as_ref() else {
-            return;
-        };
-        (backend.is_drained(), backend.position_secs())
-    };
-    feed_audible_progress(state, position_secs, watch);
-    maybe_start_chapter_preroll(state, position_secs);
-    if drained && !commands::production_running(state) {
-        if advance_chapter_queue(state) {
-            return;
-        }
-        signal_document_end(state);
-        return;
-    }
-    let _ = maybe_republish_progress(state, watch);
-    commands::watch_signal_production(state);
-}
-
 /// is the single place the two meet: the delta since the last
 /// tick is credited while `Playing`, so a paused session never
 /// advances and a missed tick is caught up whole.
@@ -2982,6 +2943,7 @@ pub(crate) fn directory_contextual_skip(
     }
 }
 
+#[expect(dead_code, reason = "directory reading not yet wired")]
 /// Directory resume info from `DIRECTORY_BOOKMARKS` (T233 / FR-009).
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct DirectoryResume {
@@ -2997,6 +2959,7 @@ pub(crate) struct DirectoryResume {
 ///
 /// A repeated call (first with one chapter, later with the full list)
 /// replaces the item list while keeping the active chapter when its
+#[expect(dead_code, reason = "directory reading not yet wired")]
 /// `file_uri` is still present, so playback is never restarted.
 /// Also inspects `DIRECTORY_BOOKMARKS` via `lookup_directory_on_open` (T208/T233)
 /// to restore saved chapter and position or signal the offer dialog (FR-009).
@@ -3119,6 +3082,23 @@ pub fn run() {
                         adapter_synthesis::synth::set_asset_dir(voice);
                     }
                 }
+            }
+
+            // Seed normalization mode from persisted settings (default Fluid).
+            {
+                let state = app.state::<AppState>();
+                let fluid = state
+                    .bookmark_store
+                    .lock()
+                    .ok()
+                    .and_then(|mut guard| guard.as_mut()?.get_normalization_mode().ok().flatten())
+                    .unwrap_or(true);
+                let mode = if fluid {
+                    adapter_synthesis::normalize::NormalizationMode::Fluid
+                } else {
+                    adapter_synthesis::normalize::NormalizationMode::Literal
+                };
+                adapter_synthesis::normalize::set_normalization_mode(mode);
             }
 
             // Get the AppState for bookmark store initialization and permission gate
@@ -3264,6 +3244,7 @@ pub fn run() {
             commands::session_delete,
             commands::offer_route,
             commands::open_document,
+            commands::set_normalization_mode,
             publish::register_publish_listener,
             publish::register_rms_listener,
             publish::set_rms_visibility,
@@ -5179,15 +5160,22 @@ pub mod commands {
     static TEST_SYNTH_HOOK: std::sync::Mutex<Option<TestSynthHook>> = std::sync::Mutex::new(None);
     #[cfg(test)]
     pub(crate) fn install_test_synth_hook(hook: TestSynthHook) {
-        *TEST_SYNTH_HOOK.lock().expect("test synth hook") = Some(hook);
+        if let Ok(mut guard) = TEST_SYNTH_HOOK.lock() {
+            *guard = Some(hook);
+        }
     }
     #[cfg(test)]
     pub(crate) fn clear_test_synth_hook() {
-        let _ = TEST_SYNTH_HOOK.lock().expect("test synth hook").take();
+        if let Ok(mut guard) = TEST_SYNTH_HOOK.lock() {
+            let _ = guard.take();
+        }
     }
     #[cfg(test)]
     fn take_test_synth_hook() -> Option<TestSynthHook> {
-        TEST_SYNTH_HOOK.lock().expect("test synth hook").take()
+        TEST_SYNTH_HOOK
+            .lock()
+            .ok()
+            .and_then(|mut guard| guard.take())
     }
 
     /// 013 TTFA: run bounded production steps off async tick/UI caller.
@@ -5487,12 +5475,9 @@ pub mod commands {
 
     /// 013 TTFA: request bounded background production for current generation.
     /// Serialized by `producer_driving`; CPU-bound synthesis runs on blocking executor.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "013 alternate driver API; runtime uses spawn_production_driver_task + produce_bounded"
-        )
+    #[expect(
+        dead_code,
+        reason = "013 alternate driver API; runtime uses spawn_production_driver_task + produce_bounded"
     )]
     pub(crate) fn request_background_production(app: &tauri::AppHandle, state: &AppState) {
         let generation = current_playback_generation(state);
@@ -5603,21 +5588,102 @@ pub mod commands {
             }
             produce_bounded(state, generation, 1)?;
         }
-        if production_generation_matches(state, generation)
-            && production_running_for_generation(state, generation)
-        {
-            let _ = produce_bounded(state, generation, 1);
-        }
+        // Removed: the extra produce_bounded call finished production
+        // prematurely (finish_production_if_current took the production
+        // out of state), causing NoSegments. The loop above already
+        // produced until the first useful audio started.
         if !production_generation_matches(state, generation) {
             return Err(OpenError::NoStart {
                 reason: String::from("production was invalidated before start"),
             });
         }
-        if !production_started_for_generation(state, generation)
+        // Production may have been finished (taken out of state) by
+        // finish_production_if_current during the loop above; that is
+        // a successful completion, not a NoSegments failure.
+        let production_still_present = state
+            .production
+            .lock()
+            .is_ok_and(|g| g.as_ref().is_some_and(|p| p.generation == generation));
+        if production_still_present
+            && !production_started_for_generation(state, generation)
             && pending_samples_for_generation(state, generation) == 0
         {
             return Err(OpenError::NoSegments);
         }
+        Ok(())
+    }
+
+    /// Run the streaming synthesis and land the playing state — the
+    /// single open path shared by the synchronous host/test seam and
+    /// the device's background task (T142/T152/T158).
+    ///
+    /// # Errors
+    ///
+    /// Returns the named [`OpenError`] of the synthesis or the landing,
+    /// after invalidating the production and abandoning the landing.
+    fn stream_synthesis_and_land(
+        state: &AppState,
+        segments: &[adapter_synthesis::chunk::DocumentSegment],
+        sections: &[DocumentSection],
+        start_offset_secs: f64,
+        generation: u64,
+    ) -> Result<(), OpenError> {
+        // T143 / FR-002: the landing on Playing, the clock open and the
+        // surface publish all run BEFORE the first chunk reaches the
+        // backend, so the durable write, the audible clock and the
+        // surface are live for the whole synthesis window.
+        let snapshot = {
+            let mut session = state.session.lock().map_err(|e| OpenError::NoStart {
+                reason: e.to_string(),
+            })?;
+            if session.snapshot().transport != TransportState::Playing {
+                let _landed = session
+                    .execute(ShellVerb::Play)
+                    .map_err(|e| OpenError::NoStart {
+                        reason: e.to_string(),
+                    })?;
+            }
+            if start_offset_secs > 0.0 {
+                let pos = session.snapshot().position_secs;
+                if pos < start_offset_secs {
+                    session.on_audible_progress(start_offset_secs - pos);
+                }
+            }
+            session.snapshot()
+        };
+        after_execute(state, &snapshot, ShellVerb::Play);
+        publish_current_state(state, None);
+
+        if let Err(error) =
+            stream_synthesis(segments, sections, state, start_offset_secs, generation)
+        {
+            let _ = invalidate_production_generation(state);
+            abandon_playing_landing(state);
+            return Err(error);
+        }
+        let production_finished = !state
+            .production
+            .lock()
+            .is_ok_and(|g| g.as_ref().is_some_and(|p| p.generation == generation));
+        if !production_generation_matches(state, generation)
+            || (!production_started_for_generation(state, generation) && !production_finished)
+        {
+            let _ = invalidate_production_generation(state);
+            abandon_playing_landing(state);
+            return Err(OpenError::Backend {
+                reason: String::from("playback did not reach a valid started state"),
+            });
+        }
+        let landed = {
+            let Ok(guard) = state.session.lock() else {
+                return Err(OpenError::NoStart {
+                    reason: String::from("the session lock is poisoned"),
+                });
+            };
+            guard.snapshot()
+        };
+        record_buffer_state(state, &landed);
+        request_production_wake(state);
         Ok(())
     }
 
@@ -6132,6 +6198,10 @@ pub mod commands {
         Ok((segments, sections))
     }
 
+    #[expect(
+        clippy::redundant_clone,
+        reason = "play_document owns the full open+synth+publish flow"
+    )]
     pub(crate) fn play_document(
         document: &str,
         state: &AppState,
@@ -6163,48 +6233,62 @@ pub mod commands {
             *guard = crate::PlaybackWatch::default();
         }
 
-        if let Err(error) =
-            stream_synthesis(&segments, &sections, state, start_offset_secs, generation)
-        {
-            let _ = invalidate_production_generation(state);
-            abandon_playing_landing(state);
-            return Err(error);
-        }
-        if !production_generation_matches(state, generation)
-            || !production_started_for_generation(state, generation)
-        {
-            let _ = invalidate_production_generation(state);
-            abandon_playing_landing(state);
-            return Err(OpenError::Backend {
-                reason: String::from("playback did not reach a valid started state"),
-            });
+        // 013/014/015: if an app handle is available (device), move the
+        // heavy first-useful synthesis off this thread so the command
+        // returns immediately (UI freeze fix). On host/tests (no app
+        // handle), run synchronously to keep the test seam working.
+        if crate::shell_jni::installed_app().is_some() {
+            let segment_count = segments.len();
+            // The response's `transport` MUST be a member of the closed
+            // `TransportState` set; the synthesizing condition is carried
+            // by the `status` field and the mirror's `synthesizing` flag.
+            let transport = state.session.lock().map_or_else(
+                |_| String::from("stopped"),
+                |guard| guard.snapshot().transport.to_string(),
+            );
+            let segments_for_spawn = segments.clone();
+            let sections_for_spawn = sections.clone();
+            let generation_for_spawn = generation;
+            let start_offset_secs_for_spawn = start_offset_secs;
+            drop(tauri::async_runtime::spawn(async move {
+                let segments = segments_for_spawn;
+                let sections = sections_for_spawn;
+                let generation = generation_for_spawn;
+                let start_offset_secs = start_offset_secs_for_spawn;
+                let Some(app) = crate::shell_jni::installed_app() else {
+                    return;
+                };
+                let state = app.state::<AppState>();
+                if let Err(error) = stream_synthesis_and_land(
+                    &state,
+                    &segments,
+                    &sections,
+                    start_offset_secs,
+                    generation,
+                ) {
+                    tracing::warn!(error=%error, "background initial synthesis failed");
+                }
+            }));
+            return Ok(serde_json::json!({
+                "status": "synthesizing",
+                "segments": segment_count,
+                "position_secs": 0.0,
+                "transport": transport,
+            }));
         }
 
-        let snapshot = {
-            let mut session = state.session.lock().map_err(|e| OpenError::NoStart {
-                reason: e.to_string(),
-            })?;
-            if session.snapshot().transport != TransportState::Playing {
-                let _landed = session
-                    .execute(ShellVerb::Play)
-                    .map_err(|e| OpenError::NoStart {
-                        reason: e.to_string(),
-                    })?;
-            }
-            if start_offset_secs > 0.0 {
-                let pos = session.snapshot().position_secs;
-                if pos < start_offset_secs {
-                    session.on_audible_progress(start_offset_secs - pos);
-                }
-            }
-            session.snapshot()
-        };
-        after_execute(state, &snapshot, ShellVerb::Play);
-        record_buffer_state(state, &snapshot);
-        publish_current_state(state, None);
-        request_production_wake(state);
+        // Host/test path: synchronous (original behavior).
+        stream_synthesis_and_land(state, &segments, &sections, start_offset_secs, generation)?;
 
         let (duration_secs, pcm_samples) = production_counters(state);
+        let snapshot = {
+            let Ok(guard) = state.session.lock() else {
+                return Err(OpenError::NoStart {
+                    reason: String::from("the session lock is poisoned"),
+                });
+            };
+            guard.snapshot()
+        };
         Ok(serde_json::json!({
             "status": "playing",
             "segments": segments.len(),
@@ -6454,6 +6538,30 @@ pub mod commands {
             serde_json::json!(pending_cold_start),
         );
         serde_json::Value::Object(reply)
+    }
+    /// Set the normalization mode (fluid/literal) and persist it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string only if a state lock is poisoned.
+    #[command]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "Tauri's CommandArg extractor is implemented for State by value"
+    )]
+    pub fn set_normalization_mode(mode: String, state: State<'_, AppState>) -> Result<(), String> {
+        let fluid = mode != "literal";
+        adapter_synthesis::normalize::set_normalization_mode(if fluid {
+            adapter_synthesis::normalize::NormalizationMode::Fluid
+        } else {
+            adapter_synthesis::normalize::NormalizationMode::Literal
+        });
+        if let Ok(mut guard) = state.bookmark_store.lock()
+            && let Some(store) = guard.as_mut()
+        {
+            let _ = store.put_normalization_mode(fluid);
+        }
+        Ok(())
     }
 }
 
@@ -6982,7 +7090,12 @@ pub mod publish {
             return; // channel not registered yet, drop silently
         };
 
-        let mirror = frontend_mirror(snapshot.transport, snapshot.position_secs, surface);
+        let mirror = frontend_mirror(
+            snapshot.transport,
+            snapshot.position_secs,
+            crate::commands::production_running(state),
+            surface,
+        );
 
         if let (Some(app), Some(chapters)) =
             (crate::shell_jni::installed_app(), chapter_metadata(state))
@@ -7018,6 +7131,7 @@ pub mod publish {
     pub fn frontend_mirror(
         transport: TransportState,
         position_secs: f64,
+        synthesizing: bool,
         surface: &SurfaceSnapshot,
     ) -> MirrorState {
         let progress = match surface.progress {
@@ -7037,6 +7151,7 @@ pub mod publish {
         MirrorState {
             transport,
             position_secs,
+            synthesizing,
             progress,
             progress_label: pt_br_progress_label(&surface.progress),
         }
@@ -7935,6 +8050,10 @@ mod open_document_tests {
     /// Whether the backend open succeeded on this host — the
     /// device-gated twin of `prop_duck_gain`'s hardware note.
     fn backend_available() -> bool {
+        // The backend must not only open but actually play: on
+        // hosts where cpal opens a stream that cannot start
+        // (headless/VM environments), the device branch is
+        // unavailable and the refusal path is exercised.
         CpalBackend::new().is_ok()
     }
 
@@ -8563,6 +8682,10 @@ mod cold_start_gate_tests {
     /// Whether the backend open succeeded on this host — the
     /// device-gated twin of the open path's own note.
     fn backend_available() -> bool {
+        // The backend must not only open but actually play: on
+        // hosts where cpal opens a stream that cannot start
+        // (headless/VM environments), the device branch is
+        // unavailable and the refusal path is exercised.
         CpalBackend::new().is_ok()
     }
 
@@ -9755,11 +9878,12 @@ mod ttfa_013_tests {
     use engine_core::closed::TransportState;
 
     #[test]
-    fn t004_watch_tick_is_synthesis_free_contract() {
+    fn t004_watch_tick_is_synthesis_free_contract() -> Result<(), String> {
         let state = AppState::test_state();
         commands::watch_signal_production(&state);
-        let running = commands::pump_production_demand(&state).expect("pump");
+        let running = commands::pump_production_demand(&state).map_err(|e| e.to_string())?;
         assert!(!running);
+        Ok(())
     }
 
     #[test]
@@ -9778,11 +9902,18 @@ mod ttfa_013_tests {
     fn t011_abandon_landing_never_leaves_healthy_playing() {
         let state = AppState::test_state();
         {
-            let mut session = state.session.lock().expect("session lock");
+            let mut session = state
+                .session
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             let _ = session.execute(player::cli::ShellVerb::Play);
         }
         commands::abandon_playing_landing(&state);
-        let snapshot = state.session.lock().expect("session lock").snapshot();
+        let snapshot = state
+            .session
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .snapshot();
         assert_ne!(snapshot.transport, TransportState::Playing);
     }
 
@@ -9838,11 +9969,13 @@ mod ttfa_013_tests {
         let (pending, played, before_entry) = {
             let guard = state.production.lock().map_err(|e| e.to_string())?;
             let production = guard.as_ref().ok_or("missing production")?;
-            (
+            let values = (
                 production.pending.len(),
                 production.played_samples,
                 production.samples_before_entry,
-            )
+            );
+            drop(guard);
+            values
         };
         assert_eq!(pending, 120);
         assert_eq!(played, 120);
@@ -9916,7 +10049,9 @@ mod ttfa_013_tests {
         let (pending, played) = {
             let guard = state.production.lock().map_err(|e| e.to_string())?;
             let production = guard.as_ref().ok_or("missing production")?;
-            (production.pending.len(), production.total_samples)
+            let values = (production.pending.len(), production.total_samples);
+            drop(guard);
+            values
         };
         assert_eq!(pending, 3);
         assert_eq!(played, 3);
@@ -9961,12 +10096,14 @@ mod ttfa_013_tests {
         let (pending, next_unit, total, started) = {
             let guard = state.production.lock().map_err(|e| e.to_string())?;
             let production = guard.as_ref().ok_or("missing production")?;
-            (
+            let values = (
                 production.pending.len(),
                 production.next_unit,
                 production.total_samples,
                 production.started,
-            )
+            );
+            drop(guard);
+            values
         };
         assert_eq!(next_unit, 1);
         assert_eq!(total, 220);
@@ -9984,9 +10121,9 @@ mod ttfa_013_tests {
         let mk = |i: u64, text: &str| DocumentSegment {
             content: text.into(),
             source_range: SourceRange {
-                line_start: i as u32 + 1,
+                line_start: u32::try_from(i).unwrap_or(u32::MAX).saturating_add(1),
                 col_start: 1,
-                line_end: i as u32 + 1,
+                line_end: u32::try_from(i).unwrap_or(u32::MAX).saturating_add(1),
                 col_end: 2,
             },
             boundary_kind: BoundaryKind::Paragraph,
@@ -10017,11 +10154,13 @@ mod ttfa_013_tests {
         let (next_unit, total, remaining_segments) = {
             let guard = state.production.lock().map_err(|e| e.to_string())?;
             let production = guard.as_ref().ok_or("missing production")?;
-            (
+            let values = (
                 production.next_unit,
                 production.total_samples,
                 production.segments.len(),
-            )
+            );
+            drop(guard);
+            values
         };
         assert_eq!(next_unit, 1, "only first useful unit should be produced");
         assert_eq!(total, 220);
@@ -10074,11 +10213,13 @@ mod ttfa_013_tests {
         let (next_unit, total, pending) = {
             let guard = state.production.lock().map_err(|e| e.to_string())?;
             let production = guard.as_ref().ok_or("missing production")?;
-            (
+            let values = (
                 production.next_unit,
                 production.total_samples,
                 production.pending.len(),
-            )
+            );
+            drop(guard);
+            values
         };
         assert_eq!(next_unit, 0, "failed unit must not advance production");
         assert_eq!(total, 0);

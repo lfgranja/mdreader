@@ -1222,7 +1222,8 @@
 
   els.btnSkipBack.addEventListener('click', () => sendAction('skip_back5s'));
   els.btnSkipForward.addEventListener('click', () => sendAction('skip_forward5s'));
-  document.getElementById('btnPickDirectory').addEventListener('click', () => {
+  const _btnPickDirectory = document.getElementById('btnPickDirectory');
+  if (_btnPickDirectory) _btnPickDirectory.addEventListener('click', () => {
     sendAction('pick_directory');
   });
   els.btnRepeat.addEventListener('click', () => {
@@ -1309,6 +1310,7 @@
         els.titleCard.focus();
       }
     });
+  }
 
   if (els.titleCard) {
     els.titleCard.addEventListener('click', triggerDocumentPicker);

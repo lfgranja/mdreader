@@ -840,7 +840,7 @@ pub extern "C" fn Java_app_mdreader_DocIngest_onDocumentIngested(
     fingerprint_hex: jni::sys::jstring,
     original_uri: jni::sys::jstring,
     mime_type: jni::sys::jstring,
-) {
+) -> jni::sys::jint {
     use jni::JNIEnv;
     use jni::objects::JString;
 
@@ -857,28 +857,28 @@ pub extern "C" fn Java_app_mdreader_DocIngest_onDocumentIngested(
         Ok(s) => String::from(s),
         Err(e) => {
             tracing::error!("JNI onDocumentIngested: failed to get snapshot_path: {e}");
-            return;
+            return 1; // snapshot unreadable
         }
     };
     let fingerprint_hex = match env.get_string(&fingerprint_hex) {
         Ok(s) => String::from(s),
         Err(e) => {
             tracing::error!("JNI onDocumentIngested: failed to get fingerprint_hex: {e}");
-            return;
+            return 1; // snapshot unreadable
         }
     };
     let original_uri = match env.get_string(&original_uri) {
         Ok(s) => String::from(s),
         Err(e) => {
             tracing::error!("JNI onDocumentIngested: failed to get original_uri: {e}");
-            return;
+            return 1; // snapshot unreadable
         }
     };
     let mime_type = match env.get_string(&mime_type) {
         Ok(s) => String::from(s),
         Err(e) => {
             tracing::error!("JNI onDocumentIngested: failed to get mime_type: {e}");
-            return;
+            return 1; // snapshot unreadable
         }
     };
 
@@ -887,13 +887,10 @@ pub extern "C" fn Java_app_mdreader_DocIngest_onDocumentIngested(
     // snapshot file the Kotlin picker wrote is the platform
     // boundary's one read, and its bytes are the sole
     // synthesis input from here on (FR-018 / T019).
-    if let Err(error) = ingest_snapshot(&snapshot) {
-        tracing::error!(
-            snapshot_path = %snapshot.path,
-            fingerprint = %snapshot.fingerprint_hex,
-            error = %error,
-            "document ingest failed: the picker is re-prompted, nothing started (FR-018)"
-        );
+    match ingest_snapshot(&snapshot) {
+        Ok(()) => 0,                                      // success
+        Err(IngestError::SnapshotUnreadable { .. }) => 1, // snapshot unreadable
+        Err(IngestError::Open { .. }) => 2,               // open refused
     }
 }
 
@@ -1014,7 +1011,9 @@ pub fn ingest_snapshot(snapshot: &IngestSnapshot) -> Result<(), IngestError> {
             mime_type = %snapshot.mime_type,
             "shell channel: document ingest before the app handle is held; dropped with a diagnostic"
         );
-        return Ok(());
+        return Err(IngestError::Open {
+            reason: "app handle not installed; cannot open ingested document".to_string(),
+        });
     };
     let state = app.state::<AppState>();
     // The user explicitly picked a document in the foreground Activity:
@@ -1061,9 +1060,13 @@ pub(crate) fn open_ingested_document(
     let filename = picked_document_name(&snapshot.original_uri, &snapshot.path);
     let opened =
         crate::commands::open_document_bytes_named(state, bytes, &filename).map_err(|error| {
-            IngestError::Open {
-                reason: error.to_string(),
-            }
+            let reason = error.to_string();
+            tracing::error!(
+                target: "shell_jni::ingest",
+                %reason,
+                "open_document_bytes_named refused"
+            );
+            IngestError::Open { reason }
         })?;
     tracing::info!(
         snapshot_path = %snapshot.path,
@@ -1186,9 +1189,16 @@ pub(crate) fn installed_app() -> Option<&'static AppHandle> {
 /// stderr, never a crash and never a playing state
 /// (FR-018).
 fn read_snapshot_bytes(path: &str) -> Result<Vec<u8>, IngestError> {
-    let unreadable = |reason: String| IngestError::SnapshotUnreadable {
-        path: path.to_string(),
-        reason,
+    let unreadable = |reason: String| -> IngestError {
+        tracing::error!(
+            target: "shell_jni::ingest",
+            %reason,
+            "snapshot unreadable {path}"
+        );
+        IngestError::SnapshotUnreadable {
+            path: path.to_string(),
+            reason,
+        }
     };
     match std::fs::read(path) {
         Ok(bytes) => Ok(bytes),
@@ -1241,9 +1251,16 @@ pub fn pick_document_from_shell() -> Result<(), String> {
     }
 
     let class = get_shell_host_class()?;
-    let _ = env
+    let launched = env
         .call_static_method(class, "pickDocument", "()Z", &[])
-        .map_err(|error| format!("shell JNI: ShellHook.pickDocument failed: {error}"))?;
+        .map_err(|error| format!("shell JNI: ShellHost.pickDocument failed: {error}"))?
+        .z()
+        .map_err(|error| {
+            format!("shell JNI: ShellHost.pickDocument returned a non-boolean: {error}")
+        })?;
+    if !launched {
+        return Err("shell JNI: ShellHost.pickDocument returned false".to_string());
+    }
     Ok(())
 }
 
@@ -1276,9 +1293,16 @@ pub fn pick_directory_from_shell() -> Result<(), String> {
 
     let class = get_shell_host_class()?;
 
-    let _ = env
+    let launched = env
         .call_static_method(class, "pickDirectory", "()Z", &[])
-        .map_err(|error| format!("shell JNI: ShellHost.pickDirectory failed: {error}"))?;
+        .map_err(|error| format!("shell JNI: ShellHost.pickDirectory failed: {error}"))?
+        .z()
+        .map_err(|error| {
+            format!("shell JNI: ShellHost.pickDirectory returned a non-boolean: {error}")
+        })?;
+    if !launched {
+        return Err("shell JNI: ShellHost.pickDirectory returned false".to_string());
+    }
     Ok(())
 }
 

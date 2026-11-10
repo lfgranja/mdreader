@@ -416,10 +416,19 @@ object ShellHost {
     fun pickDocument(): Boolean {
         val activity = currentActivity
         if (activity == null) {
-            Log.e(TAG, "pickDocument: no active activity attached")
-            throw IllegalStateException("No active activity attached for document picker")
+            Log.e(TAG, "pickDocument: no active activity attached; cannot launch SAF picker")
+            return false
         }
-        return DocIngest.pickDocument(activity)
+        return try {
+            val launched = DocIngest.pickDocument(activity)
+            if (!launched) {
+                Log.e(TAG, "pickDocument: DocIngest.pickDocument returned false")
+            }
+            launched
+        } catch (e: Exception) {
+            Log.e(TAG, "pickDocument: failed to launch picker", e)
+            false
+        }
     }
 
     /**
@@ -432,10 +441,19 @@ object ShellHost {
     fun pickDirectory(): Boolean {
         val activity = currentActivity
         if (activity == null) {
-            Log.w(TAG, "pickDirectory: no active activity attached")
+            Log.e(TAG, "pickDirectory: no active activity attached; cannot launch SAF picker")
             return false
         }
-        return DocIngest.pickDirectory(activity)
+        return try {
+            val launched = DocIngest.pickDirectory(activity)
+            if (!launched) {
+                Log.e(TAG, "pickDirectory: DocIngest.pickDirectory returned false")
+            }
+            launched
+        } catch (e: Exception) {
+            Log.e(TAG, "pickDirectory: failed to launch picker", e)
+            false
+        }
     }
 
     /**

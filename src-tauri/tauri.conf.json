@@ -5,7 +5,10 @@
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "",
+    "beforeBuildCommand": {
+      "cwd": ".",
+      "script": "cp ../dist/index.html gen/android/app/src/main/assets/index.html"
+    },
     "beforeDevCommand": ""
   },
   "app": {

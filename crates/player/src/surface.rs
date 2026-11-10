@@ -290,6 +290,10 @@ pub struct MirrorState {
     /// seconds (FR-002 / FR-003), mirrored — never
     /// computed here.
     pub position_secs: f64,
+    /// Whether synthesis is currently running in the
+    /// background (UI hint for waveform/dot state).
+    #[serde(default, skip_serializing_if = "MirrorState::is_false")]
+    pub synthesizing: bool,
     /// The progress indication (FR-028a), determinate
     /// iff the duration was known at session start.
     pub progress: Progress,
@@ -653,6 +657,16 @@ fn most_recent_passed_section(headings: &[Heading], position_secs: f64) -> Optio
         .rev()
         .find(|heading| heading.position_secs <= position_secs)
         .map(|heading| heading.title.clone())
+}
+
+impl MirrorState {
+    #[expect(
+        clippy::trivially_copy_pass_by_ref,
+        reason = "serde skip_serializing_if requires a fn(&T) -> bool"
+    )]
+    const fn is_false(b: &bool) -> bool {
+        !*b
+    }
 }
 
 #[cfg(test)]

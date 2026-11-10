@@ -441,6 +441,7 @@ const fn mirror_of(snapshot: &SessionSnapshot, duration_secs: Option<f64>) -> Mi
     MirrorState {
         transport: snapshot.transport,
         position_secs: snapshot.position_secs,
+        synthesizing: false,
         progress,
         progress_label: None,
     }

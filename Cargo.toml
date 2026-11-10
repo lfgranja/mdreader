@@ -50,3 +50,12 @@ multiple_crate_versions = "deny"
 # condition.
 [patch.crates-io]
 sherpa-onnx-sys = { path = "vendor/sherpa-onnx-sys" }
+
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
+[profile.release]
+strip = "debuginfo"

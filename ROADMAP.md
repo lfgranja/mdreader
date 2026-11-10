@@ -4,7 +4,7 @@
 > **Framework de Produto & Governança:** `Now / Next / Later` + Spec Kit (`assess.*` → `specify` → `clarify` → `plan` → `tasks` → `implement` → `converge` / `bug.*`)  
 > **Objetivo Primário:** `OBJETIVO.md` — leitor de documentos Markdown com síntese de voz 100% offline, Rust como única autoridade de playback/transporte/rate/posição, Kotlin como espelho estrito (`SC-035`), Tauri 2.12.1, CPAL 0.18.2 + AAudio, mono f32 @ 22050 Hz, sherpa-onnx 1.13.8 + Piper pt-BR (`offline_default`). Zero permissão de INTERNET.
 
-*Atualizado: 2026-11-03 · Branch atual: `dev` (HEAD `93b56aba`). Consolidação executiva pós-auditoria de código, convergência da Spec 007, otimização dos gates de verificação, benchmark acústico on-device, estratégia completa de marketing, ASO e monetização, e pesquisa de mercado 2026.*
+*Atualizado: 2026-11-10 · Branch atual: `dev`. Cycle 017 — Synthesis Experience Hardening & Convergence (research 2026-11-10, specs 014/015 converged, 016 deferred, gates 1–8 host-green). Veja `docs/cycles/017-synthesis-experience-hardening.md`.*
 
 ---
 
@@ -12,10 +12,11 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────────────────┐
-│ NOW (Sprint Corrente - ~93% Concluído)                                                      │
-│ • ✅ Spec 009 CONVERGIDA (converge executado, 0 findings)                                    │
-│ • Completar Spec 010 — Directory Reading (26/42 tasks, 16 restantes)                        │
-│ • Limpeza de diretórios de bugs vazios em .specify/bugs/ (4 pendentes)                      │
+│ NOW (Cycle 017 — Synthesis Hardening, ~96% Concluído)                                        │
+│ • ✅ Spec 014 (normalização) e 015 (prosódia) CONVERGIDAS (invariantes + gates host)          │
+│ • ✅ Spec 016 (voz Lula) DEFERIDA no gate de assessment (sem modelo; risco LGPD/STJ/TSE)     │
+│ • ⏳ Spec 013 (TTFA): worker implementado; SC-TTFA-001 segue device-blocked                    │
+│ • ⏳ Spec 010 — Directory Reading (41/42; T226 device verification aberta)                    │
 └─────────────────────────────────────────────────────────────────────────────────────────────┘
                                               ↓
 ┌─────────────────────────────────────────────────────────────────────────────────────────────┐
@@ -71,7 +72,13 @@
 | 007 | `sona-complete-design` | ✓ | ✓ | **29/29** | ✓ | ✓ | ✓ RMS instrumentation, canvas 5-layer, repeat button, T028 e T029 | Host tests green; zero achados pendentes | **CONVERGIDO (100%)** |
 | 008 | `ref-device-emulator` | ✓ | ✓ | 40/40 | ✓ | ✓ | Harness de emulação estrutural | Convergido completo | **CONVERGIDO** |
 | 009 | `open-file-from-title` | ✓ | ✓ | **26/27** (T184 = validação manual ADB) | ✓ | ✓ | ✓ Storage Access Framework JNI, auto-play, redb offer dialog, recusa segura | T158–T183 concluídas; `/speckit.converge` executado → **0 findings** (converged) | **CONVERGIDO (2026-11-03)** |
-| 010 | `directory-reading` | ✓ | ✓ | **26/42** | ✓ | ✓ | ✓ ChapterQueue, directory bookmarks, pre-roll 10s, SAF tree permissions | T185–T213 em progresso; 16 tasks restantes (T214–T229) | **Em progresso / Feature ativa** |
+| 010 | `directory-reading` | ✓ | ✓ | **41/42** | ✓ | ✓ | ✓ ChapterQueue, directory bookmarks, pre-roll 10s, SAF tree permissions | T226 device verification aberta | **Em progresso / Feature ativa** |
+| 011 | `avd-emulator-setup` | ✓ | ✓ | ✓ | ✓ | ✓ | Harness AVD | — | **Suportado (harness)** |
+| 012 | `debug-ingest-hook` | ✓ | ✓ | ✓ | ✓ | ✓ | Debug ingest hook (device) | Evidence parcial (T049) | **Suportado (debug)** |
+| 013 | `ttfa-synthesis-pipeline` | ✓ | ✓ | ✓ | ✓ | ✓ | Worker/produtor 013 | `SC-TTFA-001` device-blocked | **Implementado / device-blocked** |
+| 014 | `tts-symbol-normalization` | ✓ | — | ✓ | ✓ | ✓ | `normalize.rs` + invariants | Gates 1–8 host green | **CONVERGIDO (Cycle 017)** |
+| 015 | `md-semantic-prosody` | ✓ | — | ✓ | — | ✓ | `prosody.rs` + invariants | Gates 1–8 host green | **CONVERGIDO (Cycle 017)** |
+| 016 | `voz-lula` | ✓ | ✓ | ✓ | — | — | — | Deferido (sem modelo; risco legal) | **DEFERIDO (Cycle 017)** |
 
 ---
 
@@ -92,30 +99,30 @@
 
 ## 3. Análise Quantitativa e Qualitativa de Avanço
 
-### O que já percorremos (~94% do Produto Global):
+### O que já percorremos (~95% do Produto Global):
 - **Motor de Áudio e Playback Authority (100%):** O runtime Rust (`crates/player`, `crates/session`, `crates/diag`, `crates/engine-core`) gerencia soberanamente transporte, buffer, taxa pitch-preserving e `PositionClock` (audible progress puro).
-- **Design System SONA & Lente Sinestésica (100% Convergido):** Acessibilidade TalkBack (10/10), alto contraste para ambiente externo, visualizador de 5 camadas no canvas alimentado por RMS lock-free a ~20 Hz (`AtomicU32`) e botão repeat integrados (Spec 007 formalmente convergida — 29/29 tasks).
-- **Ingestão SAF & Bookmarking Durável (100% em código):** Abertura de arquivos Markdown pela caixa de título via Android SAF, cálculo de fingerprint Blake3, persistência atômica em `redb` a cada 20s e em pausas, e diálogo de retomada inteligente (`offerDialog`).
-- **Directory Reading (62% — 26/42 tasks):** ChapterQueue com sort natural, directory bookmarks duráveis, pré-roll de 10s, SAF tree permissions, contextual skip e invalid chapter skipping (TDD RED). Feature ativa em `specs/010-directory-reading`.
-- **Padrão de Qualidade e Otimização de CI:** Gates 1 a 8 verdes, clippy estrito sem `unwrap`/`expect`, paralelismo configurado via test-groups no `nextest.toml` e amostragem de proptest controlada. Histórico git limpo (apenas `dev` e `main`). 10 specs rastreadas (5 convergidas, 4 quase completas, 1 ativa).
-- **Governança e Spec Kit:** 10 assessments (7 completos, 3 parciais), 10 specs com artefatos completos, 11 bugs triados (7 fechados, 4 pendentes).
+- **Design System SONA & Lente Sinestésica (100% Convergido):** Acessibilidade TalkBack (10/10), alto contraste para ambiente externo, visualizador de 5 camadas no canvas alimentado por RMS lock-free a ~20 Hz (`AtomicU32`) e botão repeat integrados (Specs 005, 006 e 007 formalmente convergidas).
+- **Ingestão SAF & Bookmarking Durável (100% em código):** Abertura de arquivos Markdown pela caixa de título via Android SAF, cálculo de fingerprint Blake3, persistência atômica em `redb` a cada 20s e em pausas, e diálogo de retomada inteligente (`offerDialog`) (Spec 009 convergida).
+- **Normalização e Prosódia Semântica de Markdown (100% no Host):** Sanitização de símbolos técnicos e pontuação (`normalize.rs`) e pausas estruturais/entonação (`prosody.rs`), eliminando a fadiga auditiva (Specs 014 e 015 convergidas no Cycle 017).
+- **Directory Reading (98% no Host — 41/42 tasks):** ChapterQueue com sort natural, directory bookmarks duráveis, pré-roll de 10s, SAF tree permissions, contextual skip e invalid chapter skipping. Feature pronta no host em `specs/010-directory-reading`, aguardando validação final de hardware (`T226`).
+- **Padrão de Qualidade e Gates de CI:** Gates 1 a 8 verdes, clippy estrito sem `unwrap`/`expect`, paralelismo configurado via test-groups no `nextest.toml` e amostragem de proptest controlada. Mais de 1.050 testes automatizados no workspace.
+- **Governança e Spec Kit:** 10 assessments decididos, 16 specs rastreadas e estruturadas, 18 bugs triados e corrigidos com testes associados.
 
-### O que ainda falta (~6% para Fechamento Total):
-1. **✅ Convergência Formal da Spec 009 (CONCLUÍDA 2026-11-03):**
-   - `/speckit.converge` executado → 0 findings (converged). T184 (validação manual ADB) permanece como tarefa manual.
-2. **Completar Spec 010 — Directory Reading (NOW/NEXT):**
-   - 16 tasks restantes (T214–T229): integração final, testes de convergência, documentação.
-3. **Benchmark Acústico em Hardware Real - SC-009 (NEXT):**
-   - Comprovar latência acústica inicial < 3s (Time to First Audio) entre clique no Play e emissão PCM audível usando o modelo Piper pt-BR local via Sherpa-ONNX.
-   - Atualizar a attestation da Spec 002 para V4 e transformar `gate-8-full` em `PASS`.
-4. **Validação Finais em Dispositivo Físico (NEXT):**
-   - Executar suite automatizada via ADB no hardware conectado (`53cf9aa7`).
-5. **Housekeeping:**
-   - Limpar pastas vazias residuais de bugs em `.specify/bugs/` (4 bugs sem artefatos).
-   - Completar 3 assessments parciais (custom-voices, custom-voices-catalog, text-translator).
-6. **Go-To-Market (LATER):**
-   - Publicação no Google Play Store e F-Droid.
-   - Execução da estratégia de ASO e monetização.
+### O que ainda falta (~5% para Fechamento Total e Lançamento):
+1. **Validação Final em Hardware Real (NEXT / Device-Blocked):**
+   - **Spec 013 (`SC-TTFA-001`):** Benchmark acústico de latência inicial (TTFA < 3.0s) em aparelho físico conectado via ADB (worker de pré-roll já implementado).
+   - **Spec 010 (`T226`):** Verificação completa e contínua de directory reading em aparelho real.
+   - **Gate 8 Full / Gate 9:** Transição de `gate-8-full` para PASS e build device (`cargo tauri android build --target aarch64`).
+2. **Conformidade Android 16 (API 36):**
+   - Migrar chamadas legadas de `announceForAccessibility` no shell Kotlin para `setAccessibilityPaneTitle` e `setAccessibilityLiveRegion`.
+3. **Licenciamento e Supply Chain Audit:**
+   - Monitorar a transição de `sherpa-onnx` (versão 2.0.0 que removeu `piper-phonemize`/`espeak-ng` por GPL) para manter isolamento e conformidade de licença do binário.
+4. **Housekeeping do SpecKit:**
+   - Limpar diretórios vazios residuais em `.specify/bugs/` (`title-box-file-selection-3`).
+   - Completar assessments de catálogo de vozes (`custom-voices`).
+5. **Go-To-Market & Distribuição (LATER):**
+   - Publicação na Google Play Store e F-Droid.
+   - Ativação da estratégia de ASO e monetização perpétua ("Pay Once, Own Forever").
 
 ---
 
@@ -170,9 +177,22 @@ Diferente da Apple App Store, o algoritmo do Google Play indexa o título (30 ca
 
 ## 5. Próxima Ação Prioritária (O 80/20 Máximo)
 
-### Ação 80/20: Validar T184 na Spec 009 e executar `/speckit.converge specs/009-open-file-from-title`
+### Cycle 017 — Synthesis Experience Hardening & Convergence (2026-11-10)
 
-**Justificativa de Impacto vs Esforço:**
-- A Spec 007 já está 100% convergida.
-- Toda a implementação da Spec 009 (Storage Access Framework, tratamento JNI e recuperação de marcadores) está completa e testada nos gates locais.
-- Ao rodar a convergência formal da Spec 009, 100% das especificações de software/UI estarão formalmente convergidas, liberando o projeto para a fase final exclusiva de testes físicos em hardware via ADB.
+**Decidido/efetuado:** research multilíngue 2026-11-10
+(`findings/2026-11-10-next-cycle-research.md`); specs 014 (normalização) e
+015 (prosódia) convergidas com invariantes; spec 016 (voz Lula) **deferida**
+no gate de assessment (sem modelo; risco LGPD/STJ/TSE/Google Play);
+`normalize.rs` hardening (links/imagens, blockquotes, strikethrough, HTML,
+`a*b`, tabelas, dead code); reconciliação do trabalho em voo
+(`tauri.conf.json` portátil, `eprintln!`→`tracing`, guarda do
+`btnPickDirectory`, clippy limpo); census de testes 128→132.
+
+**Pendente (device/humano):**
+1. **Spec 013 / `SC-TTFA-001`**: medição controlada de `play_to_audio_ms` no
+   device de referência (2201117TY) — worker já implementado.
+2. **Spec 010 / T226**: verificação completa de directory reading no device.
+3. **Android 16**: migrar `announceForAccessibility` → `liveRegion`/`paneTitle`.
+4. **Gate 9**: `cargo tauri android build --target aarch64` (device-checkable).
+
+**Detalhe:** `docs/cycles/017-synthesis-experience-hardening.md`.

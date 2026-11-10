@@ -22,14 +22,15 @@ Um leitor de documentos Markdown (`mdreader`, produto **Ressa**) voltado a áudi
 - **Lacuna identificada:** Nenhum concorrente principal é 100% offline, air-gapped, e otimizado para Markdown. Speechify e NaturalReader exigem cloud; Voice Dream é iOS-only; @Voice/TTSReader focam em PDFs/EPUBs, não Markdown.
 
 ### Posicionamento competitivo (UVP)
-| Atributo | Ressoa (mdreader) | Speechify | NaturalReader | Voice Dream Reader |
-|---|---|---|---|---|
-| Offline 100% | ✅ Zero internet | ❌ Cloud obrigatório | ⚠️ Parcial | ✅ Acapela local |
-| Privacidade (air-gapped) | ✅ Dados nunca saem | ❌ Texto enviado à nuvem | ❌ Cloud | ⚠️ Parcial |
-| Markdown nativo | ✅ Cabeçalhos, seções | ❌ Texto linear | ❌ Texto linear | ❌ EPUB/PDF |
-| Modelo de preço | Freemium + one-time | Assinatura $139/ano | Assinatura $99-199/ano | One-time $19.99 |
-| Plataforma | Android (minSdk 29) | iOS/Android/Web | iOS/Android/Web | iOS-only |
-| TTS engine | Piper pt-BR (sherpa-onnx) | Cloud neural | Cloud neural | Acapela offline |
+| Atributo | Ressoa (mdreader) | Speechify | NaturalReader | Voice Dream Reader | Lector (F-Droid) |
+|---|---|---|---|---|---|
+| Offline 100% | ✅ Zero internet (air-gapped) | ❌ Cloud obrigatório | ⚠️ Parcial | ✅ Acapela local | ✅ Offline local |
+| Privacidade (air-gapped) | ✅ Dados nunca saem | ❌ Texto enviado à nuvem | ❌ Cloud | ⚠️ Parcial | ✅ Zero permissões |
+| Markdown nativo | ✅ Cabeçalhos, seções, prosódia, sanitização | ❌ Texto linear | ❌ Texto linear | ❌ EPUB/PDF | ⚠️ Plain text básico |
+| Modelo de preço | Freemium + one-time (R$29-49 / $9.99-14.99) | Assinatura $139/ano | Assinatura $99-199/ano | Assinatura $59-79/ano | Gratuito (GPLv3) |
+| Plataforma | Android (minSdk 29+) | iOS/Android/Web | iOS/Android/Web | iOS-only | Android |
+| TTS engine | Piper pt-BR (sherpa-onnx local) | Cloud neural | Cloud neural | Acapela offline | Android TTS do SO (robótico) |
+| Design & UX | Lente Sinestésica SONA (Canvas 5 camadas, RMS) | Padrão corporativo | Padrão | Leitor simples | UI minimalista simples |
 
 ### Tendências relevantes (2026)
 - **Anti-subscription fatigue:** Usuários de produtividade (devs, pesquisadores, estudantes) cada vez mais preferem pagamento único ("Pay Once, Own Forever") a assinaturas recorrentes.
@@ -41,10 +42,23 @@ Um leitor de documentos Markdown (`mdreader`, produto **Ressa**) voltado a áudi
 
 - `001` + `002` + `003`: dispositivo de referência verificável (gate-8-shell PASS, gate-8-full DEFERRED até síntese fechar `SC-044`), com `verify.sh` verde e attestation V3 para adaptador.
 - `004`: **CONVERGIDO** (2026-11-03). `/speckit.converge` executado → 0 findings. T051 (validação manual ADB) permanece como tarefa manual.
-- `005`: adoção completa do `DESIGN-SONA` (tokens, contraste, animações congeladas sob `prefers-reduced-motion`, `SC-007` TalkBack 10/10), com plano pronto e tarefas em execução.
-- `007`: convergência completa (RMS, waveform 5 camadas, repeat button, T028/T029) — 29/29 tasks.
-- `009`: **CONVERGIDO** (2026-11-03). `/speckit.converge` executado → 0 findings. T184 (validação manual ADB) permanece como tarefa manual.
-- `010`: em progresso, 26/42 tasks (directory reading com pré-roll e bookmarks duráveis).
+- `005`: adoção completa do `DESIGN-SONA` (tokens, contraste, animações congeladas sob `prefers-reduced-motion`, `SC-007` TalkBack 10/10) — **CONVERGIDO**.
+- `006`: Lente Sinestésica completa — **CONVERGIDO**.
+- `007`: convergência completa (RMS, waveform 5 camadas, repeat button, T028/T029) — 29/29 tasks — **CONVERGIDO**.
+- `008`: harness de emulação estrutural (40/40) — **CONVERGIDO**.
+- `009`: abertura de arquivo da caixa de título com auto-play e redb bookmarks — **CONVERGIDO**.
+- `010`: leitura de diretório (`directory-reading`), 41/42 tasks concluídas no host; T226 (validação em device) aberta.
+- `011`: harness AVD emulator setup — **CONVERGIDO**.
+- `012`: hook de ingestão de debug — **CONVERGIDO / Suportado**.
+- `013`: pipeline e worker pré-roll de TTFA implementados; `SC-TTFA-001` aguarda medição em device físico.
+- `014`: normalização de símbolos Markdown para TTS (`normalize.rs`) — **CONVERGIDO (Cycle 017)**.
+- `015`: prosódia semântica e pausas de Markdown (`prosody.rs`) — **CONVERGIDO (Cycle 017)**.
+- `016`: síntese de voz clonada pública (Lula) — **DEFERIDA** por ausência de modelo local e risco regulatório (LGPD/STJ/TSE).
+
+## Riscos Tecnológicos e de Licenciamento Críticos (Pesquisa 2026)
+- **Licenciamento sherpa-onnx / espeak-ng:** O `sherpa-onnx 2.0.0` removeu `espeak-ng` e `piper-phonemize` devido a conflitos com GPL-3.0 vs Apache-2.0. Manter o pin em `=1.13.8` exige isolamento estrito para compliance do binário.
+- **Acessibilidade Android 16 (API 36):** Depreciação de `View.announceForAccessibility()`. Transição requer `setAccessibilityPaneTitle` e `setAccessibilityLiveRegion` no shell Android.
+- **Timestamps em nível de palavra:** `sherpa-onnx` ainda não fornece timestamps de palavras (#3705 em aberto); sincronização visual de texto deve focar em sentenças/chunks.
 
 ## Restrições não negociáveis (constituição)
 

@@ -464,7 +464,22 @@ object ShellHost {
      */
     @JvmStatic
     fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        val activity = currentActivity ?: return
+        onActivityResult(currentActivity, requestCode, resultCode, data)
+    }
+
+    /**
+     * Overload accepting explicit Activity context from the caller Activity
+     * (e.g. MainActivity.onActivityResult), guaranteeing resolution even if
+     * currentActivity is transiently unassigned during lifecycle callbacks.
+     */
+    @JvmStatic
+    fun onActivityResult(activityContext: Activity?, requestCode: Int, resultCode: Int, data: Intent?) {
+        val activity = activityContext ?: currentActivity
+        if (activity == null) {
+            Log.w(TAG, "onActivityResult: dropped result (requestCode=$requestCode, resultCode=$resultCode) because no Activity is attached")
+            return
+        }
+        Log.i(TAG, "onActivityResult: processing requestCode=$requestCode resultCode=$resultCode for ${activity.componentName?.shortClassName ?: activity.javaClass.simpleName}")
         if (DocIngest.handleDirectoryResult(activity, requestCode, resultCode, data)) return
         DocIngest.handlePickResult(activity, requestCode, resultCode, data)
     }

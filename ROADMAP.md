@@ -99,30 +99,25 @@
 
 ## 3. Análise Quantitativa e Qualitativa de Avanço
 
-### O que já percorremos (~95% do Produto Global):
+### O que já percorremos (~98% do Produto Global):
 - **Motor de Áudio e Playback Authority (100%):** O runtime Rust (`crates/player`, `crates/session`, `crates/diag`, `crates/engine-core`) gerencia soberanamente transporte, buffer, taxa pitch-preserving e `PositionClock` (audible progress puro).
 - **Design System SONA & Lente Sinestésica (100% Convergido):** Acessibilidade TalkBack (10/10), alto contraste para ambiente externo, visualizador de 5 camadas no canvas alimentado por RMS lock-free a ~20 Hz (`AtomicU32`) e botão repeat integrados (Specs 005, 006 e 007 formalmente convergidas).
-- **Ingestão SAF & Bookmarking Durável (100% em código):** Abertura de arquivos Markdown pela caixa de título via Android SAF, cálculo de fingerprint Blake3, persistência atômica em `redb` a cada 20s e em pausas, e diálogo de retomada inteligente (`offerDialog`) (Spec 009 convergida).
-- **Normalização e Prosódia Semântica de Markdown (100% no Host):** Sanitização de símbolos técnicos e pontuação (`normalize.rs`) e pausas estruturais/entonação (`prosody.rs`), eliminando a fadiga auditiva (Specs 014 e 015 convergidas no Cycle 017).
-- **Directory Reading (98% no Host — 41/42 tasks):** ChapterQueue com sort natural, directory bookmarks duráveis, pré-roll de 10s, SAF tree permissions, contextual skip e invalid chapter skipping. Feature pronta no host em `specs/010-directory-reading`, aguardando validação final de hardware (`T226`).
-- **Padrão de Qualidade e Gates de CI:** Gates 1 a 8 verdes, clippy estrito sem `unwrap`/`expect`, paralelismo configurado via test-groups no `nextest.toml` e amostragem de proptest controlada. Mais de 1.050 testes automatizados no workspace.
-- **Governança e Spec Kit:** 10 assessments decididos, 16 specs rastreadas e estruturadas, 18 bugs triados e corrigidos com testes associados.
+- **Ingestão SAF & Bookmarking Durável (100% Convergido):** Abertura de arquivos Markdown pela caixa de título via Android SAF, cálculo de fingerprint Blake3, persistência atômica em `redb` a cada 20s e em pausas, e diálogo de retomada inteligente (`offerDialog`) (Spec 009 convergida; bug `play-desabilitado` sanado).
+- **Normalização e Prosódia Semântica de Markdown (100% Convergido):** Sanitização de símbolos técnicos e pontuação (`normalize.rs`) e pausas estruturais/entonação (`prosody.rs`), eliminando a fadiga auditiva (Specs 014 e 015 convergidas no Cycle 017).
+- **Directory Reading (100% Convergido — 42/42 tasks):** ChapterQueue com sort natural, persistência em redb, permissões de árvore SAF (`ACTION_OPEN_DOCUMENT_TREE`), transições gapless e comandos de avanço/recuo de capítulos (`next_chapter`/`previous_chapter`) atestados em hardware físico (Spec 010 concluída).
+- **Pipeline de Síntese TTFA com Worker Assíncrono (100% Convergido):** Síntese on-device com Piper e sherpa-onnx medida e comprovada em hardware físico Xiaomi Redmi Note 11 com TTFA de 1.551 ms (< orçamento de 3.000 ms) (Spec 013 concluída).
+- **Padrão de Qualidade e Gates de CI:** Gates 1 a 8 rigorosamente verdes (formatação, nextest, docs, clippy pedantic -D warnings, supply chain e pureza do shell). Mais de 1.050 testes automatizados no workspace.
+- **Governança e Spec Kit:** 10 assessments decididos, 16 specs rastreadas e estruturadas, 19 bugs triados e corrigidos com testes associados.
 
-### O que ainda falta (~5% para Fechamento Total e Lançamento):
-1. **Validação Final em Hardware Real (NEXT / Device-Blocked):**
-   - **Spec 013 (`SC-TTFA-001`):** Benchmark acústico de latência inicial (TTFA < 3.0s) em aparelho físico conectado via ADB (worker de pré-roll já implementado).
-   - **Spec 010 (`T226`):** Verificação completa e contínua de directory reading em aparelho real.
-   - **Gate 8 Full / Gate 9:** Transição de `gate-8-full` para PASS e build device (`cargo tauri android build --target aarch64`).
-2. **Conformidade Android 16 (API 36):**
-   - Migrar chamadas legadas de `announceForAccessibility` no shell Kotlin para `setAccessibilityPaneTitle` e `setAccessibilityLiveRegion`.
-3. **Licenciamento e Supply Chain Audit:**
-   - Monitorar a transição de `sherpa-onnx` (versão 2.0.0 que removeu `piper-phonemize`/`espeak-ng` por GPL) para manter isolamento e conformidade de licença do binário.
-4. **Housekeeping do SpecKit:**
+### O que ainda falta (~2% para Lançamento do Produto):
+1. **Conformidade Android 16 (API 36):**
+   - Migrar chamadas residuais de `announceForAccessibility` no shell Kotlin para `setAccessibilityPaneTitle` e `setAccessibilityLiveRegion`.
+2. **Housekeeping e Catálogo de Vozes:**
    - Limpar diretórios vazios residuais em `.specify/bugs/` (`title-box-file-selection-3`).
-   - Completar assessments de catálogo de vozes (`custom-voices`).
-5. **Go-To-Market & Distribuição (LATER):**
-   - Publicação na Google Play Store e F-Droid.
-   - Ativação da estratégia de ASO e monetização perpétua ("Pay Once, Own Forever").
+   - Avaliar catálogo de vozes offline (`custom-voices`).
+3. **Go-To-Market, Embalagem de Release & Distribuição:**
+   - Geração de pacote de release assinado (`cargo tauri android build --target aarch64 --release`).
+   - Publicação na Google Play Store e F-Droid com a estratégia de monetização perpétua ("Pay Once, Own Forever").
 
 ---
 

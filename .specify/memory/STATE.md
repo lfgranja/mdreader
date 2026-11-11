@@ -1,7 +1,12 @@
 # Session state — 004-ressoa-dogfood-build / Separation of Business & Engineering Repositories
 
 > **RESUME POINT (2026-11-11):**
-> 1. **Bug `speed-button-ineffective-usability` CLOSED (VERIFIED):**
+> 1. **Spec 019 (`019-intent-filter-ingress`) CONVERGIDAS (100%):**
+>    - O "80/20" de maior impacto com menor esforço implementado: suporte completo a Android Intent Filters para `ACTION_VIEW` (`text/markdown`, `text/plain`, `text/x-markdown` e `*.md`) e `ACTION_SEND` (Share Sheet a partir de apps como Obsidian, Logseq e gerenciadores de arquivos).
+>    - Integração de ciclo de vida em `MainActivity.kt` (`onCreate` e `onNewIntent`) delegando com segurança para `DocIngest.handleIncomingIntent` sem qualquer lógica de áudio em Kotlin (pureza total do shell).
+>    - Todos os Gates 1 a 8 de `./scripts/verify.sh` rigorosamente verdes (`VERIFY_EXIT=0`).
+>
+> 2. **Bug `speed-button-ineffective-usability` CLOSED (VERIFIED):**
 >    - Eficácia Acústica da Velocidade: Multiplicador de velocidade (`playback_rate()`) integrado em `GenerationConfig.speed` no `sherpa-onnx` (`crates/adapter-synthesis/src/synth.rs`). Re-ancoragem em tempo real (`reanchor_at`) disparada durante reprodução ativa (`Playing`) no bridge Tauri (`src-tauri/src/lib.rs`).
 >    - Usabilidade e Layout: Ilha flutuante (`.bottom-island`) refatorada em layout hierárquico em dois níveis, eliminando transbordamento de botões para fora da tela em dispositivos Android. Ribbon decorativo `wave-04-aurora-breeze` integrado ao cabeçalho.
 >    - Validação: Todos os Gates 1 a 8 de `./scripts/verify.sh` passaram (642 testes unitários/integração + auditoria de superfície C-H1..C-H9). Gate 9 e hardware real validados no Xiaomi Redmi Note 11 com APK universal debug via ADB.

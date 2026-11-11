@@ -702,6 +702,78 @@ object DocIngest {
         Log.i(TAG, "debugDeliverDocument: $sourceName -> ${snapshot.absolutePath} (jniStatus=$status)")
     }
 
+    /**
+     * Spec 019: Ingest incoming Intent from ACTION_VIEW (open .md file) or ACTION_SEND (share sheet).
+     *
+     * Extracts URI or text stream, creates durable snapshot and delegates to onDocumentIngested JNI.
+     */
+    fun handleIncomingIntent(activity: Activity, intent: Intent?): Boolean {
+        if (intent == null) return false
+        val action = intent.action ?: return false
+        val resolver = activity.contentResolver
+
+        Log.i(TAG, "handleIncomingIntent: action=$action type=${intent.type} data=${intent.data}")
+
+        val (bytes, uriStr, extension) = when (action) {
+            Intent.ACTION_VIEW -> {
+                val uri = intent.data ?: return false
+                val ext = resolveFormat(resolver, uri) ?: "md"
+                val rawBytes = try {
+                    readDocumentBytes(resolver, uri)
+                } catch (e: Exception) {
+                    Log.e(TAG, "handleIncomingIntent: failed to read ACTION_VIEW uri=$uri", e)
+                    return false
+                }
+                Triple(rawBytes, uri.toString(), ext)
+            }
+            Intent.ACTION_SEND -> {
+                val streamUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent.getParcelableExtra(Intent.EXTRA_STREAM) as? Uri
+                }
+
+                if (streamUri != null) {
+                    val ext = resolveFormat(resolver, streamUri) ?: "md"
+                    val rawBytes = try {
+                        readDocumentBytes(resolver, streamUri)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "handleIncomingIntent: failed to read ACTION_SEND streamUri=$streamUri", e)
+                        return false
+                    }
+                    Triple(rawBytes, streamUri.toString(), ext)
+                } else {
+                    val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return false
+                    val textBytes = text.toByteArray(Charsets.UTF_8)
+                    Triple(textBytes, "content://shared-text/${System.currentTimeMillis()}.md", "md")
+                }
+            }
+            else -> return false
+        }
+
+        if (bytes.isEmpty() || bytes.size > MAX_DOC_BYTES) {
+            Log.w(TAG, "handleIncomingIntent: document empty or exceeds MAX_DOC_BYTES (${bytes.size} bytes)")
+            return false
+        }
+
+        return try {
+            val fingerprint = blake3_256(bytes)
+            val hexName = bytesToHex(fingerprint)
+            val snapshotFile = writeSnapshot(activity, bytes, extension, hexName)
+            currentSnapshot = snapshotFile
+            trimSnapshots(activity, snapshotFile)
+
+            val mime = MIME_BY_EXTENSION[extension] ?: "text/markdown"
+            val status = onDocumentIngested(snapshotFile.absolutePath, hexName, uriStr, mime)
+            Log.i(TAG, "handleIncomingIntent: successfully ingested snapshot=${snapshotFile.absolutePath} (jniStatus=$status)")
+            status == 0
+        } catch (e: Exception) {
+            Log.e(TAG, "handleIncomingIntent: snapshot delivery failed", e)
+            false
+        }
+    }
+
     internal fun debugFingerprintHex(bytes: ByteArray): String = bytesToHex(blake3_256(bytes))
     internal fun debugWriteSnapshot(context: Context, bytes: ByteArray, extension: String, fingerprintHex: String): File =
         writeSnapshot(context, bytes, extension, fingerprintHex)

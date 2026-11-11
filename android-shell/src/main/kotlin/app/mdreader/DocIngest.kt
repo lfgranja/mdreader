@@ -255,6 +255,7 @@ object DocIngest {
             // A missing native library is recorded as a diagnostic
             // log — the snapshot stands and the event is never
             // dropped silently (the ShellHost idiom).
+            ShellHost.requestFocus()
             val ingestStatus = try {
                 onDocumentIngested(
                     result.snapshotPath,
@@ -765,6 +766,7 @@ object DocIngest {
             trimSnapshots(activity, snapshotFile)
 
             val mime = MIME_BY_EXTENSION[extension] ?: "text/markdown"
+            ShellHost.requestFocus()
             val status = onDocumentIngested(snapshotFile.absolutePath, hexName, uriStr, mime)
             Log.i(TAG, "handleIncomingIntent: successfully ingested snapshot=${snapshotFile.absolutePath} (jniStatus=$status)")
             status == 0

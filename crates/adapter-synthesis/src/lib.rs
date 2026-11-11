@@ -73,3 +73,4 @@ pub use crate::normalize::{
     NormalizationMode, normalization_mode, normalize_for_speech, set_normalization_mode,
 };
 pub use crate::prosody::{ProsodyPlan, plan_for_segment};
+pub use crate::synth::{playback_rate, set_playback_rate};

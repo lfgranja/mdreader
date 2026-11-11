@@ -618,14 +618,14 @@
     const isPlaying = state.transport === 'playing';
     els.btnPlayPause.classList.toggle('primary', isPlaying);
     els.btnPlayPause.classList.toggle('secondary', !isPlaying);
-    // Disable transport controls only when completed or no document context is present
-    const disabled = state.transport === 'completed';
-    els.btnPlayPause.disabled = disabled;
-    els.btnSkipBack.disabled = disabled;
-    els.btnRepeat.disabled = disabled;
-    els.btnSkipForward.disabled = disabled;
-    els.btnRateDown.disabled = disabled;
-    els.btnRateUp.disabled = disabled;
+    // Keep transport controls enabled so user can replay (start_over) or adjust speed even when completed
+    els.btnPlayPause.disabled = false;
+    els.btnRateDown.disabled = false;
+    els.btnRateUp.disabled = false;
+    const seekDisabled = state.transport === 'completed';
+    els.btnSkipBack.disabled = seekDisabled;
+    els.btnRepeat.disabled = seekDisabled;
+    els.btnSkipForward.disabled = seekDisabled;
   }
 
   function renderSectionTitle() {
@@ -1223,7 +1223,11 @@
   // empty and be refused (the control would never start or resume
   // a reading at all). The pause arm is the toggle's other half.
   els.btnPlayPause.addEventListener('click', () => {
-    sendAction(state.transport === 'playing' ? 'pause' : 'resume_at_stored');
+    if (state.transport === 'playing') {
+      sendAction('pause');
+    } else {
+      sendAction('resume_at_stored');
+    }
   });
 
   els.btnStop.addEventListener('click', async () => {

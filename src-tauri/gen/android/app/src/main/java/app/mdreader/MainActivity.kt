@@ -8,6 +8,13 @@ class MainActivity : TauriActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
+    DocIngest.handleIncomingIntent(this, intent)
+  }
+
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    setIntent(intent)
+    DocIngest.handleIncomingIntent(this, intent)
   }
 
   @Deprecated("Deprecated in Java")

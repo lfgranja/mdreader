@@ -12,6 +12,7 @@ Cargo.lock.bak
 # Tauri
 /src-tauri/target/
 /src-tauri/gen/
+!/src-tauri/gen/android/app/src/main/AndroidManifest.xml
 !/src-tauri/gen/android/app/src/main/java/app/mdreader/MainActivity.kt
 !/src-tauri/gen/android/app/src/main/assets/index.html
 

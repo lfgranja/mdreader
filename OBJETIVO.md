@@ -58,6 +58,8 @@ Um leitor de audiolivros e notas Markdown (`mdreader`, produto **Ressoa**) volta
 - **Spec 017:** Cache em memória RAM limitado a 32 MiB (`AudioChunkCache`) com política LRU e invalidação por taxa (PR #195) — **CONVERGIDO**.
 - **Correções de Usabilidade & Taxa Dinâmica (#196 / PR #197):** Multiplicador de velocidade no TTS neural, re-ancoragem em tempo real durante playback e layout responsivo de dois níveis — **CONVERGIDO**.
 - **Spec 018:** Especificação para expansão de múltiplos modelos e catálogo de vozes locais — **ESPECIFICADO**.
+- **Spec 019:** Ingress nativo Android via Intent Filters (`ACTION_VIEW` e `ACTION_SEND`) — **CONVERGIDO**.
+- **Spec 020:** Expansão do orçamento de documento e capítulo de 91 KiB para 1 MiB (`MAX_DOC_BYTES = 1_048_576`), viabilizando leitura contínua de notas longas de PKMS e livros completos — **CONVERGIDO**.
 
 ---
 

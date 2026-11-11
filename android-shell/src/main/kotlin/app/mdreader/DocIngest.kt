@@ -74,13 +74,13 @@ object DocIngest {
     )
 
     /**
-     * Fixture-scale document byte cap (FR-018) — the Rust constant
+     * Document byte cap (FR-018 / Spec 020) — the Rust constant
      * `player::interruption::MAX_DOC_BYTES`
      * (crates/player/src/interruption.rs), mirrored at the picker
-     * boundary. A document past the cap is refused with
+     * boundary. A document past the cap (1 MiB / 1,048,576 bytes) is refused with
      * [REFUSAL_FORMAT_UNDELIVERABLE] before synthesis.
      */
-    const val MAX_DOC_BYTES = 93636
+    const val MAX_DOC_BYTES = 1048576
 
     /**
      * Closed ingest-refusal reason (FR-018): the picker boundary

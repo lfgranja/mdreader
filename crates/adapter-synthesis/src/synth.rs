@@ -60,7 +60,35 @@ use crate::format_check::{
 };
 use crate::normalize::{normalization_mode, normalize_for_speech};
 use crate::prosody::plan_for_segment;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Instant;
+
+/// Active playback rate multiplier for synthesis, stored as `rate * 100` (e.g. 100 = 1.0x).
+/// Default is 100 (1.0x).
+static ACTIVE_RATE_MULTIPLIER_CENTIS: AtomicU32 = AtomicU32::new(100);
+
+/// Set the playback rate multiplier for synthesis (e.g. 1.0, 1.25, 1.5, 2.0).
+pub fn set_playback_rate(rate: f32) {
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "rate is clamped between 0.5 and 4.0 so multiplying by 100.0 is strictly within [50.0, 400.0]"
+    )]
+    let centis = (rate.clamp(0.5, 4.0) * 100.0).round() as u32;
+    ACTIVE_RATE_MULTIPLIER_CENTIS.store(centis, Ordering::Release);
+}
+
+/// The currently configured playback rate multiplier for synthesis.
+#[must_use]
+pub fn playback_rate() -> f32 {
+    let centis = ACTIVE_RATE_MULTIPLIER_CENTIS.load(Ordering::Acquire);
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "centis is strictly within [50, 400], fitting losslessly in f32 mantissa"
+    )]
+    let centis_f32 = centis as f32;
+    centis_f32 / 100.0
+}
 
 /// Runtime override for the voice asset directory.
 ///
@@ -205,10 +233,13 @@ pub fn synthesize(segment: &DocumentSegment) -> Result<Vec<f32>, EngineFailure> 
         ));
     }
     let spoken = normalize_for_speech(&segment.content, normalization_mode());
+    let rate_multiplier = playback_rate();
+    let prosody_speed = plan_for_segment(segment).speed();
+    let effective_speed = (prosody_speed * rate_multiplier).clamp(0.5, 4.0);
     let Some(audio) = tts.generate_with_config(
         &spoken,
         &GenerationConfig {
-            speed: plan_for_segment(segment).speed(),
+            speed: effective_speed,
             ..GenerationConfig::default()
         },
         // No progress callback: the whole buffer is returned

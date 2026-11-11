@@ -853,6 +853,20 @@ fn switch_to_document(state: &AppState, bytes: &[u8]) {
     set_document_fingerprint(state, bytes);
 }
 
+/// Convert a closed `PlaybackRate` rung to its floating-point multiplier value.
+#[must_use]
+pub(crate) const fn rate_to_f32(rate: PlaybackRate) -> f32 {
+    match rate {
+        PlaybackRate::R0_75 => 0.75,
+        PlaybackRate::R1_0 => 1.0,
+        PlaybackRate::R1_25 => 1.25,
+        PlaybackRate::R1_5 => 1.5,
+        PlaybackRate::R1_75 => 1.75,
+        PlaybackRate::R2_0 => 2.0,
+        PlaybackRate::R4_0 => 4.0,
+    }
+}
+
 /// Persist the last playback rate (T042, write-on-change /
 /// FR-019b): the store half every rate dispatch calls with
 /// the rung the press moved to. The rung is written exactly
@@ -1023,6 +1037,14 @@ fn seed_session_rate(state: &AppState) {
             break;
         }
     }
+    drop(session);
+    let final_rate = {
+        let Ok(session) = state.session.lock() else {
+            return;
+        };
+        session.snapshot().rate
+    };
+    adapter_synthesis::set_playback_rate(rate_to_f32(final_rate));
 }
 
 /// The named failures of the cold-start open and play paths
@@ -3270,10 +3292,10 @@ pub mod commands {
         diag_section_index, document_title, note_first_consumed_sample, note_play_request,
         note_removal_request, note_resume_origin, offer_route_wire, park_cold_start,
         pcm_from_sample, pending_open_exists, persist_last_rate, publish_route, rate_press_of,
-        read_published_route, record_buffer_state, record_failure, record_focus_transition,
-        record_named_refusal, record_output_device, record_rate_change, record_refusal,
-        record_section_progress, record_transport_change, resolve_parked_choice, route_offer,
-        sample_index_of, seed_session_rate, switch_to_document,
+        rate_to_f32, read_published_route, record_buffer_state, record_failure,
+        record_focus_transition, record_named_refusal, record_output_device, record_rate_change,
+        record_refusal, record_section_progress, record_transport_change, resolve_parked_choice,
+        route_offer, sample_index_of, seed_session_rate, switch_to_document,
     };
     use diag::writer::{DeviceDirection, DeviceEvent, ErrorValue, FocusValue};
     use std::collections::VecDeque;
@@ -3755,7 +3777,11 @@ pub mod commands {
         };
         matches!(
             guard.snapshot().transport,
-            TransportState::Playing | TransportState::Paused | TransportState::Interrupted
+            TransportState::Playing
+                | TransportState::Paused
+                | TransportState::Interrupted
+                | TransportState::Completed
+                | TransportState::Stopped
         )
     }
 
@@ -4366,6 +4392,31 @@ pub mod commands {
         state: &AppState,
         verb: ShellVerb,
     ) -> Result<serde_json::Value, String> {
+        // When transport is completed or stopped, live rate changes should still update and persist the rate
+        if let Some(step) = rate_press_of(verb) {
+            let transport = state
+                .session
+                .lock()
+                .map(|s| s.snapshot().transport)
+                .map_err(|e| e.to_string())?;
+            if transport == TransportState::Completed || transport == TransportState::Stopped {
+                let previous_rate = state
+                    .session
+                    .lock()
+                    .map(|s| s.snapshot().rate)
+                    .map_err(|e| e.to_string())?;
+                if let Some(rung) = RateStepper::open(Some(previous_rate)).step(step) {
+                    persist_last_rate(state, rung);
+                    adapter_synthesis::set_playback_rate(rate_to_f32(rung));
+                    publish_current_state(state, None);
+                }
+                return Ok(serde_json::json!({
+                    "status": transport.to_string(),
+                    "position_secs": 0.0,
+                    "transport": transport.to_string(),
+                }));
+            }
+        }
         if matches!(verb, ShellVerb::SkipForward | ShellVerb::SkipBackward) {
             // T217: a manual skip never plays pre-synthesized audio.
             crate::cancel_chapter_preroll(state);
@@ -4413,6 +4464,7 @@ pub mod commands {
             && let Some(rung) = RateStepper::open(Some(previous_rate)).step(step)
         {
             persist_last_rate(state, rung);
+            adapter_synthesis::set_playback_rate(rate_to_f32(rung));
             // The FR-017 diagnostic record (T097): the per-rate
             // change entry — the rung before and the rung after.
             record_rate_change(state, &snapshot, previous_rate, rung);

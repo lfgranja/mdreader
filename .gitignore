@@ -109,6 +109,9 @@ target/
 .specify/validations/
 
 # Ephemeral test, device automation & temporary validation logs
+__pycache__/
+*.py[cod]
+*$py.class
 .tmp-gradle/
 build-tmp/
 .maestro/

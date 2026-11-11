@@ -3,8 +3,8 @@
 - **Slug**: `speed-button-ineffective-usability`
 - **Created**: 2026-11-10T21:28:00-04:00
 - **Source**: pasted text
-- **Verdict**: valid
-- **Severity**: high
+- **Verdict**: resolved
+- **Status**: closed (verified)
 
 ## Report (verbatim or summarized)
 

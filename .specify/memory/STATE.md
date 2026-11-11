@@ -1,7 +1,13 @@
 # Session state — 004-ressoa-dogfood-build / Separation of Business & Engineering Repositories
 
-> **RESUME POINT (2026-11-02):**
-> 1. **Separação de Repositórios (Open Source vs Estratégia Privada MDMV):**
+> **RESUME POINT (2026-11-11):**
+> 1. **Bug `speed-button-ineffective-usability` CLOSED (VERIFIED):**
+>    - Eficácia Acústica da Velocidade: Multiplicador de velocidade (`playback_rate()`) integrado em `GenerationConfig.speed` no `sherpa-onnx` (`crates/adapter-synthesis/src/synth.rs`). Re-ancoragem em tempo real (`reanchor_at`) disparada durante reprodução ativa (`Playing`) no bridge Tauri (`src-tauri/src/lib.rs`).
+>    - Usabilidade e Layout: Ilha flutuante (`.bottom-island`) refatorada em layout hierárquico em dois níveis, eliminando transbordamento de botões para fora da tela em dispositivos Android. Ribbon decorativo `wave-04-aurora-breeze` integrado ao cabeçalho.
+>    - Validação: Todos os Gates 1 a 8 de `./scripts/verify.sh` passaram (642 testes unitários/integração + auditoria de superfície C-H1..C-H9). Gate 9 e hardware real validados no Xiaomi Redmi Note 11 com APK universal debug via ADB.
+>    - Status dos artefatos: `assessment.md`, `fix.md` e `test.md` marcados como `closed (verified)`.
+>
+> 2. **Separação de Repositórios (Open Source vs Estratégia Privada MDMV):**
 >    - O repositório [`mdreader`](https://github.com/lfgranja/mdreader) é mantido 100% de código aberto (*open-source*), estritamente focado em engenharia de sistemas, especificações técnicas, testes determinísticos em Rust e o shell Android.
 >    - Criado e sincronizado o repositório privado na organização MDMV: [`MDMV-Laboratorio-de-Solucoes-Digitais/product-ressoa`](https://github.com/MDMV-Laboratorio-de-Solucoes-Digitais/product-ressoa).
 >    - Todos os documentos de negócio, inteligência de mercado, GTM, modelos de monetização, pareceres jurídicos e especificações comerciais foram transferidos para o repositório privado `product-ressoa` e removidos do repositório aberto.

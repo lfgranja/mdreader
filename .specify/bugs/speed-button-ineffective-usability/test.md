@@ -5,6 +5,7 @@
 - **Assessment**: ./assessment.md
 - **Fix**: ./fix.md
 - **Result**: verified
+- **Status**: closed
 
 ## Summary
 

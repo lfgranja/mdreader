@@ -3,7 +3,7 @@
 - **Slug**: `speed-button-ineffective-usability`
 - **Fixed**: 2026-11-11T01:50:00-04:00
 - **Assessment**: ./assessment.md
-- **Status**: applied
+- **Status**: closed (verified)
 
 ## Summary
 

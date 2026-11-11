@@ -30,6 +30,7 @@ engine-core::standin_shape
 engine-core::test_engine_handoff_us1
 engine-core::test_standin_conformance_us5
 player
+player::prop_audio_cache_invariants
 player::prop_canonical_guard
 player::prop_chapter_queue_natural_sort
 player::prop_duck_gain

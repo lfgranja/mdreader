@@ -48,6 +48,7 @@
 
 | Assessment Slug | Estágios Concluídos | Veredito | Status | Evidência / Artefato |
 |---|:---:|:---:|:---:|---|
+| `dynamic-doc-cap-scalability` | 5/5 | `go` | **Promovido para Spec 020** | `decision.md` → Expansão do teto de documento/capítulo para 1 MiB |
 | `intent-filter-ingress` | 5/5 | `go` | **Promovido para Spec 019** | `decision.md` → Ingress via ACTION_VIEW e ACTION_SEND |
 | `audio-cache-queue-management` | 5/5 | `go` | **Promovido para Spec 017** | `decision.md` → Spec 017 implementada e atestada (PR #195) |
 | `directory-reading` | 5/5 | `go` | **Promovido para Spec 010** | `decision.md` → ChapterQueue com sort natural e árvore SAF |
@@ -96,6 +97,7 @@
 | **017** | `audio-cache-queue-management` | 6/6 | ✓ | ✓ | `AudioChunkCache` 32 MiB, PBT | **CONVERGIDO** (PR #195 integrado na `dev`) |
 | **018** | `sona-inspired-voice` | 0/27 | ✓ | ✓ | Spec, plan e contratos prontos | **ESPECIFICADO** (Pronto para implementação) |
 | **019** | `intent-filter-ingress` | 5/5 | ✓ | ✓ | `AndroidManifest.xml`, `DocIngest.kt`, `MainActivity.kt` | **CONVERGIDO (100%)** |
+| **020** | `dynamic-doc-cap-scalability` | 6/6 | ✓ | ✓ | `crates/player/src/interruption.rs`, `DocIngest.kt` | **CONVERGIDO (100%)** |
 
 ---
 

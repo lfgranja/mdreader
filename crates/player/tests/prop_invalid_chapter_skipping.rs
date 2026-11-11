@@ -25,7 +25,7 @@ fn item(name: &str) -> ChapterItem {
 #[test]
 fn budget_is_the_single_doc_cap() {
     assert_eq!(MAX_CHAPTER_BYTES, MAX_DOC_BYTES);
-    assert_eq!(MAX_CHAPTER_BYTES, 93_636);
+    assert_eq!(MAX_CHAPTER_BYTES, 1_048_576);
 }
 
 proptest! {

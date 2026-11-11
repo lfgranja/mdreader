@@ -1,7 +1,12 @@
 # Session state — 004-ressoa-dogfood-build / Separation of Business & Engineering Repositories
 
 > **RESUME POINT (2026-11-11):**
-> 1. **Spec 019 (`019-intent-filter-ingress`) CONVERGIDAS (100%):**
+> 1. **Spec 020 (`020-dynamic-doc-cap-scalability`) CONVERGIDA (100%):**
+>    - Expansão do orçamento de tamanho máximo de documento e capítulo de 93.636 bytes (~91.4 KiB) para 1.048.576 bytes (1 MiB / 1.024 KiB) em Rust (`crates/player/src/interruption.rs`, `crates/player/src/queue.rs`) e Kotlin (`android-shell/src/main/kotlin/app/mdreader/DocIngest.kt`).
+>    - Viabiliza a reprodução contínua de notas extensas de PKMS (Obsidian/Logseq) e livros completos sem recusa prematura de `FormatUndeliverable`.
+>    - Propriedades de segurança, delimitação de memória em RAM via cache LRU de 32 MiB (`AudioChunkCache` - Spec 017) e Gates 1 a 8 de `./scripts/verify.sh` 100% preservados e verdes (`VERIFY_EXIT=0`).
+>
+> 2. **Spec 019 (`019-intent-filter-ingress`) CONVERGIDAS (100%):**
 >    - O "80/20" de maior impacto com menor esforço implementado: suporte completo a Android Intent Filters para `ACTION_VIEW` (`text/markdown`, `text/plain`, `text/x-markdown` e `*.md`) e `ACTION_SEND` (Share Sheet a partir de apps como Obsidian, Logseq e gerenciadores de arquivos).
 >    - Integração de ciclo de vida em `MainActivity.kt` (`onCreate` e `onNewIntent`) delegando com segurança para `DocIngest.handleIncomingIntent` sem qualquer lógica de áudio em Kotlin (pureza total do shell).
 >    - Todos os Gates 1 a 8 de `./scripts/verify.sh` rigorosamente verdes (`VERIFY_EXIT=0`).

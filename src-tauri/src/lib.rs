@@ -5684,6 +5684,13 @@ pub mod commands {
         start_offset_secs: f64,
         generation: u64,
     ) -> Result<(), OpenError> {
+        // Ensure audio backend queue is completely cleared and stopped before new playback lands
+        if let Ok(backend_guard) = state.backend.lock()
+            && let Some(backend) = backend_guard.as_ref()
+        {
+            backend.stop();
+        }
+
         // T143 / FR-002: the landing on Playing, the clock open and the
         // surface publish all run BEFORE the first chunk reaches the
         // backend, so the durable write, the audible clock and the
@@ -8464,6 +8471,11 @@ mod second_document_tests {
     /// content fingerprint (FR-036).
     const SECOND: &[u8] = b"# Segundo\n\nO trem passa as sete.";
 
+    /// Whether the backend open succeeded on this host.
+    fn backend_available() -> bool {
+        CpalBackend::new().is_ok()
+    }
+
     /// A fresh state whose bookmark store lives in a temp dir —
     /// one redb file per test, dropped with it.
     fn state_with_store() -> Result<(tempfile::TempDir, AppState), String> {
@@ -8686,6 +8698,60 @@ mod second_document_tests {
             stored_row(&state, &first_fp)?.is_none(),
             "the switch resurrected a terminal session's discarded position (FR-032f)"
         );
+        Ok(())
+    }
+
+    /// Validates that switching to a second document while the first is Playing
+    /// terminates the outgoing audio queue and resets backend stream state (no overlap).
+    #[test]
+    fn switching_documents_while_playing_clears_outgoing_audio_queue() -> Result<(), String> {
+        if !backend_available() {
+            return Ok(());
+        }
+        let (_dir, state) = state_with_store()?;
+        // Store a Paused bookmark for SECOND so cold-start enters AwaitOffer without playing SECOND immediately
+        let second_fp = fingerprint::fingerprint(SECOND);
+        state
+            .bookmark_store
+            .lock()
+            .map_err(|e| e.to_string())?
+            .as_mut()
+            .ok_or("no bookmark store")?
+            .put(
+                &second_fp,
+                session::store::StoredPosition {
+                    offset_secs: 5.0,
+                    first_yield_ms: 100,
+                    end_kind: SessionEnd::Paused,
+                },
+            )
+            .map_err(|e| e.to_string())?;
+
+        open_first_at(&state, 10.0, ShellVerb::Play)?;
+
+        // Ensure first document actually enqueued samples
+        if let Ok(guard) = state.backend.lock()
+            && let Some(backend) = guard.as_ref()
+        {
+            assert!(
+                backend.buffered_samples() > 0,
+                "first document must have buffered samples"
+            );
+        }
+
+        // Open second document: hits AwaitOffer, tearing down outgoing session without auto-starting SECOND
+        let _opened = open_document_bytes(&state, SECOND.to_vec());
+
+        // Verify that backend state is stopped / cleaned up and has no residual audio from FIRST
+        if let Ok(guard) = state.backend.lock()
+            && let Some(backend) = guard.as_ref()
+        {
+            assert_eq!(
+                backend.buffered_samples(),
+                0,
+                "backend speech queue must be completely empty after document switch"
+            );
+        }
         Ok(())
     }
 }

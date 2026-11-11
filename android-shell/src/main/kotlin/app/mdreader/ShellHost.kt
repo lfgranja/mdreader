@@ -305,6 +305,7 @@ object ShellHost {
      * service host invokes this when a Play command arrives; Rust owns
      * what the answer means.
      */
+    @JvmStatic
     fun requestFocus() {
         val mirror = focus
         if (mirror == null) {

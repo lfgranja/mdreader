@@ -1420,13 +1420,17 @@ pub fn handle_directory_selected(
         // Auto-play the current (or restored) chapter if not resuming via offer dialog
         let current_index = {
             let guard = state.chapter_queue.lock().ok();
-            guard.as_ref().and_then(|g| g.as_ref().map(|q| q.current_index())).unwrap_or(0)
+            guard
+                .as_ref()
+                .and_then(|g| g.as_ref().map(player::queue::ChapterQueue::current_index))
+                .unwrap_or(0)
         };
 
-        if resume.is_none() || resume.as_ref().is_some_and(|r| r.offer_route == crate::OfferRoute::NoRoute) {
-            if let Err(e) = crate::open_chapter_at_index(&state, current_index) {
-                tracing::error!(error = %e, current_index, "Failed to auto-open first directory chapter");
-            }
+        let should_auto_play = resume
+            .as_ref()
+            .is_none_or(|r| r.offer_route == crate::OfferRoute::NoRoute);
+        if should_auto_play && let Err(e) = crate::open_chapter_at_index(&state, current_index) {
+            tracing::error!(error = %e, current_index, "Failed to auto-open first directory chapter");
         }
 
         let event_payload = serde_json::json!({

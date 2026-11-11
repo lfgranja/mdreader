@@ -4416,6 +4416,11 @@ pub mod commands {
             // The FR-017 diagnostic record (T097): the per-rate
             // change entry — the rung before and the rung after.
             record_rate_change(state, &snapshot, previous_rate, rung);
+            // Dynamic rate change during active playback (immediate acoustic response):
+            // re-anchor synthesis and backend at current audible position under the new rate.
+            if snapshot.transport == TransportState::Playing {
+                let _ = reanchor_at(state, snapshot.position_secs);
+            }
         } else if matches!(verb, ShellVerb::SkipForward | ShellVerb::SkipBackward) {
             if snapshot.transport == TransportState::Playing {
                 let _ = reanchor_at(state, snapshot.position_secs);

@@ -306,19 +306,35 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
+      gap: 0.4rem;
       margin: 0;
       padding: 0;
       background: transparent;
       border-radius: 0;
     }
     .speed-btn {
-      opacity: 0;
-      pointer-events: none;
-      width: 0;
-      height: 0;
+      opacity: 1;
+      pointer-events: auto;
+      width: 38px;
+      height: 38px;
       padding: 0;
       margin: 0;
-      border: none;
+      font-size: 1.15rem;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.12);
+      color: var(--sona-voice);
+      border-radius: 50%;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, transform 0.08s;
+    }
+    .speed-btn:active {
+      transform: scale(0.92);
+    }
+    .speed-btn:hover {
+      background: rgba(255,255,255,0.16);
     }
     .speed-dots {
       opacity: 0;
@@ -1243,9 +1259,16 @@
     const speedPill = document.getElementById('speedPill');
   if (speedPill) {
     speedPill.addEventListener('click', () => {
-      rateIndex = (rateIndex + 1) % LADDER.length;
-      state.rate = LADDER[rateIndex];
-      sendAction(rateIndex === 0 ? 'rate_down' : 'rate_up');
+      if (rateIndex < LADDER.length - 1) {
+        rateIndex++;
+        state.rate = LADDER[rateIndex];
+        sendAction('rate_up');
+      } else {
+        rateIndex = 0;
+        state.rate = LADDER[rateIndex];
+        // Wrap around to starting ladder rung
+        sendAction('rate_down');
+      }
       renderSpeed();
     });
   }

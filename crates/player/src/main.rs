@@ -53,6 +53,11 @@ enum Commands {
     State,
     /// Read current engine tier.
     EngineTier,
+    /// Configure o layer DSP pós-processo da voz.
+    Dsp {
+        #[arg(long, default_value = "off")]
+        preset: String, // "off" | "sona_ethereal"
+    },
     /// Earcon PCM descriptor (T030).
     #[command(subcommand)]
     Earcon(EarconCommands),
@@ -243,6 +248,25 @@ fn main() -> io::Result<()> {
             // so the failure goes to stderr through the error channel — never
             // a catch-all ErrorKind::Other (closed-set gate, SC-057).
             let json = serde_json::to_string(&descriptor)?;
+            writeln!(out, "{json}")?;
+            return Ok(());
+        }
+        Commands::Dsp { preset } => {
+            let preset = match preset.as_str() {
+                "off" => player::dsp::DspPreset::Off,
+                "sona_ethereal" => player::dsp::DspPreset::SonaEthereal,
+                other => {
+                    let _ = writeln!(
+                        std::io::stderr().lock(),
+                        "{{ \"error\": \"unknown DSP preset '{other}'\" }}"
+                    );
+                    std::process::exit(2);
+                }
+            };
+            let json = serde_json::json!({ "dsp_preset": match preset {
+                player::dsp::DspPreset::Off => "off",
+                player::dsp::DspPreset::SonaEthereal => "sona_ethereal",
+            }});
             writeln!(out, "{json}")?;
             return Ok(());
         }

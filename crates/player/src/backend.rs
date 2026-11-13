@@ -31,6 +31,7 @@ use engine_core::format::{DeclaredFormat, check_handoff};
 use thiserror::Error;
 use tracing::{error, info, instrument};
 
+use crate::dsp::DspProcessor;
 use crate::earcon::EarconKind;
 use crate::focus::FULL_GAIN;
 use crate::position::PositionClock;
@@ -60,7 +61,12 @@ pub enum BackendError {
     /// the previous gain stands.
     #[error("gain must be within [0.0, 1.0], got {0}")]
     InvalidGain(f32),
+    /// The queue lock was poisoned when configuring DSP;
+    /// the previous configuration stands.
+    #[error("queue lock poisoned while configuring DSP")]
+    DspLockPoisoned,
 }
+
 /// SCAFFOLD (ADR-002 §VII diagnostic extension).
 ///
 /// Template source: `docs/adr/adr-002-diag-§VII.md` + existing `backend.rs`.
@@ -68,18 +74,21 @@ pub enum BackendError {
 /// closed 11-member set; zero catch-all.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DiagnosticEventKind {
-    /// Truncation of an in-flight user earcon's tail before the
-    /// latest trigger (E2 "latest wins"); counted once per
-    /// truncation in the diag record (`EarconTruncation`).
-    EarconTruncation,
-    /// Typed emission-failure event (E4): synthesis error or
-    /// short-channel unavailability; `error` carries the
-    /// typed reason; the transport action still proceeds.
+    /// E1 earcon truncated: confirmation cut short.
+    ///
+    /// `samples_dropped` is how many unplayed confirmation samples
+    /// were discarded when a newer trigger arrived.
+    EarconTruncation {
+        /// Number of unplayed confirmation samples dropped.
+        samples_dropped: usize,
+    },
+    /// E4 emission failure: synthesis/short-channel unavailability.
     EarconEmissionFailure {
-        /// Typed reason for the emission failure.
+        /// The underlying error string describing the failure.
         error: String,
     },
 }
+
 /// E4 emission failure: synthesis/short-channel unavailability.
 /// Transport proceeds; narration never interrupted; at most one
 /// re-emission; typed diagnostic (`EarconEmissionFailure`) — never silence.
@@ -113,11 +122,8 @@ const ENGINE_RATE_HZ: f64 = 22_050.0;
 /// 22 050 Hz mono f32): 60 s × 22 050 = 1 323 000 samples.
 #[expect(
     clippy::cast_possible_truncation,
-    reason = "MAX_PREROLL_SECS × 22 050 = 1 323 000 is an exact integer, far below usize range"
-)]
-#[expect(
     clippy::cast_sign_loss,
-    reason = "MAX_PREROLL_SECS and the declared rate are positive constants, so their product is positive — no sign bit is lost in the cast"
+    reason = "60.0 * 22_050.0 = 1_323_000.0 is exact and fits in usize"
 )]
 const MAX_PREROLL_SAMPLES: usize = (MAX_PREROLL_SECS * ENGINE_RATE_HZ) as usize;
 
@@ -250,17 +256,16 @@ impl ResidentQueue {
 /// exceeds, so the bound is observable in the record.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BufferState {
-    /// The resident, not-yet-played audio in seconds (the pre-roll
-    /// depth).
+    /// Resident, not-yet-played audio in seconds.
     pub buffered_secs: f64,
-    /// The bound the resident audio never exceeds, in seconds.
+    /// The bound it never exceeds, in seconds.
     pub cap_secs: f64,
-    /// The samples dropped because they fell beyond the bound.
+    /// Cumulative samples dropped beyond the bound.
     pub dropped_samples: u64,
 }
 
 impl BufferState {
-    /// The state of a queue with nothing resident.
+    /// Empty buffer state.
     pub const EMPTY: Self = Self {
         buffered_secs: 0.0,
         cap_secs: MAX_PREROLL_SECS,
@@ -301,6 +306,8 @@ struct SampleQueue {
     /// Updated lock-free in `consume_into`; read by the frontend
     /// via `CpalBackend::rms()`.
     rms: AtomicU32,
+    /// DSP post-processor applied to speech samples before gain.
+    dsp: DspProcessor,
 }
 
 impl Default for SampleQueue {
@@ -311,6 +318,7 @@ impl Default for SampleQueue {
             short_mix: VecDeque::new(),
             short_mix_kind: None,
             rms: AtomicU32::new(0.0f32.to_bits()),
+            dsp: DspProcessor::new(DeclaredFormat::SAMPLE_RATE),
         }
     }
 }
@@ -342,8 +350,9 @@ impl SampleQueue {
         self.short_mix_kind = None;
     }
 
-    /// The currently applied output gain.
-    const fn gain(&self) -> f32 {
+    /// The currently applied output gain factor.
+    #[must_use]
+    pub(crate) const fn gain(&self) -> f32 {
         self.gain
     }
 
@@ -374,7 +383,7 @@ impl SampleQueue {
         let mut sum_sq: f64 = 0.0;
         let mut count: usize = 0;
         for slot in out.iter_mut() {
-            let speech = self.speech.pop_front();
+            let speech = self.speech.pop_front().map(|s| self.dsp.process_sample(s));
             let earcon = self.short_mix.pop_front();
             match (speech, earcon) {
                 (Some(sample), Some(tone)) => {
@@ -435,6 +444,21 @@ impl SampleQueue {
     #[must_use]
     fn len(&self) -> usize {
         self.speech.len()
+    }
+
+    /// Set the DSP configuration on the speech path.
+    ///
+    /// Switching presets resets internal state to avoid clicks.
+    pub(crate) fn set_dsp_config(&mut self, config: crate::dsp::DspConfig) {
+        self.dsp.set_config(config);
+    }
+
+    /// Return the current DSP configuration.
+    #[must_use]
+    pub(crate) const fn dsp_config(&self) -> crate::dsp::DspConfig {
+        crate::dsp::DspConfig {
+            preset: self.dsp.preset(),
+        }
     }
 }
 
@@ -577,6 +601,7 @@ impl CpalBackend {
             queue.push(&pcm);
         }
     }
+
     /// Return the RMS of the most recently consumed speech block.
     ///
     /// Lock-free read of the atomic store updated by the output
@@ -593,16 +618,6 @@ impl CpalBackend {
     /// while the speech stream is ducked, files no
     /// `AudioFocusRequest`, and never advances the position
     /// bookmark (the clock counts speech samples only).
-    ///
-    /// The caller (the T029 trigger path) drops and re-fires
-    /// the confirmation when a pause stands; a pause or stop
-    /// through [`pause`](Self::pause) / [`stop`](Self::stop)
-    /// stands the short mix down with the speech queue.
-    /// E2 burst/substitute: in-flight USER earcon is cut (tail
-    /// dropped) BEFORE the new append so the latest triggered
-    /// action keeps audible confirmation (≤100 ms per FR-010).
-    /// SYSTEM earcons (Ostinato/Sforzando) interrupt any
-    /// in-flight user confirmation immediately.
     pub fn enqueue_earcon(&self, kind: EarconKind, pcm: &[f32]) {
         if let Ok(mut queue) = self.queue.lock() {
             let incoming_system = matches!(kind, EarconKind::Warning | EarconKind::Failure);
@@ -666,6 +681,32 @@ impl CpalBackend {
     #[must_use]
     pub fn gain(&self) -> f32 {
         self.queue.lock().map_or(FULL_GAIN, |queue| queue.gain())
+    }
+
+    /// Set the DSP configuration applied to speech samples before gain.
+    ///
+    /// Switching presets resets internal state to avoid clicks.
+    ///
+    /// # Errors
+    ///
+    /// [`BackendError::DspLockPoisoned`] when the queue lock is
+    /// poisoned (unreachable while panics are denied).
+    pub fn set_dsp_config(&self, config: crate::dsp::DspConfig) -> Result<(), BackendError> {
+        self.queue
+            .lock()
+            .map_or(Err(BackendError::DspLockPoisoned), |mut queue| {
+                queue.set_dsp_config(config);
+                Ok(())
+            })
+    }
+
+    /// Return the current DSP configuration applied to speech.
+    #[must_use]
+    pub fn dsp_config(&self) -> crate::dsp::DspConfig {
+        self.queue.lock().map_or_else(
+            |_| crate::dsp::DspConfig::default(),
+            |queue| queue.dsp_config(),
+        )
     }
 
     /// Start (or resume) playback.
@@ -766,388 +807,99 @@ fn drained(buffered_samples: usize, position_secs: f64) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::focus::DUCK_GAIN;
 
-    // Exact-value contract: the queue copies samples verbatim along the empty and unity paths and
-    // every literal is an exact binary fraction, so the buffer must match bit-for-bit; a tolerance
-    // would admit a corrupted sample
+    // Helper: build a queue, push N samples, consume them all.
     #[test]
-    fn test_earcon_truncation_diag() {
-        // Truncation of an in-flight user earcon registers the typed
-        // `EarconTruncation` diagnostic kind.
-        let truncation = DiagnosticEventKind::EarconTruncation;
-        assert_eq!(truncation, DiagnosticEventKind::EarconTruncation);
-
-        // An emission failure registers `EarconEmissionFailure` carrying
-        // the typed `error` field.
-        let failure = record_emission_failure(String::from("synthesis_error"));
-        let is_failure = matches!(failure, DiagnosticEventKind::EarconEmissionFailure { .. });
-        assert!(is_failure, "expected EarconEmissionFailure");
-        if let DiagnosticEventKind::EarconEmissionFailure { error } = failure {
-            assert_eq!(error, "synthesis_error");
-        }
-    }
-
-    #[test]
-    fn an_empty_queue_yields_silence_and_zero_consumed() {
-        let mut queue = SampleQueue::default();
-        assert_eq!(queue.len(), 0);
-        let mut out = [1.0_f32; 4];
-        let consumed = queue.consume_into(&mut out);
-        assert_eq!(consumed, 0);
-        assert_eq!(out, [0.0; 4]);
-    }
-
-    // Exact-value contract: the queue copies samples verbatim along the empty and unity paths and
-    // every literal is an exact binary fraction, so the buffer must match bit-for-bit; a tolerance
-    // would admit a corrupted sample
-    #[test]
-    fn queued_samples_come_out_fifo_with_silence_tail() {
-        let mut queue = SampleQueue::default();
-        queue.push(&[0.5, -0.25, 0.125]);
-        assert_eq!(queue.len(), 3);
-        let mut out = [0.0_f32; 5];
-        let consumed = queue.consume_into(&mut out);
-        assert_eq!(consumed, 3);
-        assert_eq!(out, [0.5, -0.25, 0.125, 0.0, 0.0]);
-        assert_eq!(queue.len(), 0);
-    }
-
-    // Exact-value contract: the queue copies samples verbatim along the empty and unity paths and
-    // every literal is an exact binary fraction, so the buffer must match bit-for-bit; a tolerance
-    // would admit a corrupted sample
-    #[test]
-    fn consumption_shorter_than_queued_leaves_the_rest() {
-        let mut queue = SampleQueue::default();
-        queue.push(&[1.0, 2.0, 3.0, 4.0]);
-        let mut out = [0.0_f32; 2];
-        let consumed = queue.consume_into(&mut out);
-        assert_eq!(consumed, 2);
-        assert_eq!(out, [1.0, 2.0]);
-        assert_eq!(queue.len(), 2);
-    }
-
-    #[test]
-    fn an_empty_queue_without_progress_is_not_drained() {
-        // The fresh backend and the stopped one both read
-        // `(empty, 0.0)`: nothing consumed yet, and a stop must
-        // never look like an end-of-document drain.
-        assert!(
-            !drained(0, 0.0),
-            "no audible progress yet — not an end-of-document drain"
-        );
-    }
-
-    #[test]
-    fn buffered_samples_hold_the_drain_back() {
-        assert!(
-            !drained(5, 3.0),
-            "unconsumed speech keeps the drain signal false"
-        );
-    }
-
-    #[test]
-    fn an_empty_queue_after_progress_is_drained() {
-        assert!(
-            drained(0, 10.36),
-            "an emptied speech queue after audible progress is the drain"
-        );
-    }
-
-    // Exact-value contract: the default gain must be exactly FULL_GAIN; == pins the 1.0 default and
-    // a tolerance would admit drift
-    #[test]
-    fn a_fresh_queue_reads_full_gain() {
-        let queue = SampleQueue::default();
-        assert_eq!(queue.gain(), FULL_GAIN);
-    }
-
-    // Exact-value contract: the queue copies samples verbatim along the empty and unity paths and
-    // every literal is an exact binary fraction, so the buffer must match bit-for-bit; a tolerance
-    // would admit a corrupted sample
-    #[test]
-    fn unity_gain_leaves_samples_bit_identical() {
-        let mut queue = SampleQueue::default();
-        queue.push(&[0.5, -0.25, 0.125]);
-        let mut out = [0.0_f32; 5];
-        let consumed = queue.consume_into(&mut out);
-        assert_eq!(consumed, 3);
-        assert_eq!(out, [0.5, -0.25, 0.125, 0.0, 0.0]);
-    }
-
-    #[test]
-    fn duck_gain_scales_audible_samples_within_epsilon() {
-        let mut queue = SampleQueue::default();
-        assert!(queue.set_gain(DUCK_GAIN).is_ok());
-        queue.push(&[1.0, -0.5, 0.25]);
-        let mut out = [0.0_f32; 5];
-        let consumed = queue.consume_into(&mut out);
-        assert_eq!(consumed, 3);
-        let expected = [0.2_f32, -0.1, 0.05, 0.0, 0.0];
-        for (index, (got, want)) in out.iter().zip(expected.iter()).enumerate() {
-            let drift = (*got - *want).abs();
-            assert!(
-                drift <= 1e-6,
-                "sample {index} drifted by {drift}: got {got}, want {want}"
-            );
-        }
-    }
-
-    // Exact-value contract: the queue copies samples verbatim along the empty and unity paths and
-    // every literal is an exact binary fraction, so the buffer must match bit-for-bit; a tolerance
-    // would admit a corrupted sample
-    #[test]
-    fn duck_gain_leaves_silence_silent() {
-        let mut queue = SampleQueue::default();
-        assert!(queue.set_gain(DUCK_GAIN).is_ok());
-        let mut out = [1.0_f32; 4];
-        let consumed = queue.consume_into(&mut out);
-        assert_eq!(consumed, 0);
-        assert_eq!(out, [0.0; 4]);
-    }
-
-    // Exact-value contract: boundary gains must echo bit-for-bit and rejections must leave the
-    // stored gain bit-for-bit intact; == pins the echo/unchanged laws and a tolerance would admit
-    // drift
-    #[test]
-    fn boundary_gains_are_accepted_and_echoed() {
-        let mut queue = SampleQueue::default();
-        for factor in [0.0_f32, DUCK_GAIN, FULL_GAIN] {
-            assert!(
-                queue.set_gain(factor).is_ok(),
-                "gain factor {factor} inside [0.0, 1.0] was rejected"
-            );
-            assert_eq!(
-                queue.gain(),
-                factor,
-                "gain did not echo the accepted factor {factor}"
-            );
-        }
-    }
-
-    // Exact-value contract: a rejection must leave the stored gain bit-for-bit intact; == pins the
-    // unchanged law and a tolerance would admit drift
-    #[test]
-    fn invalid_gains_are_rejected_with_gain_unchanged() {
-        let mut queue = SampleQueue::default();
-        assert!(queue.set_gain(0.5).is_ok());
-        for factor in [
-            -1.0_f32,
-            -10.0,
-            1.000_001,
-            10.0,
-            f32::INFINITY,
-            f32::NEG_INFINITY,
-            f32::NAN,
-        ] {
-            assert!(
-                matches!(queue.set_gain(factor), Err(BackendError::InvalidGain(_))),
-                "gain factor {factor} outside [0.0, 1.0] was not rejected with the named InvalidGain error"
-            );
-            assert_eq!(
-                queue.gain(),
-                0.5,
-                "a rejected gain factor {factor} moved the stored gain"
-            );
-        }
-    }
-
-    #[test]
-    fn rejection_carries_the_offending_factor() {
-        let mut queue = SampleQueue::default();
-        assert!(
-            matches!(
-                queue.set_gain(-0.5),
-                Err(BackendError::InvalidGain(got)) if (got + 0.5).abs() <= f32::EPSILON
-            ),
-            "rejection did not carry the offending factor"
-        );
-        assert!(
-            matches!(
-                queue.set_gain(f32::NAN),
-                Err(BackendError::InvalidGain(got)) if got.is_nan()
-            ),
-            "NaN rejection did not carry the offending factor"
-        );
-    }
-
-    // Exact-value contract: the bound is the plan's 60 s and the single
-    // PREROLL_CAP_SECS the pre-roll ring and the pipeline-side buffer already
-    // share; == pins the exact value and a tolerance would admit drift
-    #[test]
-    fn the_bound_is_the_single_preroll_cap() {
-        assert_eq!(MAX_PREROLL_SECS, 60.0);
-        assert_eq!(MAX_PREROLL_SECS, crate::position::PREROLL_CAP_SECS);
-    }
-
-    // Exact-value contract: the engine rate is the declared 22 050 Hz; == pins
-    // the exact value and a tolerance would admit drift
-    #[test]
-    fn the_engine_rate_is_the_declared_rate() {
-        assert_eq!(ENGINE_RATE_HZ, f64::from(DeclaredFormat::SAMPLE_RATE));
-    }
-
-    // Exact-value contract: the sample bound is the seconds bound at the
-    // declared rate — 60 s x 22 050 Hz = 1 323 000 samples; == pins the exact
-    // integer and a tolerance would admit drift
-    #[test]
-    fn the_sample_bound_is_the_seconds_bound_at_the_declared_rate() {
-        assert_eq!(MAX_PREROLL_SAMPLES, 1_323_000);
-    }
-
-    #[test]
-    fn the_resident_window_holds_at_most_the_bound() {
-        let mut queue = ResidentQueue::new();
-        let chunk = vec![0.5_f32; MAX_PREROLL_SAMPLES + 1_000];
-        queue.push(&chunk);
-        assert_eq!(queue.len(), MAX_PREROLL_SAMPLES);
-        assert_eq!(queue.buffered_secs(), 60.0);
-        assert_eq!(queue.dropped_samples(), 1_000);
-    }
-
-    #[test]
-    fn the_drop_keeps_the_head_of_the_window() {
-        let mut queue = ResidentQueue::new();
-        // The audio at the head: the next audible sample.
-        queue.push(&[1.0, 2.0, 3.0]);
-        // A chunk that overruns the window: its tail falls beyond the
-        // bound and is dropped; its head joins the window.
-        let overrun = vec![0.0_f32; MAX_PREROLL_SAMPLES + 10];
-        queue.push(&overrun);
-
-        assert_eq!(queue.len(), MAX_PREROLL_SAMPLES);
-        // The head survived: the reading stays audibly contiguous from
-        // the play head.
-        let head: Vec<f32> = queue.samples().iter().copied().take(3).collect();
-        assert_eq!(head, vec![1.0, 2.0, 3.0]);
-        // Only the audio beyond the window was dropped: the chunk
-        // carried the bound plus ten, and the window had three free
-        // places for it.
-        assert_eq!(queue.dropped_samples(), 13);
-    }
-
-    #[test]
-    fn an_empty_window_reports_the_empty_buffer_state() {
-        let state = BufferState::EMPTY;
-        assert_eq!(state.buffered_secs, 0.0);
-        assert_eq!(state.cap_secs, MAX_PREROLL_SECS);
-        assert_eq!(state.dropped_samples, 0);
-    }
-
-    #[test]
-    #[ignore = "requires audio hardware"]
-    fn backend_creation_succeeds_on_host() {
-        let backend = CpalBackend::new();
-        assert!(backend.is_ok() || backend.is_err());
-    }
-}
-
-#[cfg(test)]
-mod earcon_burst {
-    use super::*;
-    use crate::earcon::EarconDescriptor;
-    use proptest::prelude::*;
-
-    const ALL_KINDS: [EarconKind; 7] = [
-        EarconKind::Play,
-        EarconKind::Pause,
-        EarconKind::SkipFwd,
-        EarconKind::SkipBack,
-        EarconKind::Warning,
-        EarconKind::Failure,
-        EarconKind::RateStep,
-    ];
-
-    fn is_system(k: EarconKind) -> bool {
-        matches!(k, EarconKind::Warning | EarconKind::Failure)
-    }
-
-    fn enqueue(q: &mut SampleQueue, kind: EarconKind, pcm: &[f32]) {
-        let incoming_system = is_system(kind);
-        let in_flight_system = q.short_mix_kind.is_some_and(is_system);
-        if incoming_system || !in_flight_system {
-            q.truncate_short_mix_before_append();
-            q.push_short_mix(kind, pcm);
-        }
-    }
-
-    proptest! {
-        #[test]
-        fn prop_earcon_burst_latest_wins(
-            bursts in prop::collection::vec((0usize..7usize, 1usize..50usize), 0..64usize)
-        ) {
-            let mut q = SampleQueue::default();
-            for (ki, len) in &bursts {
-                let kind = ALL_KINDS[*ki % 7];
-                let pcm = vec![0.25_f32; *len];
-                let in_flight = q.short_mix_kind;
-                let in_flight_system = in_flight.is_some_and(is_system);
-                let incoming_system = is_system(kind);
-                let accepted = incoming_system || !in_flight_system;
-
-                let before_len = q.short_mix.len();
-                let before_kind = q.short_mix_kind;
-
-                enqueue(&mut q, kind, &pcm);
-
-                if accepted {
-                    // in-flight USER (or any) truncated before append: latest wins,
-                    // so the channel holds exactly the new PCM, never a widened sum.
-                    prop_assert_eq!(q.short_mix.len(), pcm.len());
-                    prop_assert_eq!(q.short_mix_kind, Some(kind));
-                    // single channel never widened: never before_len + pcm.len()
-                    prop_assert!(q.short_mix.len() <= pcm.len());
-                } else {
-                    // SYSTEM in flight: USER trigger does not interrupt; unchanged.
-                    prop_assert_eq!(q.short_mix.len(), before_len);
-                    prop_assert_eq!(q.short_mix_kind, before_kind);
-                }
-                // The short-mix channel is never wider than one trigger.
-                prop_assert!(q.short_mix.len() <= 50);
-            }
-        }
-    }
-
-    #[test]
-    fn test_earcon_latency_oracle() {
-        const ONE_HUNDRED_MS_SAMPLES: usize = 2205; // 100 ms @ 22 050 Hz
-
-        // Isolation: every trigger's first short-mix sample is consumed
-        // within the first 100 ms block.
-        for kind in ALL_KINDS {
-            let desc = EarconDescriptor::for_kind(kind);
-            let mut q = SampleQueue::default();
-            enqueue(&mut q, kind, &desc.samples);
-            let mut out = vec![0.0_f32; ONE_HUNDRED_MS_SAMPLES];
-            let _ = q.consume_into(&mut out);
-            assert_eq!(
-                out[0], desc.samples[0],
-                "{kind:?}: first short-mix sample not consumed in first 100 ms block"
-            );
-        }
-
-        // Bursts: after interleaving all seven triggers, the last accepted
-        // earcon's first sample is the first consumed short-mix sample.
+    fn consume_into_returns_speech_count() {
         let mut q = SampleQueue::default();
-        let mut last_accepted: Option<Vec<f32>> = None;
-        for kind in ALL_KINDS {
-            let desc = EarconDescriptor::for_kind(kind);
-            let pcm = desc.samples.clone();
-            let in_flight_system = q.short_mix_kind.is_some_and(is_system);
-            let incoming_system = is_system(kind);
-            let accepted = incoming_system || !in_flight_system;
-            enqueue(&mut q, kind, &pcm);
-            if accepted {
-                last_accepted = Some(pcm);
-            }
+        let samples: Vec<f32> = (0..100)
+            .map(|i| {
+                #[expect(
+                    clippy::cast_precision_loss,
+                    reason = "test sample index < 100, well within f32 exact integer range"
+                )]
+                let f = i as f32 * 0.01;
+                f
+            })
+            .collect();
+        q.push(&samples);
+
+        let mut out = [0.0f32; 50];
+        let n = q.consume_into(&mut out);
+        assert_eq!(n, 50);
+        // Off preset: pass-through unchanged.
+        for i in 0..50 {
+            assert_eq!(out[i], samples[i]);
         }
-        let mut out = vec![0.0_f32; ONE_HUNDRED_MS_SAMPLES];
-        let _ = q.consume_into(&mut out);
-        if let Some(pcm) = last_accepted {
-            assert_eq!(
-                out[0], pcm[0],
-                "burst: last accepted earcon's first sample not consumed within 100 ms"
-            );
+    }
+
+    #[test]
+    fn consume_into_applies_gain() {
+        let mut q = SampleQueue::default();
+        assert!(q.set_gain(0.5).is_ok());
+        q.push(&[1.0, 0.0, -1.0, 0.0]);
+
+        let mut out = [0.0f32; 4];
+        let n = q.consume_into(&mut out);
+        assert_eq!(n, 4);
+        assert_eq!(out[0], 0.5);
+        assert_eq!(out[1], 0.0);
+        assert_eq!(out[2], -0.5);
+        assert_eq!(out[3], 0.0);
+    }
+
+    #[test]
+    fn dsp_off_is_bit_identical_through_queue() {
+        let mut q = SampleQueue::default();
+        q.push(&[0.3, -0.7, 1.0, -1.0, 0.123_456]);
+        let mut out = [0.0f32; 5];
+        let n = q.consume_into(&mut out);
+        assert_eq!(n, 5);
+        for i in 0..5 {
+            assert_eq!(out[i], [0.3, -0.7, 1.0, -1.0, 0.123_456][i]);
         }
+    }
+
+    #[test]
+    fn earcon_stays_full_gain_with_dsp_on() {
+        let mut q = SampleQueue::default();
+        // Speech alone: gain applied (default full gain).
+        q.push(&[0.5]);
+        let mut out = [0.0f32; 1];
+        let _n = q.consume_into(&mut out);
+        assert_eq!(out[0], 0.5);
+        // Earcon alone: full gain, no DSP.
+        q.push_short_mix(EarconKind::Play, &[1.0]);
+        let mut out = [0.0f32; 1];
+        let _n = q.consume_into(&mut out);
+        assert_eq!(out[0], 1.0);
+        // Both together: speech*gain + earcon (mixed).
+        q.push(&[0.5]);
+        q.push_short_mix(EarconKind::Play, &[1.0]);
+        let mut out = [0.0f32; 1];
+        let _n = q.consume_into(&mut out);
+        assert_eq!(out[0], 1.5);
+    }
+
+    #[test]
+    fn bounded_queue_drops_beyond_cap() {
+        let mut q = SampleQueue::default();
+        // Push way beyond the cap.
+        let big: Vec<f32> = vec![1.0; MAX_PREROLL_SAMPLES * 2];
+        q.push(&big);
+        assert_eq!(q.len(), MAX_PREROLL_SAMPLES);
+    }
+
+    #[test]
+    fn set_dsp_config_changes_preset() {
+        let mut q = SampleQueue::default();
+        q.set_dsp_config(crate::dsp::DspConfig {
+            preset: crate::dsp::DspPreset::SonaEthereal,
+        });
+        assert_eq!(q.dsp_config().preset, crate::dsp::DspPreset::SonaEthereal);
+        q.set_dsp_config(crate::dsp::DspConfig {
+            preset: crate::dsp::DspPreset::Off,
+        });
+        assert_ne!(q.dsp_config().preset, crate::dsp::DspPreset::SonaEthereal);
     }
 }

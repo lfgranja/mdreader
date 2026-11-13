@@ -1,50 +1,27 @@
 //! The real `offline_default` synthesis engine — `sherpa-onnx`
-//! 1.13.8 driving the Piper pt-BR `faber` VITS voice
-//! (FR-024; `spec.md` Assumptions 1–2; Principle IX).
+//! 1.13.8 driving bundled Piper pt-BR VITS voices from the closed
+//! catalog (FR-024; spec 018; Principle IX).
 //!
-//! [`synthesize`] loads the embedded voice model exactly once (a
-//! `OnceLock`, not per call — the property tests synthesize
-//! hundreds of segments) and synthesizes each bounded
-//! [`DocumentSegment`] to mono `f32` at the declared 22 050 Hz.
-//! The voice assets are embedded in the repo
-//! (`assets/voices/pt_BR-faber-medium/`, CC0 — see
-//! `PROVENANCE.md`) and loaded through paths resolved at compile
-//! time from the voice asset dir — the compile-time
-//! `CARGO_MANIFEST_DIR` tree on hosts, or the runtime override
-//! set via [`set_asset_dir`] where assets ship packaged (Android);
-//! nothing is fetched from the
-//! network at synthesis time (Principle IX). The native library
-//! itself comes from `sherpa-onnx-sys`'s prebuilt static archive,
-//! which bundles ONNX Runtime, `espeak-ng` and
-//! `piper_phonemize` — no
-//! source build, and no `ort` (see the `ort` deviation record in
-//! `API_CONTRACT.md` §7).
+//! [`synthesize`] synthesizes each bounded [`DocumentSegment`] to
+//! mono `f32` at the declared 22 050 Hz using the active/default
+//! catalog voice. [`synthesize_with_voice`] synthesizes with an
+//! explicit [`VoiceId`].
+//!
+//! Voice assets are bundled under `assets/voices/<voice-id>/` with
+//! shared phonemizer data in `assets/voices/shared/espeak-ng-data/`.
+//! Paths resolve from the compile-time `CARGO_MANIFEST_DIR` tree on
+//! hosts, or from the runtime root set via [`set_voices_dir`] where
+//! assets ship packaged (Android). Nothing is fetched from the
+//! network at synthesis time (Principle IX).
 //!
 //! Every failure path fails closed through [`EngineFailure::report`]
 //! naming a member of the closed 7-member [`EngineError`] set
-//! (R2/R7; FR-035; SC-035):
-//!
-//! * voice model load/init/corruption, or an empty (corrupt)
-//!   synthesis result → [`FailureCondition::VoiceInitFailure`] →
-//!   [`EngineError::InitFailed`];
-//! * the engine process dying (killed/OOM) mid-generation →
-//!   [`FailureCondition::ProcessDeath`], or an input the C FFI
-//!   transport cannot carry → [`FailureCondition::
-//!   TransportUnreachable`], both → [`EngineError::Unreachable`];
-//! * a delivered rate deviating from 22 050 Hz →
-//!   [`FailureCondition::RateDeviation`] → [`EngineError::
-//!   RateMismatch`] — never a silent resample (FR-024b).
-//!
-//! The delivered PCM is verified with [`check_delivery`] against
-//! the declared mono-`f32`-at-22 050 Hz shape; any deviation names
-//! a closed-set member rather than being silently corrected. The
-//! `session_position` a failure carries is an echo of the segment's
-//! `resume_point` (falling back to its `source_range`) — never
-//! adapter-computed (segment-resume.md CHK030; the `player` is the
-//! sole playback authority, `constitution.md:486-490`).
+//! (R2/R7; FR-035; SC-035).
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::time::Instant;
 
 use sherpa_onnx::{
     GenerationConfig, OfflineTts, OfflineTtsConfig, OfflineTtsModelConfig,
@@ -60,8 +37,7 @@ use crate::format_check::{
 };
 use crate::normalize::{normalization_mode, normalize_for_speech};
 use crate::prosody::plan_for_segment;
-use std::sync::atomic::{AtomicU32, Ordering};
-use std::time::Instant;
+use crate::voice::{VoiceId, inference_defaults, spec as voice_spec};
 
 /// Active playback rate multiplier for synthesis, stored as `rate * 100` (e.g. 100 = 1.0x).
 /// Default is 100 (1.0x).
@@ -90,68 +66,207 @@ pub fn playback_rate() -> f32 {
     centis_f32 / 100.0
 }
 
-/// Runtime override for the voice asset directory.
+/// Runtime override for the bundled voices root directory.
 ///
-/// Hosts that cannot use the compile-time manifest path set this
-/// once at startup: on Android the voice files ship inside the APK
-/// and resolve through the Tauri resource dir, so the bridge calls
-/// this during setup before the first [`synthesize`]. The first
-/// call wins; later calls are ignored. Unset means the embedded
-/// `assets/voices/pt_BR-faber-medium/` tree beside
+/// Hosts that cannot use the compile-time manifest path set this once
+/// at startup: on Android the voice files ship inside the APK and are
+/// extracted to the app data dir, so the bridge calls this during setup
+/// before the first synthesis. The first call wins; later calls are
+/// ignored. Unset means the embedded `assets/voices/` tree beside
 /// `CARGO_MANIFEST_DIR` (host CLI, tests).
-pub fn set_asset_dir(dir: PathBuf) {
-    let _ignored = ASSET_DIR_OVERRIDE.set(dir);
+pub fn set_voices_dir(dir: PathBuf) {
+    let _ignored = VOICES_DIR_OVERRIDE.set(dir);
 }
 
-/// Override storage for [`set_asset_dir`].
-static ASSET_DIR_OVERRIDE: OnceLock<PathBuf> = OnceLock::new();
-
-/// The voice asset dir: the runtime override when set, else the
-/// compile-time manifest tree.
-fn asset_dir() -> PathBuf {
-    ASSET_DIR_OVERRIDE.get().cloned().unwrap_or_else(|| {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/voices/pt_BR-faber-medium")
-    })
-}
-
-/// The Piper `faber` VITS model — mono, 22 050 Hz, CC0
-/// (`MODEL_CARD`; blake3 recorded in `PROVENANCE.md`).
-fn model_path() -> PathBuf {
-    asset_dir().join("pt_BR-faber-medium.onnx")
-}
-
-/// The token map the `faber` model was trained with.
-fn tokens_path() -> PathBuf {
-    asset_dir().join("tokens.txt")
-}
-
-/// The espeak-ng data tree the Piper phonemizer resolves pt-BR
-/// phonemes against at synthesis time.
-fn espeak_data_dir() -> PathBuf {
-    asset_dir().join("espeak-ng-data")
-}
-
-/// Build the `sherpa-onnx` VITS configuration for the embedded
-/// `faber` voice. The inference parameters mirror the model's own
-/// `pt_BR-faber-medium.onnx.json` (`noise_scale` 0.667, `noise_w`
-/// 0.8, `length_scale` 1.0); `provider` stays `None` for the
-/// default ONNX Runtime execution provider.
+/// Backward-compatible alias for [`set_voices_dir`].
 ///
-/// `num_threads` is pinned to `1`: a single-threaded ONNX Runtime
-/// session is resource-predictable for an embedded offline engine —
-/// it spawns no uncontrolled per-session thread pool that would
-/// contend with the playback, focus and notification threads of the
-/// driving shell — and the pre-roll architecture (FR-015a) means
-/// synthesis runs ahead of real-time, so single-threaded inference
-/// keeps up comfortably within the 60 s pre-roll bound.
-fn voice_config() -> OfflineTtsConfig {
+/// Accepts either a voices-root directory (`.../voices`) or a legacy
+/// single-voice directory (`.../voices/pt_BR-faber-medium`) and
+/// normalizes to the voices root.
+pub fn set_asset_dir(dir: PathBuf) {
+    let root = normalize_voices_root(dir);
+    set_voices_dir(root);
+}
+
+/// Override storage for [`set_voices_dir`].
+static VOICES_DIR_OVERRIDE: OnceLock<PathBuf> = OnceLock::new();
+
+/// Optional model-path override for the active/default synthesis path.
+///
+/// Compatibility shim for out-of-tree voice bundles that provide a
+/// standalone `.onnx` with sibling `tokens.txt` and `espeak-ng-data/`.
+/// When set, the active voice engine is created from this path instead
+/// of the catalog voice directory. The first call wins.
+static MODEL_PATH_OVERRIDE: OnceLock<PathBuf> = OnceLock::new();
+
+/// Set a custom voice model ONNX path for synthesis.
+///
+/// Compatibility API: when a complete bundle (sibling `tokens.txt` and
+/// `espeak-ng-data/`) is supplied, this path is used for the active
+/// synthesis engine. Catalog voice selection APIs remain available.
+///
+/// The first call wins; later calls are ignored.
+pub fn set_model_path(path: PathBuf) {
+    let _ignored = MODEL_PATH_OVERRIDE.set(path);
+}
+
+/// Active voice id for [`synthesize`] (delegation target).
+/// Initialized once by the bridge/CLI; defaults to [`VoiceId::DEFAULT`].
+static ACTIVE_VOICE: OnceLock<VoiceId> = OnceLock::new();
+
+/// Set the active voice id used by [`synthesize`].
+///
+/// First call wins (startup seeding). Returns `true` if this call set
+/// the value.
+#[must_use]
+pub fn set_active_voice(voice: VoiceId) -> bool {
+    ACTIVE_VOICE.set(voice).is_ok()
+}
+
+/// Replace the active voice id for subsequent [`synthesize`] calls.
+///
+/// Returns the previous active voice (or default if unset).
+pub fn replace_active_voice(voice: VoiceId) -> VoiceId {
+    // ACTIVE_VOICE is OnceLock for startup seeding; runtime switches are
+    // tracked via atomic index so synthesis delegation follows the
+    // current selection without unsafe global mutation.
+    let prev = active_voice();
+    let idx = u32::try_from(voice.index()).unwrap_or_default();
+    ACTIVE_VOICE_INDEX.store(idx, Ordering::Release);
+    // Ensure startup-seeded state is initialized for callers that read
+    // ACTIVE_VOICE directly in future extensions.
+    let _ = ACTIVE_VOICE.set(prev);
+    prev
+}
+
+/// Runtime-active voice index (mirrors catalog index). Defaults to 0.
+static ACTIVE_VOICE_INDEX: AtomicU32 = AtomicU32::new(0);
+
+/// Returns the active voice id, defaulting to [`VoiceId::DEFAULT`].
+#[must_use]
+pub fn active_voice() -> VoiceId {
+    match ACTIVE_VOICE_INDEX.load(Ordering::Acquire) {
+        1 => VoiceId::PtBrCaduMedium,
+        _ => VoiceId::PtBrFaberMedium,
+    }
+}
+
+/// Normalize a caller-supplied path to the voices root.
+///
+/// Accepts `.../voices` or legacy `.../voices/<voice-id>` and returns
+/// the directory containing per-voice subdirectories.
+fn normalize_voices_root(dir: PathBuf) -> PathBuf {
+    if dir.file_name().and_then(|n| n.to_str()) == Some(VoiceId::PtBrFaberMedium.id())
+        || dir.file_name().and_then(|n| n.to_str()) == Some(VoiceId::PtBrCaduMedium.id())
+    {
+        return dir.parent().map(Path::to_path_buf).unwrap_or(dir);
+    }
+    dir
+}
+
+/// The bundled voices root: runtime override when set, else the
+/// compile-time manifest tree.
+#[must_use]
+pub fn voices_root() -> PathBuf {
+    VOICES_DIR_OVERRIDE
+        .get()
+        .cloned()
+        .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/voices"))
+}
+
+/// The directory for `voice` under the voices root.
+#[must_use]
+pub fn voice_dir(voice: VoiceId) -> PathBuf {
+    voices_root().join(voice_spec(voice).dir_name)
+}
+
+/// The ONNX model path for `voice`.
+#[must_use]
+pub fn model_path(voice: VoiceId) -> PathBuf {
+    let s = voice_spec(voice);
+    voice_dir(voice).join(s.onnx)
+}
+
+/// The token map path for `voice`.
+#[must_use]
+pub fn tokens_path(voice: VoiceId) -> PathBuf {
+    voice_dir(voice).join(voice_spec(voice).tokens)
+}
+
+/// The espeak-ng data directory for `voice`.
+///
+/// Prefers shared `shared/espeak-ng-data` under the voices root; falls
+/// back to a per-voice `espeak-ng-data` directory when present.
+#[must_use]
+pub fn espeak_data_dir(voice: VoiceId) -> PathBuf {
+    let shared = voices_root().join("shared").join("espeak-ng-data");
+    if shared.is_dir() {
+        return shared;
+    }
+    voice_dir(voice).join("espeak-ng-data")
+}
+
+/// Build the `sherpa-onnx` VITS configuration for `voice`.
+///
+/// Inference defaults come from the bundled `.onnx.json` contract via
+/// [`crate::voice::inference_defaults`]. `num_threads` is pinned to `1`
+/// for resource-predictable embedded synthesis.
+#[must_use]
+pub fn voice_config(voice: VoiceId) -> OfflineTtsConfig {
+    let inf = inference_defaults(voice);
     OfflineTtsConfig {
         model: OfflineTtsModelConfig {
             num_threads: 1,
             vits: OfflineTtsVitsModelConfig {
-                model: Some(model_path().to_string_lossy().into_owned()),
-                tokens: Some(tokens_path().to_string_lossy().into_owned()),
-                data_dir: Some(espeak_data_dir().to_string_lossy().into_owned()),
+                model: Some(model_path(voice).to_string_lossy().into_owned()),
+                tokens: Some(tokens_path(voice).to_string_lossy().into_owned()),
+                data_dir: Some(espeak_data_dir(voice).to_string_lossy().into_owned()),
+                noise_scale: inf.noise_scale,
+                noise_scale_w: inf.noise_scale_w,
+                length_scale: inf.length_scale,
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+        ..Default::default()
+    }
+}
+
+/// Per-voice lazily-constructed engines.
+///
+/// A failed load is cached as `None` for that voice slot: the cause is
+/// deterministic (missing/corrupt assets), so later calls re-report it
+/// with the *current* segment's echoed position.
+///
+/// Safety/compatibility note: if host validation shows `OfflineTts`
+/// cannot be safely held this way or causes resource issues, switch to
+/// recreate-on-switch single active engine (contingency A2). This
+/// implementation attempts per-voice cache first per plan.
+static ENGINE_FABER: OnceLock<Option<OfflineTts>> = OnceLock::new();
+static ENGINE_CADU: OnceLock<Option<OfflineTts>> = OnceLock::new();
+/// Custom/override engine (compatibility path for `set_model_path`).
+static ENGINE_CUSTOM: OnceLock<Option<OfflineTts>> = OnceLock::new();
+
+fn engine_slot(voice: VoiceId) -> &'static OnceLock<Option<OfflineTts>> {
+    match voice {
+        VoiceId::PtBrFaberMedium => &ENGINE_FABER,
+        VoiceId::PtBrCaduMedium => &ENGINE_CADU,
+    }
+}
+
+fn custom_voice_config(model: &Path) -> OfflineTtsConfig {
+    let tokens = model.with_file_name("tokens.txt");
+    let data_dir = model
+        .parent()
+        .unwrap_or_else(|| Path::new("."))
+        .join("espeak-ng-data");
+    OfflineTtsConfig {
+        model: OfflineTtsModelConfig {
+            num_threads: 1,
+            vits: OfflineTtsVitsModelConfig {
+                model: Some(model.to_string_lossy().into_owned()),
+                tokens: Some(tokens.to_string_lossy().into_owned()),
+                data_dir: Some(data_dir.to_string_lossy().into_owned()),
                 noise_scale: 0.667,
                 noise_scale_w: 0.8,
                 length_scale: 1.0,
@@ -163,68 +278,78 @@ fn voice_config() -> OfflineTtsConfig {
     }
 }
 
-/// The lazily-constructed engine. The model loads exactly once —
-/// not per call, so the property tests (which synthesize hundreds
-/// of segments) pay one load, not hundreds (T044). A failed load
-/// is cached as `None`: the cause is deterministic (missing or
-/// corrupt voice assets), so every later call re-reports it — with
-/// the *current* segment's echoed position, not the first call's.
-static ENGINE: OnceLock<Option<OfflineTts>> = OnceLock::new();
-
-/// The shared engine, loading the voice model on first use.
-/// `None` means the model failed to load.
-fn engine() -> Option<&'static OfflineTts> {
-    ENGINE
-        .get_or_init(|| OfflineTts::create(&voice_config()))
+/// The shared engine for `voice`, loading on first use.
+/// `None` means the model failed to load (cached failure).
+fn engine_for(voice: VoiceId) -> Option<&'static OfflineTts> {
+    // Compatibility: if a custom model path was set, prefer it for the
+    // active/default synthesis path (out-of-tree voice bundle).
+    if let Some(model) = MODEL_PATH_OVERRIDE.get()
+        && (voice == active_voice() || voice == VoiceId::DEFAULT)
+    {
+        return ENGINE_CUSTOM
+            .get_or_init(|| {
+                tracing::info!(
+                    target: "adapter_synthesis::synth",
+                    model = %model.display(),
+                    "loading custom voice engine override"
+                );
+                OfflineTts::create(&custom_voice_config(model))
+            })
+            .as_ref();
+    }
+    engine_slot(voice)
+        .get_or_init(|| {
+            tracing::info!(target: "adapter_synthesis::synth", voice = voice.id(), "loading voice engine");
+            OfflineTts::create(&voice_config(voice))
+        })
         .as_ref()
 }
 
-/// Synthesize one bounded segment to mono `f32` at the declared
-/// 22 050 Hz, through the embedded Piper pt-BR `faber` voice.
+/// Synthesize one bounded segment using the active/default voice.
 ///
-/// The engine is loaded once (see [`engine`]) and `segment.content`
-/// is synthesized with the VITS model. On success the delivered
-/// buffer is non-empty, mono, `f32`, at 22 050 Hz, and is verified
-/// against the declared handoff shape with [`check_delivery`]
-/// before it is returned — any deviation names a member of the
-/// closed [`EngineError`] set instead of being silently resampled
-/// or downmixed (FR-024b / SC-035).
+/// Delegates to [`synthesize_with_voice`] with [`active_voice`].
+///
+/// # Errors
+///
+/// See [`synthesize_with_voice`].
+pub fn synthesize(segment: &DocumentSegment) -> Result<Vec<f32>, EngineFailure> {
+    synthesize_with_voice(active_voice(), segment)
+}
+
+/// Synthesize one bounded segment to mono `f32` at the declared
+/// 22 050 Hz, through the requested bundled catalog voice.
 ///
 /// # Errors
 ///
 /// Always a named [`EngineFailure`] — never an empty or silent
 /// success (R2/R7):
 ///
-/// * [`FailureCondition::VoiceInitFailure`] → [`EngineError::
-///   InitFailed`] when the voice model fails to load, or when the
-///   engine yields an empty (corrupt) result for a non-empty
-///   segment;
-/// * [`FailureCondition::TransportUnreachable`] →
-///   [`EngineError::Unreachable`] when the segment text cannot be
-///   marshalled across the C FFI boundary (an interior NUL);
-/// * [`FailureCondition::ProcessDeath`] → [`EngineError::
-///   Unreachable`] when the engine process dies (killed/OOM)
-///   mid-generation;
-/// * [`FailureCondition::RateDeviation`] → [`EngineError::
-///   RateMismatch`] when the delivered rate is not 22 050 Hz.
+/// * [`FailureCondition::VoiceInitFailure`] → [`EngineError::InitFailed`]
+///   when the voice model fails to load, or when the engine yields an
+///   empty (corrupt) result for a non-empty segment;
+/// * [`FailureCondition::TransportUnreachable`] → [`EngineError::Unreachable`]
+///   when the segment text cannot be marshalled across the C FFI boundary;
+/// * [`FailureCondition::ProcessDeath`] → [`EngineError::Unreachable`]
+///   when the engine process dies (killed/OOM) mid-generation;
+/// * [`FailureCondition::RateDeviation`] → [`EngineError::RateMismatch`]
+///   when the delivered rate is not 22 050 Hz.
 ///
-/// The `session_position` the failure carries echoes the segment's
-/// `resume_point` (falling back to its `source_range`) — never
-/// adapter-computed (segment-resume.md CHK030).
-pub fn synthesize(segment: &DocumentSegment) -> Result<Vec<f32>, EngineFailure> {
-    let Some(tts) = engine() else {
+/// The `session_position` echoes the segment's `resume_point` (falling
+/// back to its `source_range`) — never adapter-computed.
+pub fn synthesize_with_voice(
+    voice: VoiceId,
+    segment: &DocumentSegment,
+) -> Result<Vec<f32>, EngineFailure> {
+    let Some(tts) = engine_for(voice) else {
         return Err(named_failure(
             FailureCondition::VoiceInitFailure,
             FailureCondition::VoiceInitFailure.detail(),
             segment,
         ));
     };
-    // The C FFI boundary is the engine's transport: a `&str` with
-    // an interior NUL cannot become a `CString`, so the engine is
-    // unreachable for this request. Refusing here keeps the
-    // named-failure-over-silence rule intact instead of letting the
-    // dependency panic on `CString::new` (R2/R7).
     let synth_start = Instant::now();
+    // The C FFI boundary is the engine's transport: a `&str` with an
+    // interior NUL cannot become a `CString`.
     if segment.content.contains('\0') {
         return Err(named_failure(
             FailureCondition::TransportUnreachable,
@@ -242,10 +367,9 @@ pub fn synthesize(segment: &DocumentSegment) -> Result<Vec<f32>, EngineFailure> 
             speed: effective_speed,
             ..GenerationConfig::default()
         },
-        // No progress callback: the whole buffer is returned
-        // at once. The concrete `fn`-pointer type satisfies
-        // the `FnMut(&[f32], f32) -> bool` bound so the
-        // generic `F` resolves (a bare `None` cannot).
+        // No progress callback: the whole buffer is returned at once.
+        // The concrete `fn`-pointer type satisfies the `FnMut(&[f32], f32) -> bool`
+        // bound so the generic `F` resolves (a bare `None` cannot).
         None::<fn(&[f32], f32) -> bool>,
     ) else {
         // The engine process died (killed/OOM) during generation.
@@ -256,10 +380,7 @@ pub fn synthesize(segment: &DocumentSegment) -> Result<Vec<f32>, EngineFailure> 
         ));
     };
     let samples = audio.samples();
-    // An empty result for a non-empty segment is a corrupt
-    // synthesis result — the silent-success defect mode this module
-    // exists to prevent. The delivery unit applies the same policy
-    // (audio_chunk.rs: an empty delivery is `InitFailed`).
+    // An empty result for a non-empty segment is a corrupt synthesis result.
     if samples.is_empty() {
         return Err(named_failure(
             FailureCondition::VoiceInitFailure,
@@ -268,17 +389,9 @@ pub fn synthesize(segment: &DocumentSegment) -> Result<Vec<f32>, EngineFailure> 
         ));
     }
     let sample_count = samples.len();
-    // The delivered rate, verified against the declared 22 050 Hz
-    // before the conformance gate: a deviation names `RateMismatch`
-    // with the observed rate, never a silent resample (FR-024b).
-    // The Piper `faber` model is mono at 22 050 Hz by construction,
-    // so the channel count (mono) and the width (`f32`, 32-bit) are
-    // type-level facts passed to the gate as declared.
     let delivered_rate = audio.sample_rate();
     let rate_hz = match u32::try_from(delivered_rate) {
         Ok(rate) if rate > 0 => rate,
-        // A non-positive rate is not a valid sample rate: the
-        // delivered shape deviates from the declared 22 050 Hz.
         Ok(_) => {
             return Err(named_failure(
                 FailureCondition::RateDeviation,
@@ -301,21 +414,13 @@ pub fn synthesize(segment: &DocumentSegment) -> Result<Vec<f32>, EngineFailure> 
             segment,
         ));
     }
-    // §6's duration derivation (data-model E2): the duration is
-    // DERIVED from the buffer's own length, never supplied. `f64`
-    // has no lossless `From<usize>`, so the cast is unavoidable —
-    // the identical computation the delivery unit performs
-    // (audio_chunk.rs) and the gate's own deviation comparison
-    // (format_check.rs) — sanctioned by API_CONTRACT.md §0.1 entry 4.
+    // §6's duration derivation (data-model E2): derived from buffer length, never supplied.
     #[expect(
         clippy::cast_precision_loss,
-        reason = "data-model E2 mandates deriving duration_ms as pcm_data.len() / rate_hz * 1000; f64 has no lossless From<usize>, so the usize -> f64 cast is unavoidable — the identical computation is frozen by the delivery-unit tests (tests/audio_chunk.rs:231-232, :516-518) and is measured against the half-sample band that format_check.rs:130-133 sanctions the same cast for; a >2^53-sample buffer (over 2.8 years of audio at 22 050 Hz) is unreachable in memory; sanctioned by API_CONTRACT.md §0.1 entry 4"
+        reason = "data-model E2 mandates deriving duration_ms as pcm_data.len() / rate_hz * 1000; f64 has no lossless From<usize>; unreachable buffer sizes (>2^53 samples) in practice; sanctioned by API_CONTRACT.md §0.1 entry 4"
     )]
     let duration_ms = sample_count as f64 / f64::from(rate_hz) * 1000.0;
-    // The authoritative conformance gate (FR-024b / SC-035): shape
-    // first, then the derived duration. With the rate, channel and
-    // width already verified this is the final fail-closed check —
-    // any refusal names a closed-set member, never a silent pass.
+    // The authoritative conformance gate (FR-024b / SC-035).
     if let Err(deviation) = check_delivery(
         rate_hz,
         DECLARED_CHANNELS,
@@ -328,6 +433,7 @@ pub fn synthesize(segment: &DocumentSegment) -> Result<Vec<f32>, EngineFailure> 
     }
     tracing::info!(
         target: "adapter_synthesis::synth",
+        voice = voice.id(),
         segment_index = segment.segment_index,
         samples = sample_count,
         duration_ms = %format!("{:.1}", duration_ms),
@@ -338,19 +444,7 @@ pub fn synthesize(segment: &DocumentSegment) -> Result<Vec<f32>, EngineFailure> 
 }
 
 /// The [`FailureCondition`] whose [`FailureCondition::variant`] is
-/// `error` — the inverse of the condition→variant table
-/// (`spec.md:86`), used to name the condition behind a
-/// [`check_delivery`] refusal.
-///
-/// [`check_delivery`] refuses with [`EngineError::RateMismatch`]
-/// for a rate/shape deviation — the width is a type-level `f32`
-/// fact and the channel count is mono by the model's construction,
-/// so [`EngineError::ChannelMismatch`] cannot arise from this call
-/// site — but the match is exhaustive over all seven members with
-/// no "unmapped" arm. `RateMismatch` inverts to
-/// [`FailureCondition::RateDeviation`], not `WidthDeviation` (the
-/// width is fixed by the `f32` type) or `PitchToleranceViolation`
-/// (a synthesis-parameter concern, not a delivered-format one).
+/// `error` — inverse of the condition→variant table (`spec.md:86`).
 #[must_use]
 const fn condition_for_format_error(error: EngineError) -> FailureCondition {
     match error {
@@ -368,17 +462,7 @@ const fn condition_for_format_error(error: EngineError) -> FailureCondition {
 /// [`EngineFailure::report`] so its bounds cannot be bypassed.
 ///
 /// The `session_position` echoes the segment's `resume_point`
-/// (falling back to its `source_range`) — never adapter-computed
-/// (segment-resume.md CHK030; the `player` is the sole playback
-/// authority, `constitution.md:486-490`).
-///
-/// The refusal arm is unreachable at runtime: `observed` is a
-/// fixed identifier or a short `key=value` pattern (well under the
-/// 200-char bound) and the offer is exactly [`MAX_OFFER_MS`]
-/// against the same bound (the refusal check is a strict `>`). It
-/// is still handled — the same named failure is reported with the
-/// same constants — so the named-failure-over-silence rule holds
-/// even in the impossible refusal world.
+/// (falling back to its `source_range`) — never adapter-computed.
 #[must_use]
 fn named_failure(
     condition: FailureCondition,
@@ -403,8 +487,7 @@ fn named_failure(
 
 /// The session position a failure echoes for `segment`: its
 /// `resume_point` when the segment declares one, else its own
-/// `source_range` — never adapter-computed (segment-resume.md
-/// CHK030; `constitution.md:486-490`).
+/// `source_range` — never adapter-computed.
 #[must_use]
 fn echoed_position(segment: &DocumentSegment) -> SourceRange {
     segment.resume_point.unwrap_or(segment.source_range)

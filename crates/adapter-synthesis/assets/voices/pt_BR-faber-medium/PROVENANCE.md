@@ -39,8 +39,9 @@ is embedded verbatim alongside the assets.
 | `pt_BR-faber-medium.onnx` | 63,201,428 | The VITS model (mono, 22,050 Hz). |
 | `pt_BR-faber-medium.onnx.json` | 4,855 | Model config — declares `audio.sample_rate = 22050`, `espeak.voice = "pt-br"`, `phoneme_type = "espeak"`, `num_symbols = 256`, `num_speakers = 1`, and the inference parameters (`noise_scale` 0.667, `noise_w` 0.8, `length_scale` 1). |
 | `tokens.txt` | 907 | The token map the model was trained with. |
-| `espeak-ng-data/` | 19 MiB (355 files, 37 directories) | The espeak-ng data tree the Piper phonemizer resolves pt-BR phonemes against at synthesis time (required at runtime by `sherpa-onnx`'s `piper_phonemize`/`espeak-ng` static libs). |
 | `MODEL_CARD` | 278 | The repository's model card (license + metadata), embedded for provenance. |
+
+Phonemizer data (spec 018): resolved via shared bundled `assets/voices/shared/espeak-ng-data/` (preferred for closed catalog; espeak voice `pt-br`). Copied from the validated faber voice tree on 2026-11-12 (355 files, ~19 MiB); per-voice fallback path accepted by runtime if needed.
 
 ## Integrity
 

@@ -9,10 +9,12 @@ adapter-synthesis::prop_format
 adapter-synthesis::prop_segmentation_shapes
 adapter-synthesis::prosody_invariants
 adapter-synthesis::prosody_unit
+adapter-synthesis::synth_voice
 adapter-synthesis::t045_adapter_observability_consumer
 adapter-synthesis::t059_prop_declare_fr024
 adapter-synthesis::unit_consume
 adapter-synthesis::unit_failure
+adapter-synthesis::voice_catalog
 diag::contract_schema
 diag::contract_schema_negative
 diag::contract_trace

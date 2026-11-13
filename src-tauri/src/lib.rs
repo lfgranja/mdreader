@@ -53,6 +53,7 @@ use diag::writer::{
 use engine_core::closed::SessionEnd;
 use player::backend::CpalBackend;
 use player::cli::{PlaybackSession, SessionSnapshot, ShellVerb};
+use player::dsp::DspPreset;
 use player::focus::FocusOutcome;
 use player::rate::RateStep;
 use player::surface::MirrorState;
@@ -287,6 +288,7 @@ pub struct AppState {
     /// 10.0 s from the chapter end, cancelled and purged on any manual
     /// skip or seek. Locked alone, never nested.
     pub(crate) chapter_preroll: Mutex<player::skip::NextChapterPreRoll>,
+    pub(crate) dsp_preset: Mutex<u8>,
 }
 
 impl std::fmt::Debug for AppState {
@@ -434,6 +436,7 @@ impl AppState {
             playback_watch: Mutex::new(PlaybackWatch::default()),
             chapter_queue: Mutex::new(None),
             chapter_preroll: Mutex::new(player::skip::NextChapterPreRoll::new()),
+            dsp_preset: Mutex::new(0u8),
         }
     }
 
@@ -899,6 +902,65 @@ fn persist_last_rate(state: &AppState, rate: PlaybackRate) {
         tracing::debug!("last rate persisted");
     }
     drop(store_guard);
+}
+/// Persist the last DSP preset (off=0, `sona_ethereal=1`), written on
+/// every preset change, crossing sessions and documents.
+///
+/// This is the store half of the DSP preset wiring — the
+/// write-on-change half: the call site (the shell, over the player
+/// DSP config) writes the preset byte every time it changes, and
+/// reads it back at the next session open through
+/// [`read_dsp_preset`]. The setting is document-independent (the
+/// `settings` table), so it survives a document change and a store
+/// reopen.
+///
+/// # Errors
+///
+/// [`Error::Storage`] when the write transaction cannot begin or
+/// commit. The error is logged as a warn and the call returns
+/// silently — the preset is a preference, never a failure of the
+/// control that set it.
+pub(crate) fn persist_dsp_preset(state: &AppState, preset: DspPreset) {
+    let Ok(mut store_guard) = state.bookmark_store.lock() else {
+        tracing::warn!("dsp preset not persisted: the store lock is poisoned");
+        return;
+    };
+    let Some(store) = store_guard.as_mut() else {
+        return; // the store never opened — the setting degrades to unpersisted
+    };
+    if let Err(error) = store.put_last_dsp_preset(preset as u8) {
+        tracing::warn!(%error, "dsp preset not persisted: the store write failed");
+    } else {
+        tracing::debug!("dsp preset persisted");
+    }
+    drop(store_guard);
+}
+
+/// Read the last DSP preset, or `Off` (0) on first use.
+///
+/// This is the read-at-start half: the call site reads it when a
+/// session opens and resolves the default (`Off`) once on the shell
+/// side.
+pub(crate) fn read_dsp_preset(state: &AppState) -> DspPreset {
+    let Ok(mut store_guard) = state.bookmark_store.lock() else {
+        tracing::warn!("dsp preset not read: the store lock is poisoned");
+        return DspPreset::Off;
+    };
+    let Some(store) = store_guard.as_mut() else {
+        return DspPreset::Off;
+    };
+    match store.get_last_dsp_preset() {
+        Ok(Some(0) | None) => DspPreset::Off,
+        Ok(Some(1)) => DspPreset::SonaEthereal,
+        Ok(Some(_other)) => {
+            tracing::warn!("unknown dsp preset value, defaulting to Off");
+            DspPreset::Off
+        }
+        Err(_error) => {
+            tracing::warn!("dsp preset not read: the store read failed");
+            DspPreset::Off
+        }
+    }
 }
 
 /// The direction and the number of one-rung rate presses
@@ -3091,6 +3153,7 @@ pub fn run() {
             playback_watch: Mutex::new(PlaybackWatch::default()),
             chapter_queue: Mutex::new(None),
             chapter_preroll: Mutex::new(player::skip::NextChapterPreRoll::new()),
+            dsp_preset: Mutex::new(0u8),
         })
         .setup(|app| {
             // Voice assets ship inside the APK: extract them to a
@@ -3099,27 +3162,90 @@ pub fn run() {
             #[cfg(target_os = "android")]
             {
                 if let Ok(data) = app.path().app_data_dir() {
-                    if let Ok(voice) = adapter_synthesis::android_assets::extract_voices(&data) {
-                        adapter_synthesis::synth::set_asset_dir(voice);
+                    if let Ok(voices_root) = adapter_synthesis::android_assets::extract_voices(&data) {
+                        adapter_synthesis::synth::set_voices_dir(voices_root);
                     }
                 }
             }
 
-            // Seed normalization mode from persisted settings (default Fluid).
+            // Configure Ressoa/override voice model before the first synthesis
+            // when a complete bundle is available. This must run before the
+            // synthesis engine's OnceLock initializes.
+            // Objective form: adapter_synthesis::synth::set_model_path(
+            //   PathBuf::from("sona_ethereal_ptbr.onnx")) when the bundle is
+            // resolved to that model path with sibling tokens.txt and
+            // espeak-ng-data.
             {
-                let state = app.state::<AppState>();
-                let fluid = state
-                    .bookmark_store
-                    .lock()
-                    .ok()
-                    .and_then(|mut guard| guard.as_mut()?.get_normalization_mode().ok().flatten())
-                    .unwrap_or(true);
-                let mode = if fluid {
-                    adapter_synthesis::normalize::NormalizationMode::Fluid
-                } else {
-                    adapter_synthesis::normalize::NormalizationMode::Literal
-                };
-                adapter_synthesis::normalize::set_normalization_mode(mode);
+                let explicit = std::env::var_os("MDREADER_VOICE_MODEL_PATH")
+                    .or_else(|| std::env::var_os("PIPER_MODEL_PATH"))
+                    .or_else(|| std::env::var_os("RESSOA_MODEL_PATH"))
+                    .map(std::path::PathBuf::from);
+                let mut model: Option<std::path::PathBuf> = None;
+                if let Some(path) = explicit {
+                    if path.is_file()
+                        && path
+                            .extension()
+                            .and_then(|ext| ext.to_str())
+                            .is_some_and(|ext| ext.eq_ignore_ascii_case("onnx"))
+                    {
+                        model = Some(path);
+                    } else if path.is_dir() {
+                        let named = path.join("sona_ethereal_ptbr.onnx");
+                        if named.is_file() {
+                            model = Some(named);
+                        } else if let Ok(entries) = std::fs::read_dir(&path) {
+                            for entry in entries.flatten() {
+                                let candidate = entry.path();
+                                if candidate
+                                    .extension()
+                                    .and_then(|ext| ext.to_str())
+                                    .is_some_and(|ext| ext.eq_ignore_ascii_case("onnx"))
+                                {
+                                    model = Some(candidate);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                if model.is_none()
+                    && let Ok(data_dir) = app.path().app_data_dir()
+                {
+                    for candidate in [
+                        data_dir
+                            .join("voices")
+                            .join("sona_ethereal_ptbr")
+                            .join("sona_ethereal_ptbr.onnx"),
+                        data_dir
+                            .join("voices")
+                            .join("pt_BR-sona-ethereal")
+                            .join("sona_ethereal_ptbr.onnx"),
+                        data_dir.join("sona_ethereal_ptbr.onnx"),
+                    ] {
+                        if candidate.is_file() {
+                            model = Some(candidate);
+                            break;
+                        }
+                    }
+                }
+                if let Some(model_path) = model {
+                    let has_tokens = model_path.with_file_name("tokens.txt").is_file();
+                    let has_espeak = model_path
+                        .parent()
+                        .is_some_and(|parent| parent.join("espeak-ng-data").is_dir());
+                    if has_tokens && has_espeak {
+                        tracing::info!(
+                            model = %model_path.display(),
+                            "configuring Ressoa/override voice model before first synthesis"
+                        );
+                        adapter_synthesis::synth::set_model_path(model_path);
+                    } else {
+                        tracing::warn!(
+                            model = %model_path.display(),
+                            "voice model override found but missing sibling tokens.txt or espeak-ng-data; keeping default voice"
+                        );
+                    }
+                }
             }
 
             // Get the AppState for bookmark store initialization and permission gate
@@ -3148,6 +3274,73 @@ pub fn run() {
             };
             if let Ok(mut guard) = app_state.bookmark_store.lock() {
                 *guard = store_for_app;
+            }
+
+            // Seed normalization mode from persisted settings (default Fluid).
+            {
+                let state = app.state::<AppState>();
+                let fluid = state
+                    .bookmark_store
+                    .lock()
+                    .ok()
+                    .and_then(|mut guard| guard.as_mut()?.get_normalization_mode().ok().flatten())
+                    .unwrap_or(true);
+                let mode = if fluid {
+                    adapter_synthesis::normalize::NormalizationMode::Fluid
+                } else {
+                    adapter_synthesis::normalize::NormalizationMode::Literal
+                };
+                adapter_synthesis::normalize::set_normalization_mode(mode);
+            }
+
+            // Seed DSP preset from persisted settings (default Off).
+            {
+                let state = app.state::<AppState>();
+                let preset = read_dsp_preset(&state);
+                if let Ok(mut backend_guard) = state.backend.lock()
+                    && let Some(backend) = backend_guard.as_mut()
+                {
+                    let _ = backend.set_dsp_config(player::dsp::DspConfig { preset });
+                }
+                if let Ok(mut guard) = state.dsp_preset.lock() {
+                    *guard = preset as u8;
+                }
+            }
+
+            // Seed bundled voice catalog root and active voice selection (spec 018).
+            {
+                let state = app.state::<AppState>();
+                // Host/dev: resolve voices root from resource dir or compile-time assets.
+                if let Ok(resource_dir) = app.path().resource_dir() {
+                    let candidate = resource_dir.join("voices");
+                    if candidate.is_dir() {
+                        adapter_synthesis::synth::set_voices_dir(candidate);
+                    }
+                }
+                if !adapter_synthesis::synth::voices_root()
+                    .join(adapter_synthesis::voice::VoiceId::DEFAULT.id())
+                    .join("pt_BR-faber-medium.onnx")
+                    .is_file()
+                {
+                    // Fallback to compile-time bundled assets for dev/test runs.
+                    let dev = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                        .parent()
+                        .unwrap_or_else(|| std::path::Path::new("."))
+                        .join("crates/adapter-synthesis/assets/voices");
+                    if dev.is_dir() {
+                        adapter_synthesis::synth::set_voices_dir(dev);
+                    }
+                }
+                let seeded = state
+                    .bookmark_store
+                    .lock()
+                    .ok()
+                    .and_then(|mut guard| guard.as_mut()?.get_last_voice().ok().flatten())
+                    .and_then(|id| adapter_synthesis::voice::VoiceId::parse_id(&id).ok())
+                    .unwrap_or(adapter_synthesis::voice::VoiceId::DEFAULT);
+                let _ = adapter_synthesis::synth::set_active_voice(seeded);
+                let _ = adapter_synthesis::synth::replace_active_voice(seeded);
+                tracing::info!(voice = seeded.id(), "voice selection seeded");
             }
             // The diagnostic record (T097, FR-017): the private,
             // on-device JSONL trace, opened in the app's own data
@@ -3262,10 +3455,14 @@ pub fn run() {
             commands::run_mobile_plugin,
             commands::update_permissions,
             commands::get_status_view,
+            commands::get_voice,
+            commands::set_voice,
             commands::session_delete,
             commands::offer_route,
             commands::open_document,
             commands::set_normalization_mode,
+            commands::set_dsp_preset,
+            commands::get_dsp_preset,
             publish::register_publish_listener,
             publish::register_rms_listener,
             publish::set_rms_visibility,
@@ -3282,10 +3479,7 @@ pub mod commands {
     use std::sync::atomic::Ordering;
 
     use super::permissions::{self, PermissionSnapshot};
-    use super::{
-        AppState, CpalBackend, DocumentSection, LoadedDocument, OpenError, PlaybackSession,
-        Production, producer,
-    };
+    use super::{AppState, DocumentSection, LoadedDocument, OpenError, Production, producer};
     use crate::{
         DEFAULT_DOCUMENT_FILENAME, OfferRoute, after_background, after_execute, after_skip,
         delete_bookmark, diag_error_cause, diag_error_of, diag_focus_name, diag_focus_value,
@@ -3300,7 +3494,7 @@ pub mod commands {
     use diag::writer::{DeviceDirection, DeviceEvent, ErrorValue, FocusValue};
     use std::collections::VecDeque;
 
-    use player::cli::{SessionSnapshot, ShellVerb};
+    use player::cli::{PlaybackSession, SessionSnapshot, ShellVerb};
     use player::focus::{FocusClassification, FocusIntent, FocusOutcome};
     use player::rate::RateStepper;
     use player::routing::{RoutingDecision, RoutingSignal, RoutingTracker};
@@ -4388,6 +4582,10 @@ pub mod commands {
     /// persistence is exercisable on the host (a `State`
     /// handle cannot be constructed outside a running Tauri
     /// app), never as a second dispatch.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "closed live-control dispatch must remain one exhaustive function per repo convention"
+    )]
     pub(crate) fn execute_live_control(
         state: &AppState,
         verb: ShellVerb,
@@ -4438,6 +4636,61 @@ pub mod commands {
                 }));
             }
         }
+        // Voice cycle (spec 018): deterministic catalog step, persist, publish,
+        // and safe restart-on-change when playback/production is active.
+        if matches!(verb, ShellVerb::CycleVoiceNext | ShellVerb::CycleVoicePrev) {
+            // Validate legality through the session's closed transition table.
+            {
+                let mut session = state.session.lock().map_err(|e| e.to_string())?;
+                let _ = session.execute(verb).map_err(|e| e.to_string())?;
+            }
+            let transport = state
+                .session
+                .lock()
+                .map(|s| s.snapshot().transport)
+                .map_err(|e| e.to_string())?;
+            let resume_secs = state
+                .session
+                .lock()
+                .map(|s| s.snapshot().position_secs)
+                .map_err(|e| e.to_string())?;
+            let current = adapter_synthesis::synth::active_voice();
+            let next = if verb == ShellVerb::CycleVoiceNext {
+                current.next()
+            } else {
+                current.prev()
+            };
+            let _previous = adapter_synthesis::synth::replace_active_voice(next);
+            {
+                let mut store_guard = state.bookmark_store.lock().map_err(|e| e.to_string())?;
+                if let Some(store) = store_guard.as_mut() {
+                    store
+                        .put_last_voice(next.id())
+                        .map_err(|e| format!("voice persistence failed: {e}"))?;
+                }
+            }
+            let _ = invalidate_production_generation(state);
+            stop_backend(state);
+            if transport == TransportState::Playing {
+                // Safe restart-on-change: invalidate stale generation/production and
+                // re-synthesize from authoritative resume position in new voice.
+                // reanchor_at resets session and lands Playing through the same path.
+                reanchor_at(state, resume_secs).map_err(|e| e.to_string())?;
+            } else if let Ok(mut prod) = state.production.lock() {
+                // Paused/Interrupted: drop stale queued/produced audio so resume
+                // never mixes voices; keep transport/position for next resume.
+                *prod = None;
+            }
+            publish_current_state(state, None);
+            let snapshot = state.session.lock().map_err(|e| e.to_string())?.snapshot();
+            return Ok(serde_json::json!({
+                "status": snapshot.transport.to_string(),
+                "position_secs": snapshot.position_secs,
+                "transport": snapshot.transport.to_string(),
+                "voice": next.id(),
+            }));
+        }
+
         let (snapshot, previous_rate) = {
             let mut session = state.session.lock().map_err(|e| e.to_string())?;
             let previous_rate = session.snapshot().rate;
@@ -5999,9 +6252,17 @@ pub mod commands {
             reason: error.to_string(),
         })?;
         if backend.is_none() {
-            let opened = CpalBackend::new().map_err(|error| OpenError::Backend {
-                reason: error.to_string(),
-            })?;
+            let opened =
+                player::backend::CpalBackend::new().map_err(|error| OpenError::Backend {
+                    reason: error.to_string(),
+                })?;
+            if let Ok(preset_u8) = state.dsp_preset.lock() {
+                let preset = match *preset_u8 {
+                    1 => player::dsp::DspPreset::SonaEthereal,
+                    _ => player::dsp::DspPreset::Off,
+                };
+                let _ = opened.set_dsp_config(player::dsp::DspConfig { preset });
+            }
             *backend = Some(opened);
         }
         drop(backend);
@@ -6362,42 +6623,72 @@ pub mod commands {
         }))
     }
 
-    /// Report the packaged voice-asset state: the resolved resource
-    /// dir and whether each required file is present. Read-only;
-    /// never touches playback.
+    /// Report catalog-aware packaged voice-asset state (spec 018).
+    /// Read-only; never touches playback.
     fn diagnose(app: &AppHandle) -> serde_json::Value {
+        use adapter_synthesis::voice::VoiceId;
         let resource_dir = app.path().resource_dir().map_or_else(
             |e| format!("unresolvable: {e}"),
             |path| path.to_string_lossy().into_owned(),
         );
-        let voice = app
-            .path()
-            .resource_dir()
-            .map(|dir| dir.join("voices").join("pt_BR-faber-medium"))
-            .unwrap_or_default();
-        let data_voice = app
+        let app_data_dir = app
             .path()
             .app_data_dir()
-            .map(|dir| dir.join("voices").join("pt_BR-faber-medium"))
+            .map(|p| p.to_string_lossy().into_owned())
             .unwrap_or_default();
+        let voices_root = adapter_synthesis::synth::voices_root();
+        let active = adapter_synthesis::synth::active_voice();
+        let voices: Vec<serde_json::Value> = VoiceId::CATALOG
+            .iter()
+            .copied()
+            .map(|voice| {
+                let s = adapter_synthesis::voice::spec(voice);
+                let dir = voices_root.join(s.dir_name);
+                let (files_total, espeak_is_dir, espeak_files, onnx_bytes) = inventory(&dir);
+                let shared_espeak = voices_root.join("shared").join("espeak-ng-data");
+                let effective_espeak_is_dir = espeak_is_dir || shared_espeak.is_dir();
+                serde_json::json!({
+                    "id": s.voice_id.id(),
+                    "label": s.label,
+                    "default": voice == VoiceId::DEFAULT,
+                    "active": voice == active,
+                    "present": dir.join(s.onnx).is_file() && dir.join(s.tokens).is_file(),
+                    "model_present": dir.join(s.onnx).is_file(),
+                    "tokens_present": dir.join(s.tokens).is_file(),
+                    "provenance_present": dir.join(s.provenance).is_file(),
+                    "espeak_present": effective_espeak_is_dir,
+                    "files_total": files_total,
+                    "espeak_files": espeak_files,
+                    "onnx_bytes": onnx_bytes,
+                })
+            })
+            .collect();
+        let faber_dir = voices_root.join("pt_BR-faber-medium");
         let (data_files, data_espeak_is_dir, data_espeak_files, data_onnx_bytes) =
-            inventory(&data_voice);
+            inventory(&faber_dir);
+        let shared_espeak = voices_root.join("shared").join("espeak-ng-data");
         serde_json::json!({
             "resource_dir": resource_dir,
-            "model_present": voice.join("pt_BR-faber-medium.onnx").exists(),
-            "tokens_present": voice.join("tokens.txt").exists(),
-            "espeak_present": voice.join("espeak-ng-data").exists(),
-            "data_model_present": data_voice.join("pt_BR-faber-medium.onnx").exists(),
-            "data_tokens_present": data_voice.join("tokens.txt").exists(),
+            "app_data_dir": app_data_dir,
+            "voices_root": voices_root.to_string_lossy(),
+            "active_voice": active.id(),
+            "default_voice": VoiceId::DEFAULT.id(),
+            "voices": voices,
+            // Backward-compatible legacy fields (faber-centric).
+            "model_present": faber_dir.join("pt_BR-faber-medium.onnx").exists(),
+            "tokens_present": faber_dir.join("tokens.txt").exists(),
+            "espeak_present": faber_dir.join("espeak-ng-data").is_dir() || shared_espeak.is_dir(),
+            "data_model_present": faber_dir.join("pt_BR-faber-medium.onnx").exists(),
+            "data_tokens_present": faber_dir.join("tokens.txt").exists(),
             "data_files_total": data_files,
-            "data_espeak_is_dir": data_espeak_is_dir,
+            "data_espeak_is_dir": data_espeak_is_dir || shared_espeak.is_dir(),
             "data_espeak_files": data_espeak_files,
             "data_onnx_bytes": data_onnx_bytes,
         })
     }
 
-    /// Count the extracted tree: total files, whether espeak-ng-data
-    /// is a real dir, files inside it, and the model byte size.
+    /// Count files in a voice directory: total files, whether local espeak
+    /// data dir exists, files inside it, and the model byte size.
     /// Read-only; capped so a huge tree cannot stall IPC.
     fn inventory(voice: &std::path::Path) -> (usize, bool, usize, u64) {
         let mut total = 0;
@@ -6418,9 +6709,16 @@ pub mod commands {
         }
         let espeak = voice.join("espeak-ng-data");
         let espeak_is_dir = espeak.is_dir();
-        let espeak_files = std::fs::read_dir(&espeak).map_or(0, std::iter::Iterator::count);
-        let onnx_bytes =
-            std::fs::metadata(voice.join("pt_BR-faber-medium.onnx")).map_or(0, |meta| meta.len());
+        let espeak_files = if espeak_is_dir {
+            std::fs::read_dir(&espeak).map_or(0, std::iter::Iterator::count)
+        } else {
+            0
+        };
+        let onnx_name = voice.file_name().and_then(|n| n.to_str()).map_or_else(
+            || "pt_BR-faber-medium.onnx".to_string(),
+            |name| format!("{name}.onnx"),
+        );
+        let onnx_bytes = std::fs::metadata(voice.join(onnx_name)).map_or(0, |meta| meta.len());
         (total, espeak_is_dir, espeak_files, onnx_bytes)
     }
 
@@ -6496,6 +6794,80 @@ pub mod commands {
             reason,
             fingerprint,
         ))
+    }
+
+    /// Get the active/default/available voice catalog state (spec 018).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string when a state lock is poisoned.
+    #[command]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "Tauri's CommandArg extractor is implemented for State by value; &State is not a supported command parameter"
+    )]
+    pub fn get_voice(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+        use adapter_synthesis::voice::VoiceId;
+        let active = adapter_synthesis::synth::active_voice();
+        let _ = state; // state reserved for future parity checks
+        let voices: Vec<serde_json::Value> = VoiceId::CATALOG
+            .iter()
+            .copied()
+            .map(|voice| {
+                let s = adapter_synthesis::voice::spec(voice);
+                let dir = adapter_synthesis::synth::voice_dir(voice);
+                serde_json::json!({
+                    "id": s.voice_id.id(),
+                    "label": s.label,
+                    "default": voice == VoiceId::DEFAULT,
+                    "active": voice == active,
+                    "present": dir.join(s.onnx).is_file() && dir.join(s.tokens).is_file(),
+                })
+            })
+            .collect();
+        Ok(serde_json::json!({
+            "active_voice": active.id(),
+            "default_voice": VoiceId::DEFAULT.id(),
+            "voices": voices,
+        }))
+    }
+
+    /// Set the active catalog voice and persist it (spec 018).
+    ///
+    /// Unknown ids are rejected (no silent remap). Safe restart-on-change
+    /// for active playback is handled by cycle/live-control paths; this
+    /// command updates selection for subsequent synthesis/production.
+    ///
+    /// # Errors
+    ///
+    /// Returns a named refusal string for unknown ids or poisoned locks.
+    #[command]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "Tauri's CommandArg extractor is implemented for State by value; &State is not a supported command parameter"
+    )]
+    pub fn set_voice(
+        voice: String,
+        state: State<'_, AppState>,
+    ) -> Result<serde_json::Value, String> {
+        use adapter_synthesis::voice::VoiceId;
+        let parsed =
+            VoiceId::parse_id(&voice).map_err(|e| format!("voice selection refused: {e}"))?;
+        let _previous = adapter_synthesis::synth::replace_active_voice(parsed);
+        {
+            let mut store_guard = state.bookmark_store.lock().map_err(|e| e.to_string())?;
+            if let Some(store) = store_guard.as_mut() {
+                store
+                    .put_last_voice(parsed.id())
+                    .map_err(|e| format!("voice persistence failed: {e}"))?;
+            }
+        }
+        publish_current_state(state.inner(), None);
+        Ok(serde_json::json!({
+            "active_voice": parsed.id(),
+            "default_voice": VoiceId::DEFAULT.id(),
+            "persisted": true,
+        }))
     }
 
     /// Delete the session bookmark for a fingerprint (Stop control).
@@ -6625,6 +6997,61 @@ pub mod commands {
             let _ = store.put_normalization_mode(fluid);
         }
         Ok(())
+    }
+    /// Set the DSP preset (`off/sona_ethereal`) and persist it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string only if the preset is unknown or a
+    /// state lock is poisoned.
+    #[command]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "Tauri's CommandArg extractor is implemented for State by value"
+    )]
+    pub fn set_dsp_preset(preset: String, state: State<'_, AppState>) -> Result<(), String> {
+        let dsp_preset = match preset.as_str() {
+            "off" => super::DspPreset::Off,
+            "sona_ethereal" => super::DspPreset::SonaEthereal,
+            other => {
+                return Err(format!("unknown DSP preset '{other}'"));
+            }
+        };
+        super::persist_dsp_preset(&state, dsp_preset);
+        if let Ok(mut backend_guard) = state.backend.lock()
+            && let Some(backend) = backend_guard.as_mut()
+        {
+            let _ = backend.set_dsp_config(player::dsp::DspConfig { preset: dsp_preset });
+        }
+        if let Ok(mut guard) = state.dsp_preset.lock() {
+            *guard = dsp_preset as u8;
+        }
+        Ok(())
+    }
+
+    /// Get the current DSP preset.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string only if a state lock is poisoned.
+    #[command]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "Tauri's CommandArg extractor is implemented for State by value"
+    )]
+    pub fn get_dsp_preset(state: State<'_, AppState>) -> Result<String, String> {
+        let preset = *state.dsp_preset.lock().map_err(|e| e.to_string())?;
+        Ok(match preset {
+            0 => "off".to_string(),
+            1 => "sona_ethereal".to_string(),
+            other => {
+                tracing::warn!(
+                    preset = other,
+                    "unknown dsp preset value, defaulting to off"
+                );
+                "off".to_string()
+            }
+        })
     }
 }
 

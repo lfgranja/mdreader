@@ -30,7 +30,8 @@
       "minSdkVersion": 29
     },
     "resources": {
-      "../crates/adapter-synthesis/assets/voices": "voices"
+      "../crates/adapter-synthesis/assets/voices": "voices",
+      "../assets/samples/bem-vindo-ao-ressoa.md": "welcome.md"
     }
   }
 }

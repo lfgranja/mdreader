@@ -23,18 +23,19 @@ pub mod format_check;
 pub mod normalize;
 pub mod prosody;
 pub mod reg;
+pub mod router;
 pub mod synth;
 pub mod voice;
 
-/// The tier this adapter registers at: `OfflineDefault` only.
-///
-/// The sole selectable tier at v1 (`contracts/adapter-handoff.md`
-/// §6.1; SC-051). The `test_double` stand-ins (`engine_core::standin_a` /
-/// `standin_b`) are fixtures and are never selectable while this
-/// non-`test_double` adapter is registered (`closed.rs`:398-406).
+//! The tier this adapter registers at: `OfflineDefault` only.
+//!
+// The sole selectable tier at v1 (`contracts/adapter-handoff.md`
+//! The sole selectable tier at v1 (`contracts/adapter-handoff.md`
+// `standin_b`) are fixtures and are never selectable while this
+// non-`test_double` adapter is registered (`closed.rs`:398-406).
 pub const REGISTERED_TIER: EngineTier = EngineTier::OfflineDefault;
 
-/// Declared adapter capabilities (FR-024c).
+// Declared adapter capabilities (FR-024c).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AdapterCapabilities {
     /// SSML level (`None` for the v1 `offline_default` adapter).
@@ -44,17 +45,17 @@ pub struct AdapterCapabilities {
 }
 
 /// Unconditional capability declaration (constitution.md:304-305 /
-/// FR-024c; contracts/adapter-capabilities.md §2).
-///
-/// Option A (v1): the adapter is `offline_default` only, so it
-/// declares `(SsmlLevel::None, AlignmentGranularity::None)` —
-/// plain-text delivery and paragraph/heading resume —
-/// unconditionally, with no engine state and before any chunk is
-/// split or synthesized. The declaration is a constant of the
-/// adapter contract: no input, document, or operation can change
-/// it, and callers branch on it explicitly (never silently
-/// inferring SSML presence or sentence-level alignment;
-/// Principle VI).
+// FR-024c; contracts/adapter-capabilities.md §2).
+//
+// Option A (v1): the adapter is `offline_default` only, so it
+// declares `(SsmlLevel::None, AlignmentGranularity::None)` —
+// plain-text delivery and paragraph/heading resume —
+// unconditionally, with no engine state and before any chunk is
+// split or synthesized. The declaration is a constant of the
+// adapter contract: no input, document, or operation can change
+// it, and callers branch on it explicitly (never silently
+// inferring SSML presence or sentence-level alignment;
+// Principle VI).
 #[must_use]
 pub const fn declared_capabilities() -> AdapterCapabilities {
     AdapterCapabilities {

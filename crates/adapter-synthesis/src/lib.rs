@@ -24,6 +24,7 @@ pub mod normalize;
 pub mod prosody;
 pub mod reg;
 pub mod synth;
+pub mod voice;
 
 /// The tier this adapter registers at: `OfflineDefault` only.
 ///
@@ -73,4 +74,12 @@ pub use crate::normalize::{
     NormalizationMode, normalization_mode, normalize_for_speech, set_normalization_mode,
 };
 pub use crate::prosody::{ProsodyPlan, plan_for_segment};
-pub use crate::synth::{playback_rate, set_playback_rate};
+pub use crate::synth::{
+    active_voice, playback_rate, replace_active_voice, set_active_voice, set_asset_dir,
+    set_model_path, set_playback_rate, set_voices_dir, synthesize, synthesize_with_voice,
+    voices_root,
+};
+pub use crate::voice::{
+    InferenceDefaults, ParseVoiceIdError, VoiceId, VoiceSpec, inference_defaults,
+    spec as voice_spec,
+};

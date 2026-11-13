@@ -1,27 +1,25 @@
 //! Android voice-asset extraction (Android-only).
 //!
 //! Voice files ship inside the APK under `assets/voices/...`, where
-//! the synthesis engine cannot open them by path: the Tauri resource
-//! dir resolves to an `asset://` URL, not a filesystem location. On
-//! first startup this module copies the tree through the platform
-//! `AssetManager` into the app data dir and returns the real path,
-//! which the bridge hands to
-//! [`set_asset_dir`](crate::synth::set_asset_dir). A marker file
-//! skips re-extraction on later starts.
+//! the synthesis engine cannot open them by path. On first startup
+//! this module copies the bundled catalog tree through the platform
+//! `AssetManager` into the app data dir and returns the voices root,
+//! which the bridge hands to [`set_voices_dir`](crate::synth::set_voices_dir).
+//! A marker file skips re-extraction on later starts.
 
 use std::ffi::CString;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-/// Asset prefix of the voice tree inside the APK.
-const ASSET_ROOT: &str = "voices/pt_BR-faber-medium";
-/// Model file proving a complete tree.
-const MODEL_FILE: &str = "pt_BR-faber-medium.onnx";
+/// Asset prefix of the voices catalog inside the APK.
+const ASSET_ROOT: &str = "voices";
 /// Marker file proving a complete extraction.
 const MARKER_FILE: &str = ".extracted";
-/// Build-time manifest: every voice file relative to [`ASSET_ROOT`],
-/// one per line. Directory listing on device proved unreliable, so
-/// the copy follows this list instead of walking the asset tree.
+/// Catalog extraction version (bump to force re-extraction on layout changes).
+const CATALOG_VERSION: &str = "1";
+/// Version marker filename.
+const VERSION_FILE: &str = "catalog.version";
+/// Build-time manifest: every voice file relative to [`ASSET_ROOT`], one per line.
 const MANIFEST: &str = include_str!(concat!(env!("OUT_DIR"), "/voice_manifest.txt"));
 
 /// Why voice extraction failed.
@@ -38,11 +36,11 @@ pub enum ExtractError {
     Io(String),
 }
 
-/// Copy the packaged voice tree into `data_dir/voices/...` and
-/// return the extracted dir.
+/// Copy the packaged voices catalog into `data_dir/voices/...` and
+/// return the extracted voices root.
 ///
-/// Idempotent: when the marker and model files already exist the
-/// copy is skipped.
+/// Idempotent: when the marker/version and required catalog files exist
+/// the copy is skipped. Migration-safe: version bump triggers rebuild.
 ///
 /// # Errors
 ///
@@ -51,26 +49,36 @@ pub enum ExtractError {
 /// * [`ExtractError::OpenAsset`] when an asset is missing.
 /// * [`ExtractError::Io`] when a write fails.
 pub fn extract_voices(data_dir: &Path) -> Result<PathBuf, ExtractError> {
-    let out = data_dir.join("voices").join("pt_BR-faber-medium");
+    let out = data_dir.join("voices");
     if is_fresh(&out) {
         return Ok(out);
     }
-    // Clear a stale partial tree (e.g. a previous run that stored a
-    // subdirectory as an empty file); the copy below rebuilds it.
+    // Clear stale partial tree; the copy below rebuilds it.
     let _ignored = std::fs::remove_dir_all(&out);
     std::fs::create_dir_all(&out).map_err(|e| ExtractError::Io(e.to_string()))?;
     let manager = asset_manager().map_err(ExtractError::Handles)?;
     copy_dir(&manager, ASSET_ROOT, &out)?;
+    std::fs::write(out.join(VERSION_FILE), CATALOG_VERSION)
+        .map_err(|e| ExtractError::Io(e.to_string()))?;
     std::fs::write(out.join(MARKER_FILE), "1").map_err(|e| ExtractError::Io(e.to_string()))?;
     Ok(out)
 }
 
-/// A tree is fresh when the marker, the model, and the espeak data
-/// dir (a real dir, not an empty file) all exist.
+/// A catalog tree is fresh when marker+version match and required files exist.
 fn is_fresh(out: &Path) -> bool {
-    out.join(MARKER_FILE).exists()
-        && out.join(MODEL_FILE).exists()
-        && out.join("espeak-ng-data").is_dir()
+    let version_ok = std::fs::read_to_string(out.join(VERSION_FILE))
+        .map(|v| v.trim() == CATALOG_VERSION)
+        .unwrap_or(false);
+    if !version_ok || !out.join(MARKER_FILE).exists() {
+        return false;
+    }
+    // Require each bundled voice model and shared espeak dir.
+    let faber = out
+        .join("pt_BR-faber-medium")
+        .join("pt_BR-faber-medium.onnx");
+    let cadu = out.join("pt_BR-cadu-medium").join("pt_BR-cadu-medium.onnx");
+    let espeak = out.join("shared").join("espeak-ng-data");
+    faber.exists() && cadu.exists() && espeak.is_dir()
 }
 
 /// Attach to the JVM and wrap the activity `AssetManager`.
@@ -107,10 +115,8 @@ fn asset_manager() -> Result<ndk::asset::AssetManager, String> {
 /// Copy every manifest file from the APK into `out_dir`,
 /// recreating parent dirs.
 ///
-/// Files are opened by explicit path: `open()` on files is proven
-/// on device, while nested directory listing is not, so no listing
-/// call participates. A file that will not open is a named failure —
-/// never silently skipped.
+/// Files are opened by explicit path: a file that will not open is a
+/// named failure — never silently skipped.
 fn copy_dir(
     manager: &ndk::asset::AssetManager,
     asset_path: &str,

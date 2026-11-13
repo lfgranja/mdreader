@@ -4,7 +4,7 @@
 > **Framework de Produto & Governança:** `Now / Next / Later` + Spec Kit (`assess.*` → `specify` → `clarify` → `plan` → `tasks` → `implement` → `converge` / `bug.*`)  
 > **Objetivo Primário:** `OBJETIVO.md` — leitor de documentos Markdown com síntese de voz 100% offline, Rust como única autoridade de playback/transporte/rate/posição, Kotlin como espelho estrito (`SC-035`), Tauri 2.12.1, CPAL 0.18.2 + AAudio, mono f32 @ 22050 Hz, sherpa-onnx 1.13.8 + Piper pt-BR (`offline_default`). Zero permissão de INTERNET.
 
-*Atualizado: 2026-11-11 · Branch atual: `dev`. Ciclo 017/018 — Synthesis Experience Hardening, Bounded Audio Cache & Dynamic Rate Control (PR #197 merged, gates 1–8 host-green).*
+*Atualizado: 2026-11-12 · Branch atual: `dev`. Ciclo 018 — Sona-Inspired Voice (closed catalog faber+cadu, persist/cycle/restart, host gates 1-8 PASS, gate 9 Rust compile PASS).*
 
 ---
 
@@ -17,7 +17,7 @@
 │ • ✅ Bug #196 / PR #197: velocidade acústica dinâmica, re-ancoragem em tempo real e layout    │
 │ • ✅ Spec 014 (normalização) e Spec 015 (prosódia semântica) CONVERGIDAS                      │
 │ • ✅ Spec 010 (Directory Reading) e Spec 013 (TTFA): 100% implementadas no host e no device │
-│ • ⏳ Spec 018 (Vozes inspiradas / Catálogo Local): estruturada em speckit; aguarda intake      │
+│ • ✅ Spec 018 (Sona-Inspired Voice): closed catalog (faber+cadu CC0), persist/cycle/restart, tests PASS, gate 9 Rust compile PASS │
 └─────────────────────────────────────────────────────────────────────────────────────────────┘
                                               ↓
 ┌─────────────────────────────────────────────────────────────────────────────────────────────┐
@@ -95,7 +95,7 @@
 | **015** | `md-semantic-prosody` | 5/6 | ✓ | ✓ | `prosody.rs` + cadência | **CONVERGIDO** (Cycle 017) |
 | **016** | `voz-lula` | 0/25 | ✓ | ✓ | — | **DEFERIDO** (Risco legal/regulatório; sem modelo) |
 | **017** | `audio-cache-queue-management` | 6/6 | ✓ | ✓ | `AudioChunkCache` 32 MiB, PBT | **CONVERGIDO** (PR #195 integrado na `dev`) |
-| **018** | `sona-inspired-voice` | 0/27 | ✓ | ✓ | Spec, plan e contratos prontos | **ESPECIFICADO** (Pronto para implementação) |
+| **018** | `sona-inspired-voice` | 27/27 | ✓ | ✓ | Catalog (faber+cadu CC0), voice.rs, synth_with_voice, set_voice/get_voice, cycle+restart, tests, gate 9 Rust compile | **CONVERGIDO** (host gates 1-8 PASS; Android Rust compile PASS) |
 | **019** | `intent-filter-ingress` | 5/5 | ✓ | ✓ | `AndroidManifest.xml`, `DocIngest.kt`, `MainActivity.kt` | **CONVERGIDO (100%)** |
 | **020** | `dynamic-doc-cap-scalability` | 6/6 | ✓ | ✓ | `crates/player/src/interruption.rs`, `DocIngest.kt` | **CONVERGIDO (100%)** |
 

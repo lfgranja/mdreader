@@ -78,27 +78,30 @@ the extracted tree is) and maps to no IPC verb. Per the T027 precedent
 from closed-verb exhaustiveness), `diagnose` is likewise excluded from
 closed-verb exhaustiveness: the closed verb set above is unchanged.
 
-Purpose: voice-asset inventory for the packaged `pt_BR-faber-medium`
-voice (`src-tauri/src/lib.rs:282-311`).
+Purpose: bundled closed voice-catalog inventory (spec 018). The
+default/compatibility path remains `pt_BR-faber-medium`; the catalog may
+include additional curated bundled voices (e.g. `pt_BR-cadu-medium`) and
+shared phonemizer data (`_shared/espeak-ng-data`).
 
-Exhaustive returned-field list (JSON object, ten keys):
+Returned fields (catalog-aware, additive):
+- Catalog state: `active_voice`, `default_voice`, `voices[]` (per entry:
+  `id`, `label`, `default`, `active`, `present`, and per-voice presence/
+  inventory fields such as `model_present`, `tokens_present`,
+  `provenance_present`, `espeak_present`, `files_total`, `espeak_files`,
+  `onnx_bytes`), plus resolved roots (`resource_dir`, `app_data_dir`,
+  `voices_root`) as available.
+- Legacy compatibility fields are retained where meaningful (faber-centric):
+  `model_present`, `tokens_present`, `espeak_present`,
+  `data_model_present`, `data_tokens_present`, `data_files_total`,
+  `data_espeak_is_dir`, `data_espeak_files`, `data_onnx_bytes`.
 
-`resource_dir` (resolved resource-dir string, or `unresolvable: …`),
-`model_present`, `tokens_present`, `espeak_present` (presence of
-`pt_BR-faber-medium.onnx`, `tokens.txt`, `espeak-ng-data` under the
-resource-dir voice path), `data_model_present`, `data_tokens_present`
-(same two files under the app-data-dir voice path), `data_files_total`
-(total entries walked, capped), `data_espeak_is_dir`,
-`data_espeak_files`, `data_onnx_bytes` (model byte size, 0 when absent).
-
-No-mutation guarantee: read-only. It walks the two voice-asset
-directories (`resource_dir/voices/pt_BR-faber-medium` and
-`app_data_dir/voices/pt_BR-faber-medium`) via existence checks and a
-capped directory walk. It takes no session or backend lock and writes
-nothing — no transport/position/rate/session mutation. It reads the
-filesystem only; it does not read the diagnostic record.
+No-mutation guarantee: read-only. It inspects voice/catalog directories
+via existence checks and capped directory walks. It takes no session or
+backend lock and writes nothing — no transport/position/rate/session
+mutation. It reads the filesystem only; it does not read the diagnostic
+record.
 
 Routing note: the substance of this surface (voice-asset ownership)
-belongs to the 002 synthesis feature per `VERIFICATION.md` §9. This
-section closes only the 001-side documentation gap; normative closed-set
-text above is untouched.
+belongs to synthesis/voice features (`002`, extended by `018`) per
+feature contracts. This section documents the 001 shell query; normative
+closed-set text above is unchanged except additive catalog-aware behavior.

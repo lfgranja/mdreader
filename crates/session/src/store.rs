@@ -111,7 +111,16 @@ const SETTINGS: TableDefinition<&str, &[u8]> = TableDefinition::new("settings");
 /// stored under (FR-019b).
 const LAST_RATE_KEY: &str = "last_rate";
 
+/// The settings key the last normalization mode is
+/// stored under (FR-005-style persistence across sessions).
 const LAST_NORMALIZATION_MODE_KEY: &str = "last_normalization_mode";
+
+/// The settings key the last DSP preset is stored under.
+const LAST_DSP_PRESET_KEY: &str = "last_dsp_preset";
+
+/// The settings key the last selected voice id is stored under
+/// (spec 018; stored as raw UTF-8 string, validated at boundaries).
+const LAST_VOICE_KEY: &str = "last_voice";
 
 /// The stored bookmark entry (storage-schema.md): the last
 /// spoken position under the document's content fingerprint (FR-044).
@@ -658,6 +667,89 @@ impl BookmarkStore {
             })
             .transpose()
     }
+    /// Persist the last DSP preset (off=0, `sona_ethereal=1`),
+    /// written on every preset change, crossing sessions and
+    /// documents.
+    ///
+    /// This is the store half of the DSP preset wiring —
+    /// the write-on-change half: the call site
+    /// (the shell, over the player DSP config) writes the
+    /// preset byte every time it changes, and reads it
+    /// back at the next session open through
+    /// [`get_last_dsp_preset`](Self::get_last_dsp_preset).
+    /// The setting is document-independent (the `settings`
+    /// table), so it survives a document change and a
+    /// store reopen.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Storage`] when the write
+    /// transaction cannot begin or commit.
+    pub fn put_last_dsp_preset(&mut self, preset: u8) -> Result<(), Error> {
+        let write_tx = self.db.begin_write()?;
+        {
+            let mut table = write_tx.open_table(SETTINGS)?;
+            let value = [preset];
+            let _previous = table.insert(LAST_DSP_PRESET_KEY, value.as_slice())?;
+        }
+        write_tx.commit()?;
+        Ok(())
+    }
+
+    /// The last DSP preset, or `None` on first use — the
+    /// call-site default is `Off` (0) (storage-schema.md).
+    ///
+    /// This is the store half of the DSP preset wiring —
+    /// the read-at-start half: the call site reads it
+    /// when a session opens and resolves the default
+    /// (`Off`) once on the shell side, so no second
+    /// default exists.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Storage`] when the read
+    /// transaction cannot begin.
+    pub fn get_last_dsp_preset(&mut self) -> Result<Option<u8>, Error> {
+        let read_tx = self.db.begin_read()?;
+        let table = read_tx.open_table(SETTINGS)?;
+        let guard = table.get(LAST_DSP_PRESET_KEY)?;
+        Ok(guard.map(|entry| entry.value()[0]))
+    }
+
+    /// Persist the last selected voice id (spec 018), written on every
+    /// voice selection/cycle change, crossing sessions and documents.
+    ///
+    /// Stored as a raw UTF-8 string to keep `session` dependency-free;
+    /// callers validate against the closed catalog at boundaries.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Storage`] when the write transaction cannot begin or commit.
+    pub fn put_last_voice(&mut self, voice: &str) -> Result<(), Error> {
+        let write_tx = self.db.begin_write()?;
+        {
+            let mut table = write_tx.open_table(SETTINGS)?;
+            let _previous = table.insert(LAST_VOICE_KEY, voice.as_bytes())?;
+        }
+        write_tx.commit()?;
+        Ok(())
+    }
+
+    /// The last selected voice id, or `None` when absent/malformed.
+    ///
+    /// Callers resolve default/fallback (e.g. missing/unknown/malformed
+    /// -> `pt_BR-faber-medium`) at catalog boundaries; this method never
+    /// panics on stored content.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Storage`] when the read transaction cannot begin.
+    pub fn get_last_voice(&mut self) -> Result<Option<String>, Error> {
+        let read_tx = self.db.begin_read()?;
+        let table = read_tx.open_table(SETTINGS)?;
+        let guard = table.get(LAST_VOICE_KEY)?;
+        Ok(guard.and_then(|entry| std::str::from_utf8(entry.value()).ok().map(str::to_owned)))
+    }
 
     /// Persist the normalization mode (true = Fluid).
     ///
@@ -1102,6 +1194,88 @@ mod tests {
             );
         }
 
+        Ok(())
+    }
+
+    #[test]
+    fn last_dsp_preset_round_trips_through_a_reopened_tempdir_store()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let dir = tempfile::tempdir()?;
+        let path = dir.path().join("dsp.redb");
+
+        // Default: no persisted preset.
+        {
+            let mut store = BookmarkStore::open(&path)?;
+            assert_eq!(store.get_last_dsp_preset()?, None);
+        }
+
+        // 1 = SonaEthereal, persisted across reopen.
+        {
+            let mut store = BookmarkStore::open(&path)?;
+            store.put_last_dsp_preset(1)?;
+        }
+        {
+            let mut reopened = BookmarkStore::open(&path)?;
+            assert_eq!(reopened.get_last_dsp_preset()?, Some(1));
+        }
+
+        // 0 = Off, persisted across reopen.
+        {
+            let mut store = BookmarkStore::open(&path)?;
+            store.put_last_dsp_preset(0)?;
+        }
+        let mut reopened = BookmarkStore::open(&path)?;
+        assert_eq!(reopened.get_last_dsp_preset()?, Some(0));
+        Ok(())
+    }
+
+    #[test]
+    fn last_voice_round_trips_and_defaults_on_missing_or_malformed()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let dir = tempfile::tempdir()?;
+        let path = dir.path().join("voice.redb");
+
+        // Missing key -> None (boundary resolves default).
+        {
+            let mut store = BookmarkStore::open(&path)?;
+            assert_eq!(store.get_last_voice()?, None);
+        }
+
+        // Round-trip known id.
+        {
+            let mut store = BookmarkStore::open(&path)?;
+            store.put_last_voice("pt_BR-cadu-medium")?;
+        }
+        {
+            let mut reopened = BookmarkStore::open(&path)?;
+            assert_eq!(
+                reopened.get_last_voice()?.as_deref(),
+                Some("pt_BR-cadu-medium")
+            );
+        }
+
+        // Unknown id string is stored/retrieved as-is (boundary validates/falls back).
+        {
+            let mut store = BookmarkStore::open(&path)?;
+            store.put_last_voice("unknown-voice")?;
+        }
+        {
+            let mut reopened = BookmarkStore::open(&path)?;
+            assert_eq!(reopened.get_last_voice()?.as_deref(), Some("unknown-voice"));
+        }
+
+        // Malformed (non-UTF8) bytes -> treated as absent (None), never panic.
+        {
+            let store = BookmarkStore::open(&path)?;
+            let write_tx = store.db.begin_write()?;
+            {
+                let mut table = write_tx.open_table(SETTINGS)?;
+                let _previous = table.insert(LAST_VOICE_KEY, [0xff_u8, 0xfe_u8].as_slice())?;
+            }
+            write_tx.commit()?;
+        }
+        let mut reopened = BookmarkStore::open(&path)?;
+        assert_eq!(reopened.get_last_voice()?, None);
         Ok(())
     }
 }

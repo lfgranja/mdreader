@@ -30,7 +30,7 @@
       "minSdkVersion": 29
     },
     "resources": {
-      "../crates/adapter-synthesis/assets/voices/pt_BR-faber-medium": "voices/pt_BR-faber-medium"
+      "../crates/adapter-synthesis/assets/voices": "voices"
     }
   }
 }

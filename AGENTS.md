@@ -1,23 +1,21 @@
 # Repository Guidelines
 
-> Synthesized from 4 parallel scouts (core-src / tests-configs / scripts-docs / build-state) on 2026-11-03. Source of truth: repo root + `.specify/memory/constitution.md` (v2.0.0, amended 2026-10-28, 1468 lines); contracts/; docs/; scripts/; `ROADMAP.md` (dev `0dcd6d5c`, 2026-11-02; 005/006/007/008 converged; 007 at 28/29; T029 remaining).
+> mdreader (product **Ressoa**, package `app.mdreader`) — Android media-shell TTS audiobook reader. Rust owns synthesis + PCM playback as the sole playback authority; Kotlin (`android-shell/`) owns `Service`, `MediaSession`, notification, and `AudioFocusRequest` as **mirrors only**; the Tauri 2.12.1 bridge (`src-tauri/`) is one consumer among many. Synthesized from repo state 2026-11-13.
 
 ---
 
 ## Project Overview
 
-`mdreader` (product **Ressoa**, package `app.mdreader`) is an Android media-shell TTS audiobook reader. **Rust owns synthesis and PCM playback as the sole playback authority**; Kotlin (`android-shell/`) owns `Service`, `MediaSession`, notification, and `AudioFocusRequest` as **mirrors only**. The Tauri 2.12.1 bridge (`src-tauri/`) is one consumer among many. Every crate is CLI-drivable (`clap` derive, stdin/args → stdout, errors → stderr, `--format json`). Target: Android `minSdk 29`. Host-checkable gates 1–8 via `scripts/verify.sh`; device gate 9 via `cargo tauri android build --target aarch64`.
+`mdreader` is an Android media-shell TTS audiobook reader. **Rust owns synthesis and PCM playback as the sole playback authority**; Kotlin (`android-shell/`) owns `Service`, `MediaSession`, notification, and `AudioFocusRequest` as **mirrors only**. The Tauri 2.12.1 bridge (`src-tauri/`) is one consumer among many. Every crate is CLI-drivable (`clap` derive, stdin/args → stdout, errors → stderr, `--format json`). Target: Android `minSdk 29`. Host-checkable gates 1–8 via `scripts/verify.sh`; device gate 9 via `cargo tauri android build --target aarch64`.
 
-Key principles (from `docs/architecture.md` / `.specify/memory/constitution.md` §VII/§VIII):
+Key principles (from `docs/architecture.md` / `.specify/memory/constitution.md`):
 - **Library-first:** Every capability reachable as a Rust API; CLI is thin (`main.rs` → `cli::run`).
 - **One code path:** Identical CLI and IPC (`tauri::ipc::Channel`, no `InvokeBody::Streaming`).
 - **Zero Android API in Rust:** Kotlin pushes answers across the boundary.
 - **Pipeline degrades observably:** Never silently infers SSML/alignment; uses declared capabilities (`crates/adapter-synthesis/src/reg.rs`: `offline_default` only at v1).
-- **Closed sets everywhere:** Exhaustive `match`, no `_ =>` arms, no `Other`/`Unknown`; adding variants requires coordinated edits + docs + semver bump + gate 7 passing (`crates/engine-core/src/closed.rs` is the single declaration site for `TransportState`, `SessionEnd`, `EngineError`).
+- **Closed sets everywhere:** Exhaustive `match`, no `_ =>` arms, no `Other`/`Unknown`; adding variants requires coordinated edits + docs + semver bump + gate 7 passing (`crates/engine-core/src/closed.rs` is the single declaration site).
 - **Durability:** 20 s heartbeat while `Playing`; event-durable writes; hard kill replays ≤ ~30 s.
 - **Position advances only on audible progress:** `PositionClock` (`crates/player/src/position.rs`) — never during pre-roll, never on timer.
-
-Governance: normative policy in `.specify/memory/constitution.md`; wire formats/interfaces in `contracts/*.md`/`*.json`; rationale in `docs/`; current state in `ROADMAP.md`; feature specs in `specs/` (001–009).
 
 ---
 
@@ -61,23 +59,23 @@ crates/doc-structure — ordered headings → timeline / FR-038 re-anchor
 
 ## Key Directories
 
-| Directory | Purpose |
+|Directory|Purpose|
 |---|---|
-| `crates/engine-core/` | Closed vocabulary, `Engine` trait, handoff format (22050 Hz mono f32), stand-ins, fallback/order |
-| `crates/player/` | Playback authority (transport, `PositionClock`, rate/skip/rewind, focus/routing/interruption, backend/cpal, surface, earcons); CLI |
-| `crates/session/` | `redb` bookmarks/settings, blake3-256 fingerprint, offer/resume state machine |
-| `crates/adapter-synthesis/` | Offline adapter `offline_default` (sherpa-onnx/Piper pt-BR), chunk/synth, capabilities, registry (only `offline_default` at v1) |
-| `crates/diag/` | Append-only JSONL diagnostics, retention (30-day/10 MiB) |
-| `crates/doc-structure/` | Ordered headings → timeline/re-anchor |
-| `crates/cleanroom-core/` | Standalone `proptest` helpers (not workspace member) |
-| `src-tauri/` | Tauri bridge (`AppState`, commands, publish, heartbeat/playback watch), JNI shell bridge |
-| `android-shell/` | Kotlin mirror only (Service/MediaSession/notification/focus) — no playback logic |
-| `vendor/sherpa-onnx-sys/` | Vendored patch (remove when upstream fixes) |
-| `scripts/` | Gates (`verify.sh` 1-8), checks, `expected-tests.txt` |
-| `contracts/` | Normative contracts and JSON schemas |
-| `docs/` | Architecture, IPC, diagnostics, ADRs |
-| `specs/` | Feature specs/tasks/contracts (001-009) |
-| `tests/` | Integration/contract/UI/audit tests |
+|`crates/engine-core/`|Closed vocabulary, `Engine` trait, handoff format (22050 Hz mono f32), stand-ins, fallback/order|
+|`crates/player/`|Playback authority (transport, `PositionClock`, rate/skip/rewind, focus/routing/interruption, backend/cpal, surface, earcons); CLI|
+|`crates/session/`|`redb` bookmarks/settings, blake3-256 fingerprint, offer/resume state machine|
+|`crates/adapter-synthesis/`|Offline adapter `offline_default` (sherpa-onnx/Piper pt-BR), chunk/synth, capabilities, registry (only `offline_default` at v1)|
+|`crates/diag/`|Append-only JSONL diagnostics, retention (30-day/10 MiB)|
+|`crates/doc-structure/`|Ordered headings → timeline/re-anchor|
+|`crates/cleanroom-core/`|Standalone `proptest` helpers (not workspace member)|
+|`src-tauri/`|Tauri bridge (`AppState`, commands, publish, heartbeat/playback watch), JNI shell bridge|
+|`android-shell/`|Kotlin mirror only (Service/MediaSession/notification/focus) — no playback logic|
+|`vendor/sherpa-onnx-sys/`|Vendored patch (remove when upstream fixes)|
+|`scripts/`|Gates (`verify.sh` 1-8), checks, `expected-tests.txt`|
+|`contracts/`|Normative contracts and JSON schemas|
+|`docs/`|Architecture, IPC, diagnostics, ADRs|
+|`specs/`|Feature specs/tasks/contracts (001-020)|
+|`tests/`|Integration/contract/UI/audit tests|
 
 ---
 
@@ -167,30 +165,29 @@ cargo check --target x86_64-unknown-linux-gnu
 
 ## Important Files
 
-| File | Role |
+|File|Role|
 |---|---|
-| `Cargo.toml` | Workspace members/deps, `[workspace.lints]` strict denies |
-| `Cargo.lock` | Committed (use `--locked`) |
-| `rust-toolchain.toml` | Stable + rustfmt + clippy |
-| `.cargo/config.toml` | Clang linker on x86_64-unknown-linux-gnu |
-| `deny.toml` | Supply-chain policy |
-| `.config/nextest.toml` | cargo-nextest CI profile |
-| `src-tauri/tauri.conf.json` | Tauri config (minSdk 29, product Ressoa, id app.mdreader) |
-| `src-tauri/Cargo.toml` | Tauri 2.12.1 pins, JNI 0.21 |
-| `src-tauri/src/lib.rs` | Bridge entry, AppState, commands, RMS/waveform plumbing |
-| `crates/engine-core/src/closed.rs` | Canonical closed vocabulary |
-| `crates/engine-core/src/format.rs` | Handoff shape (22050 Hz mono f32) |
-| `crates/engine-core/src/trait_.rs` | Engine trait/contracts |
-| `crates/player/src/position.rs` | PositionClock (audible-progress only) |
-| `crates/player/src/backend.rs` | cpal backend, RMS, bounded queue |
-| `crates/session/src/store.rs` / `fingerprint.rs` | redb store + blake3-256 |
-| `crates/diag/src/writer.rs` / `scan.rs` | Diagnostics |
-| `crates/adapter-synthesis/src/reg.rs` | Tier registry (offline_default only) |
-| `scripts/verify.sh` | Gates 1-8 orchestrator |
-| `scripts/expected-tests.txt` | Pinned nextest target list (diff for gate 2) |
-| `scripts/check-*.sh` | Manifest/shell-purity/apk-classes checks |
-| `.specify/memory/constitution.md` | Normative governance (v2.0.0) |
-| `ROADMAP.md` | Current state |
+|`Cargo.toml`|Workspace members/deps, `[workspace.lints]` strict denies|
+|`Cargo.lock`|Committed (use `--locked`)|
+|`rust-toolchain.toml`|Stable + rustfmt + clippy|
+|`.cargo/config.toml`|Clang linker on x86_64-unknown-linux-gnu|
+|`deny.toml`|Supply-chain policy|
+|`.config/nextest.toml`|cargo-nextest CI profile|
+|`src-tauri/tauri.conf.json`|Tauri config (minSdk 29, product Ressoa, id app.mdreader)|
+|`src-tauri/src/lib.rs`|Bridge entry, AppState, commands, RMS/waveform plumbing|
+|`crates/engine-core/src/closed.rs`|Canonical closed vocabulary|
+|`crates/engine-core/src/format.rs`|Handoff shape (22050 Hz mono f32)|
+|`crates/engine-core/src/trait_.rs`|Engine trait/contracts|
+|`crates/player/src/position.rs`|PositionClock (audible-progress only)|
+|`crates/player/src/backend.rs`|cpal backend, RMS, bounded queue|
+|`crates/session/src/store.rs` / `fingerprint.rs`|redb store + blake3-256|
+|`crates/diag/src/writer.rs` / `scan.rs`|Diagnostics|
+|`crates/adapter-synthesis/src/reg.rs`|Tier registry (offline_default only)|
+|`scripts/verify.sh`|Gates 1-8 orchestrator|
+|`scripts/expected-tests.txt`|Pinned nextest target list (diff for gate 2)|
+|`scripts/check-*.sh`|Manifest/shell-purity/apk-classes checks|
+|`.specify/memory/constitution.md`|Normative governance (v2.0.0)|
+|`ROADMAP.md`|Current state|
 
 ---
 
@@ -209,13 +206,13 @@ cargo check --target x86_64-unknown-linux-gnu
 ## Testing & QA
 
 ### Locations
-| Area | Notes |
+|Area|Notes|
 |---|---|
-| `crates/*/src/**` (`#[cfg(test)]`) | Inline unit tests |
-| `crates/*/tests/` | Integration/contract/property tests |
-| `crates/cleanroom-core/tests/` | Blocking invariants (not workspace member) |
-| `src-tauri/tests/` | Bridge/integration/diagnostic/surface/RMS/waveform/repeat tests |
-| `tests/` (root) | Spec/contract/UI/audit tests (005-red, 007 convergence) |
+|`crates/*/src/**` (`#[cfg(test)]`)|Inline unit tests|
+|`crates/*/tests/`|Integration/contract/property tests|
+|`crates/cleanroom-core/tests/`|Blocking invariants (not workspace member)|
+|`src-tauri/tests/`|Bridge/integration/diagnostic/surface/RMS/waveform/repeat tests|
+|`tests/` (root)|Spec/contract/UI/audit tests (005-red, 007 convergence)|
 
 ### Running & Gates
 - **Gate 1:** format check

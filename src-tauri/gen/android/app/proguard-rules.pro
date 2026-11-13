@@ -27,4 +27,6 @@
 # (observed 2026-10-16 on the Wave B APK, at app.mdreader.Rust.ipc).
 -keep class app.mdreader.ShellHost {
     public static void publishMirror(java.lang.String, java.lang.String);
+    public static boolean pickDocument();
+    public static boolean pickDirectory();
 }

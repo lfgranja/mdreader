@@ -3111,6 +3111,70 @@ fn signal_document_end(state: &AppState) {
         }
     }
 }
+/// Show the welcome document on first start (Android).
+///
+/// Embeds `assets/samples/bem-vindo-ao-ressoa.md` into the APK via
+/// `tauri.conf.json` resources, reads it on first launch, and opens it
+/// through the single synthesis path (`open_document_bytes`). A marker
+/// file in the app data directory guarantees it opens exactly once —
+/// never again on subsequent launches (FR-009 first-start contract).
+///
+/// Best-effort by construction: a missing asset, an unreadable file,
+/// or a refused open is logged as a warning and never prevents the
+/// app from starting.
+#[cfg(target_os = "android")]
+fn maybe_open_welcome_document(state: &AppState, app: &tauri::AppHandle) {
+    use std::io::Read;
+
+    /// Marker file proving the welcome document has already been shown.
+    const MARKER: &str = ".welcome_shown";
+    /// Asset name of the welcome document inside the APK resources.
+    const ASSET: &str = "welcome.md";
+
+    let data_dir = match app.path().app_data_dir() {
+        Ok(dir) => dir,
+        Err(error) => {
+            tracing::warn!(%error, "welcome: cannot resolve app data dir");
+            return;
+        }
+    };
+    let marker = data_dir.join(MARKER);
+    if marker.is_file() {
+        return; // already shown on a previous launch
+    }
+
+    let welcome_bytes = match app.path().resource_dir() {
+        Ok(resource_dir) => {
+            let mut file = match std::fs::File::open(resource_dir.join(ASSET)) {
+                Ok(f) => f,
+                Err(error) => {
+                    tracing::warn!(%error, "welcome: asset not found in APK resources");
+                    return;
+                }
+            };
+            let mut bytes = Vec::new();
+            if file.read_to_end(&mut bytes).is_err() {
+                tracing::warn!("welcome: failed to read asset bytes");
+                return;
+            }
+            bytes
+        }
+        Err(error) => {
+            tracing::warn!(%error, "welcome: cannot resolve resource dir");
+            return;
+        }
+    };
+
+    match crate::commands::open_document_bytes(state, welcome_bytes) {
+        Ok(_) => tracing::info!("welcome document opened on first start"),
+        Err(error) => tracing::warn!(%error, "welcome document could not be opened"),
+    };
+
+    // Persist the marker so the welcome document opens exactly once.
+    if let Err(error) = std::fs::write(&marker, b"1") {
+        tracing::warn!(%error, "welcome: could not persist first-start marker");
+    }
+}
 
 /// Run the Tauri application.
 ///
@@ -3342,6 +3406,15 @@ pub fn run() {
                 let _ = adapter_synthesis::synth::replace_active_voice(seeded);
                 tracing::info!(voice = seeded.id(), "voice selection seeded");
             }
+            // Welcome document on first start (Android): embeds
+            // assets/samples/bem-vindo-ao-ressoa.md into the APK via
+            // tauri.conf.json resources, opens it through the single
+            // synthesis path exactly once, gated by a marker file.
+            #[cfg(target_os = "android")]
+            {
+                maybe_open_welcome_document(&*app_state, &app.app_handle());
+            }
+
             // The diagnostic record (T097, FR-017): the private,
             // on-device JSONL trace, opened in the app's own data
             // directory — the same private storage the bookmark

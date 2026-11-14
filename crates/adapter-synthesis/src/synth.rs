@@ -147,6 +147,7 @@ static ACTIVE_VOICE_INDEX: AtomicU32 = AtomicU32::new(0);
 pub fn active_voice() -> VoiceId {
     match ACTIVE_VOICE_INDEX.load(Ordering::Acquire) {
         1 => VoiceId::PtBrCaduMedium,
+        2 => VoiceId::PtBrJeffMedium,
         _ => VoiceId::PtBrFaberMedium,
     }
 }
@@ -158,7 +159,7 @@ pub fn active_voice() -> VoiceId {
 fn normalize_voices_root(dir: PathBuf) -> PathBuf {
     if dir.file_name().and_then(|n| n.to_str()) == Some(VoiceId::PtBrFaberMedium.id())
         || dir.file_name().and_then(|n| n.to_str()) == Some(VoiceId::PtBrCaduMedium.id())
-    {
+        || dir.file_name().and_then(|n| n.to_str()) == Some(VoiceId::PtBrJeffMedium.id()) {
         return dir.parent().map(Path::to_path_buf).unwrap_or(dir);
     }
     dir
@@ -244,6 +245,7 @@ pub fn voice_config(voice: VoiceId) -> OfflineTtsConfig {
 /// implementation attempts per-voice cache first per plan.
 static ENGINE_FABER: OnceLock<Option<OfflineTts>> = OnceLock::new();
 static ENGINE_CADU: OnceLock<Option<OfflineTts>> = OnceLock::new();
+static ENGINE_JEFF: OnceLock<Option<OfflineTts>> = OnceLock::new();
 /// Custom/override engine (compatibility path for `set_model_path`).
 static ENGINE_CUSTOM: OnceLock<Option<OfflineTts>> = OnceLock::new();
 
@@ -251,6 +253,7 @@ fn engine_slot(voice: VoiceId) -> &'static OnceLock<Option<OfflineTts>> {
     match voice {
         VoiceId::PtBrFaberMedium => &ENGINE_FABER,
         VoiceId::PtBrCaduMedium => &ENGINE_CADU,
+        VoiceId::PtBrJeffMedium => &ENGINE_JEFF,
     }
 }
 

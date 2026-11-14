@@ -365,18 +365,20 @@ fn bundled_voice_catalog_is_closed_and_declared() {
         .filter_map(|path| path.file_name().map(|n| n.to_string_lossy().into_owned()))
         .collect();
     dirs.sort();
-    // Spec 018 closed catalog: two bundled pt-BR Piper voices + shared phonemizer data.
+    // Spec 018 closed catalog: three bundled pt-BR Piper voices + shared phonemizer data.
     assert_eq!(
         dirs,
         vec![
             "pt_BR-cadu-medium".to_string(),
             "pt_BR-faber-medium".to_string(),
+            "pt_BR-jeff-medium".to_string(),
             "shared".to_string(),
         ],
-        "bundled voices must match spec 018 closed catalog (faber default + cadu alternative + shared espeak)"
+        "bundled voices must match spec 018 closed catalog (faber default + cadu + jeff alternatives + shared espeak)"
     );
     let faber = voices.join("pt_BR-faber-medium");
     let cadu = voices.join("pt_BR-cadu-medium");
+    let jeff = voices.join("pt_BR-jeff-medium");
     let shared = voices.join("shared").join("espeak-ng-data");
     assert!(
         faber.join("pt_BR-faber-medium.onnx").is_file(),
@@ -388,9 +390,13 @@ fn bundled_voice_catalog_is_closed_and_declared() {
         "cadu onnx missing"
     );
     assert!(cadu.join("tokens.txt").is_file(), "cadu tokens missing");
+    assert!(
+        jeff.join("pt_BR-jeff-medium.onnx").is_file(),
+        "jeff onnx missing"
+    );
+    assert!(jeff.join("tokens.txt").is_file(), "jeff tokens missing");
     assert!(shared.is_dir(), "shared espeak-ng-data missing");
 }
-
 #[test]
 fn lock_screen_carries_no_stop_control() -> Result<(), Box<dyn Error>> {
     // FR-002/FR-019: the Stop CONTROL exists only on the single

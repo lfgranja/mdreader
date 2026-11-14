@@ -77,8 +77,9 @@ fn is_fresh(out: &Path) -> bool {
         .join("pt_BR-faber-medium")
         .join("pt_BR-faber-medium.onnx");
     let cadu = out.join("pt_BR-cadu-medium").join("pt_BR-cadu-medium.onnx");
+    let jeff = out.join("pt_BR-jeff-medium").join("pt_BR-jeff-medium.onnx");
     let espeak = out.join("shared").join("espeak-ng-data");
-    faber.exists() && cadu.exists() && espeak.is_dir()
+    faber.exists() && cadu.exists() && jeff.exists() && espeak.is_dir()
 }
 
 /// Attach to the JVM and wrap the activity `AssetManager`.

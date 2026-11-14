@@ -1,19 +1,19 @@
-# Converge: 009 Feature Specification: Abrir Arquivo Pelo Título e Iniciar Reprodução
+# Converge: 009 Abrir Arquivo Pelo Título e Iniciar Reprodução
 
 Status: **CONVERGED** (implemented and attested in prior cycles).
 
 ## Implementation Summary
 
-26/30 tasks; 0 findings; SAF JNI, Blake3 hash, offerDialog.
+Abertura de arquivo Markdown via clique no título (SAF JNI), cálculo de fingerprint Blake3-256, persistência em redb, diálogo de retomada (offerDialog) e auto-play.
 
 ### Evidence (verified in prior cycles)
 - ROADMAP.md §2.2 records this spec as **CONVERGED**.
-- Tasks: 26/30 tasks completed (per ROADMAP task census).
-- Implementation present in `crates/*`, `android-shell/`, `src-tauri/` as applicable (see spec.md scope).
-- Git history contains commits/PRs referencing this spec (see `git log --grep`).
+- Tasks: 26 checked / 4 unchecked (30 total) (per ROADMAP task census and tasks.md ledger).
+- specs/009-open-file-from-title/tasks.md (26/4), fix.md/test.md com resultados verificados em device, ROADMAP §2.2 (CONVERGED, 0 findings).
+- Git evidence: `bb271cf1` (wire title-box click handler, propagate picker errors, init JVM on IPC path), `703066b7` (fix shell_jni.rs for Android target), `8b1a14a3` (update fix.md/test.md with verified device results)
 
 ### Gate results
-- Host gates 1–8 and Gate 9: **[verified in prior cycles]** where ROADMAP attests (not re-run in this convergence pass).
+- Gate 9 Android debug build PASS (per fix.md verified device results); host gates [verified in prior cycles].
 - No new gate runs fabricated by this record.
 
 ### Non-Changes
@@ -21,7 +21,7 @@ Status: **CONVERGED** (implemented and attested in prior cycles).
 - No scope expansion.
 
 ### Unresolved / Deferred
-- None blocking; minor task-count gaps (where <100%) are tracked in ROADMAP and do not block convergence.
+- 4 task checkboxes remain unchecked (T027–T030, per ledger); device trials recorded in fix.md/test.md.
 
 ### Acceptance Criteria Status
 - [x] Implementation delivered per spec.md and plan.md.

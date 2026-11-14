@@ -1,19 +1,19 @@
-# Converge: 012 Feature Specification: Debug-Only Ingest Validation Hook
+# Converge: 012 Debug-Only Ingest Validation Hook
 
-Status: **CONVERGED** (implemented and attested in prior cycles).
+Status: **CONVERGED / Suportado** (implemented and attested in prior cycles).
 
 ## Implementation Summary
 
-54/69 tasks; Hooks de teste via ADB.
+Hooks de teste via ADB, validação de ingestão de documentos, evidência FR-008/FR-010/FR-011, agregação e packaging de evidência.
 
 ### Evidence (verified in prior cycles)
 - ROADMAP.md §2.2 records this spec as **CONVERGED / Suportado**.
-- Tasks: 54/69 tasks completed (per ROADMAP task census).
-- Implementation present in `crates/*`, `android-shell/`, `src-tauri/` as applicable (see spec.md scope).
-- Git history contains commits/PRs referencing this spec (see `git log --grep`).
+- Tasks: 54 checked / 15 unchecked (69 total) (per ROADMAP task census and tasks.md ledger).
+- specs/012-debug-ingest-hook/tasks.md (54/15), ROADMAP §2.2 (CONVERGED/Suportado), docs/spec-012 commits (T049/T065/T067).
+- Git evidence: `ef8939d5` (docs: update T067 with aggregation GREEN evidence), `095137d3` (fix: add aggregation/packaging contract modes for T067/T049), `9bce06ba` (test: fix T018 cache-clear invariant target window), `c3252f85` (fix: wire FR-008 evidence emission into normal hook device runs)
 
 ### Gate results
-- Host gates 1–8 and Gate 9: **[verified in prior cycles]** where ROADMAP attests (not re-run in this convergence pass).
+- Hook runs GREEN (T067 aggregation) [verified in prior cycles]; gate 9 não aplicável (debug-only).
 - No new gate runs fabricated by this record.
 
 ### Non-Changes
@@ -21,7 +21,7 @@ Status: **CONVERGED** (implemented and attested in prior cycles).
 - No scope expansion.
 
 ### Unresolved / Deferred
-- None blocking; minor task-count gaps (where <100%) are tracked in ROADMAP and do not block convergence.
+- 15 task checkboxes remain (per ledger); device-dependent steps (FR-008 emission, T049 hook runs) recorded in docs/spec-012 commits.
 
 ### Acceptance Criteria Status
 - [x] Implementation delivered per spec.md and plan.md.

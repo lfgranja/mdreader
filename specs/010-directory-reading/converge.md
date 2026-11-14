@@ -1,19 +1,19 @@
-# Converge: 010 Feature Specification: Leitura Contínua de Diretórios de Markdown
+# Converge: 010 Leitura Contínua de Diretórios de Markdown
 
 Status: **CONVERGED** (implemented and attested in prior cycles).
 
 ## Implementation Summary
 
-49/49 tasks; Atestado em hardware real; ChapterQueue, tree SAF, gapless.
+ChapterQueue com sort natural, persistência em redb, permissões de árvore SAF (ACTION_OPEN_DOCUMENT_TREE), transições gapless e comandos de avanço/recuo de capítulos atestados em hardware físico.
 
 ### Evidence (verified in prior cycles)
 - ROADMAP.md §2.2 records this spec as **CONVERGED**.
-- Tasks: 49/49 tasks completed (per ROADMAP task census).
-- Implementation present in `crates/*`, `android-shell/`, `src-tauri/` as applicable (see spec.md scope).
-- Git history contains commits/PRs referencing this spec (see `git log --grep`).
+- Tasks: 49 checked / 1 unchecked (50 total) (per ROADMAP task census and tasks.md ledger).
+- specs/010-directory-reading/tasks.md (49/1), ROADMAP §2.2 (CONVERGED, Atestado em hardware real), governance attestation 1aa568d4.
+- Git evidence: `73660836` (docs: apply FR-012 T226 residual split), `f7ad926f` (docs: adaptive 10s pre-roll, 20s heartbeat, active directory permission release), `31ebd8a2` (docs: requirements quality checklist), `1aa568d4` (docs(governance): attest specs 010 and 013 hardware convergence)
 
 ### Gate results
-- Host gates 1–8 and Gate 9: **[verified in prior cycles]** where ROADMAP attests (not re-run in this convergence pass).
+- Hardware verification PASS (3 capítulos via CDP, transições gapless, persistência redb) [verified in prior cycles].
 - No new gate runs fabricated by this record.
 
 ### Non-Changes
@@ -21,7 +21,7 @@ Status: **CONVERGED** (implemented and attested in prior cycles).
 - No scope expansion.
 
 ### Unresolved / Deferred
-- None blocking; minor task-count gaps (where <100%) are tracked in ROADMAP and do not block convergence.
+- 1 task checkbox remains (T050, per ledger); device trials recorded in governance attestation.
 
 ### Acceptance Criteria Status
 - [x] Implementation delivered per spec.md and plan.md.

@@ -1,19 +1,19 @@
-# Converge: 011 Feature Specification: AVD Emulator Setup for mdreader/Ressoa
+# Converge: 011 AVD Emulator Setup for mdreader/Ressoa
 
 Status: **CONVERGED** (implemented and attested in prior cycles).
 
 ## Implementation Summary
 
-9/23 tasks; Harness operacional; Scripts e configs AVD.
+Harness de emulação estrutural: scripts e configs AVD, automação de device, setup de emulador para desenvolvimento e testes.
 
 ### Evidence (verified in prior cycles)
 - ROADMAP.md §2.2 records this spec as **CONVERGED**.
-- Tasks: 9/23 tasks completed (per ROADMAP task census).
-- Implementation present in `crates/*`, `android-shell/`, `src-tauri/` as applicable (see spec.md scope).
-- Git history contains commits/PRs referencing this spec (see `git log --grep`).
+- Tasks: 9 checked / 14 unchecked (23 total) (per ROADMAP task census and tasks.md ledger).
+- specs/011-avd-emulator-setup/tasks.md (9/14), ROADMAP §2.2 (CONVERGED, Harness operacional).
+- Git evidence: Nenhum commit direto `spec-011` encontrado; trabalho integrado via PRs de harness/emulação (ver git log --grep emulator).
 
 ### Gate results
-- Host gates 1–8 and Gate 9: **[verified in prior cycles]** where ROADMAP attests (not re-run in this convergence pass).
+- Harness operacional [verified in prior cycles]; gate 9 não aplicável (infra de dev).
 - No new gate runs fabricated by this record.
 
 ### Non-Changes
@@ -21,7 +21,7 @@ Status: **CONVERGED** (implemented and attested in prior cycles).
 - No scope expansion.
 
 ### Unresolved / Deferred
-- None blocking; minor task-count gaps (where <100%) are tracked in ROADMAP and do not block convergence.
+- 14 task checkboxes remain (T010–T023, per ledger); harness operacional atestado no ROADMAP; device-dependent steps deferidos.
 
 ### Acceptance Criteria Status
 - [x] Implementation delivered per spec.md and plan.md.

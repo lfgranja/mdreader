@@ -9,10 +9,17 @@ fn catalog_is_closed_default_first_and_deterministic() {
     assert_eq!(VoiceId::DEFAULT, VoiceId::PtBrFaberMedium);
     assert_eq!(
         VoiceId::CATALOG,
-        [VoiceId::PtBrFaberMedium, VoiceId::PtBrCaduMedium]
+        [
+            VoiceId::PtBrFaberMedium,
+            VoiceId::PtBrCaduMedium,
+            VoiceId::PtBrJeffMedium
+        ]
     );
     let ids: Vec<&str> = VoiceId::iter().copied().map(VoiceId::id).collect();
-    assert_eq!(ids, vec!["pt_BR-faber-medium", "pt_BR-cadu-medium"]);
+    assert_eq!(
+        ids,
+        vec!["pt_BR-faber-medium", "pt_BR-cadu-medium", "pt_BR-jeff-medium"]
+    );
 }
 
 #[test]
@@ -27,8 +34,10 @@ fn cycle_wraps_deterministically_both_directions() {
         seen_next,
         vec![
             "pt_BR-cadu-medium",
+            "pt_BR-jeff-medium",
             "pt_BR-faber-medium",
             "pt_BR-cadu-medium",
+            "pt_BR-jeff-medium",
             "pt_BR-faber-medium",
         ]
     );
@@ -42,8 +51,10 @@ fn cycle_wraps_deterministically_both_directions() {
     assert_eq!(
         seen_prev,
         vec![
+            "pt_BR-jeff-medium",
             "pt_BR-cadu-medium",
             "pt_BR-faber-medium",
+            "pt_BR-jeff-medium",
             "pt_BR-cadu-medium",
             "pt_BR-faber-medium",
         ]
@@ -61,11 +72,14 @@ fn parse_accepts_known_and_rejects_unknown() {
         Ok(VoiceId::PtBrCaduMedium)
     );
     assert_eq!(
+        VoiceId::parse_id("pt_BR-jeff-medium"),
+        Ok(VoiceId::PtBrJeffMedium)
+    );
+    assert_eq!(
         VoiceId::from_str("pt_BR-faber-medium"),
         Ok(VoiceId::PtBrFaberMedium)
     );
     for bad in [
-        "pt_BR-jeff-medium",
         "pt_BR-edresson-low",
         "unknown",
         "",
@@ -85,8 +99,6 @@ fn parse_accepts_known_and_rejects_unknown() {
 
 #[test]
 fn each_catalog_voice_has_resolvable_present_bundle() {
-    // Uses compile-time assets via voices_root()/voice_dir in dev/test.
-    // Ensure root points at bundled assets for this test process.
     let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/voices");
     assert!(
         root.is_dir(),
@@ -129,7 +141,8 @@ fn each_catalog_voice_has_resolvable_present_bundle() {
 fn inference_defaults_are_present_and_sane() {
     let faber = voice::inference_defaults(VoiceId::PtBrFaberMedium);
     let cadu = voice::inference_defaults(VoiceId::PtBrCaduMedium);
-    for d in [faber, cadu] {
+    let jeff = voice::inference_defaults(VoiceId::PtBrJeffMedium);
+    for d in [faber, cadu, jeff] {
         assert!(d.noise_scale > 0.0);
         assert!(d.noise_scale_w > 0.0);
         assert!(d.length_scale > 0.0);

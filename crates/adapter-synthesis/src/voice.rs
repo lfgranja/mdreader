@@ -61,6 +61,8 @@ pub enum VoiceId {
     PtBrFaberMedium,
     /// Curated alternative voice (index 1).
     PtBrCaduMedium,
+    /// Third bundled voice (index 2), CC0 (jeff).
+    PtBrJeffMedium,
 }
 
 impl VoiceId {
@@ -68,7 +70,7 @@ impl VoiceId {
     pub const DEFAULT: Self = Self::PtBrFaberMedium;
 
     /// Fixed catalog order (exhaustive, deterministic).
-    pub const CATALOG: &'static [Self] = &[Self::PtBrFaberMedium, Self::PtBrCaduMedium];
+    pub const CATALOG: &'static [Self] = &[Self::PtBrFaberMedium, Self::PtBrCaduMedium, Self::PtBrJeffMedium];
 
     /// Returns an iterator over the fixed catalog in order.
     pub fn iter() -> std::slice::Iter<'static, Self> {
@@ -81,6 +83,7 @@ impl VoiceId {
         match self {
             Self::PtBrFaberMedium => "pt_BR-faber-medium",
             Self::PtBrCaduMedium => "pt_BR-cadu-medium",
+            Self::PtBrJeffMedium => "pt_BR-jeff-medium",
         }
     }
 
@@ -90,6 +93,7 @@ impl VoiceId {
         match self {
             Self::PtBrFaberMedium => "Default reading voice",
             Self::PtBrCaduMedium => "Curated alternative — calm, clear",
+            Self::PtBrJeffMedium => "Curated alternative — warm, natural",
         }
     }
 
@@ -99,6 +103,7 @@ impl VoiceId {
         match self {
             Self::PtBrFaberMedium => 0,
             Self::PtBrCaduMedium => 1,
+            Self::PtBrJeffMedium => 2,
         }
     }
 
@@ -107,7 +112,8 @@ impl VoiceId {
     pub const fn next(self) -> Self {
         match self {
             Self::PtBrFaberMedium => Self::PtBrCaduMedium,
-            Self::PtBrCaduMedium => Self::PtBrFaberMedium,
+            Self::PtBrCaduMedium => Self::PtBrJeffMedium,
+            Self::PtBrJeffMedium => Self::PtBrFaberMedium,
         }
     }
 
@@ -115,8 +121,9 @@ impl VoiceId {
     #[must_use]
     pub const fn prev(self) -> Self {
         match self {
-            Self::PtBrFaberMedium => Self::PtBrCaduMedium,
+            Self::PtBrFaberMedium => Self::PtBrJeffMedium,
             Self::PtBrCaduMedium => Self::PtBrFaberMedium,
+            Self::PtBrJeffMedium => Self::PtBrCaduMedium,
         }
     }
 
@@ -129,6 +136,7 @@ impl VoiceId {
         match s {
             "pt_BR-faber-medium" => Ok(Self::PtBrFaberMedium),
             "pt_BR-cadu-medium" => Ok(Self::PtBrCaduMedium),
+            "pt_BR-jeff-medium" => Ok(Self::PtBrJeffMedium),
             _ => Err(ParseVoiceIdError {
                 input: s.to_owned(),
             }),
@@ -170,6 +178,14 @@ pub const fn spec(voice: VoiceId) -> VoiceSpec {
             tokens: "tokens.txt",
             provenance: "PROVENANCE.md",
         },
+        VoiceId::PtBrJeffMedium => VoiceSpec {
+            voice_id: VoiceId::PtBrJeffMedium,
+            label: "Curated alternative — warm, natural",
+            dir_name: "pt_BR-jeff-medium",
+            onnx: "pt_BR-jeff-medium.onnx",
+            tokens: "tokens.txt",
+            provenance: "PROVENANCE.md",
+        },
     }
 }
 
@@ -187,6 +203,11 @@ pub const fn inference_defaults(voice: VoiceId) -> InferenceDefaults {
             noise_scale_w: 0.333,
             length_scale: 1.0,
         },
+        VoiceId::PtBrJeffMedium => InferenceDefaults {
+            noise_scale: 0.667,
+            noise_scale_w: 0.8,
+            length_scale: 1.0,
+        },
     }
 }
 
@@ -196,9 +217,10 @@ mod tests {
 
     #[test]
     fn catalog_is_closed_and_ordered() {
-        assert_eq!(VoiceId::CATALOG.len(), 2);
+        assert_eq!(VoiceId::CATALOG.len(), 3);
         assert_eq!(VoiceId::CATALOG[0], VoiceId::PtBrFaberMedium);
         assert_eq!(VoiceId::CATALOG[1], VoiceId::PtBrCaduMedium);
+        assert_eq!(VoiceId::CATALOG[2], VoiceId::PtBrJeffMedium);
         assert_eq!(VoiceId::DEFAULT, VoiceId::PtBrFaberMedium);
     }
 
@@ -206,19 +228,23 @@ mod tests {
     fn ids_equal_directory_names() {
         assert_eq!(VoiceId::PtBrFaberMedium.id(), "pt_BR-faber-medium");
         assert_eq!(VoiceId::PtBrCaduMedium.id(), "pt_BR-cadu-medium");
+        assert_eq!(VoiceId::PtBrJeffMedium.id(), "pt_BR-jeff-medium");
         assert_eq!(
             spec(VoiceId::PtBrFaberMedium).dir_name,
             "pt_BR-faber-medium"
         );
         assert_eq!(spec(VoiceId::PtBrCaduMedium).dir_name, "pt_BR-cadu-medium");
+        assert_eq!(spec(VoiceId::PtBrJeffMedium).dir_name, "pt_BR-jeff-medium");
     }
 
     #[test]
     fn cycle_wraps_deterministically() {
         assert_eq!(VoiceId::PtBrFaberMedium.next(), VoiceId::PtBrCaduMedium);
-        assert_eq!(VoiceId::PtBrCaduMedium.next(), VoiceId::PtBrFaberMedium);
-        assert_eq!(VoiceId::PtBrFaberMedium.prev(), VoiceId::PtBrCaduMedium);
+        assert_eq!(VoiceId::PtBrCaduMedium.next(), VoiceId::PtBrJeffMedium);
+        assert_eq!(VoiceId::PtBrJeffMedium.next(), VoiceId::PtBrFaberMedium);
+        assert_eq!(VoiceId::PtBrFaberMedium.prev(), VoiceId::PtBrJeffMedium);
         assert_eq!(VoiceId::PtBrCaduMedium.prev(), VoiceId::PtBrFaberMedium);
+        assert_eq!(VoiceId::PtBrJeffMedium.prev(), VoiceId::PtBrCaduMedium);
     }
 
     #[test]
@@ -230,6 +256,10 @@ mod tests {
         assert_eq!(
             VoiceId::from_str("pt_BR-cadu-medium"),
             Ok(VoiceId::PtBrCaduMedium)
+        );
+        assert_eq!(
+            VoiceId::from_str("pt_BR-jeff-medium"),
+            Ok(VoiceId::PtBrJeffMedium)
         );
         assert!(VoiceId::from_str("pt_BR-edresson-low").is_err());
         assert!(VoiceId::from_str("unknown").is_err());
@@ -246,5 +276,9 @@ mod tests {
         assert!((c.noise_scale - 0.5).abs() < 1e-6);
         assert!((c.noise_scale_w - 0.333).abs() < 1e-6);
         assert!((c.length_scale - 1.0).abs() < 1e-6);
+        let j = inference_defaults(VoiceId::PtBrJeffMedium);
+        assert!((j.noise_scale - 0.667).abs() < 1e-6);
+        assert!((j.noise_scale_w - 0.8).abs() < 1e-6);
+        assert!((j.length_scale - 1.0).abs() < 1e-6);
     }
 }

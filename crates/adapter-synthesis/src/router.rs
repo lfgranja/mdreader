@@ -17,8 +17,8 @@
 
 use engine_core::closed::EngineTier;
 use engine_core::router::{
-    PaymentMethod, ProviderCapability, ProviderRegistration, RecurrenceType,
-    Router, TransactionScope, VolumeTier,
+    PaymentMethod, ProviderCapability, ProviderRegistration, RecurrenceType, Router,
+    TransactionScope, VolumeTier,
 };
 
 /// The router for adapter-synthesis.
@@ -34,6 +34,7 @@ pub struct AdapterRouter {
 impl AdapterRouter {
     /// Create a new adapter router with the default `offline_default`
     /// tier registered.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             inner: Router::new(vec![ProviderRegistration {
@@ -56,6 +57,7 @@ impl AdapterRouter {
     /// At v1, only [`EngineTier::OfflineDefault`] is registered, so this
     /// always returns [`EngineTier::OfflineDefault`] when it is consented
     /// and available.
+    #[must_use]
     pub fn select(
         &self,
         payment_method: PaymentMethod,
@@ -78,6 +80,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[expect(clippy::expect_used, reason = "test assertion on non-None value")]
     fn test_adapter_router_selects_offline_default() {
         let router = AdapterRouter::new();
 
@@ -89,10 +92,14 @@ mod tests {
         );
 
         assert!(decision.is_some());
-        assert_eq!(decision.unwrap().tier, EngineTier::OfflineDefault);
+        assert_eq!(
+            decision.expect("decision is Some").tier,
+            EngineTier::OfflineDefault
+        );
     }
 
     #[test]
+    #[expect(clippy::expect_used, reason = "test assertion on non-None value")]
     fn test_adapter_router_international() {
         let router = AdapterRouter::new();
 
@@ -104,10 +111,14 @@ mod tests {
         );
 
         assert!(decision.is_some());
-        assert_eq!(decision.unwrap().tier, EngineTier::OfflineDefault);
+        assert_eq!(
+            decision.expect("decision is Some").tier,
+            EngineTier::OfflineDefault
+        );
     }
 
     #[test]
+    #[expect(clippy::expect_used, reason = "test assertion on non-None value")]
     fn test_adapter_router_unavailable() {
         let router = AdapterRouter::new();
         // Default state has OfflineDefault consented and available.
@@ -119,6 +130,9 @@ mod tests {
         );
 
         assert!(decision.is_some());
-        assert_eq!(decision.unwrap().tier, EngineTier::OfflineDefault);
+        assert_eq!(
+            decision.expect("decision is Some").tier,
+            EngineTier::OfflineDefault
+        );
     }
 }

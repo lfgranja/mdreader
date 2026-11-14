@@ -16,7 +16,6 @@
 //! operation based on the declared capabilities and the current
 /// conditions (value, volume, recurrence, payment method, national/
 /// international, etc.).
-
 use crate::closed::EngineTier;
 use serde::{Deserialize, Serialize};
 
@@ -123,7 +122,8 @@ pub struct Router {
 
 impl Router {
     /// Create a new router with the given providers.
-    pub fn new(providers: Vec<ProviderRegistration>) -> Self {
+    #[must_use]
+    pub const fn new(providers: Vec<ProviderRegistration>) -> Self {
         Self { providers }
     }
 
@@ -135,6 +135,14 @@ impl Router {
     /// 3. Provider must have the required capabilities
     /// 4. Prefer higher tiers in the closed order
     /// 5. Prefer providers whose capabilities match the conditions
+    /// # Panics
+    ///
+    /// Panics if the qualified provider list is empty after filtering.
+    #[must_use]
+    #[expect(
+        clippy::expect_used,
+        reason = "qualified list is non-empty after filtering"
+    )]
     pub fn select(
         &self,
         payment_method: PaymentMethod,
@@ -170,7 +178,7 @@ impl Router {
         let selected = qualified
             .into_iter()
             .max_by_key(|p| tier_order_index(p.tier))
-            .unwrap();
+            .expect("qualified list is non-empty after filtering");
 
         Some(RouteDecision {
             tier: selected.tier,
@@ -179,6 +187,10 @@ impl Router {
     }
 
     /// The required capabilities based on the given conditions.
+    #[expect(
+        clippy::unused_self,
+        reason = "required_capabilities is an instance method for consistency"
+    )]
     fn required_capabilities(
         &self,
         payment_method: PaymentMethod,
@@ -220,7 +232,7 @@ impl Router {
 
 /// The index of a tier in the single authoritative [`EngineTier`] order
 /// (FR-023c).
-fn tier_order_index(tier: EngineTier) -> usize {
+const fn tier_order_index(tier: EngineTier) -> usize {
     match tier {
         EngineTier::OfflineDefault => 0,
         EngineTier::CloudDefault => 1,
@@ -235,6 +247,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[expect(clippy::expect_used, reason = "test assertion on non-None value")]
     fn test_router_selects_highest_available_tier() {
         let router = Router::new(vec![
             ProviderRegistration {
@@ -259,10 +272,14 @@ mod tests {
         );
 
         assert!(decision.is_some());
-        assert_eq!(decision.unwrap().tier, EngineTier::CloudDefault);
+        assert_eq!(
+            decision.expect("decision is Some").tier,
+            EngineTier::CloudDefault
+        );
     }
 
     #[test]
+    #[expect(clippy::expect_used, reason = "test assertion on non-None value")]
     fn test_router_respects_consent() {
         let router = Router::new(vec![
             ProviderRegistration {
@@ -287,19 +304,20 @@ mod tests {
         );
 
         assert!(decision.is_some());
-        assert_eq!(decision.unwrap().tier, EngineTier::OfflineDefault);
+        assert_eq!(
+            decision.expect("decision is Some").tier,
+            EngineTier::OfflineDefault
+        );
     }
 
     #[test]
     fn test_router_no_available_providers() {
-        let router = Router::new(vec![
-            ProviderRegistration {
-                tier: EngineTier::OfflineDefault,
-                capabilities: vec![ProviderCapability::None],
-                consented: true,
-                available: false, // not available
-            },
-        ]);
+        let router = Router::new(vec![ProviderRegistration {
+            tier: EngineTier::OfflineDefault,
+            capabilities: vec![ProviderCapability::None],
+            consented: true,
+            available: false, // not available
+        }]);
 
         let decision = router.select(
             PaymentMethod::Pix,
@@ -312,6 +330,7 @@ mod tests {
     }
 
     #[test]
+    #[expect(clippy::expect_used, reason = "test assertion on non-None value")]
     fn test_router_international_requires_international_capability() {
         let router = Router::new(vec![
             ProviderRegistration {
@@ -336,6 +355,9 @@ mod tests {
         );
 
         assert!(decision.is_some());
-        assert_eq!(decision.unwrap().tier, EngineTier::CloudDefault);
+        assert_eq!(
+            decision.expect("decision is Some").tier,
+            EngineTier::CloudDefault
+        );
     }
 }

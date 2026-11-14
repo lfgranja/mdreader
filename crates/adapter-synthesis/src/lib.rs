@@ -27,15 +27,15 @@ pub mod router;
 pub mod synth;
 pub mod voice;
 
-//! The tier this adapter registers at: `OfflineDefault` only.
-//!
-// The sole selectable tier at v1 (`contracts/adapter-handoff.md`
-//! The sole selectable tier at v1 (`contracts/adapter-handoff.md`
-// `standin_b`) are fixtures and are never selectable while this
-// non-`test_double` adapter is registered (`closed.rs`:398-406).
+/// The tier this adapter registers at: `OfflineDefault` only.
+///
+/// The sole selectable tier at v1 (`contracts/adapter-handoff.md`
+/// The sole selectable tier at v1 (`contracts/adapter-handoff.md`
+/// `standin_b`) are fixtures and are never selectable while this
+/// non-`test_double` adapter is registered (`closed.rs`:398-406).
 pub const REGISTERED_TIER: EngineTier = EngineTier::OfflineDefault;
 
-// Declared adapter capabilities (FR-024c).
+/// Declared adapter capabilities (FR-024c).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AdapterCapabilities {
     /// SSML level (`None` for the v1 `offline_default` adapter).

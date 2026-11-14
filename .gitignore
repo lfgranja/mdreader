@@ -126,3 +126,9 @@ t184-t226-*/
 
 # Tauri capabilities generated
 src-tauri/capabilities/
+
+# Experimental training scripts
+/scripts/build_all_waves.py
+/scripts/extract_sona_audio.sh
+/scripts/test_wave_builder.py
+/scripts/train_ressoa_model.py

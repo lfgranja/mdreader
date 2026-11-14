@@ -132,3 +132,8 @@ src-tauri/capabilities/
 /scripts/extract_sona_audio.sh
 /scripts/test_wave_builder.py
 /scripts/train_ressoa_model.py
+
+# Experimental training artifacts (not product code)
+/training/
+/DESIGN-DETONACAO-DESCONTROLADA/
+/docs/RESSOA_VOICE_TRAINING.md

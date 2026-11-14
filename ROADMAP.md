@@ -4,7 +4,7 @@
 > **Framework de Produto & Governança:** `Now / Next / Later` + Spec Kit (`assess.*` → `specify` → `clarify` → `plan` → `tasks` → `implement` → `converge` / `bug.*`)  
 > **Objetivo Primário:** `OBJETIVO.md` — leitor de documentos Markdown com síntese de voz 100% offline, Rust como única autoridade de playback/transporte/rate/posição, Kotlin como espelho estrito (`SC-035`), Tauri 2.12.1, CPAL 0.18.2 + AAudio, mono f32 @ 22050 Hz, sherpa-onnx 1.13.8 + Piper pt-BR (`offline_default`). Zero permissão de INTERNET.
 
-*Atualizado: 2026-11-12 · Branch atual: `dev`. Ciclo 018 — Sona-Inspired Voice (closed catalog faber+cadu, persist/cycle/restart, host gates 1-8 PASS, gate 9 Rust compile PASS).*
+*Atualizado: 2026-11-13 · Branch atual: `dev`. Ciclo 018 — Sona-Inspired Voice (closed catalog faber+cadu, persist/cycle/restart, host gates 1-8 PASS, gate 9 Rust compile PASS). Ciclo rc2 — Spec 021 convergida (verificação), rc2 candidate produzido (.specify/releases/v0.1.0-rc2/); gates 1-8 a re-executar em ambiente sem limite; signed build/store pendentes de autorização.*
 
 ---
 
@@ -22,10 +22,11 @@
                                               ↓
 ┌─────────────────────────────────────────────────────────────────────────────────────────────┐
 │ NEXT (Próximo Marco — Android 16 Compliance, Empacotamento de Release e Loja)              │
-│ • Migrar chamadas residuais de `announceForAccessibility` no shell Kotlin para API 36      │
+│ • ✅ Spec 021 (Android 16 a11y): targetSdk/compileSdk 36; zero announceForAccessibility; aria-live presente (verificação, sem migração) │
+│ • ✅ rc2 candidate produzido (host-verificado, pendente re-run dos gates 1-8 em ambiente sem limite): .specify/releases/v0.1.0-rc2/ │
+│ • ⏳ Build de Release assinado (`cargo tauri android build --release`) — autorização (keystore) pendente │
+│ • ⏳ Publicação do RC v0.1.0-rc2 no F-Droid / Google Play Store — autorização (contas/assets/ASO) pendente │
 │ • Avaliação de suporte a múltiplos speakers/modelos locais (ex: Kokoro-82M / Piper pt-BR)   │
-│ • Build de Release assinado para Android (`cargo tauri android build --release`)           │
-│ • Publicação do Release Candidate v0.1.0 e publicação no F-Droid / Google Play Store        │
 └─────────────────────────────────────────────────────────────────────────────────────────────┘
                                               ↓
 ┌─────────────────────────────────────────────────────────────────────────────────────────────┐
@@ -137,13 +138,12 @@
 9. **Padrão de Qualidade e Gates de CI:** Gates 1 a 8 rigorosamente verdes (formatação, nextest com 1.050+ testes, docs, clippy pedantic -D warnings, supply chain e pureza do shell).
 
 ### O que ainda falta (~2% para Lançamento do Produto):
-1. **Conformidade Android 16 (API 36):**
-   - Migrar chamadas residuais de `announceForAccessibility` no shell Kotlin para `setAccessibilityPaneTitle` e `setAccessibilityLiveRegion`.
-2. **Housekeeping e Catálogo de Vozes Locais (Spec 018):**
-   - Avaliação e implementação do seletor em tempo de execução para múltiplos modelos ONNX locais (ex: Piper pt-BR / Kokoro-82M).
+1. **Conformidade Android 16 (API 36):** ✅ Spec 021 convergida (verificação) — targetSdk/compileSdk 36; zero `announceForAccessibility`/`TYPE_ANNOUNCEMENT` no shell Kotlin; `aria-live` presente; sem migração necessária.
+2. **Housekeeping e Catálogo de Vozes Locais (Spec 018):** ✅ Convergida — catálogo fechado (faber+cadu CC0), `VoiceId`, persist/cycle/restart, host gates 1-8 PASS, gate 9 Rust compile PASS.
 3. **Go-To-Market, Embalagem de Release & Distribuição:**
-   - Geração de pacote de release assinado (`cargo tauri android build --target aarch64 --release`).
-   - Publicação na Google Play Store e F-Droid com a estratégia de monetização perpétua ("Pay Once, Own Forever").
+   - ⏳ Geração de pacote de release assinado (`cargo tauri android build --target aarch64 --release`) — autorização (keystore) pendente.
+   - ⏳ Publicação na Google Play Store e F-Droid com a estratégia de monetização perpétua ("Pay Once, Own Forever") — autorização (contas/assets/ASO) pendente.
+   - rc2 candidate: `.specify/releases/v0.1.0-rc2/release.md` (host-verificado; gates 1-8 a re-executar em ambiente sem limite).
 
 ---
 

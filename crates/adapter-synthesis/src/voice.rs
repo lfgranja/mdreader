@@ -70,7 +70,11 @@ impl VoiceId {
     pub const DEFAULT: Self = Self::PtBrFaberMedium;
 
     /// Fixed catalog order (exhaustive, deterministic).
-    pub const CATALOG: &'static [Self] = &[Self::PtBrFaberMedium, Self::PtBrCaduMedium, Self::PtBrJeffMedium];
+    pub const CATALOG: &'static [Self] = &[
+        Self::PtBrFaberMedium,
+        Self::PtBrCaduMedium,
+        Self::PtBrJeffMedium,
+    ];
 
     /// Returns an iterator over the fixed catalog in order.
     pub fn iter() -> std::slice::Iter<'static, Self> {

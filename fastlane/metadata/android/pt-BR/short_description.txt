@@ -1,1 +1,0 @@
-Leitor Markdown 100% offline com TTS neural. Sem internet, sem assinatura.

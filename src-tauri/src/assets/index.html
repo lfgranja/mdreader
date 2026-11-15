@@ -413,7 +413,37 @@
     .reason-banner.visible { height: auto; overflow: visible; padding: .75rem 1rem; margin-top: 1rem; border-width: 1px; animation: slideIn .2s ease; }
     .reason-banner.warning { background: transparent; border: 1px solid var(--signal-caution); color: var(--signal-caution); }
     .reason-banner.failure { background: transparent; border: 1px solid var(--signal-failure); color: var(--signal-failure); animation: none; }
-    /* FR-009: the resume offer — the visual dialog of the in-app
+    /* Loading spinner shown while a document is being opened/synthesized (FR-003 / SC-002).
+       Painted over the card so the reader never sees a frozen surface. */
+    .loading-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(11,15,26,0.75);
+      backdrop-filter: blur(8px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      z-index: 10;
+      border-radius: var(--radius);
+    }
+    .loading-overlay.hidden { display: none; }
+    .loading-spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid rgba(143,216,232,0.25);
+      border-top-color: var(--sona-etwahl);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-label {
+      color: var(--sona-voice);
+      font-size: 0.9rem;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+    }
        route. The DESIGN-SONA tokens are the ones the card paints
        (title #F2F0E6, section #A9B8CE, the neutral progress tone
        #55688F) — no new token, no reserved green, no red (the
@@ -468,7 +498,10 @@
 </head>
 <div class="card" role="region" aria-label="Lente Sinestésica">
   <img id="headerMark" src="DESIGN-SONA/assets/logo/logo-proposta-3-concha.png" alt="" width="58" height="68" style="display:block; object-fit: contain; background: transparent;">
-  
+  <div id="loadingOverlay" class="loading-overlay hidden" role="status" aria-live="polite" aria-atomic="true">
+    <div class="loading-spinner" aria-hidden="true"></div>
+    <div class="loading-label" id="loadingLabel">Abrindo documento…</div>
+  </div>
   <div class="meta-box" id="titleCard" role="button" tabindex="0" aria-label="Selecionar documento para leitura">
     <h1 id="documentTitle"></h1>
     <div class="subtitle" id="sectionTitle"><span aria-hidden="true">—</span><span class="sr-only">Sem título</span></div>
@@ -582,6 +615,8 @@
     progressFill: document.getElementById('progressFill'),
     progressLabel: document.getElementById('progressLabel'),
     reasonBanner: document.getElementById('reasonBanner'),
+    loadingOverlay: document.getElementById('loadingOverlay'),
+    loadingLabel: document.getElementById('loadingLabel'),
     offerDialog: document.getElementById('offerDialog'),
     offerTitle: document.getElementById('offerTitle'),
     offerSection: document.getElementById('offerSection'),
@@ -1366,7 +1401,6 @@
     window.__TAURI__.event.listen('tauri://channel/mirror-publish', (event) => {
       const mirror = event.payload;
       if (!mirror) return;
-
       const prevTransport = state.transport;
       state.transport = mirror.transport;
       state.positionSecs = mirror.position_secs;
@@ -1375,6 +1409,21 @@
       state.sectionTitle = mirror.section_title || null;
         state.chapterIndex = mirror.chapter_index ?? null;
         state.chapterCount = mirror.chapter_count ?? null;
+
+      // Loading overlay: show while synthesizing, hide otherwise.
+      // The spinner is the reader's only indication that a load is in flight.
+      if (mirror.synthesizing) {
+        els.loadingOverlay.classList.remove('hidden');
+        if (els.liveRegion) els.liveRegion.textContent = 'Abrindo documento…';
+      } else {
+        els.loadingOverlay.classList.add('hidden');
+      }
+
+      // Transient reason from Rust (open refusal / pause reason) — render in the banner.
+      if (mirror.transient_reason) {
+        state.reason = mirror.transient_reason;
+        state.reasonExpiry = null; // failures persist until read (FR-037a)
+      }
 
       // Update rate index from current rate if it changed
       const rateIdx = LADDER.findIndex(r => Math.abs(r - state.rate) < 0.01);

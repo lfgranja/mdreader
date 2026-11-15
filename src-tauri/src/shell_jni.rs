@@ -1066,6 +1066,9 @@ pub(crate) fn open_ingested_document(
                 %reason,
                 "open_document_bytes_named refused"
             );
+            // Publish the refusal to the surface so the reader sees it
+            // instead of a silent failure (FR-023 / FR-037).
+            crate::commands::publish_current_state(state, Some(reason.clone()));
             IngestError::Open { reason }
         })?;
     tracing::info!(

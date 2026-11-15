@@ -6,10 +6,9 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
-import android.provider.DocumentsContract
 import android.util.Log
+import android.widget.Toast
 import java.io.File
-import java.io.FileOutputStream
 import java.io.InputStream
 import java.security.MessageDigest
 import kotlinx.coroutines.CoroutineScope
@@ -222,6 +221,11 @@ object DocIngest {
         // document, and nothing is written for an oversize pick.
         if (bytes.size > MAX_DOC_BYTES) {
             Log.w(TAG, "Pick refused past the byte cap: ${bytes.size} > $MAX_DOC_BYTES bytes")
+            Toast.makeText(
+                activity,
+                "Arquivo muito grande para leitura: ${(bytes.size / 1024 / 1024).toInt()} MiB (limite: 1 MiB)",
+                Toast.LENGTH_LONG,
+            ).show()
             return IngestOutcome.Refused(REFUSAL_FORMAT_UNDELIVERABLE)
         }
 
@@ -755,6 +759,13 @@ object DocIngest {
 
         if (bytes.isEmpty() || bytes.size > MAX_DOC_BYTES) {
             Log.w(TAG, "handleIncomingIntent: document empty or exceeds MAX_DOC_BYTES (${bytes.size} bytes)")
+            if (bytes.size > MAX_DOC_BYTES) {
+                Toast.makeText(
+                    activity,
+                    "Arquivo muito grande para leitura: ${(bytes.size / 1024 / 1024).toInt()} MiB (limite: 1 MiB)",
+                    Toast.LENGTH_LONG,
+                ).show()
+            }
             return false
         }
 

@@ -281,6 +281,11 @@ pub struct SurfaceSnapshot {
 /// not. Its Rust frontend form adds optional `progress_label`
 /// for the in-app display; the separate Kotlin lock-screen
 /// payload remains unchanged.
+///
+/// The optional `transient_reason` carries a named
+/// refusal or pause reason the surface must render
+/// (FR-023 / FR-037 / FR-041). It is `None` when no
+/// transient reason is active.
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct MirrorState {
     /// The session's authoritative transport state
@@ -301,6 +306,11 @@ pub struct MirrorState {
     /// absent when progress is indeterminate.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub progress_label: Option<String>,
+    /// A named transient reason (refusal / pause) the
+    /// surface must render, or `None` when none is
+    /// active (FR-023 / FR-037 / FR-041).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transient_reason: Option<String>,
 }
 
 /// The notification-surface content resolver (T061) —

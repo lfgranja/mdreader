@@ -444,6 +444,7 @@ const fn mirror_of(snapshot: &SessionSnapshot, duration_secs: Option<f64>) -> Mi
         synthesizing: false,
         progress,
         progress_label: None,
+        transient_reason: None,
     }
 }
 

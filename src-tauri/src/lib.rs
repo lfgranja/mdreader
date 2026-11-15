@@ -3405,6 +3405,11 @@ pub fn run() {
                 let _ = adapter_synthesis::synth::set_active_voice(seeded);
                 let _ = adapter_synthesis::synth::replace_active_voice(seeded);
                 tracing::info!(voice = seeded.id(), "voice selection seeded");
+                // TTFA pre-warm: load the default voice engine now so the
+                // first synthesis (press-to-first-audio) does not pay the
+                // model-load cost (SC-002). Best-effort — a load failure is
+                // cached and reported on the first real synthesis attempt.
+                adapter_synthesis::synth::prewarm_default_voice();
             }
             // Welcome document on first start (Android): embeds
             // assets/samples/bem-vindo-ao-ressoa.md into the APK via
@@ -5290,7 +5295,32 @@ pub mod commands {
             return;
         };
         let Some(resolver) = resolver_guard.as_ref() else {
-            return; // no document loaded
+            // No document loaded: still publish a transient reason
+            // (e.g. an open refusal) so the surface can render it.
+            if let Some(reason) = transient_reason {
+                let snapshot = player::cli::SessionSnapshot {
+                    transport: TransportState::Stopped,
+                    position_secs: 0.0,
+                    rate: engine_core::closed::PlaybackRate::R1_0,
+                    engine_id: "offline_default",
+                };
+                let surface = player::surface::SurfaceSnapshot {
+                    title: String::new(),
+                    section_title: None,
+                    progress: player::surface::Progress::Indeterminate,
+                };
+                let _headings: Vec<player::surface::Heading> = Vec::new();
+                let dismissal = player::surface::Dismissal::Dismissable;
+                drop(resolver_guard);
+                crate::publish::publish_mirror_to_channel(
+                    state,
+                    &snapshot,
+                    &surface,
+                    Some(reason),
+                    &dismissal,
+                );
+            }
+            return;
         };
         let Ok(headings_guard) = state.headings.lock() else {
             return;
@@ -7658,6 +7688,7 @@ pub mod publish {
             snapshot.position_secs,
             crate::commands::production_running(state),
             surface,
+            transient_reason.clone(),
         );
 
         if let (Some(app), Some(chapters)) =
@@ -7696,6 +7727,7 @@ pub mod publish {
         position_secs: f64,
         synthesizing: bool,
         surface: &SurfaceSnapshot,
+        transient_reason: Option<String>,
     ) -> MirrorState {
         let progress = match surface.progress {
             Progress::Determinate {
@@ -7717,6 +7749,7 @@ pub mod publish {
             synthesizing,
             progress,
             progress_label: pt_br_progress_label(&surface.progress),
+            transient_reason,
         }
     }
 

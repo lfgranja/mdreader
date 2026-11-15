@@ -164,7 +164,11 @@ fn download_prebuilt_libs(
     let lib_dir_name = if is_ios_sim { "lib-sim" } else { "lib" };
     let lib_dir = extracted_dir.join(lib_dir_name);
 
-    if lib_dir.is_dir() {
+    if lib_dir.is_dir()
+        && SHERPA_ONNX_STATIC_LIBS
+            .iter()
+            .all(|l| lib_dir.join(format!("lib{l}.a")).is_file())
+    {
         return Ok((lib_dir, archive_stem.to_string()));
     }
 

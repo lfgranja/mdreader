@@ -122,6 +122,17 @@ static ACTIVE_VOICE: OnceLock<VoiceId> = OnceLock::new();
 pub fn set_active_voice(voice: VoiceId) -> bool {
     ACTIVE_VOICE.set(voice).is_ok()
 }
+/// Pre-warm the default voice engine at startup so the first synthesis
+/// (and thus the first audible speech) does not pay the model-load cost
+/// during the press-to-first-audio budget (SC-002 / TTFA).
+///
+/// The engine is lazily cached by [`engine_for`]; this call forces that
+/// load once during app setup. A failed load is cached as `None` and
+/// reported on the first real synthesis attempt — pre-warming never
+/// masks a failure, it only moves it earlier.
+pub fn prewarm_default_voice() {
+    let _ = engine_for(VoiceId::DEFAULT);
+}
 
 /// Replace the active voice id for subsequent [`synthesize`] calls.
 ///

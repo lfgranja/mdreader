@@ -59,6 +59,8 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Gate 2 — tests (nextest workspace)
+        env:
+          SHERPA_ONNX_ARCHIVE_DIR: .
         run: cargo nextest run --workspace --profile ci
 
       - name: Gate 2 — expected-tests two-way diff

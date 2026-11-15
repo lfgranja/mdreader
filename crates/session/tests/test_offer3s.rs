@@ -761,7 +761,8 @@ fn the_offer_verbs_resolve_the_same_forms_over_the_wire() -> Result<(), Box<dyn 
 #[test]
 fn the_deliberate_offer_window_is_a_named_three_second_constant() {
     assert_eq!(
-        session::offer::OFFER_WINDOW_MS, 3_000,
+        session::offer::OFFER_WINDOW_MS,
+        3_000,
         "the deliberate-pause offer window is 3 s (FR-032c, spec.md:957)"
     );
 }

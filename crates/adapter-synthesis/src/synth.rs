@@ -159,7 +159,8 @@ pub fn active_voice() -> VoiceId {
 fn normalize_voices_root(dir: PathBuf) -> PathBuf {
     if dir.file_name().and_then(|n| n.to_str()) == Some(VoiceId::PtBrFaberMedium.id())
         || dir.file_name().and_then(|n| n.to_str()) == Some(VoiceId::PtBrCaduMedium.id())
-        || dir.file_name().and_then(|n| n.to_str()) == Some(VoiceId::PtBrJeffMedium.id()) {
+        || dir.file_name().and_then(|n| n.to_str()) == Some(VoiceId::PtBrJeffMedium.id())
+    {
         return dir.parent().map(Path::to_path_buf).unwrap_or(dir);
     }
     dir

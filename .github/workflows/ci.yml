@@ -15,6 +15,7 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: "0"
   PROPTEST_CASES: "32"
+  SHERPA_ONNX_ARCHIVE_DIR: vendor/sherpa-onnx-sys
   RUST_BACKTRACE: short
 
 jobs:
@@ -59,13 +60,9 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Gate 2 — tests (nextest workspace)
-        env:
-          SHERPA_ONNX_ARCHIVE_DIR: .
         run: cargo nextest run --workspace --profile ci
 
       - name: Gate 2 — expected-tests two-way diff
-        env:
-          SHERPA_ONNX_ARCHIVE_DIR: vendor/sherpa-onnx-sys
         run: |
           set -euo pipefail
           cargo nextest list --workspace 2>/dev/null             | grep -E "::"             | sed -E 's/ .*//'             | sort -u > /tmp/nextest-live.txt

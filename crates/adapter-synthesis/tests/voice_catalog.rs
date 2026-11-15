@@ -18,7 +18,11 @@ fn catalog_is_closed_default_first_and_deterministic() {
     let ids: Vec<&str> = VoiceId::iter().copied().map(VoiceId::id).collect();
     assert_eq!(
         ids,
-        vec!["pt_BR-faber-medium", "pt_BR-cadu-medium", "pt_BR-jeff-medium"]
+        vec![
+            "pt_BR-faber-medium",
+            "pt_BR-cadu-medium",
+            "pt_BR-jeff-medium"
+        ]
     );
 }
 

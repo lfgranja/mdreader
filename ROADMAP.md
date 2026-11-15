@@ -4,7 +4,7 @@
 > **Framework de Produto & Governança:** `Now / Next / Later` + Spec Kit (`assess.*` → `specify` → `clarify` → `plan` → `tasks` → `implement` → `converge` / `bug.*`)  
 > **Objetivo Primário:** `OBJETIVO.md` — leitor de documentos Markdown com síntese de voz 100% offline, Rust como única autoridade de playback/transporte/rate/posição, Kotlin como espelho estrito (`SC-035`), Tauri 2.12.1, CPAL 0.18.2 + AAudio, mono f32 @ 22050 Hz, sherpa-onnx 1.13.8 + Piper pt-BR (`offline_default`). Zero permissão de INTERNET.
 
-*Atualizado: 2026-11-13 · Branch atual: `dev`. Ciclo 018 — Sona-Inspired Voice (closed catalog faber+cadu, persist/cycle/restart, host gates 1-8 PASS, gate 9 Rust compile PASS). Ciclo rc2 — Spec 021 convergida (verificação), rc2 candidate produzido (.specify/releases/v0.1.0-rc2/); gates 1-8 a re-executar em ambiente sem limite; signed build/store pendentes de autorização.*
+*Atualizado: 2026-11-14 · Branch atual: `dev`. Ciclo 018 — Sona-Inspired Voice (closed catalog faber+cadu+jeff, persist/cycle/restart, host gates 1-8 PASS, gate 9 Rust compile PASS). Ciclo rc2 — Spec 021 convergida (verificação), rc2 candidate produzido (.specify/releases/v0.1.0-rc2/); gates 1-8 a re-executar em ambiente sem limite; signed build/store pendentes de autorização. Adicionados: DSP post-processing (compressor/reverb/chorus), provider router (closed-set EngineTier), terceira voz pt_BR-jeff-medium (CC0).*
 
 ---
 
@@ -16,8 +16,8 @@
 │ • ✅ Spec 017 (AudioChunkCache): cache LRU 32 MiB em RAM com PBT CONVERGIDA (PR #195)       │
 │ • ✅ Bug #196 / PR #197: velocidade acústica dinâmica, re-ancoragem em tempo real e layout    │
 │ • ✅ Spec 014 (normalização) e Spec 015 (prosódia semântica) CONVERGIDAS                      │
-│ • ✅ Spec 010 (Directory Reading) e Spec 013 (TTFA): 100% implementadas no host e no device │
-│ • ✅ Spec 018 (Sona-Inspired Voice): closed catalog (faber+cadu CC0), persist/cycle/restart, tests PASS, gate 9 Rust compile PASS │
+│ • ✅ Spec 010 (Directory Reading) 100% no host/device; Spec 013 (TTFA) host-converged, device TTFA proof pending (converge: partial) │
+│ • ✅ Spec 018 (Sona-Inspired Voice): closed catalog (faber+cadu+jeff CC0), persist/cycle/restart, tests PASS, gate 9 Rust compile PASS │
 └─────────────────────────────────────────────────────────────────────────────────────────────┘
                                               ↓
 ┌─────────────────────────────────────────────────────────────────────────────────────────────┐
@@ -132,11 +132,12 @@
 3. **Ingestão SAF & Bookmarking Durável (100% Convergido):** Abertura de arquivos Markdown pela caixa de título via Android SAF, cálculo de fingerprint Blake3, persistência atômica em `redb` a cada 20s e em pausas, e diálogo de retomada inteligente (`offerDialog`) (Spec 009 convergida; bugs de play sanados).
 4. **Normalização e Prosódia Semântica de Markdown (100% Convergido):** Sanitização de símbolos técnicos e pontuação (`normalize.rs`) e pausas estruturais/entonação (`prosody.rs`), eliminando a fadiga auditiva (Specs 014 e 015 convergidas).
 5. **Directory Reading (100% Convergido — 49 tasks):** ChapterQueue com sort natural, persistência em redb, permissões de árvore SAF (`ACTION_OPEN_DOCUMENT_TREE`), transições gapless e comandos de avanço/recuo de capítulos atestados em hardware físico (Spec 010).
-6. **Pipeline de Síntese TTFA com Worker Assíncrono (100% Convergido):** Síntese on-device com Piper e sherpa-onnx medida e comprovada em hardware físico Xiaomi Redmi Note 11 com TTFA de 1.551 ms (< orçamento de 3.000 ms) (Spec 013).
+6. **Pipeline de Síntese TTFA com Worker Assíncrono (host-converged; device TTFA proof pending):** Síntese on-device com Piper e sherpa-onnx; TTFA medido em 1.551 ms no Redmi Note 11 em captura anterior, mas `converge.md` de 013 marca parcial (sem rebuild/controlled smoke recente). (Spec 013).
 7. **Cache Bounded de Áudio em RAM (100% Convergido):** Gerenciamento de memória de 32 MiB (`AudioChunkCache`) com invalidação atômica e política LRU (Spec 017, PR #195).
 8. **Controle Dinâmico de Velocidade (100% Convergido):** Ajuste de taxa dinâmico que afeta o áudio neural imediatamente e re-ancora a reprodução sem travar a interface (PR #197).
 9. **Padrão de Qualidade e Gates de CI:** Gates 1 a 8 rigorosamente verdes (formatação, nextest com 1.050+ testes, docs, clippy pedantic -D warnings, supply chain e pureza do shell).
-
+10. **DSP Post-Processing (Sona Ethereal):** Camada de pós-processamento em tempo real (compressor óptico → reverb plate/shimmer → chorus) em mono f32 @ 22050 Hz, zero dependências externas, integrada ao backend CPAL e CLI (PRs #203/#204).
+11. **Provider Router (closed-set):** Roteamento de provedores via `Engine` trait com conjuntos fechados (`EngineTier`, `ProviderCapability`, etc.), zero SDK de fornecedor no core; adapter registra apenas `offline_default` (PR #206).
 ### O que ainda falta (~2% para Lançamento do Produto):
 1. **Conformidade Android 16 (API 36):** ✅ Spec 021 convergida (verificação) — targetSdk/compileSdk 36; zero `announceForAccessibility`/`TYPE_ANNOUNCEMENT` no shell Kotlin; `aria-live` presente; sem migração necessária.
 2. **Housekeeping e Catálogo de Vozes Locais (Spec 018):** ✅ Convergida — catálogo fechado (faber+cadu CC0), `VoiceId`, persist/cycle/restart, host gates 1-8 PASS, gate 9 Rust compile PASS.

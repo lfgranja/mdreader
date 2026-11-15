@@ -57,9 +57,9 @@ Um leitor de audiolivros e notas Markdown (`mdreader`, produto **Ressoa**) volta
 - **Spec 016 (Voz Lula):** **DEFERIDA** formalmente por restrições de licenciamento, ausência de modelo permissivo e riscos regulatórios (LGPD/STJ/TSE).
 - **Spec 017:** Cache em memória RAM limitado a 32 MiB (`AudioChunkCache`) com política LRU e invalidação por taxa (PR #195) — **CONVERGIDO**.
 - **Correções de Usabilidade & Taxa Dinâmica (#196 / PR #197):** Multiplicador de velocidade no TTS neural, re-ancoragem em tempo real durante playback e layout responsivo de dois níveis — **CONVERGIDO**.
-- **Spec 018:** Especificação para expansão de múltiplos modelos e catálogo de vozes locais — **ESPECIFICADO**.
-- **Spec 019:** Ingress nativo Android via Intent Filters (`ACTION_VIEW` e `ACTION_SEND`) — **CONVERGIDO**.
-- **Spec 020:** Expansão do orçamento de documento e capítulo de 91 KiB para 1 MiB (`MAX_DOC_BYTES = 1_048_576`), viabilizando leitura contínua de notas longas de PKMS e livros completos — **CONVERGIDO**.
+- **Spec 018:** Catálogo de vozes fechado (faber+cadu+jeff, CC0), `VoiceId`, persist/cycle/restart; DSP post-processing (compressor/reverb/chorus) e provider router (closed-set `EngineTier`) integrados; host gates 1-8 PASS e gate 9 Rust compile PASS — **CONVERGIDO**.
+- **Spec 021:** Conformidade Android 16 (API 36): targetSdk/compileSdk 36, zero `announceForAccessibility`/`TYPE_ANNOUNCEMENT`, `aria-live` presente; verificação concluída, sem migração necessária — **CONVERGIDO**.
+- **Release candidate rc2:** `.specify/releases/v0.1.0-rc2/` produzido (host-verificado); build assinado e publicação (F-Droid/Play) pendentes de autorização (keystore/contas/assets/ASO).
 
 ---
 
@@ -71,4 +71,4 @@ Um leitor de audiolivros e notas Markdown (`mdreader`, produto **Ressoa**) volta
 3. **Custo Estrutural:** Como toda a computação neural ocorre localmente no processador do celular, o custo de servidor por minuto de áudio sintetizado é **zero**, tornando a licença vitalícia viável, sustentável e altamente atrativa.
 
 ---
-*Documento atualizado em 2026-11-11 com base nos gates executados, especificações atestadas e PRs consolidados na branch `dev`.*
+*Documento atualizado em 2026-11-14 com base nos gates executados, especificações atestadas e PRs consolidados na branch `dev`.*

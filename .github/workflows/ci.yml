@@ -15,7 +15,7 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: "0"
   PROPTEST_CASES: "32"
-  SHERPA_ONNX_ARCHIVE_DIR: vendor/sherpa-onnx-sys
+  SHERPA_ONNX_ARCHIVE_DIR: ${{ github.workspace }}/vendor/sherpa-onnx-sys
   RUST_BACKTRACE: short
 
 jobs:

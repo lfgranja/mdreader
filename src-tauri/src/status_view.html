@@ -1193,7 +1193,12 @@
         if (rateIndex < 0) rateIndex = 1;
         renderAll();
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error('refreshStatusView failed:', e);
+      const msg = (e && e.message) ? e.message : 'falha ao atualizar estado';
+      if (els.reasonBanner) { els.reasonBanner.textContent = msg; els.reasonBanner.className = 'reason-banner visible failure'; }
+      if (els.liveRegion) els.liveRegion.textContent = msg;
+    }
   }
 
   // Action handlers
@@ -1209,6 +1214,9 @@
       await refreshStatusView();
     } catch (e) {
       console.error(`Action ${action} failed:`, e);
+      const msg = (e && e.message) ? e.message : `falha na ação ${action}`;
+      if (els.reasonBanner) { els.reasonBanner.textContent = msg; els.reasonBanner.className = 'reason-banner visible failure'; }
+      if (els.liveRegion) els.liveRegion.textContent = msg;
       throw e;
     }
   }
@@ -1372,6 +1380,11 @@
       state.positionSecs = mirror.position_secs;
       state.progress = normalizeProgress(mirror.progress);
       state.progressLabel = mirror.progress_label || null;
+      if (mirror.synthesizing) {
+        state.progress = { kind: 'indeterminate' };
+        state.progressLabel = 'sintetizando…';
+        if (els.liveRegion) els.liveRegion.textContent = 'sintetizando';
+      }
       state.sectionTitle = mirror.section_title || null;
         state.chapterIndex = mirror.chapter_index ?? null;
         state.chapterCount = mirror.chapter_count ?? null;

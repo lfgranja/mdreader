@@ -1,0 +1,19 @@
+Ressoa é um leitor de documentos Markdown como audiobook, 100% offline e air-gapped — nenhum byte de texto ou áudio sai do seu dispositivo.
+
+DIFERENCIAIS
+• 100% offline: zero permissão de internet. Sem nuvem, sem telemetria, sem rastreamento.
+• Projetado para Markdown: entende títulos, listas, código e estrutura técnica.
+• Síntese de voz neural local (Piper pt-BR) via sherpa-onnx — sem assinatura.
+• Leitura de diretórios inteiros (capítulos com ordenação natural, gapless).
+• Persistência durável: marcadores em redb com hash Blake3, retomada inteligente.
+• Acessibilidade TalkBack (10/10), alto contraste, alvos ≥48px, visualizador RMS.
+• Controle de velocidade 0.75x–4.0x com re-ancoragem em tempo real.
+
+PRIVACIDADE
+Nenhum dado é enviado a servidores. Toda a inferência ocorre no chip do aparelho. Sem anúncios, sem trackers.
+
+MONETIZAÇÃO
+Núcleo gratuito ilimitado. Licença única (Pay Once, Own Forever) desbloqueia múltiplas vozes e leitura de diretórios.
+
+COMPATIBILIDADE
+Android 10+ (API 29). Funciona em celulares, tablets e Chromebooks.

@@ -137,3 +137,8 @@ src-tauri/capabilities/
 /training/
 /DESIGN-DETONACAO-DESCONTROLADA/
 /docs/RESSOA_VOICE_TRAINING.md
+
+# Android signing (never commit)
+keystore.properties
+*.keystore
+*.jks

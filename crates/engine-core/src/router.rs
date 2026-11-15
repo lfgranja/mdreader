@@ -218,10 +218,8 @@ impl Router {
         }
 
         match payment_method {
-            PaymentMethod::Pix
-            | PaymentMethod::Boleto
-            | PaymentMethod::CreditCardDebit
-            | PaymentMethod::CreditCardCredit => {
+            PaymentMethod::Pix | PaymentMethod::Boleto => {}
+            PaymentMethod::CreditCardDebit | PaymentMethod::CreditCardCredit => {
                 caps.push(ProviderCapability::PaymentMethodSpecific);
             }
         }

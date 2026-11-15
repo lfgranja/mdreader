@@ -159,7 +159,7 @@ pub fn active_voice() -> VoiceId {
     match ACTIVE_VOICE_INDEX.load(Ordering::Acquire) {
         1 => VoiceId::PtBrCaduMedium,
         2 => VoiceId::PtBrJeffMedium,
-        _ => VoiceId::PtBrFaberMedium,
+        _unknown => VoiceId::PtBrFaberMedium,
     }
 }
 

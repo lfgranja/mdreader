@@ -141,7 +141,7 @@ impl VoiceId {
             "pt_BR-faber-medium" => Ok(Self::PtBrFaberMedium),
             "pt_BR-cadu-medium" => Ok(Self::PtBrCaduMedium),
             "pt_BR-jeff-medium" => Ok(Self::PtBrJeffMedium),
-            _ => Err(ParseVoiceIdError {
+            _unknown => Err(ParseVoiceIdError {
                 input: s.to_owned(),
             }),
         }
@@ -197,7 +197,7 @@ pub const fn spec(voice: VoiceId) -> VoiceSpec {
 #[must_use]
 pub const fn inference_defaults(voice: VoiceId) -> InferenceDefaults {
     match voice {
-        VoiceId::PtBrFaberMedium => InferenceDefaults {
+        VoiceId::PtBrFaberMedium | VoiceId::PtBrJeffMedium => InferenceDefaults {
             noise_scale: 0.667,
             noise_scale_w: 0.8,
             length_scale: 1.0,
@@ -205,11 +205,6 @@ pub const fn inference_defaults(voice: VoiceId) -> InferenceDefaults {
         VoiceId::PtBrCaduMedium => InferenceDefaults {
             noise_scale: 0.5,
             noise_scale_w: 0.333,
-            length_scale: 1.0,
-        },
-        VoiceId::PtBrJeffMedium => InferenceDefaults {
-            noise_scale: 0.667,
-            noise_scale_w: 0.8,
             length_scale: 1.0,
         },
     }

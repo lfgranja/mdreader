@@ -45,14 +45,11 @@ fn main() {
         .join("src")
         .join("debug")
         .join("AndroidManifest.xml");
-    if debug_manifest.exists() {
-        if let Ok(content) = std::fs::read_to_string(&debug_manifest) {
-            if !content.contains("android:debuggable=\"true\"") {
-                let updated =
-                    content.replace("<application>", "<application android:debuggable=\"true\">");
-                let _ = std::fs::write(&debug_manifest, updated);
-            }
-        }
+    if let Ok(content) = std::fs::read_to_string(&debug_manifest)
+        && !content.contains("android:debuggable=\"true\"")
+    {
+        let updated = content.replace("<application>", "<application android:debuggable=\"true\">");
+        let _ = std::fs::write(&debug_manifest, updated);
     }
     println!("cargo:rerun-if-changed=../scripts/apply-debug-ingest-overlay.sh");
 }

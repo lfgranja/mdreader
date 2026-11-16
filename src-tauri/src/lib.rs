@@ -531,7 +531,10 @@ fn set_document_fingerprint_value(state: &AppState, fingerprint: [u8; 32]) {
 /// A poisoned fingerprint lock is recorded and
 /// skipped: durability is best-effort, never a
 /// panic, and a missed write only means the next
-/// heartbeat finds no document.
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "used by #[cfg(test)] call sites")
+)]
 pub(crate) fn set_document_fingerprint(state: &AppState, bytes: &[u8]) {
     set_document_fingerprint_value(state, fingerprint::fingerprint(bytes));
 }
@@ -2865,7 +2868,7 @@ fn advance_chapter_queue(state: &AppState) -> bool {
     if let Some(app) = crate::shell_jni::installed_app() {
         let app = app.clone();
         crate::cancel_chapter_preroll(state);
-        let _ = tauri::async_runtime::spawn(async move {
+        std::mem::drop(tauri::async_runtime::spawn(async move {
             let state = app.state::<AppState>();
             match std::fs::read(&snapshot_path) {
                 Ok(bytes) => {
@@ -2892,7 +2895,7 @@ fn advance_chapter_queue(state: &AppState) -> bool {
                     );
                 }
             }
-        });
+        }));
         return true;
     }
     match std::fs::read(&snapshot_path) {
@@ -2944,7 +2947,7 @@ pub(crate) fn open_chapter_at_index(state: &AppState, index: usize) -> Result<St
     if let Some(app) = crate::shell_jni::installed_app() {
         let app = app.clone();
         let filename_for_task = filename.clone();
-        let _ = tauri::async_runtime::spawn(async move {
+        std::mem::drop(tauri::async_runtime::spawn(async move {
             let state = app.state::<AppState>();
             match std::fs::read(&snapshot_path) {
                 Ok(bytes) => {
@@ -2968,7 +2971,7 @@ pub(crate) fn open_chapter_at_index(state: &AppState, index: usize) -> Result<St
                     );
                 }
             }
-        });
+        }));
         return Ok(filename);
     }
     let bytes = std::fs::read(&snapshot_path)
@@ -3813,7 +3816,10 @@ pub mod commands {
     ///
     /// The name is a DISPLAY input only: the bytes remain the sole
     /// synthesis input (FR-018), and the name never enters the
-    /// fingerprint or the synthesis.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "cold-start open path kept as one coherent function"
+    )]
     pub(crate) fn open_document_bytes_named(
         state: &AppState,
         bytes: Vec<u8>,

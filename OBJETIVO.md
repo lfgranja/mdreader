@@ -60,6 +60,10 @@ Um leitor de audiolivros e notas Markdown (`mdreader`, produto **Ressoa*) voltad
 - **Spec 018:** Catálogo de vozes fechado (faber+cadu+jeff, CC0), `VoiceId`, persist/cycle/restart; DSP post-processing (compressor/reverb/chorus) e provider router (closed-set `EngineTier`) integrados; host gates 1-8 PASS e gate 9 Rust compile PASS — **CONVERGIDO**.
 - **Spec 021:** Conformidade Android 16 (API 36): targetSdk/compileSdk 36, zero `announceForAccessibility`/`TYPE_ANNOUNCEMENT`, `aria-live` presente; verificação concluída, sem migração necessária — **CONVERGIDO**.
 - **Release candidate rc2:** `.specify/releases/v0.1.0-rc2/` produzido (host-verificado); build assinado e publicação (F-Droid/Play) pendentes de autorização (keystore/contas/assets/ASO).
+- **Requisitos Externos Verificados (2026-11-16):**
+  - **Google Play (Android 16 / API 36):** Prazo obrigatório de `targetSdk 36` vigente desde 31/08/2026 (extensão final 01/11/2026) — já atendido pela Spec 021.
+  - **F-Droid (Builds Reprodutíveis Tauri/Rust):** Exige toolchain pinado (`rust-toolchain.toml`), dependências offline (`cargo vendor` / `.cargo/config.toml`), `--remap-path-prefix` e receita `fdroiddata` invocando `cargo-ndk` + Gradle diretamente (sem depender de `gradlew` embutido).
+  - **Ecossistema `sherpa-onnx` / Piper pt-BR:** Catálogo fechado (`faber`, `cadu`, `jeff`) alinhado aos modelos pré-convertidos com metadados embutidos; opções `dii-high`/`miro-high` permanecem como reserva futura fora do catálogo v1.
 
 ---
 
@@ -71,4 +75,4 @@ Um leitor de audiolivros e notas Markdown (`mdreader`, produto **Ressoa*) voltad
 3. **Custo Estrutural:** Como toda a computação neural ocorre localmente no processador do celular, o custo de servidor por minuto de áudio sintetizado é **zero**, tornando a licença vitalícia viável, sustentável e altamente atrativa.
 
 ---
-*Documento atualizado em 2026-11-14 com base nos gates executados, especificações atestadas e PRs consolidados na branch `dev`.*
+*Documento atualizado em 2026-11-16 com base nos gates, especificações atestadas, PRs consolidados na branch `dev` e pesquisa externa de requisitos 2026.*

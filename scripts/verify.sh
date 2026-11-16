@@ -32,16 +32,16 @@ export PROPTEST_CASES="${PROPTEST_CASES:-32}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-fail {
+fail() {
   printf 'verify.sh: FAIL: %s\n' "$1" >&2
   exit 1
 }
 
-running {
+running() {
   printf 'gate-%s %s: running...\n' "$1" "$2"
 }
 
-pass {
+pass() {
   printf 'gate-%s %s: PASS\n' "$1" "$2"
 }
 

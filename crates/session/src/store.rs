@@ -667,7 +667,7 @@ impl BookmarkStore {
             })
             .transpose()
     }
-    /// Persist the last DSP preset (off=0, `sona_ethereal=1`),
+    /// Persist the last DSP preset (off=0, `ressoa_ethereal=1`),
     /// written on every preset change, crossing sessions and
     /// documents.
     ///
@@ -1209,7 +1209,7 @@ mod tests {
             assert_eq!(store.get_last_dsp_preset()?, None);
         }
 
-        // 1 = SonaEthereal, persisted across reopen.
+        // 1 = RessoaEthereal, persisted across reopen.
         {
             let mut store = BookmarkStore::open(&path)?;
             store.put_last_dsp_preset(1)?;

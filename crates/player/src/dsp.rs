@@ -1,6 +1,6 @@
 //! Real-time DSP post-processing layer for the player crate.
 //!
-//! Implements the "Sona ethereal" vocal texture: optical compressor →
+//! Implements the "ethereal reading" vocal texture (Ressoa identity): optical compressor →
 //! plate/shimmer reverb → chorus, all in mono `f32` at the declared
 //! handoff rate (22 050 Hz). Zero external dependencies; every
 //! algorithm is hand-written so the workspace supply-chain /
@@ -499,8 +499,8 @@ pub enum DspPreset {
     /// No processing: pass-through, bit-identical to the input.
     #[default]
     Off,
-    /// Sona ethereal vocal texture: compressor → reverb → chorus.
-    SonaEthereal,
+    /// Ethereal reading texture: compressor → reverb → chorus.
+    RessoaEthereal,
 }
 
 /// DSP configuration.
@@ -622,13 +622,13 @@ mod tests {
     }
 
     #[test]
-    fn dsp_sona_ethereal_changes_signal_without_clipping() {
+    fn dsp_ressoa_ethereal_changes_signal_without_clipping() {
         let mut dsp = DspProcessor::new(22_050);
         dsp.set_config(DspConfig {
-            preset: DspPreset::SonaEthereal,
+            preset: DspPreset::RessoaEthereal,
         });
         assert!(dsp.is_enabled());
-        assert_eq!(dsp.preset(), DspPreset::SonaEthereal);
+        assert_eq!(dsp.preset(), DspPreset::RessoaEthereal);
 
         // An impulse: output must differ from input and never clip.
         let input = [1.0f32, 0.0, 0.0, 0.0, 0.0];
@@ -647,7 +647,7 @@ mod tests {
     fn dsp_stable_on_long_silence() {
         let mut dsp = DspProcessor::new(22_050);
         dsp.set_config(DspConfig {
-            preset: DspPreset::SonaEthereal,
+            preset: DspPreset::RessoaEthereal,
         });
 
         // 10 seconds of silence at 22 050 Hz = 220 500 samples.
@@ -666,7 +666,7 @@ mod tests {
     fn dsp_reset_clears_state() {
         let mut dsp = DspProcessor::new(22_050);
         dsp.set_config(DspConfig {
-            preset: DspPreset::SonaEthereal,
+            preset: DspPreset::RessoaEthereal,
         });
         let _ = dsp.process_sample(1.0);
         dsp.reset();
@@ -681,7 +681,7 @@ mod tests {
     fn dsp_switch_preset_resets_state() {
         let mut dsp = DspProcessor::new(22_050);
         dsp.set_config(DspConfig {
-            preset: DspPreset::SonaEthereal,
+            preset: DspPreset::RessoaEthereal,
         });
         let _ = dsp.process_sample(1.0);
         assert!(dsp.is_enabled());

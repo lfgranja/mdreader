@@ -461,14 +461,14 @@ impl AppState {
 const HEARTBEAT_PERIOD_SECS: u64 = 20;
 
 /// The playback-watch period, in milliseconds (F1/F3):
-/// the 500 ms audit cadence that feeds the session clock
+/// the 250 ms audit cadence that feeds the session clock
 /// from the backend's audible clock, republishes the
 /// mirror when the consumed-unit count crosses, and
 /// commands the document-end teardown when the stream
 /// drains — fine enough that the end of a document is
 /// detected within a bound no run can notice, coarse
 /// enough to stay far off the audio path.
-const PLAYBACK_WATCH_PERIOD_MS: u64 = 500;
+const PLAYBACK_WATCH_PERIOD_MS: u64 = 250;
 /// The current unix time in milliseconds — the epoch
 /// the FR-015 supersede clock stamps (T011). A clock
 /// set before the unix epoch (an impossible
@@ -508,6 +508,17 @@ fn current_first_yield_ms(state: &AppState) -> u64 {
         .map_or(0, |clock| clock.unwrap_or(0))
 }
 
+/// Record an already-computed blake3-256 content fingerprint in shared
+/// state (FR-036). Prefer this when the fingerprint was computed for another
+/// use in the same open path to avoid redundant full-document hashing.
+fn set_document_fingerprint_value(state: &AppState, fingerprint: [u8; 32]) {
+    if let Ok(mut guard) = state.current_fingerprint.lock() {
+        *guard = Some(fingerprint);
+    } else {
+        tracing::warn!("document fingerprint not recorded: the state lock is poisoned");
+    }
+}
+
 /// Record the loaded document's blake3-256 content
 /// fingerprint in the shared state (FR-036): the one
 /// call site every document-opening path routes
@@ -522,12 +533,7 @@ fn current_first_yield_ms(state: &AppState) -> u64 {
 /// panic, and a missed write only means the next
 /// heartbeat finds no document.
 pub(crate) fn set_document_fingerprint(state: &AppState, bytes: &[u8]) {
-    let fp = fingerprint::fingerprint(bytes);
-    if let Ok(mut guard) = state.current_fingerprint.lock() {
-        *guard = Some(fp);
-    } else {
-        tracing::warn!("document fingerprint not recorded: the state lock is poisoned");
-    }
+    set_document_fingerprint_value(state, fingerprint::fingerprint(bytes));
 }
 
 /// Note the transport the session landed in for the
@@ -851,9 +857,19 @@ fn teardown_outgoing_session(state: &AppState) {
 /// inherits the first one's position, and the first one's
 /// bookmark is never deleted nor overwritten.
 fn switch_to_document(state: &AppState, bytes: &[u8]) {
+    switch_to_document_with_fingerprint(state, bytes, fingerprint::fingerprint(bytes));
+}
+
+/// Like [`switch_to_document`], but reuses an already-computed fingerprint
+/// for the incoming document (same semantics, one fewer full-document hash).
+fn switch_to_document_with_fingerprint(
+    state: &AppState,
+    _bytes: &[u8],
+    document_fingerprint: [u8; 32],
+) {
     save_outgoing_bookmark(state);
     teardown_outgoing_session(state);
-    set_document_fingerprint(state, bytes);
+    set_document_fingerprint_value(state, document_fingerprint);
 }
 
 /// Convert a closed `PlaybackRate` rung to its floating-point multiplier value.
@@ -903,7 +919,7 @@ fn persist_last_rate(state: &AppState, rate: PlaybackRate) {
     }
     drop(store_guard);
 }
-/// Persist the last DSP preset (off=0, `sona_ethereal=1`), written on
+/// Persist the last DSP preset (off=0, `ressoa_ethereal=1`), written on
 /// every preset change, crossing sessions and documents.
 ///
 /// This is the store half of the DSP preset wiring — the
@@ -951,7 +967,7 @@ pub(crate) fn read_dsp_preset(state: &AppState) -> DspPreset {
     };
     match store.get_last_dsp_preset() {
         Ok(Some(0) | None) => DspPreset::Off,
-        Ok(Some(1)) => DspPreset::SonaEthereal,
+        Ok(Some(1)) => DspPreset::RessoaEthereal,
         Ok(Some(_other)) => {
             tracing::warn!("unknown dsp preset value, defaulting to Off");
             DspPreset::Off
@@ -2817,10 +2833,12 @@ fn maybe_republish_progress(state: &AppState, watch: &mut PlaybackWatch) -> bool
 /// resident surface alone is left to the user's dismissal.
 /// Advance the directory chapter queue gaplessly (T200).
 ///
-/// Returns `true` when a next chapter exists and the queue moved to it
-/// (the position clock restarts at the transition's `new_position_secs`),
-/// `false` when there is no queue or the current chapter is the last.
-/// The queue lock is taken alone and released before returning.
+/// Returns `true` when a next chapter exists and the queue moved to it.
+/// On device (`installed_app()` present), chapter snapshot read/open is
+/// offloaded to avoid blocking the playback-watch/drain loop; the transition
+/// is committed in queue state and open errors are logged asynchronously.
+/// On host/non-device paths the read/open remains synchronous for
+/// deterministic behavior in tests.
 fn advance_chapter_queue(state: &AppState) -> bool {
     let next_info = {
         let Ok(mut guard) = state.chapter_queue.lock() else {
@@ -2844,6 +2862,39 @@ fn advance_chapter_queue(state: &AppState) -> bool {
     let Some((snapshot_path, filename)) = next_info else {
         return false;
     };
+    if let Some(app) = crate::shell_jni::installed_app() {
+        let app = app.clone();
+        crate::cancel_chapter_preroll(state);
+        let _ = tauri::async_runtime::spawn(async move {
+            let state = app.state::<AppState>();
+            match std::fs::read(&snapshot_path) {
+                Ok(bytes) => {
+                    if let Err(error) =
+                        crate::commands::open_document_bytes_named(&state, bytes, &filename)
+                    {
+                        tracing::error!(
+                            error = %error,
+                            filename = %filename,
+                            "gapless chapter advance: failed to open next chapter"
+                        );
+                    } else {
+                        tracing::info!(
+                            filename = %filename,
+                            "gapless chapter advance: started next chapter"
+                        );
+                    }
+                }
+                Err(error) => {
+                    tracing::error!(
+                        error = %error,
+                        snapshot_path = %snapshot_path,
+                        "gapless chapter advance: failed to read snapshot"
+                    );
+                }
+            }
+        });
+        return true;
+    }
     match std::fs::read(&snapshot_path) {
         Ok(bytes) => {
             crate::cancel_chapter_preroll(state);
@@ -2889,9 +2940,39 @@ pub(crate) fn open_chapter_at_index(state: &AppState, index: usize) -> Result<St
         drop(guard);
         info
     };
+    crate::cancel_chapter_preroll(state);
+    if let Some(app) = crate::shell_jni::installed_app() {
+        let app = app.clone();
+        let filename_for_task = filename.clone();
+        let _ = tauri::async_runtime::spawn(async move {
+            let state = app.state::<AppState>();
+            match std::fs::read(&snapshot_path) {
+                Ok(bytes) => {
+                    if let Err(error) = crate::commands::open_document_bytes_named(
+                        &state,
+                        bytes,
+                        &filename_for_task,
+                    ) {
+                        tracing::error!(
+                            error = %error,
+                            filename = %filename_for_task,
+                            "chapter open: failed to open selected chapter"
+                        );
+                    }
+                }
+                Err(error) => {
+                    tracing::error!(
+                        error = %error,
+                        snapshot_path = %snapshot_path,
+                        "chapter open: failed to read snapshot"
+                    );
+                }
+            }
+        });
+        return Ok(filename);
+    }
     let bytes = std::fs::read(&snapshot_path)
         .map_err(|e| format!("failed to read chapter snapshot {snapshot_path}: {e}"))?;
-    crate::cancel_chapter_preroll(state);
     let _ = crate::commands::open_document_bytes_named(state, bytes, &filename)
         .map_err(|e| e.to_string())?;
     Ok(filename)
@@ -3236,7 +3317,7 @@ pub fn run() {
             // when a complete bundle is available. This must run before the
             // synthesis engine's OnceLock initializes.
             // Objective form: adapter_synthesis::synth::set_model_path(
-            //   PathBuf::from("sona_ethereal_ptbr.onnx")) when the bundle is
+            //   PathBuf::from("ressoa_ethereal_ptbr.onnx")) when the bundle is
             // resolved to that model path with sibling tokens.txt and
             // espeak-ng-data.
             {
@@ -3254,7 +3335,7 @@ pub fn run() {
                     {
                         model = Some(path);
                     } else if path.is_dir() {
-                        let named = path.join("sona_ethereal_ptbr.onnx");
+                        let named = path.join("ressoa_ethereal_ptbr.onnx");
                         if named.is_file() {
                             model = Some(named);
                         } else if let Ok(entries) = std::fs::read_dir(&path) {
@@ -3278,13 +3359,13 @@ pub fn run() {
                     for candidate in [
                         data_dir
                             .join("voices")
-                            .join("sona_ethereal_ptbr")
-                            .join("sona_ethereal_ptbr.onnx"),
+                            .join("ressoa_ethereal_ptbr")
+                            .join("ressoa_ethereal_ptbr.onnx"),
                         data_dir
                             .join("voices")
-                            .join("pt_BR-sona-ethereal")
-                            .join("sona_ethereal_ptbr.onnx"),
-                        data_dir.join("sona_ethereal_ptbr.onnx"),
+                            .join("pt_BR-ressoa-ethereal")
+                            .join("ressoa_ethereal_ptbr.onnx"),
+                        data_dir.join("ressoa_ethereal_ptbr.onnx"),
                     ] {
                         if candidate.is_file() {
                             model = Some(candidate);
@@ -3749,8 +3830,11 @@ pub mod commands {
         // The content fingerprint (FR-036): the key the 20 s
         // heartbeat and every event-durable put persist under,
         // recorded through the one call site every
-        // document-opening path shares (T011 / T035).
-        let fingerprint_hex = hex::encode(fingerprint::fingerprint(document.as_bytes()));
+        // document-opening path shares (T011 / T035). Computed
+        // once and reused for lookup/switch to avoid redundant
+        // full-document hashing on open.
+        let document_fingerprint = fingerprint::fingerprint(document.as_bytes());
+        let fingerprint_hex = hex::encode(document_fingerprint);
 
         // The open lookup (T036): bytes → fingerprint → the
         // stored row → the offer form, through the library fn
@@ -3776,17 +3860,22 @@ pub mod commands {
                     },
                 )
             })?;
-            let lookup =
-                session::store::lookup_on_open(store, document.as_bytes()).map_err(|error| {
-                    refuse(
-                        state,
-                        OpenError::Store {
-                            reason: error.to_string(),
-                        },
-                    )
-                })?;
+            let stored = store.get(&document_fingerprint).map_err(|error| {
+                refuse(
+                    state,
+                    OpenError::Store {
+                        reason: error.to_string(),
+                    },
+                )
+            })?;
             drop(store_guard);
-            lookup
+            let mut machine = session::offer::OfferMachine::new();
+            let offer = machine.resolve_open(stored);
+            session::store::OpenLookup {
+                fingerprint: document_fingerprint,
+                stored,
+                offer,
+            }
         };
 
         // The FR-017 diagnostic record (T097): a session that
@@ -3804,7 +3893,11 @@ pub mod commands {
         // fingerprint recorded. The first bookmark is never
         // deleted by the switch, and the incoming document never
         // inherits the outgoing one's position.
-        switch_to_document(state, document.as_bytes());
+        crate::switch_to_document_with_fingerprint(
+            state,
+            document.as_bytes(),
+            document_fingerprint,
+        );
 
         // The offer route (T037): the stored end kind resolves
         // to the surface that renders the resume decision, and
@@ -6361,7 +6454,7 @@ pub mod commands {
                 })?;
             if let Ok(preset_u8) = state.dsp_preset.lock() {
                 let preset = match *preset_u8 {
-                    1 => player::dsp::DspPreset::SonaEthereal,
+                    1 => player::dsp::DspPreset::RessoaEthereal,
                     _ => player::dsp::DspPreset::Off,
                 };
                 let _ = opened.set_dsp_config(player::dsp::DspConfig { preset });
@@ -7101,7 +7194,7 @@ pub mod commands {
         }
         Ok(())
     }
-    /// Set the DSP preset (`off/sona_ethereal`) and persist it.
+    /// Set the DSP preset (`off/ressoa_ethereal`) and persist it.
     ///
     /// # Errors
     ///
@@ -7115,7 +7208,7 @@ pub mod commands {
     pub fn set_dsp_preset(preset: String, state: State<'_, AppState>) -> Result<(), String> {
         let dsp_preset = match preset.as_str() {
             "off" => super::DspPreset::Off,
-            "sona_ethereal" => super::DspPreset::SonaEthereal,
+            "ressoa_ethereal" => super::DspPreset::RessoaEthereal,
             other => {
                 return Err(format!("unknown DSP preset '{other}'"));
             }
@@ -7146,7 +7239,7 @@ pub mod commands {
         let preset = *state.dsp_preset.lock().map_err(|e| e.to_string())?;
         Ok(match preset {
             0 => "off".to_string(),
-            1 => "sona_ethereal".to_string(),
+            1 => "ressoa_ethereal".to_string(),
             other => {
                 tracing::warn!(
                     preset = other,

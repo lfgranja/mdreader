@@ -894,12 +894,12 @@ mod tests {
     fn set_dsp_config_changes_preset() {
         let mut q = SampleQueue::default();
         q.set_dsp_config(crate::dsp::DspConfig {
-            preset: crate::dsp::DspPreset::SonaEthereal,
+            preset: crate::dsp::DspPreset::RessoaEthereal,
         });
-        assert_eq!(q.dsp_config().preset, crate::dsp::DspPreset::SonaEthereal);
+        assert_eq!(q.dsp_config().preset, crate::dsp::DspPreset::RessoaEthereal);
         q.set_dsp_config(crate::dsp::DspConfig {
             preset: crate::dsp::DspPreset::Off,
         });
-        assert_ne!(q.dsp_config().preset, crate::dsp::DspPreset::SonaEthereal);
+        assert_ne!(q.dsp_config().preset, crate::dsp::DspPreset::RessoaEthereal);
     }
 }

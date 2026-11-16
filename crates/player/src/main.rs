@@ -56,7 +56,7 @@ enum Commands {
     /// Configure o layer DSP pós-processo da voz.
     Dsp {
         #[arg(long, default_value = "off")]
-        preset: String, // "off" | "sona_ethereal"
+        preset: String, // "off" | "ressoa_ethereal"
     },
     /// Earcon PCM descriptor (T030).
     #[command(subcommand)]
@@ -254,7 +254,7 @@ fn main() -> io::Result<()> {
         Commands::Dsp { preset } => {
             let preset = match preset.as_str() {
                 "off" => player::dsp::DspPreset::Off,
-                "sona_ethereal" => player::dsp::DspPreset::SonaEthereal,
+                "ressoa_ethereal" => player::dsp::DspPreset::RessoaEthereal,
                 other => {
                     let _ = writeln!(
                         std::io::stderr().lock(),
@@ -265,7 +265,7 @@ fn main() -> io::Result<()> {
             };
             let json = serde_json::json!({ "dsp_preset": match preset {
                 player::dsp::DspPreset::Off => "off",
-                player::dsp::DspPreset::SonaEthereal => "sona_ethereal",
+                player::dsp::DspPreset::RessoaEthereal => "ressoa_ethereal",
             }});
             writeln!(out, "{json}")?;
             return Ok(());

@@ -6,8 +6,8 @@
   <title>Leitura</title>
   <style>
     :root {
-      /* DESIGN-SONA palette tokens — contracts/surface.md
-         "DESIGN-SONA palette tokens (single source of truth,
+      /* DESIGN-RESSOA palette tokens — contracts/surface.md
+         "DESIGN-RESSOA palette tokens (single source of truth,
          resolves T044)": title #F2F0E6, section #A9B8CE,
          progress white / #55688F, warning #FFD400 banner-only,
          failure #FF4D63 banner-only; the green reserved by
@@ -18,20 +18,6 @@
          already uses), NOT the reserved failure red: a red Stop
          button paints a failure state the control never means
          (T104, contracts/surface.md "red #FF4D63 failure-only"). */
-      --sona-void: #0B0F1A;
-      --sona-stage: #141B2D;
-      --sona-voice: #F2F0E6;
-      --sona-etwahl: #8FD8E8;
-      --sona-hush: #A9B8CE;
-      --sona-harp: #E8C46A;
-      --sona-boundary: #55688F;
-      --sona-celeste: #B9A6F5;
-      --sona-aria: #5AD6A8;
-      --signal-caution: #FFD400;
-      --signal-failure: #FF4D63;
-      --radius: 16px;
-      --btn-primary: var(--sona-hush); /* was --sona-etwahl; changed per Constitution S3 (token only in :focus-visible) */
-      --btn-primary-hover: var(--sona-hush);
       --btn-secondary: #55688F;
       --btn-stop: #55688F;
       --btn-stop-hover: #55688F;
@@ -44,8 +30,8 @@
          see. The stack is the platform UI face, so the surface
          renders identically with the radio off. */
       font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-      background: var(--sona-void);
-      color: var(--sona-voice);
+      background: var(--ressoa-void);
+      color: var(--ressoa-voice);
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -92,7 +78,7 @@
       overflow: hidden;
     }
     @supports not (backdrop-filter: blur(1px)) {
-      .card { background: var(--sona-stage); }
+      .card { background: var(--ressoa-stage); }
     }
     .card::before {
       content: "";
@@ -101,7 +87,7 @@
       left: 0;
       right: 0;
       height: 84px;
-      background-image: url("DESIGN-SONA/assets/waves/waves-top-ribbons.png");
+      background-image: url("DESIGN-RESSOA/assets/waves/waves-top-ribbons.png");
       background-repeat: no-repeat;
       background-size: 100% auto;
       background-position: center center;
@@ -115,7 +101,7 @@
       left: 12px;
       right: 12px;
       height: 24px;
-      background-image: url("DESIGN-SONA/assets/waves/waves-top-ribbons.png");
+      background-image: url("DESIGN-RESSOA/assets/waves/waves-top-ribbons.png");
       background-repeat: no-repeat;
       background-size: contain;
       background-position: center top;
@@ -148,7 +134,7 @@
       flex-shrink: 0;
     }
     .rate-value {
-      color: var(--sona-harp);
+      color: var(--ressoa-harp);
       font-weight: 600;
       font-size: 1rem;
       font-variant-numeric: tabular-nums;
@@ -187,7 +173,7 @@
       transform: scale(0.985);
     }
     .meta-box:focus-visible {
-      outline: 2px solid var(--sona-etwahl);
+      outline: 2px solid var(--ressoa-focus);
       outline-offset: 4px;
     }
     .meta-box::after {
@@ -276,7 +262,7 @@
     button:disabled { opacity: 0.4; cursor: not-allowed; }
     button.primary {
       background: #FFFFFF;
-      color: var(--sona-void);
+      color: var(--ressoa-void);
       width: 64px;
       height: 64px;
       font-size: 1.6rem;
@@ -285,7 +271,7 @@
     button.primary:hover:not(:disabled) { background: #FFFFFF; }
     button.secondary {
       background: rgba(255,255,255,0.09);
-      color: var(--sona-voice);
+      color: var(--ressoa-voice);
       border: 1px solid rgba(255,255,255,0.14);
       font-size: 1.25rem;
     }
@@ -300,7 +286,7 @@
       border: none;
     }
     button:focus-visible {
-      outline: 2px solid var(--sona-etwahl);
+      outline: 2px solid var(--ressoa-focus);
       outline-offset: 2px;
     }
     .speed-control {
@@ -324,7 +310,7 @@
       font-size: 1.15rem;
       background: rgba(255,255,255,0.08);
       border: 1px solid rgba(255,255,255,0.12);
-      color: var(--sona-voice);
+      color: var(--ressoa-voice);
       border-radius: 50%;
       cursor: pointer;
       display: inline-flex;
@@ -364,7 +350,7 @@
       background: rgba(255,255,255,0.15);
     }
     .rate-value {
-      color: var(--sona-voice);
+      color: var(--ressoa-voice);
       font-weight: 500;
       font-size: 0.95rem;
       font-variant-numeric: tabular-nums;
@@ -384,7 +370,7 @@
     #progress-fill {
       height: 100%;
       width: 0%;
-      background: var(--sona-voice);
+      background: var(--ressoa-voice);
       border-radius: 3px;
       transition: width .3s ease;
     }
@@ -414,7 +400,7 @@
     .reason-banner.warning { background: transparent; border: 1px solid var(--signal-caution); color: var(--signal-caution); }
     .reason-banner.failure { background: transparent; border: 1px solid var(--signal-failure); color: var(--signal-failure); animation: none; }
     /* FR-009: the resume offer — the visual dialog of the in-app
-       route. The DESIGN-SONA tokens are the ones the card paints
+       route. The DESIGN-RESSOA tokens are the ones the card paints
        (title #F2F0E6, section #A9B8CE, the neutral progress tone
        #55688F) — no new token, no reserved green, no red (the
        reserved failure red paints a failure state this dialog
@@ -462,12 +448,12 @@
       text-align: center;
     }
 <!-- SCAFFOLD (template: status-surface.md S3-S5 + existing status_view.html; NOT production): token/aria/movement -->
-<meta name="design-sona-scaffold" content="status-view-restyle-v2.2.0">
-<style id="sona-scaffold-tokens">:root{--sona-void:#0B0F1A;--sona-stage:#141B2D;--sona-etwahl:#8FD8E8;--signal-caution:#FFD400;--signal-failure:#FF4D63;--sona-voice:#F2F0E6;--sona-hush:#A9B8CE;--sona-harp:#E8C46A;--sona-celeste:#B9A6F5;--sona-aria:#5AD6A8;--sona-boundary:#55688F;}@media(prefers-reduced-motion:reduce){#progress-fill{animation:none !important;transform:none !important;opacity:1 !important;animation-play-state: paused !important;} .reason-banner.warning{animation:none !important;animation-play-state: paused !important;} .card::before{animation:none !important;transform:none !important;animation-play-state: paused !important;}#waveform{animation:none !important;animation-play-state: paused !important;}}</style>
+<meta name="ressoa-scaffold" content="status-view-restyle-v2.2.0">
+<style id="ressoa-scaffold-tokens">:root{--ressoa-void:#0B0F1A;--ressoa-stage:#141B2D;--ressoa-focus:#8FD8E8;--signal-caution:#FFD400;--signal-failure:#FF4D63;--ressoa-voice:#F2F0E6;--ressoa-hush:#A9B8CE;--ressoa-harp:#E8C46A;--ressoa-celeste:#B9A6F5;--ressoa-aria:#5AD6A8;--ressoa-boundary:#55688F;}@media(prefers-reduced-motion:reduce){#progress-fill{animation:none !important;transform:none !important;opacity:1 !important;animation-play-state: paused !important;} .reason-banner.warning{animation:none !important;animation-play-state: paused !important;} .card::before{animation:none !important;transform:none !important;animation-play-state: paused !important;}#waveform{animation:none !important;animation-play-state: paused !important;}}</style>
   <div aria-hidden="true" id="scaffold-inventory" data-elements="10"></div>
 </head>
 <div class="card" role="region" aria-label="Lente Sinestésica">
-  <img id="headerMark" src="DESIGN-SONA/assets/logo/logo-proposta-3-concha.png" alt="" width="58" height="68" style="display:block; object-fit: contain; background: transparent;">
+  <img id="headerMark" src="DESIGN-RESSOA/assets/logo/logo-proposta-3-concha.png" alt="" width="58" height="68" style="display:block; object-fit: contain; background: transparent;">
   
   <div class="meta-box" id="titleCard" role="button" tabindex="0" aria-label="Selecionar documento para leitura">
     <h1 id="documentTitle"></h1>
@@ -935,7 +921,7 @@
       pct = Math.min(100, (state.progress.consumed_units / state.progress.total_units) * 100);
     } else if (state.progress.kind === 'indeterminate') {
       els.progressFill.style.width = '0%';
-      els.progressFill.style.background = 'linear-gradient(90deg, transparent, var(--sona-voice), transparent)';
+      els.progressFill.style.background = 'linear-gradient(90deg, transparent, var(--ressoa-voice), transparent)';
       els.progressFill.style.backgroundSize = '200% 100%';
       els.progressFill.style.animation = 'indeterminate 1.5s';
       els.progressLabel.textContent = '';
@@ -946,7 +932,7 @@
       return;
     }
     els.progressFill.style.width = `${pct}%`;
-    els.progressFill.style.background = 'var(--sona-voice)';
+    els.progressFill.style.background = 'var(--ressoa-voice)';
     els.progressFill.style.animation = 'none';
     els.progressLabel.textContent = state.progressLabel || '';
     els.progress.setAttribute('aria-valuenow', String(Math.round(pct)));

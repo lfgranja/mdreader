@@ -52,7 +52,7 @@ mod tests {
         let text = read_status_view(manifest_dir);
         let blocks = focus_visible_blocks(&text);
 
-        // #8FD8E8 (sona-etwahl) occurs ONLY inside :focus-visible rules.
+        // #8FD8E8 (ressoa-focus) occurs ONLY inside :focus-visible rules.
         let hex = "#8FD8E8";
         let mut outside: Vec<String> = Vec::new();
         let mut offset = 0usize;
@@ -62,9 +62,9 @@ mod tests {
             if line.contains(hex) {
                 // Token declaration in :root (and the scaffold mirror) is allowed;
                 // only painted occurrences outside :focus-visible are violations.
-                let is_decl = line.contains("--sona-etwahl")
+                let is_decl = line.contains("--ressoa-focus")
                     || line.contains(":root")
-                    || line.contains("sona-scaffold-tokens");
+                    || line.contains("ressoa-scaffold-tokens");
                 if is_decl { /* allowed */
                 } else {
                     let inside = blocks
@@ -79,7 +79,7 @@ mod tests {
         }
         assert!(
             outside.is_empty(),
-            "C-H2: #8FD8E8 (sona-etwahl) outside :focus-visible rules: {outside:?}"
+            "C-H2: #8FD8E8 (ressoa-focus) outside :focus-visible rules: {outside:?}"
         );
     }
 }

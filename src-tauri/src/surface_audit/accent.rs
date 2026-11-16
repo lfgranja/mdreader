@@ -11,7 +11,7 @@ mod tests {
         let kt = manifest_dir.join("../android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt");
         let text = fs::read_to_string(&kt).unwrap_or_default();
         // Extract the constants block slice (approx :728-743).
-        let start = text.find("DESIGN_SONA_PROGRESS_FILL").unwrap_or(0);
+        let start = text.find("DESIGN_RESSOA_PROGRESS_FILL").unwrap_or(0);
         let end = text[start..]
             .find("}\n")
             .map_or(start + 300, |i| start + i + 1);
@@ -38,7 +38,7 @@ mod tests {
         // Filter to the progress-fill relevant: require at least one F2F0E6.
         assert!(
             vals.contains(&"0xFFF2F0E6".to_string()),
-            "accent --sona-voice missing"
+            "accent --ressoa-voice missing"
         );
         // Structural: no off-set white paint.
         assert!(

@@ -16,11 +16,11 @@ pub enum Auditee {
     StatusViewRs,
     /// `android-shell/.../MediaMirror.kt` constants block
     MediaMirrorKt,
-    /// `DESIGN-SONA/` directory
-    DesignSonaDir,
+    /// `DESIGN-RESSOA/` directory
+    RessoaDesignDir,
     /// `src-tauri/tauri.conf.json`
     TauriConfJson,
-    /// `DESIGN-SONA/assets/logo/logo-primary-concha-r.svg`
+    /// `DESIGN-RESSOA/assets/logo/logo-primary-concha-r.svg`
     ConchaRLogoSvg,
 }
 
@@ -38,9 +38,9 @@ impl Auditee {
             Self::MediaMirrorKt => {
                 "android-shell/app/src/main/java/com/lfgranja/mdreader/MediaMirror.kt"
             }
-            Self::DesignSonaDir => "DESIGN-SONA",
+            Self::RessoaDesignDir => "DESIGN-RESSOA",
             Self::TauriConfJson => "tauri.conf.json",
-            Self::ConchaRLogoSvg => "DESIGN-SONA/assets/logo/logo-primary-concha-r.svg",
+            Self::ConchaRLogoSvg => "DESIGN-RESSOA/assets/logo/logo-primary-concha-r.svg",
         }
     }
 }
@@ -55,7 +55,7 @@ pub fn resolve_all(manifest_dir: &Path) -> Result<Vec<(Auditee, PathBuf)>, Strin
         Auditee::StatusViewHtml,
         Auditee::StatusViewRs,
         Auditee::MediaMirrorKt,
-        Auditee::DesignSonaDir,
+        Auditee::RessoaDesignDir,
         Auditee::TauriConfJson,
         Auditee::ConchaRLogoSvg,
     ];

@@ -4,7 +4,7 @@
 
 ## O que é
 
-Um leitor de audiolivros e notas Markdown (`mdreader`, produto **Ressoa**) voltado a áudio e síntese de voz neural, construído como um workspace modular em **Rust** integrado a um shell Android nativo (Kotlin `Service` / `MediaSession` / `AudioFocusRequest`) e interface Tauri v2 (`DESIGN-SONA`).
+Um leitor de audiolivros e notas Markdown (`mdreader`, produto **Ressoa*) voltado a áudio e síntese de voz neural, construído como um workspace modular em **Rust** integrado a um shell Android nativo (Kotlin `Service` / `MediaSession` / `AudioFocusRequest`) e interface Tauri v2 (`DESIGN-RESSOA`).
 
 **Princípio de Autoridade Rigoroso:** O Rust (`crates/player`, `crates/session`, `crates/diag`, `crates/engine-core`) é a **única autoridade** sobre reprodução, transporte, taxa de velocidade, buffer PCM e relógio de posição. O Kotlin e a WebView atuam exclusivamente como **espelhos estruturais** (`SC-035`), apenas renderizando o estado JSON publicado pelo Rust.
 

@@ -1,6 +1,6 @@
 # Ressoa System Architecture
 
-> Documento de referência arquitetural e topologia do sistema `mdreader` (produto **Ressoa**), atualizado para o **Cycle 017** (incorporando normalização, prosódia semântica, streaming de capítulos e banco redb).
+> Documento de referência arquitetural e topologia do sistema `mdreader` (produto **Ressoa*), atualizado para o **Cycle 017** (incorporando normalização, prosódia semântica, streaming de capítulos e banco redb).
 
 ---
 
@@ -11,14 +11,14 @@ O diagrama arquitetural interativo standalone (com temas claro/escuro, zoom, ins
 
 ### Diagrama Arquitetural de Componentes e Fronteiras
 
-```mermaid
+`mermaid
 flowchart TD
     subgraph AndroidShell["Android Shell (Kotlin Mirror)"]
         UI["Android Shell UI & Service\n(MediaSession / SAF Tree Ingest)"]
     end
 
     subgraph RustPlaybackDomain["Rust Playback Domain (Sole Authority)"]
-        Bridge["Tauri Bridge & Sona UI\n(src-tauri / IPC / AppState)"]
+        Bridge["Tauri Bridge & Ressoa UI\n(src-tauri / IPC / AppState)"]
         Player["Player Authority\n(ChapterQueue / PositionClock / Cpal)"]
         Synth["Synthesis Adapter\n(normalize.rs / prosody.rs / sherpa-onnx)"]
         Store[("Session Store\n(redb / Blake3 Fingerprints)")]
@@ -32,7 +32,7 @@ flowchart TD
     Bridge -.->|"Persist Offset / Collection"| Store
     Player -.->|"Record Diagnostic Metric"| Diag
     Player -->|"PCM Buffer Output"| AudioHw
-```
+`
 
 ---
 

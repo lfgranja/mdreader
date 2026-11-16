@@ -9,15 +9,15 @@ Goal: tools for identifying audio playing on Android (Ressoa/mdreader context) �
 - Command: `adb shell screenrecord --audio <path>.mp4` (API 30+/Android 11+). Captures display + system audio in one MP4; `--audio-source` selects `output` (default) or `mic`. Max 3 min per recording.
 - Pros: single artifact captures both screen and audio; no root needed; widely supported; good for post-hoc review and evidence.
 - Cons: 3-minute cap; encoding overhead; not real-time feedback; audio quality/compression; cannot be queried mid-run; needs pull + offline analysis.
-- Source: Android Developers "Android Debug Bridge (adb)" — https://developer.android.com/tools/adb ; adbshell.com screenrecord — https://adbshell.com/commands/adb-shell-screenrecord
+- Source: Android Developers "Android Debug Bridge (adb)" — https://developer.android.com/tools/adb; adbshell.com screenrecord — https://adbshell.com/commands/adb-shell-screenrecord
 
 ### 2. MediaSession state polling
 
 - `adb shell dumpsys media_session` prints active sessions, playback state (STATE_PLAYING/PAUSED/STOPPED), metadata (title/artist), position, and the owning package.
-- Programmatic: `MediaController.getPlaybackState()` / `isActive()` via MediaSession token; python-androidtv exposes `CMD_AUDIO_STATE` patterns parsing dumpsys.
+- Programmatic: `MediaController.getPlaybackState` / `isActive` via MediaSession token; python-androidtv exposes `CMD_AUDIO_STATE` patterns parsing dumpsys.
 - Pros: authoritative playback state; identifies which app owns audio; low overhead; scriptable in CI.
 - Cons: only apps that publish a MediaSession (media players); silent apps / raw AudioTrack won't appear; polling latency; parsing dumpsys is fragile across OEM skins.
-- Source: Android Developers MediaSession API — https://developer.android.com/reference/android/media/session/MediaSession ; StackOverflow "Is there an ADB command to check a media is playing or not" — https://stackoverflow.com/questions/54241551 ; python-androidtv constants — https://github.com/JeffLIrion/python-androidtv
+- Source: Android Developers MediaSession API — https://developer.android.com/reference/android/media/session/MediaSession; StackOverflow "Is there an ADB command to check a media is playing or not" — https://stackoverflow.com/questions/54241551; python-androidtv constants — https://github.com/JeffLIrion/python-androidtv
 
 ### 3. dumpsys media_session / media.audio_flinger
 
@@ -26,7 +26,7 @@ Goal: tools for identifying audio playing on Android (Ressoa/mdreader context) �
 - `adb shell dumpsys audio` — audio policy, focus, volume.
 - Pros: catches all audio paths (AudioTrack, ExoPlayer internal); diagnostic depth; no instrumentation needed.
 - Cons: verbose, OEM-dependent format; not machine-stable; requires parsing; some fields hidden on production builds.
-- Source: AOSP "Audio debugging" — https://source.android.com/docs/core/audio/debugging ; Android Developers dumpsys — https://developer.android.com/tools/dumpsys
+- Source: AOSP "Audio debugging" — https://source.android.com/docs/core/audio/debugging; Android Developers dumpsys — https://developer.android.com/tools/dumpsys
 
 ### 4. Diagnostic JSONL logging
 
@@ -40,7 +40,7 @@ Goal: tools for identifying audio playing on Android (Ressoa/mdreader context) �
 - Compute RMS over captured PCM (from screenrecord audio or an AudioRecord tap) to detect silence vs. playback and quantify level changes; tools: ffmpeg `volumedetect`, Python `librosa`/`numpy`, audioscan (Rust) for loudness/silence windows.
 - Pros: objective signal for "is audio playing" and level; can detect clipping/silence gaps; automatable assertions.
 - Cons: threshold tuning per device/codec; background noise; requires decoded audio; offline step.
-- Source: audioscan crate — https://crates.io/crates/audioscan ; AOSP audio debugging
+- Source: audioscan crate — https://crates.io/crates/audioscan; AOSP audio debugging
 
 ### 6. Media Controller Test app (MCT)
 

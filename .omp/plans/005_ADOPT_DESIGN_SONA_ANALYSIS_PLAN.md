@@ -1,19 +1,19 @@
-# Plan: Analysis of specs/005-adopt-design-sona (consistency / duplication / ambiguity / underspec / constitution alignment)
+# Plan: Analysis of specs/005-adopt-design-ressoa (consistency / duplication / ambiguity / underspec / constitution alignment)
 
-Slug: `005-adopt-design-sona-analysis-plan`
-Plan file: `local://005-adopt-design-sona-analysis-plan.md`
-Feature dir: `/home/luis/development/mdreader/specs/005-adopt-design-sona`
+Slug: `005-adopt-design-ressoa-analysis-plan`
+Plan file: `local://005-adopt-design-ressoa-analysis-plan.md`
+Feature dir: `/home/luis/development/mdreader/specs/005-adopt-design-ressoa`
 Status: PLAN-MODE — read-only analysis; remediation requires explicit user approval; no edits until approved.
 
 ---
 
 ## Context
 
-Goal (`/speckit.analyze`): identify inconsistencies, duplications, ambiguities, underspecified items, and constitution conflicts across the three core artifacts (`spec.md`, `plan.md`, `tasks.md`) for feature `005-adopt-design-sona` (Adotar DESIGN-SONA), before any implementation. Read-only; output is a structured Markdown report with coverage table + findings table + metrics. Constitution (`.specify/memory/constitution.md` v1.12.0) is non-negotiable; any conflict is CRITICAL and must be resolved in spec/plan/tasks (not by diluting the principle). The user also mandates delegation (subagent waves [P]), TDD red-phase blocking, property-based tests (invariants over FR/task/closed-set coverage), verification-only attestation at end, scaffold/sidebar codegen before hand-written content, deterministic atomic `scripts/commit-hook.sh` after any edit (only if remediation approved), and pre/post extension-hook checks.
+Goal (`/speckit.analyze`): identify inconsistencies, duplications, ambiguities, underspecified items, and constitution conflicts across the three core artifacts (`spec.md`, `plan.md`, `tasks.md`) for feature `005-adopt-design-ressoa` (Adotar DESIGN-RESSOA), before any implementation. Read-only; output is a structured Markdown report with coverage table + findings table + metrics. Constitution (`.specify/memory/constitution.md` v1.12.0) is non-negotiable; any conflict is CRITICAL and must be resolved in spec/plan/tasks (not by diluting the principle). The user also mandates delegation (subagent waves [P]), TDD red-phase blocking, property-based tests (invariants over FR/task/closed-set coverage), verification-only attestation at end, scaffold/sidebar codegen before hand-written content, deterministic atomic `scripts/commit-hook.sh` after any edit (only if remediation approved), and pre/post extension-hook checks.
 
 Pre-check (done, not deferred): `.specify/extensions.yml` exists (73 bytes); `hooks: {}` — neither `before_analyze` nor `after_analyze` registered; `enabled` n/a; `optional` n/a; no hooks executed; no parser error. `check-prerequisites.sh --json --require-spec --require-tasks --include-tasks` returned `FEATURE_DIR` + `AVAILABLE_DOCS` (11 docs, includes spec/plan/tasks/contracts/data-model/research/quickstart/checklists). All three artifacts present.
 
-Constitution authority loaded (principles III Test-First NON-NEGOTIABLE, V Deterministic-Gates, VII Closed-Sets-No-Catch-Alls, VIII Driving-First, XII? not present — only III/VII/V are load-bearing here). Key closed-set references from artifacts: `EarconKind` (7 variants per `contracts/earcon.md`), rate ladder (7 rungs per data-model §RateLadder), `EventKind` (9 kinds per `crates/diag/src/writer.rs`), `contracts/surface-audit.md` A1 (6 auditees), `spec.md` closed color set (8 sona + 2 signal = 10 members, D2).
+Constitution authority loaded (principles III Test-First NON-NEGOTIABLE, V Deterministic-Gates, VII Closed-Sets-No-Catch-Alls, VIII Driving-First, XII? not present — only III/VII/V are load-bearing here). Key closed-set references from artifacts: `EarconKind` (7 variants per `contracts/earcon.md`), rate ladder (7 rungs per data-model §RateLadder), `EventKind` (9 kinds per `crates/diag/src/writer.rs`), `contracts/surface-audit.md` A1 (6 auditees), `spec.md` closed color set (8 ressoa + 2 signal = 10 members, D2).
 
 ---
 
@@ -22,13 +22,13 @@ Constitution authority loaded (principles III Test-First NON-NEGOTIABLE, V Deter
 ### Phase 0 — Scaffold / template + RED property-test tasks first (BLOCKING, TDD rule 1)
 
 Generate (before hand-writing logic / analysis content) via LSP / template reuse / verbatim pattern from the reference stack (no inventing new structures):
-- Analysis-report scaffold (`specs/005-adopt-design-sona/analysis_report.md` template — ONLY if user approves remediation; read-only phase does NOT create it; the template is prepared in-memory / scratch, not written, until approval).
+- Analysis-report scaffold (`specs/005-adopt-design-ressoa/analysis_report.md` template — ONLY if user approves remediation; read-only phase does NOT create it; the template is prepared in-memory / scratch, not written, until approval).
 - Property-test stubs (`proptest` 1.12.0, workspace dev-dep; `tests/invariant_005.rs` scratch only — not written to repo in read-only phase; prepared for RED phase).
 
 Write property-based test tasks (RED — must exist and be shown FAILING for the correct reason, not compile errors) before any detection runs. These are invariant assertions over the artifacts, executable by `cargo test` or `python -c` against parsed artifacts.
 
 - **T-TEST-01** [RED, BLOCKING] `fr_to_task_coverage_property`: for each FR-### explicitly numbered in `spec.md` (§Functional Requirements 130-149, FR-001..FR-010 confirmed by grep), assert `exists task in tasks.md with matching identifier / storyline keyword`. Expected initial state: FAIL with named missing IDs (e.g., FR-009 verbose mix rule — check mapping to T00x in tasks.md). Must fail for RIGHT reason (missing mapping), never compile error.
-- **T-TEST-02** [RED, BLOCKING] `closed_set_no_catchall_property`: for each closed-set reference (EventKind 9 kinds `crates/diag/src/writer.rs`; EarconKind 7 `crates/player/src/earcon.rs`; rate ladder 7 rungs `data-model.md`; surface-audit A1 6 auditees `contracts/surface-audit.md`; design-sona palette 10 hex members D2), assert `0` occurrences of `_ =>`, `Other`, `Unknown`, `Internal` in the referenced file/contract scope (per Constitution VII + verification gate 7 `no _ => in crates/*/src/`). Expected initial state: FAIL if any catch-all exists; else PASS (no issues in this dimension — still must be shown).
+- **T-TEST-02** [RED, BLOCKING] `closed_set_no_catchall_property`: for each closed-set reference (EventKind 9 kinds `crates/diag/src/writer.rs`; EarconKind 7 `crates/player/src/earcon.rs`; rate ladder 7 rungs `data-model.md`; surface-audit A1 6 auditees `contracts/surface-audit.md`; design-ressoa palette 10 hex members D2), assert `0` occurrences of `_ =>`, `Other`, `Unknown`, `Internal` in the referenced file/contract scope (per Constitution VII + verification gate 7 `no _ => in crates/*/src/`). Expected initial state: FAIL if any catch-all exists; else PASS (no issues in this dimension — still must be shown).
 - **T-TEST-03** [RED, BLOCKING] `sc_coverage_property`: for each SC-### requiring buildable work (SC-001 closed-set purity host census; SC-002 blind-test protocol; SC-003 notification surface inspection; SC-005 ≤100 ms latency test; SC-006 Lente reduced + excluded-screens guard; SC-007 TalkBack + reduced-motion), assert `tasks.md references SC-###` and `checklists/requirements.md (16/16) references it`. Expected initial state: FAIL if deferred (e.g., SC-001 device-leg deferred per spec line ~159 “DEFERRED (owner=device-build)”; SC-002 “disposição háptica da condição auditiva” truncated; SC-005 baseline “sem oráculo de latência de earcon”; SC-007 truncated at “reduced-motion ativa”).
 - **T-TEST-04** [RED, BLOCKING] `terminology_consistency_property`: build normalized term map from spec (`StatusView` / `grade 2-campo` / `Lente Sinestésica` / `Concha Harmônica R` / `Ressonador Canônimo` / `MediaMirror.kt` / `MediaStyle` / `Ostinato` / `Adagio`/`Andante`/`Allegro`/`Sforzando`/`Unison`) and assert every term used in spec appears in plan/tasks with same semantics (no drift). Expected initial state: FAIL if drift detected (e.g., “grade 2-campo” described as “apelido de identidade do design dir, não-normativo” in spec vs potential normative use in plan/task; “Lente Sinestésica” defined as reduced identity of same StatusView in spec US4 vs potential full-feature reference elsewhere).
 
@@ -38,7 +38,7 @@ All four RED tests must be written, shown RED (or correctly passing if clean), B
 
 Load only required sections (already completed — this is the audit trail, not new work):
 - `spec.md`: Overview/Context (l1-66), FR (l130-149, 10 items confirmed), SC (l151-195, 7 items, several truncated/deferred), User Stories US1-US4 (P1-P3), Edge Cases (l67-129, not fully loaded — load only if finding requires; mark unverified), Key Entities (Document Title, Current Section, Progress Indication, Earcon, Dual Mark). Note: spec has clarifications embedded (marks “valor do conjunto fechado”, “registro 2026-10-24”, “C3”, “C5”, “C6”, “D2”, “D5/E2” — these are versioned anchors and must not be treated as unstable drift, but referenced consistently).
-- `plan.md`: Architecture/stack (load only phases / data-model refs; architecture choices: Rust owns synthesis + PCM at 22050 Hz mono f32; Kotlin `android-shell/` owns Service / MediaSession mirror; zero playback logic in Kotlin per constitution). Data-model references (§SonaToken, §SurfaceInventory, §NotificationSurface, §EarconConfirmation, §RateLadder, §ProgressIndication, §MovementSpec, §HapticDisposition, §DiagnosticEvent, §DesignDirState, §ContrastPair — all referenced in tasks.md prerequisites; if any missing from plan.md, report as coverage gap).
+- `plan.md`: Architecture/stack (load only phases / data-model refs; architecture choices: Rust owns synthesis + PCM at 22050 Hz mono f32; Kotlin `android-shell/` owns Service / MediaSession mirror; zero playback logic in Kotlin per constitution). Data-model references (§RessoaToken, §SurfaceInventory, §NotificationSurface, §EarconConfirmation, §RateLadder, §ProgressIndication, §MovementSpec, §HapticDisposition, §DiagnosticEvent, §DesignDirState, §ContrastPair — all referenced in tasks.md prerequisites; if any missing from plan.md, report as coverage gap).
 - `tasks.md`: Task IDs, descriptions, phase grouping, [P] markers, file paths, execution protocol (4 rules — scaffold-first, TDD RED, subagent waves, verification-only + commit hook). Confirm 16 checklist items in `checklists/requirements.md`; confirm contracts (`status-surface.md` S1-S7, `earcon-mapping.md` E1-E7, `surface-audit.md` A1-A4) all referenced; confirm quickstart references.
 - `constitution.md`: Principles III (Test-First NON-NEGOTIABLE), V (Deterministic Gates), VII (Closed Sets No Catch-Alls), VIII (Driving-First), plus Verification Gates table (1-9) and Exceptions Log framework.
 
@@ -55,7 +55,7 @@ Wave structure: each wave is a `task` subagent (or named shell group) with expli
 - Subagent D (coverage mapping, context = `spec.md` FR-001..010 + SC-001..007 + `tasks.md` + `checklists/requirements.md`): build mapping table. For each FR/SC, list task IDs; for each task, list FR/SC; compute coverage %. Detect: FR-009 (verbose mixed-rule with discard-on-pause) likely has complex mapping — verify enough task granularity. SC-002 (blind-test protocol with haptic, matrix, 15 trials/type) — verify task references the full protocol (not just “test earcon”). SC-006 (excluded screens guard) — verify tasks reference `contracts/surface-audit.md` A1-A4. SC-007 (TalkBack + reduced-motion) — verify tasks include reduced-motion freeze test (pílula congelada, role/value announcements invariant).
 
 **Wave 3 [P] — Inconsistency / Terminology drift (depends on Wave 2 mapping for context reuse; same subagent family if shared context)**
-- Subagent E (terminology / data-model / cross-file consistency, context = `data-model.md` + `plan.md` + `spec.md` entities + `tasks.md` prerequisites): build normalized term set from `data-model.md` (§SonaToken, §SurfaceInventory, §NotificationSurface, §EarconConfirmation, §RateLadder, §ProgressIndication, §MovementSpec, §HapticDisposition, §DiagnosticEvent, §DesignDirState, §ContrastPair) and compare to `plan.md` references and `spec.md` usage. Look for: “NotificationSurface” vs “MediaStyle notification”; “SurfaceInventory” presence in plan (if plan references it); “RateLadder” 7-rung set consistency with spec FR-003 / US2; “MovementSpec” (pílula deslizante) consistency with SC-006 / SC-007 (reduced-motion freeze); “HapticDisposition” (disposição háptica) presence in spec SC-002 truncated section and tasks; “DiagnosticEvent” / “EventKind” 9 kinds consistency; “DesignDirState” / “C3/C5/C6” versioned anchors consistency across files (do all files reference the same registry date “2026-10-24”? If not, drift).
+- Subagent E (terminology / data-model / cross-file consistency, context = `data-model.md` + `plan.md` + `spec.md` entities + `tasks.md` prerequisites): build normalized term set from `data-model.md` (§RessoaToken, §SurfaceInventory, §NotificationSurface, §EarconConfirmation, §RateLadder, §ProgressIndication, §MovementSpec, §HapticDisposition, §DiagnosticEvent, §DesignDirState, §ContrastPair) and compare to `plan.md` references and `spec.md` usage. Look for: “NotificationSurface” vs “MediaStyle notification”; “SurfaceInventory” presence in plan (if plan references it); “RateLadder” 7-rung set consistency with spec FR-003 / US2; “MovementSpec” (pílula deslizante) consistency with SC-006 / SC-007 (reduced-motion freeze); “HapticDisposition” (disposição háptica) presence in spec SC-002 truncated section and tasks; “DiagnosticEvent” / “EventKind” 9 kinds consistency; “DesignDirState” / “C3/C5/C6” versioned anchors consistency across files (do all files reference the same registry date “2026-10-24”? If not, drift).
 
 Each subagent writes its findings to an in-memory / scratch artifact (not to repo; only to session output) with stable IDs (category initial + number). After all waves complete, parent integrates into single report.
 
@@ -76,20 +76,18 @@ Assignment rules (apply deterministically, not ad hoc):
 Structure (exact — implementer must not invent sections):
 
 ```
-## Specification Analysis Report (005-adopt-design-sona, read-only)
+## Specification Analysis Report (005-adopt-design-ressoa, read-only)
 
 ### Findings Table (max 50 rows; overflow aggregated)
 |ID|Category|Severity|Location(s)|Summary|Recommendation|
-|A1|Duplication|HIGH|spec.md:130-149 / tasks.md:T00x|FR-001 token palette overlaps FR-005 closed-set; two acceptance scenarios identical in US1 + SC-003|Merge; keep FR-001 for palette, FR-005 for restriction; deduplicate SC-003 acceptance text|
-...
+|A1|Duplication|HIGH|spec.md:130-149 / tasks.md:T00x|FR-001 token palette overlaps FR-005 closed-set; two acceptance scenarios identical in US1 + SC-003|Merge; keep FR-001 for palette, FR-005 for restriction; deduplicate SC-003 acceptance text|...
 
 ### Coverage Summary Table
 |Requirement Key|Has Task?|Task IDs|Notes|
 |FR-001|Y|T004,T009|...|
 |FR-009|Y?|T0xx,T0yy|Complex mix rule; verify discard-on-pause sub-tasks exist|
 |SC-001|Y?|T013,T0xx|Device-leg DEFERRED — needs owner task or deferred-marker in tasks.md|
-|SC-002|Y|T015|Haptic sub-section truncated in spec; verify protocol task exists|
-...
+|SC-002|Y|T015|Haptic sub-section truncated in spec; verify protocol task exists|...
 
 ### Constitution Alignment Issues
 - III (Test-First): compliant if all Waves 1-4 have RED-gate tasks before implementation tasks; flag if any implementation task lacks preceding RED.
@@ -99,8 +97,7 @@ Structure (exact — implementer must not invent sections):
 
 ### Unmapped Tasks (if any)
 |Task ID|Description|Mapped FR/SC?|Notes|
-|T001|Branch creation|—|Setup, no FR/SC; OK|
-...
+|T001|Branch creation|—|Setup, no FR/SC; OK|...
 
 ### Metrics
 - Total Requirements (FR-001..010 + SC-001..007 + US1..4): 21 + 7 + 4 = 32 requirements/stories
@@ -128,7 +125,7 @@ Per instruction: do NOT apply edits automatically; only propose. Remediation edi
 Verification tasks (scheduled at end; run after report is finalized and after any approved remediation):
 
 - **V-01 [VERIFICATION, attests read-only state]**: `git status --short` must show only untracked scratch files (if any) — zero modifications to `spec.md/plan.md/tasks.md/contracts/`/code. If dirty, abort claim of completeness; do not claim “analysis done” if files changed unexpectedly. Command: `git status --short && echo "READ-ONLY OK"`.
-- **V-02 [VERIFICATION, attests prerequisites]**: re-run `bash .specify/scripts/bash/check-prerequisites.sh --json --require-spec --require-tasks --include-tasks`; confirm FEATURE_DIR and AVAILABLE_DOCS unchanged; record JSON snippet in verification artifact.
+- **V-02 [VERIFICATION, attests prerequisites]**: re-run `bash.specify/scripts/bash/check-prerequisites.sh --json --require-spec --require-tasks --include-tasks`; confirm FEATURE_DIR and AVAILABLE_DOCS unchanged; record JSON snippet in verification artifact.
 - **V-03 [VERIFICATION, attests property tests RED phase]**: run each T-TEST-01..04 (or equivalent `python`/`rust` oracle); record PASS/FAIL per test; confirm RED phase satisfied (tests existed before detection waves started; if any test never existed, report failure of TDD gate — constitution III violation at meta-level).
 - **V-04 [VERIFICATION, attests report completeness]**: confirm findings table has >=1 row per category expected (Dup, Amb, Under, Const, Cover, Inconsist); confirm metrics block present; confirm coverage summary has all FR/SC; confirm extension hook block present (before_analyze / after_analyze result); confirm no invented sections.
 - **V-05 [VERIFICATION, attests extension after_analyze]**: re-check `.specify/extensions.yml`; if any `hooks.after_analyze` added after plan (none expected in read-only), execute per optional/mandatory rules; if executable and optional, output block; if mandatory, execute and wait; record result.
@@ -142,9 +139,9 @@ Only after V-01 through V-07 pass may any statement of “analysis complete / co
 ## Critical files & anchors (≤5 disambiguating; line hints for re-read)
 
 1. `.specify/extensions.yml` (line 7 `hooks: {}`) — pre/post hook state; no parser error.
-2. `specs/005-adopt-design-sona/spec.md` — FR-001 (l130), FR-009 (mixed-additive discard-on-pause, l141-144), SC-001 deferred device-leg (l159 “DEFERRED (owner=device-build)”), SC-002 truncated (l163+ “disposição háptica…” truncated), SC-007 truncated (l193 “reduced-motion ativa…” truncated); User Story 4 (US4, P3, reduced Lente, l87-128).
-3. `specs/005-adopt-design-sona/tasks.md` — Execution Protocol rules 0-4 (l14-59), Phase 1 T001-T003 (branch + baseline + anchors l61-79), Phase 2 T004-T006 (audit scaffolding + RED C-H8 twin + S2 packaging l81-133), Wave tables / subagent dispatch (search for “Parallel Execution (subagent waves)”).
-4. `specs/005-adopt-design-sona/plan.md` — architecture references to Rust synthesis (22050 Hz mono f32), Kotlin mirror, contracts (§StatusSurface S1-S7, §EarconMapping E1-E7, §SurfaceAudit A1-A4), data-model (§SonaToken, §RateLadder, etc.). Read only architecture + data-model sections needed.
+2. `specs/005-adopt-design-ressoa/spec.md` — FR-001 (l130), FR-009 (mixed-additive discard-on-pause, l141-144), SC-001 deferred device-leg (l159 “DEFERRED (owner=device-build)”), SC-002 truncated (l163+ “disposição háptica…” truncated), SC-007 truncated (l193 “reduced-motion ativa…” truncated); User Story 4 (US4, P3, reduced Lente, l87-128).
+3. `specs/005-adopt-design-ressoa/tasks.md` — Execution Protocol rules 0-4 (l14-59), Phase 1 T001-T003 (branch + baseline + anchors l61-79), Phase 2 T004-T006 (audit scaffolding + RED C-H8 twin + S2 packaging l81-133), Wave tables / subagent dispatch (search for “Parallel Execution (subagent waves)”).
+4. `specs/005-adopt-design-ressoa/plan.md` — architecture references to Rust synthesis (22050 Hz mono f32), Kotlin mirror, contracts (§StatusSurface S1-S7, §EarconMapping E1-E7, §SurfaceAudit A1-A4), data-model (§RessoaToken, §RateLadder, etc.). Read only architecture + data-model sections needed.
 5. `.specify/memory/constitution.md` — III Test-First (l857-866), V Deterministic Gates (l885-896), VII Closed Sets (l912-921), Verification Gates 1-9 (l1234-1289); also “Constitution conflicts automatically CRITICAL” (analysis instruction, not in file, but binding from prompt).
 
 ---
@@ -154,7 +151,7 @@ Only after V-01 through V-07 pass may any statement of “analysis complete / co
 - Input: unmodified repo at `dev` branch (verify with `git rev-parse --abbrev-ref HEAD` = `dev` or feature branch if already cut — feature branch T001 may have been run already; if dirty, stop).
 - Action sequence: Phase 0 (scaffold/template + RED tests written, shown RED) → Phase 1 (load) → Phase 2 (waves 1-3, delegated) → Phase 3 (severity) → Phase 4 (report) → Offer remediation (user approval required) → Phase 5 (remediation only if approved, with hook per edit) → Phase 6 (V-01..V-07).
 - Expected observable outputs (not “build passes” — analysis is read-only): (a) 4 property-test results recorded (PASS/FAIL/RED) with named failures correct; (b) Wave 1-3 subagent outputs present (even if zero findings); (c) findings table with stable IDs, no duplicates; (d) coverage table with FR-001..010 + SC-001..007; (e) metrics: total counts, coverage %, duplication/ambiguity/critical counts; (f) constitution alignment section with explicit III/VII/V status; (g) extension hook block (before/after) with “none registered / no error”; (h) `git status --short` clean; (i) if any edit approved: `git log -1 -- <file>` shows atomic conventional commit with detailed edit summary + reference to task/FR/SC.
-- Prerequisites: same workstation (linux 7.2.11, rust 1.85+ available for test scaffold if using rust; `proptest` in workspace dev-deps), repo at `/home/luis/development/mdreader`, `specs/005-adopt-design-sona/` fully present (confirmed).
+- Prerequisites: same workstation (linux 7.2.11, rust 1.85+ available for test scaffold if using rust; `proptest` in workspace dev-deps), repo at `/home/luis/development/mdreader`, `specs/005-adopt-design-ressoa/` fully present (confirmed).
 - Failure modes: (i) RED tests never written / never shown failing → stop, constitution III breach at meta-level; (ii) subagent outputs missing → stop, verification V-06 fails; (iii) report missing any required section → stop, V-04 fails; (iv) file edited without hook / with manual `git commit` → stop, V-07 / rule 4 breach; (v) user approves remediation but edits violate closed-set / constitution → stop, do not apply; only apply after confirming no new enum members / no weakened lint / no catch-all added.
 
 ---

@@ -2,7 +2,7 @@
 
 - **Status**: Accepted
 - **Date**: 2026-10-26
-- **Feature**: `005-adopt-design-sona`
+- **Feature**: `005-adopt-design-ressoa`
 
 ## Context
 

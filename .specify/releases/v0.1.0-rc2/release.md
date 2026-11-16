@@ -23,7 +23,7 @@ Ressoa is the first audio reader focused on structured Markdown files/directorie
 |---|---|---|---|
 | 001 | Android Media Shell & Service Mirror | ✅ Converged | JNI mirror of MediaSession; lock-screen control. |
 | 002 | FR-024 Synthesis Adapter (Sherpa-ONNX / Piper) | ✅ Converged | Local neural pt-BR synthesis. |
-| 005 / 007 | Design System SONA & HUD Visual | ✅ Converged | WCAG contrast, sinesthetic canvas visualizer. |
+| 005 / 007 | Design System RESSOA & HUD Visual | ✅ Converged | WCAG contrast, sinesthetic canvas visualizer. |
 | 006 | Lente Sinestésica & RMS Lock-Free | ✅ Converged | AtomicU32 buffer ~20 Hz, no audio-thread impact. |
 | 009 | File Open & Durable Bookmarks | ✅ Converged | SAF, Blake3-256, redb write every 20 s. |
 | 010 | Continuous Directory Reading | ✅ Converged | SAF tree, gapless transitions, chapter advance/rewind. |
@@ -31,7 +31,7 @@ Ressoa is the first audio reader focused on structured Markdown files/directorie
 | 014 | Technical Symbol Normalization | ✅ Converged | `normalize.rs` fatigue reduction. |
 | 015 | Semantic Prosody | ✅ Converged | `prosody.rs` natural pauses. |
 | 017 | In-Memory Audio Chunk Cache (LRU) | ✅ Converged | <50 ms rewind/repeat, 32 MiB cap, PBT. |
-| 018 | Sona-Inspired Voice (closed catalog) | ✅ Converged | `pt_BR-faber-medium` default + `pt_BR-cadu-medium` alternative, CC0, closed `VoiceId`, per-voice engines, `CycleVoiceNext/Prev`, persisted `last_voice`, restart-on-change. Host gates 1–8 PASS; gate 9 Rust compile PASS. |
+| 018 | Ressoa-Inspired Voice (closed catalog) | ✅ Converged | `pt_BR-faber-medium` default + `pt_BR-cadu-medium` alternative, CC0, closed `VoiceId`, per-voice engines, `CycleVoiceNext/Prev`, persisted `last_voice`, restart-on-change. Host gates 1–8 PASS; gate 9 Rust compile PASS. |
 | 019 | Intent Filter Ingress | ✅ Converged | ACTION_VIEW / ACTION_SEND ingress. |
 | 020 | Dynamic Doc Cap Scalability | ✅ Converged | Document/chapter cap expanded to 1 MiB. |
 | 021 | Android 16 (API 36) Accessibility Compliance | ✅ Converged (verification-only) | targetSdk/compileSdk 36; zero `announceForAccessibility`/`TYPE_ANNOUNCEMENT` in shell Kotlin; `aria-live="polite"` frontend; no INTERNET. |

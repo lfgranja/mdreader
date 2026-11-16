@@ -103,11 +103,11 @@ Every drop is accounted by a **trim marker** line
 entries it describes, so the on-disk line order is
 `[trim markers][retained entries]` and a shrink is never silent.
 Trim and gap markers are metadata, not retained entries
-(`retained_entries()` counts only record events).
+(`retained_entries` counts only record events).
 
 Writes are best-effort: a storage-full append failure records a
 **gap marker** (`kind: "gap"`) and returns `Ok`, so playback is
-never interrupted (FR-039b); `gap_count()` reports the markers
+never interrupted (FR-039b); `gap_count` reports the markers
 since open.
 
 ## Position keying (FR-036 / FR-036a)
@@ -157,7 +157,7 @@ The scanner is the `diag` binary's single capability. Verified
 invocations (workspace `target/debug/diag`; `--format json` is
 the default, `--format human` selects the plain form):
 
-```sh
+`sh
 # A conforming record — session start, playing with advance,
 # a deliberate pause ending the session:
 diag scan rec.jsonl
@@ -172,7 +172,7 @@ diag scan --format human rec-bad.jsonl
 # → capability: scan
 #   violation-count: 1
 #   failure_without_error: ts_ms=1
-```
+`
 
 Violations are a **report, not an error**: the scan exits 0 even
 when it finds violations — the payload on stdout is the whole
@@ -181,7 +181,7 @@ line was not a valid event. A stall (a `playing` entry with no
 later advance) and a `session_end` at `playing` are both caught
 in one pass:
 
-```sh
+`sh
 diag scan rec-stall.jsonl
 # → {"violations":[{"playing_without_advance":{"ts_ms":9}}]}
-```
+`

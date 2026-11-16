@@ -2,8 +2,8 @@
 
 - **Status**: Coordinated / planned (release-level; not yet released)
 - **Date**: 2026-10-26
-- **Feature**: `005-adopt-design-sona`
-- **Branch**: `005-adopt-design-sona`
+- **Feature**: `005-adopt-design-ressoa`
+- **Branch**: `005-adopt-design-ressoa`
 - **Author**: Design-dir / spec-level (coordinated by T017)
 - **Constitution reference**: `.specify/memory/constitution.md` §VII (Closed sets, no catch-alls); plan.md l17 / l41; data-model.md §DiagnosticEvent (l89–96)
 
@@ -28,7 +28,7 @@ The two new kinds are sanctioned; the rule is: one truncation → one `EarconTru
 
 No new engine trait / SDK identifier is added; the extension is player-side diagnostic only (VI engine-neutral).
 
-The amendment artifact is this ADR + the coordinated source edits (T017) + `crates/diag/CHANGELOG.md` entry + `VERSION` tag update (`design-sona-v2.2.0` + diag-release note) — never a silent source-only change.
+The amendment artifact is this ADR + the coordinated source edits (T017) + `crates/diag/CHANGELOG.md` entry + `VERSION` tag update (`design-ressoa-v2.2.0` + diag-release note) — never a silent source-only change.
 
 ## Consequences
 
@@ -38,13 +38,13 @@ The amendment artifact is this ADR + the coordinated source edits (T017) + `crat
 
 ## References
 
-- `specs/005-adopt-design-sona/tasks.md` T017 (diag extension), T032 (verify), T036 (attestation)
-- `specs/005-adopt-design-sona/data-model.md` §DiagnosticEvent (l89–96)
-- `specs/005-adopt-design-sona/contracts/earcon-mapping.md` E3 (system interruption), E4 (failure / emission-failure)
+- `specs/005-adopt-design-ressoa/tasks.md` T017 (diag extension), T032 (verify), T036 (attestation)
+- `specs/005-adopt-design-ressoa/data-model.md` §DiagnosticEvent (l89–96)
+- `specs/005-adopt-design-ressoa/contracts/earcon-mapping.md` E3 (system interruption), E4 (failure / emission-failure)
 - `.specify/memory/constitution.md` §VII (Closed sets; coordinated edition; no catch-all)
 - `crates/diag/src/writer.rs` (current 9-kind `EventKind`); `crates/diag/src/scan.rs`; `crates/diag/contract_schema`
-- `specs/005-adopt-design-sona/plan.md` l17 (coordinated extension claim) — now cross-ref to this ADR
-- `specs/005-adopt-design-sona/research/clarify-e3-sc002-haptic-side-channel.md` (related side-channel disposition; not this extension)
+- `specs/005-adopt-design-ressoa/plan.md` l17 (coordinated extension claim) — now cross-ref to this ADR
+- `specs/005-adopt-design-ressoa/research/clarify-e3-sc002-haptic-side-channel.md` (related side-channel disposition; not this extension)
 
 ## Verification (only Phase 8 attests; this ADR is documentation only)
 

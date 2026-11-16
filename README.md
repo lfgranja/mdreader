@@ -4,4 +4,8 @@ Android media-shell TTS audiobook reader. Rust owns synthesis + PCM playback, po
 
 ## Design system
 
-DESIGN-SONA v2.2.0 — see `DESIGN-SONA/CHANGELOG.md` and `DESIGN-SONA/VERSION`. The Ressonador Canônico seal lives at `DESIGN-SONA/assets/logo/seal-engine-ressonador.svg` (host-facing only; never on notification/lock-screen/in-app surfaces).
+DESIGN-RESSOA v2.2.0 — see `DESIGN-RESSOA/CHANGELOG.md` and `DESIGN-RESSOA/VERSION`. The Ressonador Canônico seal lives at `DESIGN-RESSOA/assets/logo/seal-engine-ressonador.svg` (host-facing only; never on notification/lock-screen/in-app surfaces).
+
+## Licença
+
+MIT License. Copyright (c) 2026 MDMV - Laboratório de Soluções Digitais. Veja `LICENSE`.

@@ -129,7 +129,7 @@ src-tauri/capabilities/
 
 # Experimental training scripts
 /scripts/build_all_waves.py
-/scripts/extract_sona_audio.sh
+/scripts/extract_ressoa_audio.sh
 /scripts/test_wave_builder.py
 /scripts/train_ressoa_model.py
 
@@ -142,3 +142,6 @@ src-tauri/capabilities/
 keystore.properties
 *.keystore
 *.jks
+
+# Local root organization archive (moved clutter, not source)
+archive/

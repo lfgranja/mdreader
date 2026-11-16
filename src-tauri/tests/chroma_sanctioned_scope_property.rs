@@ -24,7 +24,7 @@ proptest! {
         let html = fs::read_to_string("src/status_view.html").unwrap_or_default();
         if html.to_lowercase().contains("#5ad6a8") {
             // Must be in ledger declaration or waveform ribbon context or brand asset
-            let has_ledger = html.contains("--sona-aria");
+            let has_ledger = html.contains("--ressoa-aria");
             let has_waveform = html.contains("drawWaveform") || html.contains("waveform");
             prop_assert!(has_ledger || has_waveform, "jade must be in sanctioned scope");
         }
@@ -36,7 +36,7 @@ proptest! {
         let html = fs::read_to_string("src/status_view.html").unwrap_or_default();
         if html.to_lowercase().contains("#b9a6f5") {
             // Must be in ledger declaration or waveform ribbon context or decorative wave
-            let has_ledger = html.contains("--sona-celeste");
+            let has_ledger = html.contains("--ressoa-celeste");
             let has_waveform = html.contains("drawWaveform") || html.contains("waveform");
             prop_assert!(has_ledger || has_waveform, "celeste must be in sanctioned scope");
         }

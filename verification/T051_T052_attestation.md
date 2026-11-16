@@ -18,7 +18,7 @@
 | **SC-004 / Interruption & Pause** | **PASS** | Media keyevent `KEYCODE_HEADSETHOOK` (85) and screen controls successfully transition transport to `paused` with clean session closure (`session_end_reason: paused`). |
 | **SC-005 / Bookmarks & Resume** | **PASS** | Atomic persistence in `bookmarks.redb` verified; resume session recovers previous position with zero audio overlap. |
 | **SC-006 / Directory Navigation** | **PASS** | DocumentsUI tree picker (`ACTION_OPEN_DOCUMENT_TREE`) grants persistable read permissions; 3 chapters ingested, gapless chapter playback active. |
-| **SC-007 / UI Accessibility & Sona** | **PASS** | Verified via `device-a11y-check.py` and `device-webview-smoke.py`: 36 AX nodes, complete content-descriptions on all 11 transport/HUD controls, TalkBack semantic region configured. |
+| **SC-007 / UI Accessibility & Ressoa** | **PASS** | Verified via `device-a11y-check.py` and `device-webview-smoke.py`: 36 AX nodes, complete content-descriptions on all 11 transport/HUD controls, TalkBack semantic region configured. |
 | **SC-008 / Privacy & Purity** | **PASS** | Zero prose leaked to logs; zero network permissions in manifest; purely local offline operation. |
 
 ---

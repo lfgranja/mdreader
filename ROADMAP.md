@@ -23,10 +23,10 @@
 ┌─────────────────────────────────────────────────────────────────────────────────────────────┐
 │ NEXT (Próximo Marco — Android 16 Compliance, Empacotamento de Release e Loja)              │
 │ • ✅ Spec 021 (Android 16 a11y): targetSdk/compileSdk 36; zero announceForAccessibility; aria-live presente (verificação, sem migração) │
-│ • ✅ rc2 candidate produzido (host-verificado, pendente re-run dos gates 1-8 em ambiente sem limite): .specify/releases/v0.1.0-rc2/ │
+│ • ✅ rc2 candidate produzido — host gates 1–8 VERDES (fmt, nextest, doc, clippy -D warnings, deny+audit, deny-list, closed-set, shell purity): .specify/releases/v0.1.0-rc2/ │
 │ • ⏳ Build de Release assinado (`cargo tauri android build --release`) — autorização (keystore) pendente │
 │ • ⏳ Publicação do RC v0.1.0-rc2 no F-Droid / Google Play Store — autorização (contas/assets/ASO) pendente │
-│ • Avaliação de suporte a múltiplos speakers/modelos locais (ex: Kokoro-82M / Piper pt-BR)   │
+│ • Catálogo de vozes locais mantido fechado: Piper pt-BR (faber+cadu+jeff, MIT via rhasspy/piper-voices, spec 018 CONVERGIDA). Kokoro-82M (Apache 2.0, comercial OK) avaliado e NÃO adicionado: foco em inglês, sem pt-BR, sem ganho para o catálogo fechado │
 └─────────────────────────────────────────────────────────────────────────────────────────────┘
                                               ↓
 ┌─────────────────────────────────────────────────────────────────────────────────────────────┐

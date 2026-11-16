@@ -2,18 +2,18 @@
 description: "Task list for feature implementation"
 ---
 
-# Tasks: Adotar o DESIGN-SONA (Option A subset)
+# Tasks: Adotar o DESIGN-RESSOA (Option A subset)
 
-**Input**: Design documents from `/specs/005-adopt-design-sona/`
+**Input**: Design documents from `/specs/005-adopt-design-ressoa/`
 **Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/, quickstart.md
 **Tests**: TDD binding per Constitution Principle III. Tests FIRST (RED) before implementation. Property-based testing (`proptest`) where applicable.
 **Organization**: Tasks grouped by user story (US1–US4). Setup/Foundational/Polish/Verification have no story labels.
 **Branch**: `pr/005-sc001-sc002-sc007-tests` (HEAD `8a4dd32e`) — tests for SC-001/SC-002/SC-007 already added.
 
-- [X] T001 Verify on correct branch `pr/005-sc001-sc002-sc007-tests` (or `005-adopt-design-sona`), record HEAD SHA in state. File: `.specify/memory/STATE.md`
+- [X] T001 Verify on correct branch `pr/005-sc001-sc002-sc007-tests` (or `005-adopt-design-ressoa`), record HEAD SHA in state. File: `.specify/memory/STATE.md`
 - [X] T002 Run `scripts/verify.sh` gates 1–8 on current tree; record results. Must be green or document existing state. File: `scripts/verify.sh`
-- [X] T003 Audit anchors per plan: `crates/player/src/backend.rs`, `crates/player/src/earcon.rs`, `crates/diag/src/writer.rs`, `src-tauri/src/status_view.html`, `src-tauri/src/status_view.rs`, `android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt` (:701-744), `src-tauri/tauri.conf.json`, `DESIGN-SONA/`, `scripts/verify.sh`, `scripts/expected-tests.txt`. Record findings. File: `.specify/memory/STATE.md`
-- [X] T004 Create `src-tauri/src/surface_audit.rs` with closed auditee resolver (A1: `status_view.html`, `status_view.rs` relevant, `MediaMirror.kt` :701-744 slice, `DESIGN-SONA/*` audited, `tauri.conf.json`, `logo-primary-concha-r.svg`). Add `pub mod surface_audit;` to `src-tauri/src/lib.rs`. Scaffold via LSP first. Files: `src-tauri/src/surface_audit.rs`, `src-tauri/src/lib.rs`
+- [X] T003 Audit anchors per plan: `crates/player/src/backend.rs`, `crates/player/src/earcon.rs`, `crates/diag/src/writer.rs`, `src-tauri/src/status_view.html`, `src-tauri/src/status_view.rs`, `android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt` (:701-744), `src-tauri/tauri.conf.json`, `DESIGN-RESSOA/`, `scripts/verify.sh`, `scripts/expected-tests.txt`. Record findings. File: `.specify/memory/STATE.md`
+- [X] T004 Create `src-tauri/src/surface_audit.rs` with closed auditee resolver (A1: `status_view.html`, `status_view.rs` relevant, `MediaMirror.kt` :701-744 slice, `DESIGN-RESSOA/*` audited, `tauri.conf.json`, `logo-primary-concha-r.svg`). Add `pub mod surface_audit;` to `src-tauri/src/lib.rs`. Scaffold via LSP first. Files: `src-tauri/src/surface_audit.rs`, `src-tauri/src/lib.rs`
 - [X] T005 [RED] [P] Add served-identity twin test `surface_audit_served_identity_binds_status_view_as_bundle` in `src-tauri/src/surface_audit/served_identity.rs` asserting byte-identity between `src-tauri/src/status_view.html` and served bundle entry (`frontendDist/index.html`). Must fail initially. Files: `src-tauri/src/surface_audit/served_identity.rs`, `src-tauri/tauri.conf.json`
 - [X] T006 Implement packaging wiring via `src-tauri/build.rs`: copy `src/status_view.html` → `dist/index.html` at build time with `cargo:rerun-if-changed`; ensure bundle serves restyled surface. Update build script. Files: `src-tauri/build.rs`, `src-tauri/tauri.conf.json`
 ## Format: `[ID] [P?] [Story] Description`
@@ -31,9 +31,9 @@ description: "Task list for feature implementation"
 
 **Purpose**: Branch/state validation, baseline gates, anchor audit.
 
-- [X] T001 Verify on correct branch `pr/005-sc001-sc002-sc007-tests` (or `005-adopt-design-sona`), record HEAD SHA in state. File: `.specify/memory/STATE.md`
+- [X] T001 Verify on correct branch `pr/005-sc001-sc002-sc007-tests` (or `005-adopt-design-ressoa`), record HEAD SHA in state. File: `.specify/memory/STATE.md`
 - [X] T002 Run `scripts/verify.sh` gates 1–8 on current tree; record results. Must be green or document existing state. File: `scripts/verify.sh`
-- [X] T003 Audit anchors per plan: `crates/player/src/backend.rs`, `crates/player/src/earcon.rs`, `crates/diag/src/writer.rs`, `src-tauri/src/status_view.html`, `src-tauri/src/status_view.rs`, `android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt` (:701-744), `src-tauri/tauri.conf.json`, `DESIGN-SONA/`, `scripts/verify.sh`, `scripts/expected-tests.txt`. Record findings. File: `.specify/memory/STATE.md`
+- [X] T003 Audit anchors per plan: `crates/player/src/backend.rs`, `crates/player/src/earcon.rs`, `crates/diag/src/writer.rs`, `src-tauri/src/status_view.html`, `src-tauri/src/status_view.rs`, `android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt` (:701-744), `src-tauri/tauri.conf.json`, `DESIGN-RESSOA/`, `scripts/verify.sh`, `scripts/expected-tests.txt`. Record findings. File: `.specify/memory/STATE.md`
 
 **Checkpoint**: Baseline known, anchors verified.
 
@@ -43,10 +43,10 @@ description: "Task list for feature implementation"
 
 **Purpose**: Surface audit infrastructure + packaging wiring (byte-identity). **MUST complete before any user story.**
 
-- [X] T004 Create `src-tauri/src/surface_audit.rs` with closed auditee resolver (A1: `status_view.html`, `status_view.rs` relevant, `MediaMirror.kt` :701-744 slice, `DESIGN-SONA/*` audited, `tauri.conf.json`, `logo-primary-concha-r.svg`). Add `pub mod surface_audit;` to `src-tauri/src/lib.rs`. Scaffold via LSP first. Files: `src-tauri/src/surface_audit.rs`, `src-tauri/src/lib.rs`
+- [X] T004 Create `src-tauri/src/surface_audit.rs` with closed auditee resolver (A1: `status_view.html`, `status_view.rs` relevant, `MediaMirror.kt` :701-744 slice, `DESIGN-RESSOA/*` audited, `tauri.conf.json`, `logo-primary-concha-r.svg`). Add `pub mod surface_audit;` to `src-tauri/src/lib.rs`. Scaffold via LSP first. Files: `src-tauri/src/surface_audit.rs`, `src-tauri/src/lib.rs`
 - [X] T005 [RED] [P] Add served-identity twin test `surface_audit_served_identity_binds_status_view_as_bundle` in `src-tauri/src/surface_audit/served_identity.rs` asserting byte-identity between `src-tauri/src/status_view.html` and served bundle entry (`frontendDist/index.html`). Must fail initially. Files: `src-tauri/src/surface_audit/served_identity.rs`, `src-tauri/tauri.conf.json`
 - [X] T006 Implement packaging wiring via `src-tauri/build.rs`: copy `src/status_view.html` → `dist/index.html` at build time with `cargo:rerun-if-changed`; ensure bundle serves restyled surface. Update build script. Files: `src-tauri/build.rs`, `src-tauri/tauri.conf.json`
-- [X] T007 [RED] [P] Add C-H1 chroma census test in `src-tauri/src/surface_audit/chroma.rs` over 10 hex set (8 sona + 2 signals), checking both progress branches (determinate/indeterminate), fail on off-set/vacancy. Files: `src-tauri/src/surface_audit/chroma.rs`
+- [X] T007 [RED] [P] Add C-H1 chroma census test in `src-tauri/src/surface_audit/chroma.rs` over 10 hex set (8 ressoa + 2 signals), checking both progress branches (determinate/indeterminate), fail on off-set/vacancy. Files: `src-tauri/src/surface_audit/chroma.rs`
 - [X] T008 [RED] [P] Add C-H2 role-exclusivity test in `src-tauri/src/surface_audit/exclusivity.rs` (focus ring only `:focus-visible`, warning/failure exclusivity). Files: `src-tauri/src/surface_audit/exclusivity.rs`
 - [X] T009 [RED] [P] Add C-H6 movement census in `src-tauri/src/surface_audit/movement.rs` (≤1 loop, reduced-motion freeze visible, pulse TTL bounded). Files: `src-tauri/src/surface_audit/movement.rs`
 - [X] T010 [RED] [P] Add C-H7 contrast solver in `src-tauri/src/surface_audit/contrast.rs` (WCAG 2.1 AA, pure function). Files: `src-tauri/src/surface_audit/contrast.rs`
@@ -59,14 +59,14 @@ description: "Task list for feature implementation"
 
 ## Phase 3: User Story 1 - Identidade visual/sonora na notificação (Priority: P1) 🎯 MVP
 
-**Goal**: MediaStyle uses only accent `#F2F0E6` (`--sona-voice`), title/section/progress only, warning/failure via static reason + earcons, no pulsing dot in notification.
+**Goal**: MediaStyle uses only accent `#F2F0E6` (`--ressoa-voice`), title/section/progress only, warning/failure via static reason + earcons, no pulsing dot in notification.
 **Independent Test**: `surface_audit_accent_only_constants` green; device inspection per quickstart §3.1.
 
 ### Tests for User Story 1
 - [X] T013 [P] [US1] Add/verify `surface_audit_accent_only_constants` in `src-tauri/src/surface_audit/accent.rs` asserting MediaMirror constants use `0xFFF2F0E6` only for accent, no body/rate/brand. Files: `src-tauri/src/surface_audit/accent.rs`, `android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt`
 
 ### Implementation for User Story 1
-- [X] T014 [US1] Verify `MediaMirror.kt` constants block `:701-744` (accent `DESIGN_SONA_PROGRESS_FILL = 0xFFF2F0E6`, KDoc retagged). No manifest/permission changes. Files: `android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt`
+- [X] T014 [US1] Verify `MediaMirror.kt` constants block `:701-744` (accent `DESIGN_RESSOA_PROGRESS_FILL = 0xFFF2F0E6`, KDoc retagged). No manifest/permission changes. Files: `android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt`
 
 **Checkpoint**: US1 host leg green.
 
@@ -83,13 +83,13 @@ description: "Task list for feature implementation"
 
 ### Implementation for User Story 2
 - [X] T017 [US2] Implement burst policy in `crates/player/src/backend.rs` (`enqueue_earcon`): truncate/substitute "latest wins", add counters, emit typed diag events (`EarconTruncation`, `EarconEmissionFailure`), max 1 re-emission on failure, narration never ducked. Files: `crates/player/src/backend.rs`, `crates/player/src/earcon.rs`
-- [X] T018 [US2] Ensure grammar/assertions match contracts (`contracts/earcon-mapping.md`, E1–E7). Files: `crates/player/src/earcon.rs`, `specs/005-adopt-design-sona/contracts/earcon-mapping.md`
+- [X] T018 [US2] Ensure grammar/assertions match contracts (`contracts/earcon-mapping.md`, E1–E7). Files: `crates/player/src/earcon.rs`, `specs/005-adopt-design-ressoa/contracts/earcon-mapping.md`
 
 **Checkpoint**: US2 earcon behavior verified by tests.
 
 ---
 
-## Phase 5: User Story 3 - Superfície in-app com tokens DESIGN-SONA (Priority: P2)
+## Phase 5: User Story 3 - Superfície in-app com tokens DESIGN-RESSOA (Priority: P2)
 
 **Goal**: Restyle `status_view.html` to closed token set, role exclusivity, aria semantics, movement rules, served bundle identity.
 **Independent Test**: C-H1..C-H7 green; SC-001 host leg green.
@@ -98,9 +98,9 @@ description: "Task list for feature implementation"
 - [X] T019 [P] [US3] Ensure all surface-audit twins (T005,T007-T011) pass after implementation. Files: `src-tauri/src/surface_audit/*`
 
 ### Implementation for User Story 3
-- [X] T020 [US3] Restyle `src-tauri/src/status_view.html`: apply 10-hex palette (8 sona + 2 signals), focus ring `:focus-visible` with `--sona-etwahl`, reduced-motion guard freezing pill visibly, indeterminate solid pill (no shimmer gradient), role/aria (progressbar, hidden status region, no numeric paint), remove dead elements, preserve single-column. Files: `src-tauri/src/status_view.html`
+- [X] T020 [US3] Restyle `src-tauri/src/status_view.html`: apply 10-hex palette (8 ressoa + 2 signals), focus ring `:focus-visible` with `--ressoa-focus`, reduced-motion guard freezing pill visibly, indeterminate solid pill (no shimmer gradient), role/aria (progressbar, hidden status region, no numeric paint), remove dead elements, preserve single-column. Files: `src-tauri/src/status_view.html`
 - [X] T021 [US3] Update `src-tauri/src/status_view.rs` if needed for inventory/wiring. Files: `src-tauri/src/status_view.rs`
-- [X] T022 [US3] Align DESIGN-SONA docs/tokens if needed (`tokens.md`, `components.md`, `DESIGN-SONA.md`, `preview.html`) with normalized v2.2.0; add `CHANGELOG.md`, `VERSION` if missing per T014/T028 in plan. Files: `DESIGN-SONA/*`
+- [X] T022 [US3] Align DESIGN-RESSOA docs/tokens if needed (`tokens.md`, `components.md`, `DESIGN-RESSOA.md`, `preview.html`) with normalized v2.2.0; add `CHANGELOG.md`, `VERSION` if missing per T014/T028 in plan. Files: `DESIGN-RESSOA/*`
 
 **Checkpoint**: US3 host leg green, bundle serves restyled surface.
 
@@ -112,8 +112,8 @@ description: "Task list for feature implementation"
 **Independent Test**: SC-006 host checks green.
 
 ### Implementation for User Story 4
-- [X] T023 [P] [US4] Add Concha Harmônica "R" header to `status_view.html` using `DESIGN-SONA/assets/logo/logo-primary-concha-r.svg` (no jade/celeste paints). Files: `src-tauri/src/status_view.html`, `DESIGN-SONA/assets/logo/logo-primary-concha-r.svg`
-- [X] T024 [US4] Add static metadata card with `--sona-stage` background, ensure no reactive elements. Files: `src-tauri/src/status_view.html`
+- [X] T023 [P] [US4] Add Concha Harmônica "R" header to `status_view.html` using `DESIGN-RESSOA/assets/logo/logo-primary-concha-r.svg` (no jade/celeste paints). Files: `src-tauri/src/status_view.html`, `DESIGN-RESSOA/assets/logo/logo-primary-concha-r.svg`
+- [X] T024 [US4] Add static metadata card with `--ressoa-stage` background, ensure no reactive elements. Files: `src-tauri/src/status_view.html`
 - [X] T025 [US4] Verify no navigation to excluded screens (Cockpit Eyes-Free, Console Braun & Rams, Sumário Editorial Suíço, Matriz de Telemetria). Files: `src-tauri/src/status_view.html`, `src-tauri/src/status_view.rs`
 
 **Checkpoint**: US4 static Lente present.
@@ -125,7 +125,7 @@ description: "Task list for feature implementation"
 - [X] T026 Update `scripts/verify.sh` to include surface-audit and earcon-mapping checks (fail-closed). Update `scripts/expected-tests.txt` with new tests. Files: `scripts/verify.sh`, `scripts/expected-tests.txt`
 - [X] T027 Run full host verification: `cargo test`, `cargo clippy --workspace -- -D warnings`, `cargo fmt --all -- --check`, `scripts/verify.sh`. Fix issues. Files: workspace
 - [X] T028 Property tests pass: `cargo test` for surface_audit, earcon burst/latency. Files: `src-tauri/`, `crates/player/`
-- [X] T029 Device trial sheets prepared per quickstart §3 (SC-001/002/003/006/007) — deferred execution noted. Files: `specs/005-adopt-design-sona/quickstart.md`
+- [X] T029 Device trial sheets prepared per quickstart §3 (SC-001/002/003/006/007) — deferred execution noted. Files: `specs/005-adopt-design-ressoa/quickstart.md`
 
 **Checkpoint**: Host gates green (where applicable). Device trials ready.
 
@@ -187,6 +187,6 @@ description: "Task list for feature implementation"
 - [X] T039 [VERIFY] Verify SC-001 host checks pass (C-H1..C-H6): chroma census 10-hex, role exclusivity, contrast WCAG 2.1 AA, aria inventory, movement census, reduced-motion freeze. Run `cargo test` for surface_audit tests. Files: `src-tauri/src/surface_audit/*`, `src-tauri/src/status_view.html`
 - [X] T040 [VERIFY] Verify SC-002 host checks pass (C-H7/C-H8): earcon burst latest-wins property tests and latency oracle ≤100ms. Run `cargo test -p player`. Files: `crates/player/src/backend.rs`, `crates/player/tests/*`
 - [X] T041 [VERIFY] Verify SC-003/US1: MediaStyle accent-only constraints pass (`surface_audit_accent_only_constants`). Files: `android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt`, `src-tauri/src/surface_audit/accent.rs`
-- [X] T042 [VERIFY] Verify US4/SC-006: Concha Harmônica "R" header present, static metadata card with `--sona-stage`, no excluded screens reachable. Files: `src-tauri/src/status_view.html`
+- [X] T042 [VERIFY] Verify US4/SC-006: Concha Harmônica "R" header present, static metadata card with `--ressoa-stage`, no excluded screens reachable. Files: `src-tauri/src/status_view.html`
 - [X] T043 [VERIFY] Verify bundle identity: `dist/index.html` byte-identical to `src-tauri/src/status_view.html` and served-identity test passes. Files: `src-tauri/tauri.conf.json`, `src-tauri/build.rs`, `src-tauri/src/surface_audit/served_identity.rs`
 - [X] T044 [VERIFY] Run full host verification gates 1-8: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo nextest run --workspace` (matches `scripts/expected-tests.txt`), `./scripts/verify.sh`. Update `scripts/expected-tests.txt` if needed. Files: workspace

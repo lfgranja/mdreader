@@ -32,5 +32,5 @@ Este guia orienta a validação ponta a ponta da funcionalidade de abertura de d
 
 ## Cenário 4: Acessibilidade e Teclado
 1. Navegue pelos controles usando a tecla `Tab` de um teclado conectado ou navegação acessível TalkBack.
-2. Verifique se o foco visual (`:focus-visible`) destaca a `.meta-box` com anel contrastante (`var(--sona-etwahl)`).
+2. Verifique se o foco visual (`:focus-visible`) destaca a `.meta-box` com anel contrastante (`var(--ressoa-focus)`).
 3. Pressione `Enter` ou `Space`. O seletor de arquivos SAF deve abrir normalmente.

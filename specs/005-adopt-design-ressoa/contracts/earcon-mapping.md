@@ -1,6 +1,6 @@
 # Contract — Earcon Mapping & Burst/Protocol Dispositions
 
-**Feature**: `005-adopt-design-sona` | **Date**: 2026-10-24 | Extends: `specs/004-ressoa-dogfood-build/contracts/earcon.md` (the acoustic GRAMMAR authority — band 300–2500 Hz, per-earcon params; NEVER duplicated here) and `contracts/surface.md`. This contract fixes name→action mapping, channel/burst policy, the rapid-sequence sub-test, the trial-sheet schema, and the two typed diagnostic kinds this feature adds.
+**Feature**: `005-adopt-design-ressoa` | **Date**: 2026-10-24 | Extends: `specs/004-ressoa-dogfood-build/contracts/earcon.md` (the acoustic GRAMMAR authority — band 300–2500 Hz, per-earcon params; NEVER duplicated here) and `contracts/surface.md`. This contract fixes name→action mapping, channel/burst policy, the rapid-sequence sub-test, the trial-sheet schema, and the two typed diagnostic kinds this feature adds.
 
 ## E1. Mapping (closed — `data-model.md` §EarconConfirmation is the table)
 

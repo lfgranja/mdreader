@@ -1,6 +1,6 @@
 # Feature Specification: VERIF-EMULATOR — Reference-Device Structural Verification Layer
 
-**Feature Branch**: `008-ref-device-emulator` (derived from assessment `ref-device-emulator` / `specs/003-reference-device`; sequential; branch `005-adopt-design-sona` active; no source edit)
+**Feature Branch**: `008-ref-device-emulator` (derived from assessment `ref-device-emulator` / `specs/003-reference-device`; sequential; branch `005-adopt-design-ressoa` active; no source edit)
 
 **Created**: 2026-10-29
 
@@ -17,7 +17,7 @@
 - **Q2 — Sub-layer vs replacement `gate-8-full`?** (2026-10-29): User selected **Option A — Sub-layer `VERIF-EMULATOR` only**, with explicit boundary that physical device remains required for `gate-8-full`. No false-equivalence claim permitted.
 - **Q3 — Interaction with `SC-044` / consent?** (2026-10-29): User selected **Option A — Independent**; `003` structural verification does not require `SC-044` closure; `002` adapter remains `offline_default`; `SC-044` deferred preserved.
 - **Q4 — Attestation format?** (2026-10-29): User selected **Option A — Document `VERIF-EMULATOR.md` with exclusions** (not altering `verify.sh`). Justification: keeps physical gate untouched; records structural evidence separately; aligns with `speckit.assess.converge` attestation pattern (statement + exclusions + reference to `verify.sh`).
-- **Q5 — CI / hardware / environment?** (2026-10-29): User selected **Option A — Isolated AVD** (container/CI job, not in dirty `005-adopt-design-sona` working tree `0c985ee`). Justification: preserves `bg_14` / `51 dirty` state; avoids contaminating `005` feature branch.
+- **Q5 — CI / hardware / environment?** (2026-10-29): User selected **Option A — Isolated AVD** (container/CI job, not in dirty `005-adopt-design-ressoa` working tree `0c985ee`). Justification: preserves `bg_14` / `51 dirty` state; avoids contaminating `005` feature branch.
 - **Q6 — Assessment `ref-device-emulator` vs spec-note inside `003-spec`?** (2026-10-29): User selected **Option A — Keep assessment** (`ref-device-emulator` remains as separate assessment / audit trail; can be referenced from `003` via link, not subsumed). Justification: preserves `speckit.assess` process evidence; does not lose research history.
 
 ## User Scenarios & Testing *(mandatory)*
@@ -40,7 +40,7 @@ Maintainer of `003-reference-device` opens a local Android SDK AVD (API 29+), in
 
 ### User Story 2 — Build / CI uses structural layer to catch framework regressions early (P2)
 
-A CI job (isolated from the dirty `005-adopt-design-sona` working tree) runs AVD structural verification on every `specs/003-reference-device/` change, catching manifest/service/notification/focus errors before physical-device verification is needed.
+A CI job (isolated from the dirty `005-adopt-design-ressoa` working tree) runs AVD structural verification on every `specs/003-reference-device/` change, catching manifest/service/notification/focus errors before physical-device verification is needed.
 
 **Why P2**: Reduces the cost of structural regression; does not replace physical gate; supports `speckit.clarify` / `speckit.converge` pipeline.
 
@@ -73,7 +73,7 @@ Verification owner produces a documented attestation (not `verify.sh` itself) th
 - **Manifest edit fails due to Tauri upgrade / `mobile::update_manifest` absence**: Confirm direct `AndroidManifest.xml` edit per `AGENTS.md`; document exception.
 - **`cleanroom-core` remains empty**: Verification artifacts live in `specs/003-reference-device/verification/` or `scripts/`; do not invent new crate.
 - `SC-044` closes before this feature: No change to `VERIF-EMULATOR`; physical device still required for audio/interruption; `SC-044` only affects adapter consent, not framework structure.
-- `005-adopt-design-sona` branch (`0c985ee`) still dirty / interrupted `cargo check`: Structural verification must not alter working tree; use isolated CI/job.
+- `005-adopt-design-ressoa` branch (`0c985ee`) still dirty / interrupted `cargo check`: Structural verification must not alter working tree; use isolated CI/job.
 ## Verification failure isolation and diagnostic boundary
 
 Failed structural verification (manifest mismatch, service declaration error,
@@ -105,7 +105,7 @@ bounded by the `AGENTS.md` diagnostic-record rules (`spec.md` `SC-002`,
 - **FR-001**: System MUST provide a documented structural-verification path (`VERIF-EMULATOR`) for `003-reference-device` using an official Android SDK Emulator (API 29+), covering manifest declaration, `MediaSession` / `MediaStyle` notification, focus API response, diagnostic JSONL record, resume by `blake3` fingerprint, and rate-step UI — without claiming equivalence to `gate-8-full`.
 - **FR-002**: System MUST explicitly document exclusions of `VERIF-EMULATOR` from physical-only gates: audio-output verification (`22050 Hz` mono → device format via `cpal`/`AAudio`), `SC-009` ≤3 s play-to-audio, real `MAY_DUCK` / telephony / alarm interruption, Bluetooth / car routing, 10/10 on-device trials.
 - **FR-003**: System MUST preserve `verify.sh` and physical-device `gate-8-full` rules unchanged; `VERIF-EMULATOR` is a separate, clearly-labeled verification layer.
-- **FR-004**: System MUST allow the verification layer to be executed independently of the dirty `005-adopt-design-sona` working tree (isolated AVD / CI job / container) and must not modify source files in `crates/*/src` or `src-tauri/src/`.
+- **FR-004**: System MUST allow the verification layer to be executed independently of the dirty `005-adopt-design-ressoa` working tree (isolated AVD / CI job / container) and must not modify source files in `crates/*/src` or `src-tauri/src/`.
 - **FR-005**: System MUST produce an attestation document (`VERIF-EMULATOR.md` or equivalent) listing verified contracts, exclusions, AVD version, and link to `verify.sh`; must reference `blake3` fingerprint for resume consistency. Template schema (sections 1–8): see `VERIF-EMULATOR.md` in this feature directory; aligns with SLSA/in-toto attestation format (standalone signed/template document) per `/speckit.clarify` evidence (SLSA VSA v1.2, CISA SSDF / Self-Attestation Form).
 - **FR-006**: System MUST not invent new engine variants, rate ladder members, `EventKind` variants, or `EngineError` variants; must use existing `engine-core` closed-set (`crates/engine-core/src/closed.rs`).
 
@@ -122,7 +122,7 @@ bounded by the `AGENTS.md` diagnostic-record rules (`spec.md` `SC-002`,
 ### Measurable Outcomes
 
 - **SC-001 (Structural)**: `003-reference-device` structural-verification document (`VERIF-EMULATOR.md` or equivalent) exists, references `spec.md` / `plan.md` / contracts, lists all verified framework contracts (manifest / service / notification / focus / diag / resume / rate), and explicitly excludes `gate-8-full` physical-only items (audio-output, `SC-009`, Bluetooth, 10/10). — Measurable: document exists, exclusions listed, no false-equivalence claim.
-- **SC-002 (Isolation)**: Verification layer runs without modifying `crates/*/src`, `src-tauri/src/`, or `verify.sh`; runs in isolated environment (AVD / container / CI job); does not disrupt current `005-adopt-design-sona` working tree (`0c985ee`, 51 dirty). — Measurable: `git status --short` unchanged after verification run; no new source edits.
+- **SC-002 (Isolation)**: Verification layer runs without modifying `crates/*/src`, `src-tauri/src/`, or `verify.sh`; runs in isolated environment (AVD / container / CI job); does not disrupt current `005-adopt-design-ressoa` working tree (`0c985ee`, 51 dirty). — Measurable: `git status --short` unchanged after verification run; no new source edits.
 - **SC-003 (Attestation auditability)**: Attestation includes AVD version, verified contract list, exclusion list, reference to `verify.sh` physical rules, date/branch, and sign-off path; readable by maintainer 6 months later. — Measurable: document passes internal review; no ambiguous exclusions.
 - **SC-004 (No false equivalence)**: No claim in attestation, `README`, or `ROADMAP` that `VERIF-EMULATOR` substitutes `gate-8-full`; physical device remains required for `001-android-media-shell` full verification. — Measurable: string search of `VERIF-EMULATOR` docs for false equivalence language = 0 hits.
 

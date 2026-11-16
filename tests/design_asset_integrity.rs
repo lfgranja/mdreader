@@ -5,7 +5,7 @@ use std::path::Path;
 
 #[test]
 fn proposta2_not_corrupted_by_unrelated_content() {
-    let path = Path::new("DESIGN-SONA/assets/ui/ui-proposta-2-lente-sinestesica.png");
+    let path = Path::new("DESIGN-RESSOA/assets/ui/ui-proposta-2-lente-sinestesica.png");
     assert!(path.exists(), "proposta-2 asset must exist");
     
     let data = fs::read(path).expect("read proposta-2 asset");
@@ -19,11 +19,11 @@ fn proposta2_not_corrupted_by_unrelated_content() {
 #[test]
 fn design_ui_assets_are_valid_pngs() {
     let assets = [
-        "DESIGN-SONA/assets/ui/ui-proposta-1-console-braun.png",
-        "DESIGN-SONA/assets/ui/ui-proposta-2-lente-sinestesica.png",
-        "DESIGN-SONA/assets/ui/ui-proposta-3-terminal-editorial.png",
-        "DESIGN-SONA/assets/ui/ui-proposta-4-cockpit-eyes-free.png",
-        "DESIGN-SONA/assets/ui/ui-proposta-5-matriz-telemetria.png",
+        "DESIGN-RESSOA/assets/ui/ui-proposta-1-console-braun.png",
+        "DESIGN-RESSOA/assets/ui/ui-proposta-2-lente-sinestesica.png",
+        "DESIGN-RESSOA/assets/ui/ui-proposta-3-terminal-editorial.png",
+        "DESIGN-RESSOA/assets/ui/ui-proposta-4-cockpit-eyes-free.png",
+        "DESIGN-RESSOA/assets/ui/ui-proposta-5-matriz-telemetria.png",
     ];
     
     for asset in &assets {

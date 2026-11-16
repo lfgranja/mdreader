@@ -1,10 +1,10 @@
-# Converge: 005 Feature Specification: Adotar o DESIGN-SONA para o app
+# Converge: 005 Feature Specification: Adotar o DESIGN-RESSOA para o app
 
 Status: **CONVERGED** (implemented and attested in prior cycles).
 
 ## Implementation Summary
 
-55/55 tasks; TalkBack 10/10, contraste aprovado; Design System SONA & HUD Visual.
+55/55 tasks; TalkBack 10/10, contraste aprovado; Design System RESSOA & HUD Visual.
 
 ### Evidence (verified in prior cycles)
 - ROADMAP.md §2.2 records this spec as **CONVERGED**.

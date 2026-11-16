@@ -1,23 +1,23 @@
-# Feature Specification: 018-sona-inspired-voice
+# Feature Specification: 018-ressoa-reading-voice
 
-- **Feature**: 018-sona-inspired-voice
-- **Title**: Sona-Inspired Offline Reading Voice Catalog (Curated, Tuned, Multi-Voice Ready)
+- **Feature**: 018-ressoa-reading-voice
+- **Title**: Ressoa Offline Reading Voice Catalog (Curated, Tuned, Multi-Voice Ready)
 - **Status**: Draft / Ready for Plan
 - **Created**: 2026-11-10
-- **Assessment**: `.specify/assessments/sona-inspired-voice/decision.md` (Verdict: GO, conditioned MVP — requester Option B)
+- **Assessment**: `.specify/assessments/ressoa-reading-voice/decision.md` (Verdict: GO, conditioned MVP — requester Option B)
 - **Target Release**: v0.5.0 (proposed)
 
 ## 1. Problem & Context
 
-Ressoa/mdreader’s main design system (`DESIGN-SONA/`) defines a Sona-inspired, serene and musical "Engine Sona" identity (earcons, synesthetic visuals, calm accessibility posture), but reading TTS remains a single hardcoded bundled voice (`pt_BR-faber-medium`, Piper VITS via sherpa-onnx). There is no curated reading-voice profile aligned to that identity, no closed voice catalog, and no deterministic selection/cycle/persistence across the synthesis runtime, CLI, session store, and Tauri bridge.
+Ressoa/mdreader’s main design system (`DESIGN-RESSOA/`) defines a Ressoa, serene and musical "Engine Ressoa" identity (earcons, synesthetic visuals, calm accessibility posture), but reading TTS remains a single hardcoded bundled voice (`pt_BR-faber-medium`, Piper VITS via sherpa-onnx). There is no curated reading-voice profile aligned to that identity, no closed voice catalog, and no deterministic selection/cycle/persistence across the synthesis runtime, CLI, session store, and Tauri bridge.
 
-This feature delivers **requester Option (B)**: a curated/offline pt-BR TTS reading voice selected and tuned to evoke **serenity/musicality ("Sona-inspired feel")** aligned to `DESIGN-SONA/`, implemented as a bundled alternative voice + tuning with evolution-ready multi-voice plumbing. It is explicitly **non-imitative**: no imitation/representation of League of Legends Sona, no Riot trademarks/character/performer likeness, and no LoL-branded voice identity in shipped ids/labels/assets/docs.
+This feature delivers **requester Option (B)**: a curated/offline pt-BR TTS reading voice selected and tuned to evoke serenity/musicality with a **harmonious, melodic, calm, soft reading voice** aligned to `DESIGN-RESSOA/`, implemented as a bundled alternative voice + tuning with evolution-ready multi-voice plumbing. It is explicitly **non-imitative**: no imitation/representation of any third-party character, no third-party trademarks/character/performer likeness, and no third-party-branded voice identity in shipped ids/labels/assets/docs.
 
 ## 2. User Scenarios & Testing
 
-### US1 — Select and persist a curated Sona-inspired reading voice (Priority: P1)
+### US1 — Select and persist a curated Ressoa reading voice (Priority: P1)
 
-As a reader, I can list available bundled offline voices, select a curated Sona-inspired alternative (or keep the default), and have that choice persist and restore across app/session restarts so long-form reading uses a calm, clear voice aligned to DESIGN-SONA.
+As a reader, I can list available bundled offline voices, select a curated alternative reading voice (or keep the default), and have that choice persist and restore across app/session restarts so long-form reading uses a calm, clear voice aligned to DESIGN-RESSOA.
 
 **Why this priority**: Core user-facing value of the feature (curated alternative + selection + persistence).
 
@@ -54,9 +54,9 @@ As a maintainer, every bundled curated voice synthesizes through the same offlin
 2. **Given** missing/corrupt/format-incompatible voice assets or load failure, **When** synthesis/init is attempted, **Then** the system fails closed with a named `EngineError`/CLI error (no silent fallback to another voice, no silent resample/downmix).
 3. **Given** offline host/device environment, **When** voices are used, **Then** no network access is required or introduced (`INTERNET` remains absent).
 
-### US4 — Auditable provenance and non-imitative Sona-inspired identity (Priority: P2)
+### US4 — Auditable provenance and non-imitative Ressoa identity (Priority: P2)
 
-As a maintainer/reviewer, I can audit each bundled voice’s origin/license/config and confirm the feature expresses thematic "Sona-inspired feel" without LoL/Riot/performer claims.
+As a maintainer/reviewer, I can audit each bundled voice’s origin/license/config and confirm the feature expresses a harmonious, melodic, calm, soft reading voice without third-party/performer claims.
 
 **Why this priority**: Legal/provenance hygiene and explicit scope boundary.
 
@@ -64,7 +64,7 @@ As a maintainer/reviewer, I can audit each bundled voice’s origin/license/conf
 
 **Acceptance Scenarios**:
 1. **Given** each bundled voice, **When** assets are inspected, **Then** the directory contains auditable provenance (`MODEL_CARD`, `PROVENANCE.md`, config/json as applicable) with upstream source, license, checksums/hashes, included files, and inference defaults.
-2. **Given** shipped ids/labels/docs/CLI-bridge metadata, **When** reviewed, **Then** no Riot/LoL Sona character or performer likeness/branding is present; identity is thematic ("Sona-inspired feel"/calm-musical curation) aligned to DESIGN-SONA/Engine Sona internal naming only where already permitted.
+2. **Given** shipped ids/labels/docs/CLI-bridge metadata, **When** reviewed, **Then** no third-party character or performer likeness/branding is present; identity is thematic (harmonious, melodic, calm, soft reading voice/calm-musical curation) aligned to DESIGN-RESSOA/Engine Ressoa internal naming only where already permitted.
 
 ## 3. Edge Cases
 
@@ -89,7 +89,7 @@ As a maintainer/reviewer, I can audit each bundled voice’s origin/license/conf
 - **FR-018-007 (Session persistence):** `crates/session` MUST persist and restore selected voice id (e.g. `last_voice`) alongside existing settings; unknown/unavailable/malformed stored values MUST resolve to `pt_BR-faber-medium` without panic.
 - **FR-018-008 (Bridge/diagnostics/inventory):** `src-tauri` MUST seed/extract/apply catalog voices, expose catalog-aware diagnose/voice-inventory state, and provide get/set voice operations compatible with the same Rust synthesis path.
 - **FR-018-009 (Cycle semantics):** `CycleVoiceNext/Prev` MUST traverse the closed catalog in fixed order (one step per press, deterministic wrap as defined by contract) and, when applied during/for playback, trigger safe production restart at authoritative resume position (generation invalidation + re-synthesis) with no mixed-voice PCM in the active stream.
-- **FR-018-010 (Non-imitative identity):** Shipped code, assets, ids, labels, diagnostics metadata, and documentation MUST NOT claim or imply LoL Sona/Riot character voice or performer imitation/likeness; "Sona-inspired feel" is thematic curation/tuning only.
+- **FR-018-010 (Non-imitative identity):** Shipped code, assets, ids, labels, diagnostics metadata, and documentation MUST NOT claim or imply any third-party character voice or performer imitation/likeness; harmonious, melodic, calm, soft reading voice is thematic curation/tuning only.
 - **FR-018-011 (Offline/package integrity):** No `INTERNET` capability/permission introduced; Android packaging/extraction supports catalog layout and shared `espeak-ng-data` (or per-voice data if required by validation) idempotently.
 
 ### 4.2 Non-Functional / Invariants (NFR)
@@ -111,8 +111,8 @@ As a maintainer/reviewer, I can audit each bundled voice’s origin/license/conf
 - **SC-018-001:** Closed bundled catalog (≥2 voices including `pt_BR-faber-medium` unless documented contingency) is listable/selectable/cyclable deterministically via the same Rust path (CLI and bridge surfaces updated) with safe persistence/restore and default fallback.
 - **SC-018-002:** Synthesis for every bundled voice conforms to mono `f32` @ 22,050 Hz handoff; missing/corrupt/incompatible assets fail closed with named errors; no silent resample/downmix or voice substitution.
 - **SC-018-003:** Existing capabilities/tier/authority/position/resume/fingerprint invariants and normalization/prosody behavior remain intact (modulo intentional, evidenced, voice-scoped tuning); host gates 1–8 green with `scripts/expected-tests.txt` consistent with `cargo nextest list --workspace`.
-- **SC-018-004:** Each bundled voice has auditable provenance artifacts and checksums; no Riot/LoL/performer branding appears in shipped ids/labels/assets/docs.
-- **SC-018-005:** Implementation records auditory validation evidence for "Sona-inspired feel" and documents default-choice rationale (curated alternative vs faber default).
+- **SC-018-004:** Each bundled voice has auditable provenance artifacts and checksums; no third-party/performer branding appears in shipped ids/labels/assets/docs.
+- **SC-018-005:** Implementation records auditory validation evidence for harmonious, melodic, calm, soft reading voice and documents default-choice rationale (curated alternative vs faber default).
 
 ## 7. Assumptions & Dependencies
 
@@ -122,7 +122,7 @@ As a maintainer/reviewer, I can audit each bundled voice’s origin/license/conf
 
 ## 8. Out of Scope
 
-- LoL Sona or actor voice imitation/cloning; Riot trademark/likeness use.
+- any third-party character or actor voice imitation/cloning; third-party trademark/likeness use.
 - User-imported (SAF), downloaded, cloud, marketplace, or paid voice packs; any `INTERNET` permission/capability.
 - SSML/alignment capability changes, engine-tier/registry expansion beyond `OfflineDefault`.
 - Major UI redesign beyond required voice controls/inventory/plumbing.

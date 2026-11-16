@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
-"""TDD RED property tests for specs/005-adopt-design-sona (invariant assertions).
+"""TDD RED property tests for specs/005-adopt-design-ressoa (invariant assertions).
 Scratch only; not part of repo source. Executed by: python3 tests/invariant_005.py
 Rules: must FAIL for RIGHT reason (missing mapping / truncated / drift); never compile error.
 """
 import re, sys
 
-SPEC = open("specs/005-adopt-design-sona/spec.md").read()
-TASKS = open("specs/005-adopt-design-sona/tasks.md").read()
-
+SPEC = open("specs/005-adopt-design-ressoa/spec.md").read()
+TASKS = open("specs/005-adopt-design-ressoa/tasks.md").read()
 FAILURES = []
 
 def fail(test_id, reason):
@@ -19,7 +18,7 @@ def fail(test_id, reason):
 FR_KEYS = [f"FR-{i:03d}" for i in range(1, 11)]
 # Keyword heuristics drawn from spec summaries and observed tasks.md references
 KEYWORDS = {
-    "FR-001": ["token", "paleta", "--sona-", "retokenize", "accent", "C1", "C2"],
+    "FR-001": ["token", "paleta", "--ressoa-", "retokenize", "accent", "C1", "C2"],
     "FR-002": ["notificação", "notification", "título", "seção", "progresso", "body text"],
     "FR-003": ["earcon", "Adagio", "Andante", "Allegro", "Sforzando", "Ostinato", "Unison", "22050"],
     "FR-004": ["Concha Harmônica", "Ressonador", "diagnóstico", "host", "signature"],
@@ -45,8 +44,7 @@ else:
 # Assert 0 occurrences of catch-all patterns in contracts/ and tasks.md
 CATCH = ["_ =>", "Other", "Unknown", "Internal"]  # per Constitution VII + gate 7
 hits = {}
-for d in ["specs/005-adopt-design-sona/contracts", "specs/005-adopt-design-sona/tasks.md"]:
-    # contracts dir
+for d in ["specs/005-adopt-design-ressoa/contracts", "specs/005-adopt-design-ressoa/tasks.md"]:
     import os, pathlib
     if d.endswith(".md"):
         text = open(d).read()

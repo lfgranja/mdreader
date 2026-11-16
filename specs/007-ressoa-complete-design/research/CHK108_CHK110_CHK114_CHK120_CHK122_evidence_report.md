@@ -1,7 +1,7 @@
 # Evidence-Backed Report: CHK108 / CHK110 / CHK114 / CHK120 / CHK122 — Accessibility Quantification (Candidate B)
 
 **Task:** `CandidateB_AccessibilityQuantification` (subagent)
-**Project:** `mdreader` — Feature `007-sona-complete-design`
+**Project:** `mdreader` — Feature `007-ressoa-complete-design`
 **Sources:** W3C WCAG 2.1/2.2, MDN, WAI-ARIA APG, Microsoft forced-colors docs, project contracts 005/006/007; English + Portuguese context.
 
 ---
@@ -29,27 +29,27 @@ No item requires a user decision; all can be resolved with concrete measurable v
 
 | Foreground | Background | Ratio | Threshold | Verdict |
 |---|---|---|---|---|
-| `--sona-voice` #F2F0E6 | `--sona-void` #0B0F1A | 16.75:1 | 4.5:1 (text) | PASS |
-| `--sona-voice` #F2F0E6 | `--sona-stage` #141B2D | 15.01:1 | 4.5:1 | PASS |
-| `--sona-hush` #A9B8CE | `--sona-stage` #141B2D | 8.52:1 | 4.5:1 | PASS |
-| `--sona-hush` #A9B8CE | `--sona-void` #0B0F1A | 9.51:1 | 4.5:1 | PASS |
-| `--sona-etwahl` #8FD8E8 | `--sona-stage` #141B2D | 10.74:1 | 3:1 (UI) | PASS |
-| `--sona-etwahl` #8FD8E8 | `--sona-void` #0B0F1A | 11.99:1 | 3:1 | PASS |
-| `--sona-harp` #E8C46A | `--sona-stage` #141B2D | 10.24:1 | 3:1 (rate) | PASS |
-| `--sona-celeste` #B9A6F5 | `--sona-stage` #141B2D | 8.03:1 | 3:1 | PASS |
-| `--sona-jade` #5AD6A8 | `--sona-stage` #141B2D | 9.49:1 | 3:1 | PASS |
-| `--signal-caution` #FFD400 | `--sona-stage` #141B2D | 11.98:1 | 3:1 | PASS |
-| `--signal-failure` #FF4D63 | `--sona-stage` #141B2D | 5.30:1 | 3:1 | PASS |
-| `--sona-boundary` #55688F | `--sona-stage` #141B2D | 3.07:1 | 3:1 (boundary) | PASS (margin 0.07) |
-| Focus ring `--sona-etwahl` #8FD8E8 | `--sona-stage` #141B2D | 10.74:1 | 3:1 (focus) | PASS |
+| `--ressoa-voice` #F2F0E6 | `--ressoa-void` #0B0F1A | 16.75:1 | 4.5:1 (text) | PASS |
+| `--ressoa-voice` #F2F0E6 | `--ressoa-stage` #141B2D | 15.01:1 | 4.5:1 | PASS |
+| `--ressoa-hush` #A9B8CE | `--ressoa-stage` #141B2D | 8.52:1 | 4.5:1 | PASS |
+| `--ressoa-hush` #A9B8CE | `--ressoa-void` #0B0F1A | 9.51:1 | 4.5:1 | PASS |
+| `--ressoa-focus` #8FD8E8 | `--ressoa-stage` #141B2D | 10.74:1 | 3:1 (UI) | PASS |
+| `--ressoa-focus` #8FD8E8 | `--ressoa-void` #0B0F1A | 11.99:1 | 3:1 | PASS |
+| `--ressoa-harp` #E8C46A | `--ressoa-stage` #141B2D | 10.24:1 | 3:1 (rate) | PASS |
+| `--ressoa-celeste` #B9A6F5 | `--ressoa-stage` #141B2D | 8.03:1 | 3:1 | PASS |
+| `--ressoa-jade` #5AD6A8 | `--ressoa-stage` #141B2D | 9.49:1 | 3:1 | PASS |
+| `--signal-caution` #FFD400 | `--ressoa-stage` #141B2D | 11.98:1 | 3:1 | PASS |
+| `--signal-failure` #FF4D63 | `--ressoa-stage` #141B2D | 5.30:1 | 3:1 | PASS |
+| `--ressoa-boundary` #55688F | `--ressoa-stage` #141B2D | 3.07:1 | 3:1 (boundary) | PASS (margin 0.07) |
+| Focus ring `--ressoa-focus` #8FD8E8 | `--ressoa-stage` #141B2D | 10.74:1 | 3:1 (focus) | PASS |
 
-Recommendation: keep `--sona-boundary` only for decorative/non-essential dividers; never for text or control affordances. All meaningful text/UI pairs already exceed thresholds; no token changes required.
+Recommendation: keep `--ressoa-boundary` only for decorative/non-essential dividers; never for text or control affordances. All meaningful text/UI pairs already exceed thresholds; no token changes required.
 
 ### B. Focus appearance (CHK114)
 - WCAG 2.4.7 Focus Visible (AA): keyboard focus indicator must be visible.
 - WCAG 2.2 SC 2.4.13 Focus Appearance (AAA): indicator area ≥ perimeter of 2 CSS px of the unfocused component; change-of-contrast ≥3:1 between focused/unfocused same pixels (or ≥3:1 against adjacent colors). (W3C Understanding 2.4.13)
 - W3C technique C40/C41: 2 CSS px thick band is the minimum; two-color indicator ensures contrast on any background.
-- Current CSS: `button:focus-visible { outline: 2px solid var(--sona-etwahl); outline-offset: 2px; }` — meets 2px thickness and ≥3:1 contrast. Recommend codifying as requirement: minimum 2 CSS px, offset 1–2 px, contrast ≥3:1, and indicator must not rely on color alone (shape/outline present). Use `outline` (not only `box-shadow`) so forced-colors can recolor it. For the new repeat control and speed control, apply the same rule.
+- Current CSS: `button:focus-visible { outline: 2px solid var(--ressoa-focus); outline-offset: 2px; }` — meets 2px thickness and ≥3:1 contrast. Recommend codifying as requirement: minimum 2 CSS px, offset 1–2 px, contrast ≥3:1, and indicator must not rely on color alone (shape/outline present). Use `outline` (not only `box-shadow`) so forced-colors can recolor it. For the new repeat control and speed control, apply the same rule.
 
 ### C. Keyboard navigation (CHK108)
 - WAI-ARIA APG Button Pattern: Enter and Space activate. (W3C APG Button)
@@ -80,10 +80,10 @@ Recommendation: keep `--sona-boundary` only for decorative/non-essential divider
 > Transport controls (repeat, prev, play/pause, next, speed) MUST be native `<button>` elements in DOM order matching visual left-to-right order. Tab order MUST be repeat → prev → play → next → speed → (exit to next focusable outside the grid). Shift+Tab reverses. Enter and Space MUST activate each. No keyboard traps: Tab from speed leaves the grid; Shift+Tab from repeat leaves backward. Waveform canvas and decorative waves are not focusable (`aria-hidden="true"`, no `tabindex`). Speed control activation cycles through the rate ladder (or opens a menu; if a menu, Escape closes and restores focus to the trigger). Repeat activation restarts the current section and reuses the skip-back earcon. No additional focus targets beyond the five controls.
 
 ### CHK110 — Contrast (spec amendment)
-> Text MUST meet WCAG 1.4.3: ≥4.5:1 for normal text, ≥3:1 for large text (≥18pt or ≥14pt bold). UI components and meaningful graphics MUST meet WCAG 1.4.11: ≥3:1 against adjacent colors. Disabled/inactive controls are exempt but MUST NOT be the only means of conveying state. Decorative elements are exempt. All sanctioned color pairs in the token set (§A1) MUST be verified ≥ thresholds; `--sona-boundary` (#55688F) MUST NOT be used for text or control affordances (3.07:1, margin 0.07). Measured ratios table (§2.A) is the acceptance baseline.
+> Text MUST meet WCAG 1.4.3: ≥4.5:1 for normal text, ≥3:1 for large text (≥18pt or ≥14pt bold). UI components and meaningful graphics MUST meet WCAG 1.4.11: ≥3:1 against adjacent colors. Disabled/inactive controls are exempt but MUST NOT be the only means of conveying state. Decorative elements are exempt. All sanctioned color pairs in the token set (§A1) MUST be verified ≥ thresholds; `--ressoa-boundary` (#55688F) MUST NOT be used for text or control affordances (3.07:1, margin 0.07). Measured ratios table (§2.A) is the acceptance baseline.
 
 ### CHK114 — Focus-Ring Visibility (spec amendment)
-> Every focusable control MUST display a visible focus indicator with: thickness ≥2 CSS px; contrast ≥3:1 between focused and unfocused states (or against adjacent background) per WCAG 2.4.13; offset 1–2 px; rendered via `outline` (not color/box-shadow alone) so forced-colors can recolor; must not rely on color alone (shape preserved). Current rule `outline: 2px solid var(--sona-etwahl); outline-offset: 2px;` is the minimum baseline and applies to repeat + speed controls.
+> Every focusable control MUST display a visible focus indicator with: thickness ≥2 CSS px; contrast ≥3:1 between focused and unfocused states (or against adjacent background) per WCAG 2.4.13; offset 1–2 px; rendered via `outline` (not color/box-shadow alone) so forced-colors can recolor; must not rely on color alone (shape preserved). Current rule `outline: 2px solid var(--ressoa-focus); outline-offset: 2px;` is the minimum baseline and applies to repeat + speed controls.
 
 ### CHK120 — Keyboard Testable (acceptance criteria)
 > Keyboard requirements are verifiable by:

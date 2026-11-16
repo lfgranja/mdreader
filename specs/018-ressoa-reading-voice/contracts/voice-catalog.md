@@ -1,6 +1,6 @@
-# Contract: Bundled Voice Catalog (018-sona-inspired-voice)
+# Contract: Bundled Voice Catalog (018-ressoa-reading-voice)
 
-- **Feature**: `specs/018-sona-inspired-voice`
+- **Feature**: `specs/018-ressoa-reading-voice`
 - **Status**: Draft
 - **Scope**: `crates/adapter-synthesis` (source of truth), propagated to CLI/session/bridge/diagnostics
 
@@ -11,7 +11,7 @@ The bundled reading-voice catalog is a **closed set** declared in code with exha
 | Index | VoiceId (stable, = dir name) | Role | Provenance/format requirements |
 |------:|-------------------------------|------|--------------------------------|
 | 0 | `pt_BR-faber-medium` | **Default** (compatibility baseline) | Existing bundled voice; Piper VITS, 22050 Hz mono-compatible, CC0/OHF-Voice, auditable `MODEL_CARD`/`PROVENANCE.md` preserved |
-| 1 | `pt_BR-cadu-medium` *(target)* or `pt_BR-jeff-medium` *(validated fallback)* | Curated Sona-inspired alternative (selectable) | Piper VITS, **22050 Hz**, **CC0** (OHF-Voice voice-datasets per upstream card), auditable `MODEL_CARD`/`PROVENANCE.md`, checksums/hashes, recorded inference defaults |
+| 1 | `pt_BR-cadu-medium` *(target)* or `pt_BR-jeff-medium` *(validated fallback)* | Curated alternative reading voice (selectable) | Piper VITS, **22050 Hz**, **CC0** (OHF-Voice voice-datasets per upstream card), auditable `MODEL_CARD`/`PROVENANCE.md`, checksums/hashes, recorded inference defaults |
 
 **Exclusions:** `pt_BR-edresson-low` (16 kHz, CC BY 4.0) and any voice not meeting 22050 Hz + CC0-compatible + auditable provenance requirements MUST NOT be bundled.
 
@@ -21,7 +21,7 @@ The bundled reading-voice catalog is a **closed set** declared in code with exha
 
 - **Ids:** deterministic, stable, equal to bundled directory names under `assets/voices/<voice-id>/`.
 - **Order:** fixed declaration order is authoritative for `CycleVoiceNext/Prev` and listing; default is index 0.
-- **Display:** human-readable labels/descriptions may be added as additive metadata but MUST remain non-imitative (no "Sona"/LoL/Riot character or performer claims). Thematic wording (e.g. calm/musical curation) must align with `DESIGN-SONA/` without trademark misuse.
+- **Display:** human-readable labels/descriptions may be added as additive metadata but MUST remain non-imitative (no "Ressoa"/third-party character or performer claims). Thematic wording (e.g. calm/musical curation) must align with `DESIGN-RESSOA/` without trademark misuse.
 - **Parsing:** external string → known `VoiceId` is total over declared ids only; unknown strings are rejected/fall back at boundaries (never coerced to `Other/Unknown`).
 
 ## 3. Asset Layout & Provenance
@@ -35,7 +35,7 @@ Per voice directory (minimum, subject to engine needs):
 
 Shared phonemizer data (preferred): `assets/voices/_shared/espeak-ng-data/` validated compatible for all bundled voices; **contingency:** per-voice `espeak-ng-data/` with provenance.
 
-`PROVENANCE.md` MUST record: upstream source (e.g. `rhasspy/piper-voices` path/URL), revision/snapshot date, license, included files, checksums (blake3/sha256), sample rate (22050), inference defaults (`noise_scale`, `noise_scale_w`, `length_scale`, speaker count as applicable), and a non-imitative curation note for the "Sona-inspired feel" where relevant.
+`PROVENANCE.md` MUST record: upstream source (e.g. `rhasspy/piper-voices` path/URL), revision/snapshot date, license, included files, checksums (blake3/sha256), sample rate (22050), inference defaults (`noise_scale`, `noise_scale_w`, `length_scale`, speaker count as applicable), and a non-imitative curation note describing the voice as harmonious, melodic, calm, and soft where relevant.
 
 ## 4. Runtime Invariants
 

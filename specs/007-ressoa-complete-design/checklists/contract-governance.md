@@ -10,15 +10,15 @@
 
 - [x] CHK001 - Are the sanctioned paint scopes for jade (`#5AD6A8`) and celeste (`#B9A6F5`) enumerated with file + element context in the contract, rather than as bare hex names? [Completeness, Contract A1, C-H1, C-H11]
 - [x] CHK002 - Is the rule that painting celeste/jade outside sanctioned scopes is a violation stated with an objective, scope-aware detection method? [Clarity, C-H1, C-H11, Spec §FR-007]
-- [x] CHK003 - Are the permitted `rgba()`/`rgb()` alpha operations for glassmorphism defined as an explicit allowlist, with base colors required to be verbatim SonaToken members? [Clarity, Contract A1, Spec §FR-005/FR-009]
-- [x] CHK004 - Is the rate-display paint pinned to `--sona-harp` (gold) with an explicit prohibition on celeste for the numeric rate, traceable across spec, contract, and data-model? [Consistency, Spec §FR-003, Contract A1, DataModel SonaToken]
+- [x] CHK003 - Are the permitted `rgba`/`rgb` alpha operations for glassmorphism defined as an explicit allowlist, with base colors required to be verbatim RessoaToken members? [Clarity, Contract A1, Spec §FR-005/FR-009]
+- [x] CHK004 - Is the rate-display paint pinned to `--ressoa-harp` (gold) with an explicit prohibition on celeste for the numeric rate, traceable across spec, contract, and data-model? [Consistency, Spec §FR-003, Contract A1, DataModel RessoaToken]
 
 ## Closed Sets & Token Expansion
 
-- [x] CHK005 - Is the SonaToken closed-set baseline count (10) and the additive-only expansion rule (no replacements) documented with a versioned baseline reference? [Completeness, Constitution §VII, DataModel SonaToken]
+- [x] CHK005 - Is the RessoaToken closed-set baseline count (10) and the additive-only expansion rule (no replacements) documented with a versioned baseline reference? [Completeness, Constitution §VII, DataModel RessoaToken]
 - [x] CHK006 - Are the gates for promoting a reserved token to painted status (justification, coordinated edit, version bump, census update) specified as an explicit checklist rather than prose? [Clarity, Constitution §VII, Contract A1/A6]
 - [x] CHK007 - Is the "no catch-all arm" rule for closed sets (including the token set) reinforced with a fail-closed verification (no `_ =>` in `crates/*/src/`)? [Measurability, Constitution §VII, C-H1]
-- [x] CHK008 - Is the banned erratum variant `#5FD0A0` specified as banned in all scopes, including sanctioned ones? [Completeness, C-H1, DataModel SonaToken]
+- [x] CHK008 - Is the banned erratum variant `#5FD0A0` specified as banned in all scopes, including sanctioned ones? [Completeness, C-H1, DataModel RessoaToken]
 
 ## Surface Inventory (9 → 10)
 
@@ -47,7 +47,7 @@
 
 ## Version Bump & Rollback/Fail-Closed
 
-- [x] CHK022 - Is the semver bump requirement tied to change type, with explicit version fields to update (constitution, DESIGN-SONA/VERSION, changelog)? [Clarity, Constitution §VII, Contract A6]
+- [x] CHK022 - Is the semver bump requirement tied to change type, with explicit version fields to update (constitution, DESIGN-RESSOA/VERSION, changelog)? [Clarity, Constitution §VII, Contract A6]
 - [x] CHK023 - Are rollback/fail-closed rules specified for partial coordinated edits (e.g., census failure reverts token promotion)? [Coverage, Edge Case, Gap]
 - [x] CHK024 - Is the fail-closed behavior for a missing or invalid census/inventory check defined (build failure vs. warning)? [Measurability, Gap]
 

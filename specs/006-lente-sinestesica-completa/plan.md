@@ -5,7 +5,7 @@
 
 ## Summary
 
-Expand the reduced Lente Sinestésica (feature 005) to the complete design shown in the proposal (`DESIGN-SONA/assets/ui/ui-proposta-2-lente-sinestesica.png`): add decorative wave graphics, title/section card using document metadata (with filename fallback), wave visualization, and refined control layout on the single StatusView surface. Respect closed token set where possible, reduced-motion (S5), static assets preferred with optional subtle CSS animations guarded by reduced-motion, no RMS instrumentation, no new surfaces, notification remains accent-only.
+Expand the reduced Lente Sinestésica (feature 005) to the complete design shown in the proposal (`DESIGN-RESSOA/assets/ui/ui-proposta-2-lente-sinestesica.png`): add decorative wave graphics, title/section card using document metadata (with filename fallback), wave visualization, and refined control layout on the single StatusView surface. Respect closed token set where possible, reduced-motion (S5), static assets preferred with optional subtle CSS animations guarded by reduced-motion, no RMS instrumentation, no new surfaces, notification remains accent-only.
 
 ## Technical Context
 
@@ -54,7 +54,7 @@ src-tauri/src/
 android-shell/src/main/kotlin/app/mdreader/
 └── MediaMirror.kt       # Notification (must remain accent-only)
 
-specs/005-adopt-design-sona/contracts/
+specs/005-adopt-design-ressoa/contracts/
 ├── status-surface.md
 ├── surface-audit.md
 └── earcon-mapping.md
@@ -96,7 +96,7 @@ specs/005-adopt-design-sona/contracts/
 
 ## Implementation Strategy
 
-- Header asset: `DESIGN-SONA/assets/headers/concha-harmonica-r.svg` (named for SC-001 verification; not decorative wave `waves-top.svg`).
+- Header asset: `DESIGN-RESSOA/assets/headers/concha-harmonica-r.svg` (named for SC-001 verification; not decorative wave `waves-top.svg`).
 - Phase execution clarification: milestone chart shows sequential gates (1→2→3→4→5→6); actual execution permits US2 / US3 to start in parallel after Phase 2 gate completes (no cross-story file overlap except contracts/data-model already done in Phase 2).
 2. **Title card**: Add title card element using existing metadata/filename; empty state `—` with `aria-label="Sem título"`
 3. **Controls/layout**: Refine control bar to match proposal style while keeping functionality

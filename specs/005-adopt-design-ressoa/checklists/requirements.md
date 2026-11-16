@@ -1,4 +1,4 @@
-# Specification Quality Checklist: Adotar o DESIGN-SONA para o app
+# Specification Quality Checklist: Adotar o DESIGN-RESSOA para o app
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-10-22

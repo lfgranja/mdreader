@@ -1,6 +1,6 @@
 # Surface Audit Amendments — SONA Complete Design (007)
 
-**Feature**: `007-sona-complete-design` | **Base**: `specs/005-adopt-design-sona/contracts/surface-audit.md` | **Date**: 2026-10-28
+**Feature**: `007-ressoa-complete-design` | **Base**: `specs/005-adopt-design-ressoa/contracts/surface-audit.md` | **Date**: 2026-10-28
 
 Amends specific checks; all other C-H rules remain in force.
 
@@ -56,7 +56,7 @@ Served bundle HTML = `src-tauri/src/status_view.html` (byte-identical).
 
 ### B1. C-H1 — scope-aware hex census (Candidate D)
 - Scope tuple: `(file-glob, context, token-hex)`; allowlist-based.
-- Ledger declarations (`--sona-celeste: #B9A6F5` in `:root`) are carve-outs.
+- Ledger declarations (`--ressoa-celeste: #B9A6F5` in `:root`) are carve-outs.
 - Matching case-insensitive on hex; 3-digit hex expanded.
 - Comments (`/* */`, `//`, `<!-- -->`) ignored; string literals ignored only with `/* census:doc */`, otherwise treated as paint (fail-closed).
 - Implement as Rust test in `tests/contract_census.rs` (scope-aware variant) + verify.sh gate step, fail-closed.
@@ -65,11 +65,11 @@ Served bundle HTML = `src-tauri/src/status_view.html` (byte-identical).
 - `data-elements="10"` in `src-tauri/src/status_view.html`.
 - Test names: `census_inventory_count_is_ten`, `inventory_count_unchanged` → `"10"`.
 - Dead-CSS scan: (1) `display:\s*none` count == 0; (2) every CSS selector resolves to inventory allowlist or sanctioned component class; (3) `#progress` visually hidden via `.sr-only`, never `display:none`.
-- Repeat control: `<button id="repeat" type="button">`, `aria-label="Repetir seção"`, focus ring `--sona-etwahl`, earcon `EarconKind::SkipBack`, haptic id 4.
+- Repeat control: `<button id="repeat" type="button">`, `aria-label="Repetir seção"`, focus ring `--ressoa-focus`, earcon `EarconKind::SkipBack`, haptic id 4.
 
 ### B3. C-H5 — aria inventory (Candidate B)
 - Canvas `aria-hidden="true"` (decorative); no `role="img"`.
-- `#progress` sr-only `role="progressbar"` with `aria-valuenow/min/max/valuetext`, updated by `renderProgress()`.
+- `#progress` sr-only `role="progressbar"` with `aria-valuenow/min/max/valuetext`, updated by `renderProgress`.
 - `#liveRegion` (`role="status"`, `aria-live="polite"`) populated on meaningful changes (≥5% delta or state transition).
 - Indeterminate: no playhead knob; omit `aria-valuenow`; announce "carregando" once.
 - Contrast: text ≥4.5:1 (normal)/≥3:1 (large); UI non-text ≥3:1.
@@ -87,10 +87,10 @@ Served bundle HTML = `src-tauri/src/status_view.html` (byte-identical).
 ### B5. C-H10 — RMS channel & canvas (Candidate C)
 - RMS `AtomicF32` in player crate callback (`consume_into`), no allocation on hot path.
 - Dedicated throttled channel (~20 Hz), last-wins coalescing, skip while hidden.
-- Canvas renders on IPC receipt (no rAF loop); 30 fps cap via 33.33 ms gate (`performance.now()`, inclusive at threshold).
+- Canvas renders on IPC receipt (no rAF loop); 30 fps cap via 33.33 ms gate (`performance.now`, inclusive at threshold).
 - Visibility: `document.visibilityState === 'hidden'` primary; fallbacks `pagehide`, `blur`, `freeze`/`resume`; resume = draw one fresh frame + reset gate.
 - DPR: `min(devicePixelRatio, 2)` with fallback to 1 for non-finite/≤0; re-create backing store only on change (debounce 100 ms).
-- Static placeholder: inline SVG/CSS bars, 388×80 CSS px, 30% opacity teal on `--sona-stage`, no animation, `aria-hidden="true"`; trigger = RMS unavailable OR canvas unsupported.
+- Static placeholder: inline SVG/CSS bars, 388×80 CSS px, 30% opacity teal on `--ressoa-stage`, no animation, `aria-hidden="true"`; trigger = RMS unavailable OR canvas unsupported.
 - Hot path: 0 heap allocations per redraw (DevTools Allocation instrumentation over 100 frames).
 - Cleanup on unmount: remove listeners, cancel frames, `ctx.clearRect`, `canvas.width = canvas.height = 0`, null buffers, unsubscribe IPC.
 - 10/10 trial: 10 × 60 s, 5 s warm-up excluded; pass = max ≤30 fps AND zero intervals <33.33 ms in all 10.
@@ -102,15 +102,15 @@ Served bundle HTML = `src-tauri/src/status_view.html` (byte-identical).
 - Celeste `#B9A6F5`: waveform-ribbon violet layers + decorative-wave violet stops.
 - Jade `#5AD6A8`: waveform-ribbon middle layers + brand-layer assets + decorative-wave teal→jade stops.
 - Rate/title/notification/glow remain banned for both.
-- Ledger declarations (`--sona-celeste: #B9A6F5` in `:root`) are carve-outs.
+- Ledger declarations (`--ressoa-celeste: #B9A6F5` in `:root`) are carve-outs.
 - Matching case-insensitive; 3-digit hex expanded; comments ignored; string literals ignored only with `/* census:doc */`.
 
 ### B7. C-H8 — served-bundle byte-identity (Candidate D)
 - SHA-256 of `src-tauri/src/status_view.html` vs served bundle; assert equality + file size; fail-closed gate step; print both hashes on mismatch.
 
 ### B8. Governance values (Candidate D)
-- Alpha ops allowlist: `rgba()`/`rgb()` only for glassmorphism/translucency; base color ∈ verbatim SonaToken hex set; alpha ∈ {0.04, 0.08, 0.12, 0.20, 0.32, 0.48}, 0.04 ≤ α ≤ 0.48; `backdrop-filter: blur(24px)` only with solid fallback; drift CI bans all others.
-- Promotion gates (8): design justification in `DESIGN-SONA/tokens.md` + commit; sanctioned scopes enumerated; coordinated edit (ordering below); census update (C-H1/C-H11); version bump; RED tests updated; C-H1 + C-H4 green; byte-identity green; rollback plan attached.
+- Alpha ops allowlist: `rgba`/`rgb` only for glassmorphism/translucency; base color ∈ verbatim RessoaToken hex set; alpha ∈ {0.04, 0.08, 0.12, 0.20, 0.32, 0.48}, 0.04 ≤ α ≤ 0.48; `backdrop-filter: blur(24px)` only with solid fallback; drift CI bans all others.
+- Promotion gates (8): design justification in `DESIGN-RESSOA/tokens.md` + commit; sanctioned scopes enumerated; coordinated edit (ordering below); census update (C-H1/C-H11); version bump; RED tests updated; C-H1 + C-H4 green; byte-identity green; rollback plan attached.
 - Coordinated-edit ordering: (1) contract amendment → (2) data-model → (3) spec → (4) plan/tasks → (5) RED tests → (6) implementation → (7) census/verify gates → (8) version bump + changelog → (9) commit. All-or-nothing.
 - Semver: MAJOR = breaking token/surface/principle; MINOR = additive token/element/scope/amendment; PATCH = wording/test/doc. 007 → MINOR design-system bump (0.1.0→0.2.0); constitution stays 2.0.0.
 - Rollback: all-or-nothing; single atomic commit/PR; on any gate failure revert entire change set; token stays reserved.

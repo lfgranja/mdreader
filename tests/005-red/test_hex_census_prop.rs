@@ -1,5 +1,5 @@
-// RED — closed hex census invariant (10 members: 8 sona + 2 signals)
-// Contract: specs/004-ressoa-dogfood-build/contracts/earcon.md + specs/005-adopt-design-sona/spec.md (FR-012/SC-001)
+// RED — closed hex census invariant (10 members: 8 ressoa + 2 signals)
+// Contract: specs/004-ressoa-dogfood-build/contracts/earcon.md + specs/005-adopt-design-ressoa/spec.md (FR-012/SC-001)
 // Before any implementation: must FAIL (no closed set defined in host files).
 use proptest::prelude::*;
 
@@ -8,10 +8,10 @@ struct HexMember(&'static str);
 
 fn closed_hex_set() -> Vec<&'static str> {
     vec![
-        "sona-voice", "sona-hush", "sona-boundary", "sona-harp",
-        "sona-drift", "sona-surface", "sona-ridge", "sona-tint",
+        "ressoa-voice", "ressoa-hush", "ressoa-boundary", "ressoa-harp",
+        "ressoa-drift", "ressoa-surface", "ressoa-ridge", "ressoa-tint",
         "signal-advisory", "signal-completion",
-    ] // 8 sona + 2 signals = 10
+    ] // 8 ressoa + 2 signals = 10
 }
 
 proptest! {
@@ -36,5 +36,5 @@ fn hex_census_deterministic_over_status_view_and_media_mirror() {
         assert!(combined.contains(member), "missing hex member {} in host surfaces", member);
     }
     assert!(!combined.contains("jade"), "jade forbidden in closed hex census");
-    assert_eq!(combined.matches("sona-").count(), 8, "expected 8 sona tokens; found different");
+    assert_eq!(combined.matches("ressoa-").count(), 8, "expected 8 ressoa tokens; found different");
 }

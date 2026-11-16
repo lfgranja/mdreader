@@ -3,7 +3,7 @@
 **Feature Branch**: `006-lente-sinestesica-completa`  
 **Created**: 2025-10-27  
 **Status**: Draft  
-**Input**: User description: "Implementar agora a proposta COMPLETA de design SONA, com TODOS os elementos de UI/UX propostos" (design proposal image: `DESIGN-SONA/assets/ui/ui-proposta-2-lente-sinestesica.png`)
+**Input**: User description: "Implementar agora a proposta COMPLETA de design RESSOA, com TODOS os elementos de UI/UX propostos" (design proposal image: `DESIGN-RESSOA/assets/ui/ui-proposta-2-lente-sinestesica.png`)
 
 ## Clarifications
 
@@ -17,7 +17,7 @@
 - Q: Decorative ARIA / keyboard / screen-reader? → A: Waves → `aria-hidden="true"`; title card → `role="region"` + `aria-label` (populated) / `aria-label="Sem título"` (empty); keyboard unchanged, decorative non-focusable. Evidence: `a11y-motion-review-report.md` (CHK028/031/043).
 - Q: Graceful degradation / overflow / long filenames? → A: Decorative failure → `animation:none`, layout preserved, no broken-image/alert; long title → `overflow:hidden; text-overflow:ellipsis; white-space:nowrap` with flex `min-width:0`; vertical budget ≤3 lines; banner fixed-height; focus ring visible per WCAG 2.4.12. Evidence: `LAYOUTBANNER_RETRY_REPORT.md` (4-dp/16/24 spacing, Fitts/Thumb-Zone, overflow patterns, 10-hex audited set).
 - Q: Measurable layout / proposal alignment? → A: SC-001 purely objective (presence/absence of named elements + C-H1 hex census + C-H3 rate-blind + C-H4 no dead + C-H5 aria); decorative wave NOT continuous loop; proposal "intent" removed or made objective. Evidence: `UxVisualReview` + `review_contracts.md` + `motion-research-report.md`.
-- Q: Coordinated edit / token addition / failure mode? → A: 3-file workflow (contract + `data-model.md` §SonaToken + source); justification record (commit message + `DESIGN-SONA/tokens.md`); SC-007 audit (C-H1 census, binary pass/fail); fail-closed block / rollback; dead-CSS removal via C-H4 + byte-identical S2 check. Evidence: `ContractGovernanceRetry` (W3C DTCG v2025.10 + Apple HIG audit-observable failure) + `review_contracts.md`.
+- Q: Coordinated edit / token addition / failure mode? → A: 3-file workflow (contract + `data-model.md` §RessoaToken + source); justification record (commit message + `DESIGN-RESSOA/tokens.md`); SC-007 audit (C-H1 census, binary pass/fail); fail-closed block / rollback; dead-CSS removal via C-H4 + byte-identical S2 check. Evidence: `ContractGovernanceRetry` (W3C DTCG v2025.10 + Apple HIG audit-observable failure) + `review_contracts.md`.
 - Q: Dynamic reduced-motion / OS validation? → A: SC-006 / device trial verifies `reduce` at load + after dynamic toggle (freeze decorative/progress/static banner); OS-level validation (Android `Settings→Accessibility→Remove animations`; iOS `Reduce Motion`; Windows `Show animations`) + `adb shell settings put global animator_duration_scale 0`. Evidence: `MotionAccessibilityResearch` + `web.dev` + `a11y-motion-review-report.md` (CHK045/049).
 
 ## Overview
@@ -28,7 +28,7 @@ Expand the reduced Lente Sinestésica (feature 005, token restyle + stamps only)
 
 ### User Story 1 - Ver a Lente Sinestésica completa na tela em uso (Priority: P1)
 
-Como usuário em uso (condução/olhar periférico), quero ver o cabeçalho, cartão de título/seção, visualização e controles conforme a proposta completa, com tokens SONA corretos e sem texto do corpo do documento.
+Como usuário em uso (condução/olhar periférico), quero ver o cabeçalho, cartão de título/seção, visualização e controles conforme a proposta completa, com tokens RESSOA corretos e sem texto do corpo do documento.
 
 **Why this priority**: Main visual experience of the complete design.
 
@@ -55,7 +55,7 @@ Como sistema, deve manter invariante: notificação permanece accent-only, sem b
 
 **Acceptance Scenarios**:
 
-1. **Given** complete UI applied, **When** notification checked, **Then** only `--sona-voice` accent, no body/rate/voice/mark (SC-003).
+1. **Given** complete UI applied, **When** notification checked, **Then** only `--ressoa-voice` accent, no body/rate/voice/mark (SC-003).
 2. **Given** surface inventory, **When** audited, **Then** no dead `display:none` corpses left (fix C-H4 if present); accessibility preserved.
 
 ## Requirements *(mandatory)*
@@ -81,11 +81,11 @@ Como sistema, deve manter invariante: notificação permanece accent-only, sem b
 
 **SC-001** (objective — split sub-criteria):
 - Presence / elements: header "Concha Harmônica R" (correct asset); decorative wave pseudo-element (`CSS ::before` on `.card`); title card (`metadata_title.unwrap_or(filename)` or glyph `—` + `.sr-only` "Sem título"); controls (transport + stop).
-- Hex census (`C-H1`): audited hex values match `SonaToken` ledger (`--sona-void #0B0F1A`, `--sona-voice #F2F0E6`, `--sona-hush #A9B8CE`, `--sona-etwahl #8FD8E8`, `--signal-caution #FFD400`, `--signal-failure #FF4D63`, `--sona-stage #141B2D`, `--sona-boundary #55688F`, `--sona-harp #E8C46A`); banned: jade `#5AD6A8` + `#5FD0A0` (both variants, reconciled per D5 / §VII) and celeste `#B9A6F5` absent.
+- Hex census (`C-H1`): audited hex values match `RessoaToken` ledger (`--ressoa-void #0B0F1A`, `--ressoa-voice #F2F0E6`, `--ressoa-hush #A9B8CE`, `--ressoa-focus #8FD8E8`, `--signal-caution #FFD400`, `--signal-failure #FF4D63`, `--ressoa-stage #141B2D`, `--ressoa-boundary #55688F`, `--ressoa-harp #E8C46A`); banned: jade `#5AD6A8` + `#5FD0A0` (both variants, reconciled per D5 / §VII) and celeste `#B9A6F5` absent.
 - Rate-blind (`C-H3`): no numeric rate value painted (`1.25×`, `2.0`) in `#progressLabel`; positional indicator permitted.
-- Notification purity (`C-H3`): accent-only (`--sona-voice`); no body / rate / voice / mark (SC-003).
-- Proposal reference non-normative: `DESIGN-SONA/assets/ui/ui-propuesta-2-lente-sinestesica.png`; unreconciled proposal elements explicitly excluded (numeric rate `1.25×`, extra interactive controls, green/violet wave colors outside token set).
-**C-H3** (audit definition): rate-blind = no painted numeric rate value in `#progressLabel` / display; notification-purity = notification surface carries only `--sona-voice` accent, zero body / rate / voice identity / mark. Verified by host census (`C-H1` hex audit) + content scan of rendered surface.
+- Notification purity (`C-H3`): accent-only (`--ressoa-voice`); no body / rate / voice / mark (SC-003).
+- Proposal reference non-normative: `DESIGN-RESSOA/assets/ui/ui-propuesta-2-lente-sinestesica.png`; unreconciled proposal elements explicitly excluded (numeric rate `1.25×`, extra interactive controls, green/violet wave colors outside token set).
+**C-H3** (audit definition): rate-blind = no painted numeric rate value in `#progressLabel` / display; notification-purity = notification surface carries only `--ressoa-voice` accent, zero body / rate / voice identity / mark. Verified by host census (`C-H1` hex audit) + content scan of rendered surface.
 - **SC-002**: No accessibility regressions (progressbar aria intact, empty slot aria-label, no alert misuse).
 - **SC-003**: Notification purity unchanged (accent-only).
 - **SC-004**: Reduced-motion respected; no new continuous loops beyond allowed.

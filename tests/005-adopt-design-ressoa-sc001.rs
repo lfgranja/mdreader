@@ -18,7 +18,7 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
     
     #[test]
-    fn prop_sc001_focus_ring_only_uses_sona_etwahl(_seed in any::<u32>()) {
+    fn prop_sc001_focus_ring_only_uses_ressoa_focus(_seed in any::<u32>()) {
         let html = read_status_view();
         if html.is_empty() {
             return Ok(());
@@ -61,7 +61,7 @@ proptest! {
             }
             idx = start + 1;
         }
-        prop_assert!(violations.is_empty(), "focus-visible must only use #8FD8E8 (--sona-etwahl), found: {:?}", violations);
+        prop_assert!(violations.is_empty(), "focus-visible must only use #8FD8E8 (--ressoa-focus), found: {:?}", violations);
     }
 }
 
@@ -73,10 +73,10 @@ fn sc001_focus_visible_rule_exists() {
 }
 
 #[test]
-fn sc001_focus_uses_etwahl_token() {
+fn sc001_focus_uses_ressoa_focus_token() {
     let html = read_status_view();
     assert!(
-        html.contains("#8FD8E8") || html.contains("var(--sona-etwahl)"),
-        "SC-001: focus ring must use --sona-etwahl (#8FD8E8)"
+        html.contains("#8FD8E8") || html.contains("var(--ressoa-focus)"),
+        "SC-001: focus ring must use --ressoa-focus (#8FD8E8)"
     );
 }

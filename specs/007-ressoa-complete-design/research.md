@@ -12,8 +12,8 @@ Consolidates findings from clarification sessions (2026-10-28 ×4) and deep-dive
 
 ## R2. Glassmorphism vs. contract S3
 
-- **Decision**: Amend S3 to allow `rgba()`/`rgb()` alpha variants specifically for glassmorphism/translucency, with base colors as verbatim SonaToken members.
-- **Rationale**: Simpler CSS, better visual fidelity, `backdrop-filter: blur(24px)` + translucent overlay. Fallback to solid `--sona-stage` if unsupported.
+- **Decision**: Amend S3 to allow `rgba`/`rgb` alpha variants specifically for glassmorphism/translucency, with base colors as verbatim RessoaToken members.
+- **Rationale**: Simpler CSS, better visual fidelity, `backdrop-filter: blur(24px)` + translucent overlay. Fallback to solid `--ressoa-stage` if unsupported.
 - **Alternatives considered**: opacity on whole element (rejected — affects text); pre-blended hex (rejected — violates verbatim rule).
 
 ## R3. Numeric rate display location
@@ -30,7 +30,7 @@ Consolidates findings from clarification sessions (2026-10-28 ×4) and deep-dive
 
 ## R5. Glow/neon scope
 
-- **Decision**: Glow on logo + waveform baseline only — `box-shadow: 0 0 20px var(--sona-etwahl)` on header mark, `0 0 10px var(--sona-harp)` on waveform baseline. 2 elements max. Reduced-motion guard applies.
+- **Decision**: Glow on logo + waveform baseline only — `box-shadow: 0 0 20px var(--ressoa-focus)` on header mark, `0 0 10px var(--ressoa-harp)` on waveform baseline. 2 elements max. Reduced-motion guard applies.
 - **Rationale**: Subtle, proposal-aligned, within budget.
 
 ## R6. Waveform visualization style
@@ -46,7 +46,7 @@ Consolidates findings from clarification sessions (2026-10-28 ×4) and deep-dive
 
 ## R8. Progress integration into waveform
 
-- **Decision**: Integrated playhead-in-waveform with parallel hidden progressbar. Canvas is `aria-hidden="true"`; `#progress` stays visually hidden (not `display:none`) `role="progressbar"` carrying `aria-valuenow/min/max/valuetext`, updated by `renderProgress()`. Playhead (white center axis + circular knob) drawn from progress percentage; no knob in indeterminate state; fallback shows bar if canvas unavailable.
+- **Decision**: Integrated playhead-in-waveform with parallel hidden progressbar. Canvas is `aria-hidden="true"`; `#progress` stays visually hidden (not `display:none`) `role="progressbar"` carrying `aria-valuenow/min/max/valuetext`, updated by `renderProgress`. Playhead (white center axis + circular knob) drawn from progress percentage; no knob in indeterminate state; fallback shows bar if canvas unavailable.
 - **Rationale**: Preserves C-H5/SC-002; no new surface; canvas has no native semantics.
 - **Alternatives considered**: canvas as progressbar (poor AT support); remove progressbar (violates C-H5).
 
@@ -64,13 +64,13 @@ Consolidates findings from clarification sessions (2026-10-28 ×4) and deep-dive
 
 ## R11. Waveform accessibility role
 
-- **Decision**: `aria-hidden="true"` on canvas + parallel hidden progressbar (Option B). `role="img"` on canvas rejected. Fix latent gap: `renderProgress()` must set `aria-valuenow`/`aria-valuetext` (currently static) and populate `#liveRegion` on meaningful changes (≥5% delta or state transition).
+- **Decision**: `aria-hidden="true"` on canvas + parallel hidden progressbar (Option B). `role="img"` on canvas rejected. Fix latent gap: `renderProgress` must set `aria-valuenow`/`aria-valuetext` (currently static) and populate `#liveRegion` on meaningful changes (≥5% delta or state transition).
 - **Rationale**: Canvas has no native semantics; ARIA25 live region for announcements; avoids duplicate announcements.
 - **Alternatives considered**: `role="img"` + `aria-label` (static, can't track dynamic progress).
 
 ## R12. Celeste/jade paint scope (C1, user-confirmed Option A)
 
-- **Decision**: Paint jade + celeste in canvas ribbons (proposal-faithful). Amend C-H1/S3: celeste sanctioned only in waveform-ribbon violet layers + decorative-wave violet stops; jade only in waveform-ribbon middle layers + brand-layer assets; banned elsewhere on operational surface. Rate stays `--sona-harp` (gold). Requires coordinated §VII edit to `status-surface.md` S3, `data-model.md` §SonaToken, `surface-audit.md` C-H1, chroma census scoping.
+- **Decision**: Paint jade + celeste in canvas ribbons (proposal-faithful). Amend C-H1/S3: celeste sanctioned only in waveform-ribbon violet layers + decorative-wave violet stops; jade only in waveform-ribbon middle layers + brand-layer assets; banned elsewhere on operational surface. Rate stays `--ressoa-harp` (gold). Requires coordinated §VII edit to `status-surface.md` S3, `data-model.md` §RessoaToken, `surface-audit.md` C-H1, chroma census scoping.
 - **Rationale**: User priority "real and exact as proposed"; constitution v2.0.0 permits promotion with justification; sanctioned scopes narrow and derivable.
 - **Alternatives considered**: keep reserved via static SVG (role-discipline, fidelity loss); hybrid (two visual languages).
 

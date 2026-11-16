@@ -2,8 +2,8 @@
 //! Verifies property that token set doesn't grow unbounded (prevents scope creep).
 
 #[test]
-fn sona_token_census_size_is_closed_at_10() {
-    // Evidence from spec.md lines around D2: 8 sona + 2 signal = 10.
+fn ressoa_token_census_size_is_closed_at_10() {
+    // Evidence from spec.md lines around D2: 8 ressoa + 2 signal = 10.
     let census = [
         "#F2F0E6", "#141B2D", "#5AD6A8", "#B9A6F5", // excluded/used selectively
         "#FFD400", "#FF4D63", // signal pins

@@ -3,7 +3,7 @@
 **Agent:** Rem-T030  
 **Date:** 2026-10-27  
 **Protocol reference:** `tests/005-red/test_sc002_blind_test_protocol.md` (Rem-T203 scaffold — NOT fabricated; no CSV produced)  
-**Quickstart §3 ref:** `specs/005-adopt-design-sona/quickstart.md` §3 (10/10 sheets; deferred only when block is at source, never silent-pass).  
+**Quickstart §3 ref:** `specs/005-adopt-design-ressoa/quickstart.md` §3 (10/10 sheets; deferred only when block is at source, never silent-pass).
 **Constitution / contracts:** `contracts/status-surface.md` (S1–S7), `contracts/surface-audit.md` (A1–A4), `contracts/earcon-mapping.md` (E3/E6), `spec.md`.
 
 ## Phase 0 — Device + build-state (verified 2026-10-27)
@@ -36,7 +36,7 @@ NO app dir (not installed; build artifact T210 deferred)
 All six SCs below were evaluated against **(a) device present + (b) source audit** (prior Phase 9 / Wave-2/3/4 findings, contracts, `MediaMirror.kt`, `status_view.html`). Only SC-002 requires an installed APK + playback, hence deferred specifically.
 
 Evidence paths (all already audited; reused, not re-derived here):
-- SC-003 notification purity: `android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt` (DESIGN_SONA_PROGRESS_FILL = `0xFFF2F0E6`, title token marfim; no body/rate/logo per S6 / notification contract).
+- SC-003 notification purity: `android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt` (DESIGN_RESSOA_PROGRESS_FILL = `0xFFF2F0E6`, title token marfim; no body/rate/logo per S6 / notification contract).
 - SC-001 visual: `src-tauri/src/status_view.html` (token inventory `#progress`, banner states, `#reasonBanner` status, hidden status); `contracts/status-surface.md` S4 (inventory over both branches, 10 hex members); T019 restyle applied per Wave 3.
 - SC-002 blind: protocol `tests/005-red/test_sc002_blind_test_protocol.md`; requires installed APK + audio playback + TalkBack; NOT runnable.
 - SC-004 mute / dignity (FR-006): `MediaMirror.kt` mute/dignity (no body in notification; accent-only marfim); `contracts/earcon-mapping.md` E3/E6.
@@ -47,7 +47,7 @@ Evidence paths (all already audited; reused, not re-derived here):
 
 | SC | Trial / check | Status | Evidence / reason | Blocker (if deferred) |
 |---|---|---|---|---|
-| SC-003 | Notification purity (10/10 inspections, §3.1) | **VERIFIED — source audit + device present** | `MediaMirror.kt`: `DESIGN_SONA_PROGRESS_FILL = 0xFFF2F0E6` (marfim accent only); no body / rate / voice / logo (S6). Device confirms lock-screen surface available; audit does not need APK install for constant verification. | None |
+| SC-003 | Notification purity (10/10 inspections, §3.1) | **VERIFIED — source audit + device present** | `MediaMirror.kt`: `DESIGN_RESSOA_PROGRESS_FILL = 0xFFF2F0E6` (marfim accent only); no body / rate / voice / logo (S6). Device confirms lock-screen surface available; audit does not need APK install for constant verification. | None |
 | SC-001 | Visual purity (det./indet. progress; colors; no excluded screen) | **VERIFIED — source audit + device present** | `status_view.html` tokens + `contracts/status-surface.md` S4 inventory (10 hex members); T019 restyle applied; no excluded screens reachable per source gate. | None |
 | SC-002 | Blind-test protocol (TalkBack + freeze + announcements) | **DEFERRED — device present but APK not installed; build-env blocker T210** | `tests/005-red/test_sc002_blind_test_protocol.md` scaffold exists; requires installed APK + audio playback + TalkBack. Cannot run pilot without `aarch64/*.apk` + install. Not silently passed. | T210 deferred: `ANDROID_HOME=<empty>`, no `aarch64/*.apk`, build not completed |
 | SC-004 | Mute / dignity (FR-006; notification body absent; accent only) | **VERIFIED — source audit + device present** | `MediaMirror.kt` mute/dignity: single accent channel (`0xFFF2F0E6`); no text/body in notification; `earcon-mapping.md` E3/E6 confirms. | None |

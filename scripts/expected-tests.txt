@@ -1,7 +1,10 @@
 adapter-synthesis
+adapter-synthesis normalize::tests::normalizes_table_data_cells_and_preserves_protected_zones
+adapter-synthesis normalize::tests::tilde_fenced_code_is_verbatim
 adapter-synthesis::audio_chunk
 adapter-synthesis::cli_protocol
 adapter-synthesis::normalize_invariants
+adapter-synthesis::normalize_invariants fluid_mode_strips_table_data_markers_outside_protected_zones
 adapter-synthesis::prop_chunk
 adapter-synthesis::prop_chunk_refined
 adapter-synthesis::prop_declare
@@ -9,6 +12,10 @@ adapter-synthesis::prop_format
 adapter-synthesis::prop_segmentation_shapes
 adapter-synthesis::prosody_invariants
 adapter-synthesis::prosody_unit
+adapter-synthesis::prosody_unit highlight_detected_as_emphasis
+adapter-synthesis::prosody_unit ordered_list_detected
+adapter-synthesis::prosody_unit strong_detected
+adapter-synthesis::prosody_unit underscore_strong_detected
 adapter-synthesis::synth_voice
 adapter-synthesis::t045_adapter_observability_consumer
 adapter-synthesis::t059_prop_declare_fr024

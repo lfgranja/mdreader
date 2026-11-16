@@ -40,7 +40,7 @@
 
 - [x] T164 [US1] Wire `BridgeAction::PickDocument` in `dispatch_action` / `run_mobile_plugin` in `src-tauri/src/lib.rs` to call `shell_jni::pick_document_from_shell()`.
 - [x] T165 [US1] Forward `onActivityResult` in `src-tauri/gen/android/app/src/main/java/app/mdreader/MainActivity.kt` to `DocIngest.handlePickResult(this, requestCode, resultCode, data)`.
-- [x] T166 [P] [US1] Update `.meta-box` in `src-tauri/src/status_view.html` with `role="button"`, `tabindex="0"`, `aria-label="Selecionar documento para leitura"`, minimum touch dimensions (`min-height: 48px`), CSS active scale (`0.985`), and `:focus-visible` styling (`var(--sona-etwahl)`).
+- [x] T166 [P] [US1] Update `.meta-box` in `src-tauri/src/status_view.html` with `role="button"`, `tabindex="0"`, `aria-label="Selecionar documento para leitura"`, minimum touch dimensions (`min-height: 48px`), CSS active scale (`0.985`), and `:focus-visible` styling (`var(--ressoa-focus)`).
 - [x] T167 [US1] Add click, `Enter`, and `Space` event listeners on `.meta-box` with debounce in `src-tauri/src/status_view.html` invoking `sendAction('pick_document')` and restoring focus upon picker completion.
 
 **Checkpoint**: At this point, User Story 1 delivers an end-to-end working MVP for opening new documents from the title box.

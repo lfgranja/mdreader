@@ -1,6 +1,6 @@
-# Contract: Adapter Synthesis API & CLI (018-sona-inspired-voice)
+# Contract: Adapter Synthesis API & CLI (018-ressoa-reading-voice)
 
-- **Feature**: `specs/018-sona-inspired-voice`
+- **Feature**: `specs/018-ressoa-reading-voice`
 - **Status**: Draft
 - **Primary crates**: `crates/adapter-synthesis`, consumers in `src-tauri`, `crates/player` (as applicable)
 

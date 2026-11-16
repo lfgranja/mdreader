@@ -7,7 +7,7 @@ use proptest::prelude::*;
 fn sanctioned_scopes_property_initial() {
     let html = std::fs::read_to_string("src-tauri/src/status_view.html").unwrap_or_default();
     // Jade and celeste only allowed in sanctioned scopes
-    assert!(html.contains("--sona-celeste") || html.contains("--sona-aria") || html.contains("drawWaveform"));
+    assert!(html.contains("--ressoa-celeste") || html.contains("--ressoa-aria") || html.contains("drawWaveform"));
 }
 
 proptest! {
@@ -19,11 +19,11 @@ proptest! {
         let html_lower = html.to_lowercase();
         if html_lower.contains("#5ad6a8") {
             // Must be in ledger declaration or waveform ribbon/drawWaveform context
-            let sanctioned = html.contains("--sona-aria") || html.contains("drawWaveform") || html.contains("waveform");
+            let sanctioned = html.contains("--ressoa-aria") || html.contains("drawWaveform") || html.contains("waveform");
             prop_assert!(sanctioned, "jade outside sanctioned scope");
         }
         if html_lower.contains("#b9a6f5") {
-            let sanctioned = html.contains("--sona-celeste") || html.contains("drawWaveform") || html.contains("waveform");
+            let sanctioned = html.contains("--ressoa-celeste") || html.contains("drawWaveform") || html.contains("waveform");
             prop_assert!(sanctioned, "celeste outside sanctioned scope");
         }
     }

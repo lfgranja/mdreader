@@ -1,6 +1,6 @@
-# Contract: Session, Tauri Bridge & Shell IPC — Voice Selection/Cycle (018-sona-inspired-voice)
+# Contract: Session, Tauri Bridge & Shell IPC — Voice Selection/Cycle (018-ressoa-reading-voice)
 
-- **Feature**: `specs/018-sona-inspired-voice`
+- **Feature**: `specs/018-ressoa-reading-voice`
 - **Status**: Draft
 - **Related normative contract**: `contracts/shell-ipc.md` (update in-place for any normative shell changes)
 - **Primary surfaces**: `crates/session/src/store.rs`, `src-tauri/src/lib.rs` (+ commands/publish/inventory), player/shell verbs

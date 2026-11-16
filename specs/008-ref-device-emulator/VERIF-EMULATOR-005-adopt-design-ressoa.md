@@ -1,8 +1,8 @@
-# VERIF-EMULATOR — 005-adopt-design-sona (structural + deferred device)
-**Doc ID**: VERIF-EMULATOR-005-adopt-design-sona-2026-10-30
-**Feature**: specs/005-adopt-design-sona/ (branch `005-adopt-design-sona`)
+# VERIF-EMULATOR — 005-adopt-design-ressoa (structural + deferred device)
+**Doc ID**: VERIF-EMULATOR-005-adopt-design-ressoa-2026-10-30
+**Feature**: specs/005-adopt-design-ressoa/ (branch `005-adopt-design-ressoa`)
 **Status**: Structural PASSED; Device leg DEFERRED (no reference device attached)
-**Branch / Commit**: `005-adopt-design-sona` (current HEAD)
+**Branch / Commit**: `005-adopt-design-ressoa` (current HEAD)
 **AVD / SDK delta**: Not executed — device unavailable; structural verification applies per framework consistency (API 29+).
 **Verification owner / sign-off path**: Agent (host) / device-build (deferred leg)
 
@@ -15,7 +15,7 @@
 - [x] Manifest (`mediaPlayback` FGS) — host-checked via `check-manifest.sh` / `test_noscope`
 - [x] Service lifecycle — `test_lockscreen_resume_control`, `test_offer_dialog`
 - [x] `MediaSession` — host contracts (`mirror_payload`, `status_view`)
-- [x] Notification content (MediaStyle): title + section + progress; NO body text / rate / voice; accent `#F2F0E6` (`DESIGN_SONA_PROGRESS_FILL`) — verified by `surface_audit_accent_only_constants`; `MediaMirror.kt` constants block `:728-743` correct
+- [x] Notification content (MediaStyle): title + section + progress; NO body text / rate / voice; accent `#F2F0E6` (`DESIGN_RESSOA_PROGRESS_FILL`) — verified by `surface_audit_accent_only_constants`; `MediaMirror.kt` constants block `:728-743` correct
 - [x] Focus API / duck-exempt — `test_focus_duck_pause_us2`, `test_routing_us3`; `backend.rs` duck-gain verified; FR-006 host task T037 done
 - [x] Diagnostic JSONL — `diag::contract_schema` (11 EventKind); `test_buffer_state_in_diag`; `prop_no_prose`; zero network call sites (`diag::prop_trace`)
 - [x] Resume by `blake3` fingerprint — `session::store` tests; `test_fingerprint`
@@ -23,7 +23,7 @@
 - [x] Surface audit twins (C-H1..C-H9) — all 8 green (`surface_audit_*`); `scripts/verify.sh` `gate-surface-audit` step added (T032)
 - [x] S2 packaging wiring — `build.rs` copies `status_view.html` to `dist/index.html`; served-identity twin (`surface_audit_served_identity`) green; `frontendDist` `../dist`
 - [x] Earcon grammar — `player::test_earcon_mirror`; 7 kinds; `prop_earcon_pairwise_distinct`; burst/latest-wins (`prop_earcon_burst_latest_wins`); truncation diag (`test_earcon_truncation_diag`); latency oracle (`test_earcon_latency_oracle`)
-- [x] Design-system normalization — `DESIGN-SONA/CHANGELOG.md`, `VERSION`, `tag design-sona-v2.2.0`; spec amendments to 004 (`spec.md` batch Q1) done (T028/T029)
+- [x] Design-system normalization — `DESIGN-RESSOA/CHANGELOG.md`, `VERSION`, `tag design-ressoa-v2.2.0`; spec amendments to 004 (`spec.md` batch Q1) done (T028/T029)
 - [x] Closed-set discipline (§VII) — exhaustive `match`; `EventKind` exactly 11; no `_` arm; `EngineError` 7 members
 
 ## 3. Device Trial — DEFERRED (no device; per-plan)

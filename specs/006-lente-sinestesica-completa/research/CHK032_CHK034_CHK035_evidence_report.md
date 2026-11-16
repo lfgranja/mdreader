@@ -79,7 +79,7 @@ Misuse of `alert` / `aria-live` is defined as any of:
 - Any repeating `keyframes` cycle that does not terminate within 5 s = continuous loop.
 - A bounded loop (e.g., 3 repetitions, total < 5 s) = not a “continuous loop” for 2.2.2 purposes (escapes via G11), but it is a loop. The spec’s “≤1 continuous loop” means **only one unbounded/repeating loop is permitted**, and it must be gated or bounded.
 
-**S5 constitution / plan reference (from `005-adopt-design-sona/research/clarify-e2-motion-accessibility.md`):**
+**S5 constitution / plan reference (from `005-adopt-design-ressoa/research/clarify-e2-motion-accessibility.md`):**
 - Perpetual indeterminate slide (1.5 s loop, minutes-long) triggers 2.2.2 unless gated; bounded yellow pulse (3 s) escapes; banner slide-in (0.2 s) escapes; red failure pulse must be bounded (≤5 s) or gated.
 - Recommendation: perpetual loops allowed **only** when gated by `prefers-reduced-motion: no-preference`; under `reduce`, they must freeze to a static state. Bounded loops (≤5 s total) may run unconditionally.
 
@@ -201,8 +201,8 @@ Misuse of `alert` / `aria-live` is defined as any of:
 
 **Project / Internal Sources (evidence-backed references to spec):**
 21. `specs/006-lente-sinestesica-completa/checklists/a11y-motion.md` (CHK032, CHK034, CHK035 definitions).
-22. `specs/005-adopt-design-sona/research/clarify-e2-motion-accessibility.md` (S5 motion budget, perpetual loop analysis, 2.2.2 trigger matrix, device trial protocol).
-23. `specs/005-adopt-design-sona/research/clarify-f2-reduced-motion-trigger.md` (OS pathway for `prefers-reduced-motion` on Android WebView, `adb` deterministic shim, census-clean constraint).
+22. `specs/005-adopt-design-ressoa/research/clarify-e2-motion-accessibility.md` (S5 motion budget, perpetual loop analysis, 2.2.2 trigger matrix, device trial protocol).
+23. `specs/005-adopt-design-ressoa/research/clarify-f2-reduced-motion-trigger.md` (OS pathway for `prefers-reduced-motion` on Android WebView, `adb` deterministic shim, census-clean constraint).
 24. `specs/006-lente-sinestesica-completa/spec.md` (FR-004, SC-002, SC-004, SC-007).
 25. `DESIGN/accessibility.md` (deliberate non-requirements; reduced-motion posture amendment needed).
 

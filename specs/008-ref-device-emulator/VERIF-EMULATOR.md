@@ -9,7 +9,7 @@
 
 ## 1. Header / Sign-off
 - **Date**: `YYYY-MM-DD`
-- **Branch / Commit**: `005-adopt-design-sona` (`0c985ee`) or feature branch
+- **Branch / Commit**: `005-adopt-design-ressoa` (`0c985ee`) or feature branch
 - **AVD version / SDK**: `API 29+` (e.g., `API 29` baseline; document delta if different)
 - **Delta note**: If AVD image differs from reference device, state version difference and confirm structural verification still applies (framework consistent `API 29–34`); do not claim exact-device match (`Q1` Option A).
 - **Verification owner / sign-off path**: Name / role / contact
@@ -55,6 +55,7 @@ These remain covered ONLY by physical `verify.sh` / `gate-8-full`:
 This document records structural verification (`VERIF-EMULATOR`) ONLY. It does NOT claim equivalence to `gate-8-full` or audio-output verification (`SC-004`, contracts). Physical device remains required for `001-android-media-shell` full verification.
 
 ---
+
 - ## 7. Attachments / References
 - `problem.md`: `.specify/assessments/ref-device-emulator/problem.md` — assessment problem statement and gap analysis
 - `decision.md`: `.specify/assessments/ref-device-emulator/decision.md` — `go` verdict, Option A confirmed, 6 gaps resolved

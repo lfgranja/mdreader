@@ -1,15 +1,15 @@
-# Clarification D1 — Breadth of DESIGN-SONA token adoption: color only vs. + typography/spacing
+# Clarification D1 — Breadth of DESIGN-RESSOA token adoption: color only vs. + typography/spacing
 
-> **Feature:** `specs/005-adopt-design-sona` (FR-001 closed token set, SC-001 hex census + WCAG 2.1 AA + element inventory; C3/C6 "tokens-only restyle, no layout restructuring"; PRINCIPLE VIII glance ≤2 s)
-> **Question:** Should 005's adoption of the DESIGN-SONA token system bind *only* the color (palette) tokens on the two audited surfaces, or *also* the design dir's typography and spacing scales?
+> **Feature:** `specs/005-adopt-design-ressoa` (FR-001 closed token set, SC-001 hex census + WCAG 2.1 AA + element inventory; C3/C6 "tokens-only restyle, no layout restructuring"; PRINCIPLE VIII glance ≤2 s)
+> **Question:** Should 005's adoption of the DESIGN-RESSOA token system bind *only* the color (palette) tokens on the two audited surfaces, or *also* the design dir's typography and spacing scales?
 > **Scope:** research note; not a spec amendment. Informs a clarification decision only.
 > **Method (2026-10-24):** W3C DTCG 2025.10 (first stable) token-type catalogue; Material 3 typography/space guidance; IBM Carbon stylelint-plugin-carbon-tokens; USWDS token model; Nathan Curtis / EightShapes token-layering literature; ISO 15008:2017 published previews (full text paywalled — direction only); NHTSA 812360 text-legibility excerpts; Reimer/Dobres in-vehicle typography studies; host-side enumeration of what the design dir actually defines. No fabricated citations — paywalled standards cited via previews and flagged direction-only.
 
 ## 1. What the design dir actually defines — the decisive inventory fact
 
-- `DESIGN-SONA/tokens.md` (v1.0.0, 2026-10-06) defines **one token layer: color** — 9 primitive hexes (`--sona-void`, `--sona-stage`, `--sona-voice`, `--sona-hush`, `--sona-etwahl`, `--sona-harp`, `--sona-celeste`, `--sona-aria`, `--sona-boundary`) plus semantic/component aliases. **No `--sona-*` typography, spacing, radius, motion, or shadow tokens exist anywhere** in `DESIGN-SONA/` or `DESIGN/` (grep over `*.md` returns zero matches for `--space`, `--size`, `--font`, `spacing token`, `type scale`). The only type/spacing evidence is ad-hoc CSS in `assets/ui/galeria_ui.html` and `assets/proposals/galeria_propostas.html` (font-family `Plus Jakarta Sans`/`Inter`, sizes `1.4rem`, `0.94rem`, paddings `12px`/`14px`).
-- `accessibility.md` §6 cites **touch targets (≥ 48 dp, ≥ 8 dp spacing)** but gives no font-size token; `components.md` cites "16sp/600" for the rate text *in prose*, not as a named token. `DESIGN-SONA.md` §5 (layout) cites "16sp/600, números tabulares" and "12sp/400" in prose only.
-- Host-side verification of the "no type/spacing token" claim (run 2026-10-24): `grep -rin` over `DESIGN-SONA/` and `DESIGN/` for `--space`, `--size`, `--font`, `--radius`, `--motion`, `--shadow`, `type-scale`, `spacing scale` returns **0 matches**; the only type/spacing strings are CSS literals inside `assets/ui/galeria_ui.html` and `assets/proposals/galeria_propostas.html` (font-family, `1.4rem`, `0.94rem`, `12px`/`14px` paddings) — presentation code, not tokens. The `DESIGN-SONA/VERSION`-pinned revision is the sole authority; no token file there declares type or spacing.
+- `DESIGN-RESSOA/tokens.md` (v1.0.0, 2026-10-06) defines **one token layer: color** — 9 primitive hexes (`--ressoa-void`, `--ressoa-stage`, `--ressoa-voice`, `--ressoa-hush`, `--ressoa-focus`, `--ressoa-harp`, `--ressoa-celeste`, `--ressoa-aria`, `--ressoa-boundary`) plus semantic/component aliases. **No `--ressoa-*` typography, spacing, radius, motion, or shadow tokens exist anywhere** in `DESIGN-RESSOA/` or `DESIGN/` (grep over `*.md` returns zero matches for `--space`, `--size`, `--font`, `spacing token`, `type scale`). The only type/spacing evidence is ad-hoc CSS in `assets/ui/galeria_ui.html` and `assets/proposals/galeria_propostas.html` (font-family `Plus Jakarta Sans`/`Inter`, sizes `1.4rem`, `0.94rem`, paddings `12px`/`14px`).
+- `accessibility.md` §6 cites **touch targets (≥ 48 dp, ≥ 8 dp spacing)** but gives no font-size token; `components.md` cites "16sp/600" for the rate text *in prose*, not as a named token. `DESIGN-RESSOA.md` §5 (layout) cites "16sp/600, números tabulares" and "12sp/400" in prose only.
+- Host-side verification of the "no type/spacing token" claim (run 2026-10-24): `grep -rin` over `DESIGN-RESSOA/` and `DESIGN/` for `--space`, `--size`, `--font`, `--radius`, `--motion`, `--shadow`, `type-scale`, `spacing scale` returns **0 matches**; the only type/spacing strings are CSS literals inside `assets/ui/galeria_ui.html` and `assets/proposals/galeria_propostas.html` (font-family, `1.4rem`, `0.94rem`, `12px`/`14px` paddings) — presentation code, not tokens. The `DESIGN-RESSOA/VERSION`-pinned revision is the sole authority; no token file there declares type or spacing.
 
 | Token family | Defined in design dir? | Named tokens | Canonical scale? | Adoptable as-is? |
 |---|---|---|---|---|
@@ -18,7 +18,7 @@
 | Spacing | No (48dp/8dp in prose) | none | No | No — must be invented |
 | Radius / motion / shadow | No | none | No | No — must be invented |
 
-- **Consequence:** there is no canonical "DESIGN-SONA typography/spacing scale" to adopt. Adopting (b)/(c) would require *inventing* tokens in this feature — i.e. a §VII coordinated edit + semver bump + docs for a set that does not exist in the pinned `design-sona-v2.2.0` revision. That is scope creation, not adoption.
+- **Consequence:** there is no canonical "DESIGN-RESSOA typography/spacing scale" to adopt. Adopting (b)/(c) would require *inventing* tokens in this feature — i.e. a §VII coordinated edit + semver bump + docs for a set that does not exist in the pinned `design-ressoa-v2.2.0` revision. That is scope creation, not adoption.
 
 ## 2. Design-system practice: incremental adoption breadth
 
@@ -70,7 +70,7 @@
 
 Support strength: **strong** (three independent converging reasons, each sufficient alone):
 
-1. **No canonical source exists** (§1): there are no DESIGN-SONA typography/spacing tokens to adopt; adopting them means inventing them inside a feature whose scope is "adoption."
+1. **No canonical source exists** (§1): there are no DESIGN-RESSOA typography/spacing tokens to adopt; adopting them means inventing them inside a feature whose scope is "adoption."
 2. **No verification oracle exists** (§4): SC-001 is a hex census; type/spacing need a px-lint oracle that C3/C6 explicitly refused to create; creating it now contradicts two settled decisions.
 3. **No measurable safety benefit on this surface** (§3): the surface has 2 text elements, is value-blind, and already satisfies ISO 15008 char-height floors and WCAG AA; the typeface effect is real but typeface-level and reading-task-level, not token-scale-level.
 
@@ -79,7 +79,7 @@ Support strength: **strong** (three independent converging reasons, each suffici
 **Why not (c) (full token adoption now)?** Requires a full type/spacing scale that does not exist, a frontend toolchain this feature deliberately avoids (reduced Lente, no Svelte), and a new oracle — i.e. it *is* the future full-UI feature. Adopting it now collapses the "minimal-cost dogfood" posture (notification-first, tokens-only) into a full UI rewrite, contradicting the 2026-10-22 Option A scope selection.
 
 **Decisive falsifiable considerations** (what would flip the answer):
-- If a canonical DESIGN-SONA type/spacing scale is added to the pinned revision *before* 005 ships (coordinated §VII edit with changelog), and a px-lint oracle is added to SC-001 in the same coordinated edit, then (b) becomes defensible — but only for sizes the scale explicitly prescribes for *these two components*, not a general adoption.
+- If a canonical DESIGN-RESSOA type/spacing scale is added to the pinned revision *before* 005 ships (coordinated §VII edit with changelog), and a px-lint oracle is added to SC-001 in the same coordinated edit, then (b) becomes defensible — but only for sizes the scale explicitly prescribes for *these two components*, not a general adoption.
 - If the future full-UI feature lands and redefines the type scale, any (b)-level adoption here becomes dead weight requiring migration — a cost that color-only adoption avoids entirely.
 - If on-device trials show glance-time failures attributable to type size (not content inventory), the ISO 15008 char-height floor check (already available, per-element) is the correct response, not a token-scale adoption.
 
@@ -93,7 +93,7 @@ Support strength: **strong** (three independent converging reasons, each suffici
 
 ## Implication for the spec
 
-- **If (a) is adopted (recommended):** no FR/SC change required — FR-001 already scopes the closed set to *color* tokens (`--sona-void … --sona-boundary`), SC-001's oracle is a hex census, and C6 already states "tokens-only (paint substitutions + enumerated stamps + dead-element removal, no layout restructuring)." Only a one-line clarification recording that "token adoption" in this feature = color palette tokens; typography/spacing scales are explicitly out of scope and reserved for the future full-UI feature. No coordinated §VII edit to the design dir needed.
+- **If (a) is adopted (recommended):** no FR/SC change required — FR-001 already scopes the closed set to *color* tokens (`--ressoa-void … --ressoa-boundary`), SC-001's oracle is a hex census, and C6 already states "tokens-only (paint substitutions + enumerated stamps + dead-element removal, no layout restructuring)." Only a one-line clarification recording that "token adoption" in this feature = color palette tokens; typography/spacing scales are explicitly out of scope and reserved for the future full-UI feature. No coordinated §VII edit to the design dir needed.
 - **If (b) were adopted:** FR-001 would need a new "typography/spacing" clause listing the adopted scales (none exist in the pinned design dir → must be invented first); SC-001 would need a px-lint oracle extension (contradicting C3/C6); a coordinated §VII edit + semver bump to the design dir; and a migration plan for when the full-UI feature redefines the scale. Net: high cost, unverified intermediate state, likely rework.
 - **If (c) were adopted:** collapses 005 into the future full-UI feature — contradicts the 2026-10-22 Option A scope selection, the "minimal-cost dogfood / notification-first" posture, and the "no new frontend toolchain" decision (2026-10-23 reduced Lente). Would require reopening FR-008 scope, SC-001 oracle, and the verification plan.
 

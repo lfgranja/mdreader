@@ -4,10 +4,10 @@
 
 **Source evidence base:**
 - `src-tauri/src/status_view.html` (current surface; lines cited below)
-- `specs/007-sona-complete-design/spec.md` §FR-008 (RMS waveform requirement)
-- `DESIGN-SONA/assets/ui/ui-proposta-2-lente-sinestesica.png` (proposal image)
-- `specs/005-adopt-design-sona/contracts/status-surface.md` S3/S5/S7
-- `specs/005-adopt-design-sona/contracts/surface-audit.md` (C-H4 inventory, movement census)
+- `specs/007-ressoa-complete-design/spec.md` §FR-008 (RMS waveform requirement)
+- `DESIGN-RESSOA/assets/ui/ui-proposta-2-lente-sinestesica.png` (proposal image)
+- `specs/005-adopt-design-ressoa/contracts/status-surface.md` S3/S5/S7
+- `specs/005-adopt-design-ressoa/contracts/surface-audit.md` (C-H4 inventory, movement census)
 - `src-tauri/Cargo.toml` (tauri =2.12.1, features [])
 
 ---
@@ -16,9 +16,9 @@
 
 - **No `<canvas>` anywhere in the repo** (grep `<canvas` returned zero matches across all files).
 - **No inline `<svg>` in `status_view.html`**. SVGs are consumed as static assets:
-  - `DESIGN-SONA/assets/waves/waves-top.svg` referenced as CSS `background-image` on `.card::before` (lines 66–81, 73) — decorative top ribbon, not a data viz.
-  - `DESIGN-SONA/assets/logo/logo-primary-concha-r.svg` as `<img id="headerMark">` (line 262).
-- **Progress visualization = CSS div bar**: `#progress` (line 278) track 6px tall; `#progressFill` (lines 182–188) width set via JS `renderProgress()` (lines 428–445), `transition: width .3s ease` (line 187). Indeterminate state uses a CSS `linear-gradient` + `@keyframes indeterminate` (lines 433–437, 780–788) with `transform: translateX`.
+  - `DESIGN-RESSOA/assets/waves/waves-top.svg` referenced as CSS `background-image` on `.card::before` (lines 66–81, 73) — decorative top ribbon, not a data viz.
+  - `DESIGN-RESSOA/assets/logo/logo-primary-concha-r.svg` as `<img id="headerMark">` (line 262).
+- **Progress visualization = CSS div bar**: `#progress` (line 278) track 6px tall; `#progressFill` (lines 182–188) width set via JS `renderProgress` (lines 428–445), `transition: width .3s ease` (line 187). Indeterminate state uses a CSS `linear-gradient` + `@keyframes indeterminate` (lines 433–437, 780–788) with `transform: translateX`.
 - **Animations in use**:
   - `wave-subtle` keyframes (lines 82–86), 400ms ease-in-out, applied to `.card::before` (line 78) — decorative, not infinite.
   - `slideIn` (line 248), 0.2s, on `.reason-banner.warning`.
@@ -63,7 +63,7 @@ Integration options:
 - **Keep progress bar as fallback**: render waveform canvas above `#progress`; when RMS unavailable, hide canvas and show `#progress` (FR-008 graceful degradation: "static waveform placeholder if RMS unavailable").
 - **Card overflow**: `.card` has `overflow: hidden`, so canvas must fit within padding; no negative margins. Canvas width = card content width (~388px at 420px max). Height ~60–80px to match proposal envelope.
 - **Z-index/layering**: `.card::before` wave ribbon sits `z-index: 0`; waveform canvas should sit at z-index 1 above background but below controls (z-index default auto). Controls are later in DOM so paint above.
-- **Glow**: FR-010 allows `box-shadow: 0 0 10px var(--sona-harp)` on waveform baseline (2 elements max with header mark).
+- **Glow**: FR-010 allows `box-shadow: 0 0 10px var(--ressoa-harp)` on waveform baseline (2 elements max with header mark).
 - **Reduced motion**: canvas animation must freeze (not hide) under `prefers-reduced-motion: reduce` — draw a static snapshot; guard the rAF loop.
 - **Accessibility**: preserve `#progress` aria (`role="progressbar"`, `aria-valuenow/min/max/valuetext`) — either keep a visually-hidden progress element or update aria on the canvas wrapper. SC-002 requires no aria regressions.
 

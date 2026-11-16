@@ -2,13 +2,13 @@
 use proptest::prelude::*;
 use std::fs;
 
-const ALLOWED_FOCUS_HEX: &[&str] = &["#8FD8E8"]; // --sona-etwahl only in :focus-visible
+const ALLOWED_FOCUS_HEX: &[&str] = &["#8FD8E8"]; // --ressoa-focus only in :focus-visible
 
 proptest! {
     #[test]
-    fn prop_focus_ring_only_etwahl_in_focus_visible(_seed in any::<u32>()) {
+    fn prop_focus_ring_only_ressoa_focus_in_focus_visible(_seed in any::<u32>()) {
         let html = fs::read_to_string("src-tauri/src/status_view.html").unwrap_or_default();
-        // Focus ring must only use etwahl
+        // Focus ring must only use ressoa-focus
         let focus_visible_block: String = html
             .split(":focus-visible")
             .skip(1)
@@ -32,7 +32,7 @@ proptest! {
                         let hex = &focus_visible_block[i..j];
                         prop_assert!(
                             ALLOWED_FOCUS_HEX.contains(&hex),
-                            "focus ring must only use --sona-etwahl, found {}",
+                            "focus ring must only use --ressoa-focus, found {}",
                             hex
                         );
                     }
@@ -46,11 +46,11 @@ proptest! {
 }
 
 #[test]
-fn sc001_focus_visible_has_etwahl() {
+fn sc001_focus_visible_has_ressoa_focus() {
     let html = fs::read_to_string("src-tauri/src/status_view.html").expect("status_view.html");
     assert!(html.contains(":focus-visible"), "focus-visible rule must exist");
-    assert!(html.contains("#8FD8E8") || html.contains("var(--sona-etwahl)"), 
-        "focus-visible must use --sona-etwahl");
+    assert!(html.contains("#8FD8E8") || html.contains("var(--ressoa-focus)"),
+        "focus-visible must use --ressoa-focus");
 }
 
 #[test]
@@ -63,6 +63,6 @@ fn sc001_focus_ring_not_on_base_buttons() {
         .and_then(|s| s.split('}').next())
         .unwrap_or("")
         .to_string();
-    assert!(focus_visible_block.contains("#8FD8E8") || focus_visible_block.contains("sona-etwahl"),
-        "focus-visible must paint --sona-etwahl");
+    assert!(focus_visible_block.contains("#8FD8E8") || focus_visible_block.contains("ressoa-focus"),
+        "focus-visible must paint --ressoa-focus");
 }

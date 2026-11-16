@@ -7,10 +7,10 @@
 
 ## (a) Relation to current implementation
 
-- `data-model.md` §SonaToken lists `--sona-celeste #B9A6F5` as **RESERVED, unpainted this feature**; painting it anywhere in audited files is a census violation (C-H1: "`#B9A6F5` paint anywhere (celeste vacancy violation)"). Jade `#5AD6A8` (+ erratum `#5FD0A0`) is **banned paint anywhere** (player-color prohibition).
+- `data-model.md` §RessoaToken lists `--ressoa-celeste #B9A6F5` as **RESERVED, unpainted this feature**; painting it anywhere in audited files is a census violation (C-H1: "`#B9A6F5` paint anywhere (celeste vacancy violation)"). Jade `#5AD6A8` (+ erratum `#5FD0A0`) is **banned paint anywhere** (player-color prohibition).
 - `tokens.md` §2 assigns role semantics: jade = brand identity only (Onda 2, "PROIBIDO na interface operacional do player"); celeste = rate/speed (Song of Celerity / Onda 3), "Nunca falha, nunca aviso, nunca fluxo". Brand-wave tokens (`--brand-wave-clarity/healing/cadence`) are scoped to "Marca, ícone do app, landing" — not StatusView.
-- `status-surface.md` S3: "`--sona-celeste` (vacancy semantics, batch C2): the token STAYS in the lexicon but paint of it is a census violation — the sanctioned scope is empty, not the token." S8: decorative wave "No new token member (reuse only — S3)." S12: token set unchanged (10 members); additions only if unavoidable per §VII.
-- `spec.md` 007 currently assumes the opposite: "SonaToken (expanded): 12+ members (original 10 + jade #5AD6A8 + celeste #B9A6F5 promoted to painted)" and FR-001/SC-001 expect wave ribbons "teal-to-violet" and waveform "teal→jade→violet". This is a direct conflict with C-H1/S3/data-model. Resolving it is the subject of this candidate.
+- `status-surface.md` S3: "`--ressoa-celeste` (vacancy semantics, batch C2): the token STAYS in the lexicon but paint of it is a census violation — the sanctioned scope is empty, not the token." S8: decorative wave "No new token member (reuse only — S3)." S12: token set unchanged (10 members); additions only if unavoidable per §VII.
+- `spec.md` 007 currently assumes the opposite: "RessoaToken (expanded): 12+ members (original 10 + jade #5AD6A8 + celeste #B9A6F5 promoted to painted)" and FR-001/SC-001 expect wave ribbons "teal-to-violet" and waveform "teal→jade→violet". This is a direct conflict with C-H1/S3/data-model. Resolving it is the subject of this candidate.
 
 ## (b) Importance
 
@@ -50,9 +50,9 @@ Applied to this project: celeste's defined role is **rate/speed (Song of Celerit
 
 ### 4. Should decorative waveform layers reuse brand-wave tokens vs introduce new paints?
 
-- **Reuse is preferred and sufficient.** The brand-wave tokens (clarity=etwahl, healing=aria, cadence=celeste) already encode the teal→jade→violet triad the proposal depicts. Introducing new paint tokens would violate the closed-set discipline (constitution §VII, S3, S12) and add no semantic value.
+- **Reuse is preferred and sufficient.** The brand-wave tokens (clarity=focus, healing=aria, cadence=celeste) already encode the teal→jade→violet triad the proposal depicts. Introducing new paint tokens would violate the closed-set discipline (constitution §VII, S3, S12) and add no semantic value.
 - **But "reuse" must respect paint scope.** Reusing a brand-wave token as a painted fill on the operational surface (canvas/DOM) is still "painting" it. The audit C-H1 bans jade paint anywhere and celeste paint anywhere. So reuse in a *static SVG asset* (like `waves-top.svg`, which is not in the auditee list A1) is safe and non-violating; reuse as *canvas fill* or *CSS color* in `status_view.html` is a violation unless the contract is amended.
-- Therefore: decorative ribbons should be delivered as **static SVG assets** (consistent with FR-005 "Static assets preferred (SVG/CSS)" and S8 "Static SVG preferred") using the brand-wave palette inside the SVG, not as painted hex in the audited HTML/canvas. This keeps C-H1 green without amendment. The reactive canvas waveform (FR-008) should use only already-sanctioned paints (`--sona-etwahl` teal for the active flow, `--sona-voice` white for progress line/playhead, `--sona-boundary` track) and must not paint jade/celeste unless the contract is amended.
+- Therefore: decorative ribbons should be delivered as **static SVG assets** (consistent with FR-005 "Static assets preferred (SVG/CSS)" and S8 "Static SVG preferred") using the brand-wave palette inside the SVG, not as painted hex in the audited HTML/canvas. This keeps C-H1 green without amendment. The reactive canvas waveform (FR-008) should use only already-sanctioned paints (`--ressoa-focus` teal for the active flow, `--ressoa-voice` white for progress line/playhead, `--ressoa-boundary` track) and must not paint jade/celeste unless the contract is amended.
 
 ## (d) Autonomous resolution vs. user decision
 
@@ -80,4 +80,4 @@ Applied to this project: celeste's defined role is **rate/speed (Song of Celerit
 - Semantic color ownership — designsystemscollective.com (primary/secondary are visual emphasis, not semantic status).
 - Glassmorphism best practices — timgraf.com (accessibility fallback layer); medium.com glassmorphism guide (transparency ≤30–40%).
 - arxiv.org/html/2412.16242v1 — color-name-aware optimization for transparent overlapping charts.
-- Project contracts: `specs/005-adopt-design-sona/contracts/status-surface.md` (S3, S8, S12), `specs/005-adopt-design-sona/contracts/surface-audit.md` (C-H1), `specs/005-adopt-design-sona/data-model.md` (§SonaToken banned paints), `DESIGN-SONA/tokens.md` (§2 role rules), `specs/007-sona-complete-design/spec.md`.
+- Project contracts: `specs/005-adopt-design-ressoa/contracts/status-surface.md` (S3, S8, S12), `specs/005-adopt-design-ressoa/contracts/surface-audit.md` (C-H1), `specs/005-adopt-design-ressoa/data-model.md` (§RessoaToken banned paints), `DESIGN-RESSOA/tokens.md` (§2 role rules), `specs/007-ressoa-complete-design/spec.md`.

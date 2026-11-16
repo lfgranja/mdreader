@@ -1,10 +1,10 @@
 // RED test for T027 — US3 notification purity. Must exist (RED) before T030-T031.
 #[test]
 fn us3_notification_accent_only() {
-    // MediaMirror.kt constants block must use #F2F0E6 (sona-voice) as sole accent
+    // MediaMirror.kt constants block must use #F2F0E6 (ressoa-voice) as sole accent
     let kt = std::fs::read_to_string("android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt").unwrap_or_default();
-    assert!(kt.contains("F2F0E6") || kt.contains("sona-voice") || kt.contains("0xFFF2F0E6"),
-        "notification must use --sona-voice #F2F0E6 accent (SC-003)");
+    assert!(kt.contains("F2F0E6") || kt.contains("ressoa-voice") || kt.contains("0xFFF2F0E6"),
+        "notification must use --ressoa-voice #F2F0E6 accent (SC-003)");
 }
 
 #[test]

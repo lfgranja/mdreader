@@ -1,29 +1,29 @@
 # Data Model: SONA Complete Design (007)
 
-**Feature**: `007-sona-complete-design` | **Source**: [spec.md](spec.md) | **Extends**: `specs/005-adopt-design-sona/data-model.md`
+**Feature**: `007-ressoa-complete-design` | **Source**: [spec.md](spec.md) | **Extends**: `specs/005-adopt-design-ressoa/data-model.md`
 
 Closed-set discipline (constitution §VII): every table here is a closed set; adding/removing a member is a coordinated edit with version bump and docs.
 
-## SonaToken (expanded — 12+ members)
+## RessoaToken (expanded — 12+ members)
 
 Original 10 (005) + jade + celeste promoted to painted with sanctioned scopes (per C1 Option A).
 
 | Token | Hex | Role (paint span) | 007 paint scope |
 |---|---|---|---|
-| `--sona-void` | `#0B0F1A` | page background | unchanged |
-| `--sona-stage` | `#141B2D` | raised surface (title card, canvas backdrop) | unchanged |
-| `--sona-voice` | `#F2F0E6` | primary text + progress fill + notification accent | unchanged (accent-only notification) |
-| `--sona-etwahl` | `#8FD8E8` | focus ring only (enumerated controls) + glow on header mark | unchanged |
-| `--sona-hush` | `#A9B8CE` | secondary text (section, metadata) | unchanged |
-| `--sona-harp` | ledger value | positional rate dot + glow on waveform baseline | unchanged (rate stays gold) |
-| `--sona-celeste` | `#B9A6F5` | **PROMOTED to painted** (was reserved) | waveform-ribbon violet layers + decorative-wave violet stops ONLY |
-| `--sona-boundary` | `#55688F` | progress track + canvas axis | unchanged |
+| `--ressoa-void` | `#0B0F1A` | page background | unchanged |
+| `--ressoa-stage` | `#141B2D` | raised surface (title card, canvas backdrop) | unchanged |
+| `--ressoa-voice` | `#F2F0E6` | primary text + progress fill + notification accent | unchanged (accent-only notification) |
+| `--ressoa-focus` | `#8FD8E8` | focus ring only (enumerated controls) + glow on header mark | unchanged |
+| `--ressoa-hush` | `#A9B8CE` | secondary text (section, metadata) | unchanged |
+| `--ressoa-harp` | ledger value | positional rate dot + glow on waveform baseline | unchanged (rate stays gold) |
+| `--ressoa-celeste` | `#B9A6F5` | **PROMOTED to painted** (was reserved) | waveform-ribbon violet layers + decorative-wave violet stops ONLY |
+| `--ressoa-boundary` | `#55688F` | progress track + canvas axis | unchanged |
 | `--signal-caution` | `#FFD400` | 3 s pause warning only | unchanged |
 | `--signal-failure` | `#FF4D63` | permanent failure only | unchanged |
-| `--sona-aria` (jade) | `#5AD6A8` | **PROMOTED to painted** (was brand-only) | waveform-ribbon middle layers + brand-layer assets ONLY |
+| `--ressoa-aria` (jade) | `#5AD6A8` | **PROMOTED to painted** (was brand-only) | waveform-ribbon middle layers + brand-layer assets ONLY |
 
 - **Banned paints remain**: jade `#5FD0A0` erratum variant never; celeste/jade outside sanctioned scopes = C-H1 violation.
-- Glassmorphism uses translucent overlays (rgba/rgb alpha) of existing tokens; base colors verbatim SonaToken members.
+- Glassmorphism uses translucent overlays (rgba/rgb alpha) of existing tokens; base colors verbatim RessoaToken members.
 
 ## SurfaceInventory (in-app driving surface — 9 → 10 elements)
 
@@ -34,10 +34,10 @@ Original 10 (005) + jade + celeste promoted to painted with sanctioned scopes (p
 | **Waveform canvas** | `<canvas id="waveform" aria-hidden="true">` smooth ribbons + integrated playhead | **NEW (007)** |
 | Progress (hidden) | `#progress` sr-only `role="progressbar"` + live region | retained for aria (C-H5) |
 | Transport controls | prev/play/next + **repeat** + stop | repeat NEW (FR-011) |
-| Rate ladder | positional dot `--sona-harp`, 7 rungs, aria value only | numeric rate painted in speed area (FR-003) |
+| Rate ladder | positional dot `--ressoa-harp`, 7 rungs, aria value only | numeric rate painted in speed area (FR-003) |
 | Reason line | 3 s expiry + signal colors | unchanged |
 | Resume offer | 004 contract | unchanged |
-| Focus ring | `:focus-visible` `--sona-etwahl` | unchanged |
+| Focus ring | `:focus-visible` `--ressoa-focus` | unchanged |
 | Live region | visually hidden `role="status"` | now populated (C5) |
 
 - Waveform canvas counts as a new inventory element → C-H4/C-H5 contract update (S11).

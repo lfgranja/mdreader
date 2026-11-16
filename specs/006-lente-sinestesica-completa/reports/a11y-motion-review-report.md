@@ -5,7 +5,7 @@
 - `specs/006-lente-sinestesica-completa/spec.md` (FR-001..FR-007, US1-US3, SC-001..SC-006)
 - `specs/006-lente-sinestesica-completa/plan.md` (Constitution Check §S5, S1, S3; Phase 0, Phase 1)
 - `.specify/memory/constitution.md` (amendment records; references S5 via plan/research citations)
-- `specs/005-adopt-design-sona/contracts/status-surface.md` (S1-S7, esp. S4 aria contract, S5 movement contract)
+- `specs/005-adopt-design-ressoa/contracts/status-surface.md` (S1-S7, esp. S4 aria contract, S5 movement contract)
 - `contracts/surface.md` (surfaces, notification purity, value-blindness, FR-002, FR-028/029)
 
 **Note:** The checklist item references (e.g. Spec §FR-004, Plan §S5) are taken verbatim from `a11y-motion.md`. Evidence below quotes from `spec.md`, `plan.md`, `contracts/status-surface.md`, and `contracts/surface.md`.
@@ -29,7 +29,7 @@
 **Evidence:**
 - `spec.md` FR-002 defines title card data model (`metadata_title.unwrap_or(filename)`) and empty-state glyph `—` with `aria-label="Sem título"`. No `role`, `aria-label` for the title card when present, and no `aria-hidden`/label for decorative waves.
 - `spec.md` SC-001 mentions `.sr-only` accessible label for empty state; SC-006 mentions `.sr-only` announces "Sem título" for empty title card. No other ARIA for title card.
-- `specs/005-adopt-design-sona/contracts/status-surface.md` S4 covers interactive controls + progressbar + reason banner; does not cover new wave/title card elements.
+- `specs/005-adopt-design-ressoa/contracts/status-surface.md` S4 covers interactive controls + progressbar + reason banner; does not cover new wave/title card elements.
 - `plan.md` Phase 1 design mentions TitleCard data model but no ARIA contract extension.
 **Assessment:** GAP — waves container has zero accessibility specification; title card only has an empty-state label, not a full ARIA contract.
 **Clarification question:** Should the decorative wave container carry `aria-hidden="true"` (or a descriptive `aria-label`)? Should the title card have `aria-label` when populated, and a `role` (e.g., `region`, `group`)?
@@ -112,7 +112,7 @@
 ### CHK037 — PASS
 **Statement:** Are a11y requirements consistent between status view and notification (notification must remain accessible)? [Consistency, Spec §FR-006, §US3]
 **Evidence:**
-- `spec.md` FR-006: notification remains accent-only (`--sona-voice` only, no body/rate/voice/mark).
+- `spec.md` FR-006: notification remains accent-only (`--ressoa-voice` only, no body/rate/voice/mark).
 - `spec.md` SC-003: notification purity unchanged (accent-only).
 - `spec.md` US3: notification behavior unchanged; SC-006 verifies notification remains accent-only.
 - `contracts/status-surface.md` S6: notification stays declarative mirror, no structural change; accessibility preserved by not changing the surface.

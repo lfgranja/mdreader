@@ -1,4 +1,4 @@
-# Decision: Real Ressoa mobile app on DESIGN-SONA
+# Decision: Real Ressoa mobile app on DESIGN-RESSOA
 
 - **Slug**: ressoa-mobile-app
 - **Decided**: 2026-10-12T12:51Z
@@ -22,8 +22,8 @@
 
 ## If go — Handoff to `/speckit.specify`
 
-- **Problem**: A driving reader cannot listen to long documents on a phone with surviving position, safe interruptions, and an attention-respecting lock-screen surface — the shell is host-only mechanism and DESIGN-SONA is paper.
-- **Chosen approach**: Option A — Dogfoodable single-voice sideload build (maintainer-only install on the reference phone; notification-first DESIGN-SONA readable loop; one offline voice; nothing published).
-- **In scope / out of scope**: In scope: audible commute-length loop with screen off, classified interruption states graspable without looking, title+section+progress lock-screen surface, content-keyed resume, reference-phone measurement of every success metric. Out of scope: any public distribution, engine failover breadth, DESIGN-SONA surfaces beyond the notification-first loop, car-head-unit, light mode, in-app diagnostics, monetization, non-Android platforms, cloud-first operation.
+- **Problem**: A driving reader cannot listen to long documents on a phone with surviving position, safe interruptions, and an attention-respecting lock-screen surface — the shell is host-only mechanism and DESIGN-RESSOA is paper.
+- **Chosen approach**: Option A — Dogfoodable single-voice sideload build (maintainer-only install on the reference phone; notification-first DESIGN-RESSOA readable loop; one offline voice; nothing published).
+- **In scope / out of scope**: In scope: audible commute-length loop with screen off, classified interruption states graspable without looking, title+section+progress lock-screen surface, content-keyed resume, reference-phone measurement of every success metric. Out of scope: any public distribution, engine failover breadth, DESIGN-RESSOA surfaces beyond the notification-first loop, car-head-unit, light mode, in-app diagnostics, monetization, non-Android platforms, cloud-first operation.
 - **Success metrics**: Screen-off playback for a commute session; first audio within the agreed bound on the reference phone; eyes-free reachability/confirmation of driving controls; lock-screen showing only title/section/progress across the OEM set; move/rename-safe resume with no stale offers; classified interruption outcomes matching causes; diagnostic retention window/cap with zero document prose.
-- **Carried-forward open questions**: exact sideload-vs-release meaning of "real" (resolved to sideload for this scope); whether Phase 13 gaps + real-audio proof land inside this effort (yes — bounded, no scope expansion on failure); notification-first vs. broader DESIGN-SONA surfaces (notification-first only); measured latency/distinctiveness numbers (to be produced, then gate); first non-author user (explicitly deferred); naming/distribution readiness (deferred with the distribution); platform scope (Android only); timing trigger (measurements now gate any later release).
+- **Carried-forward open questions**: exact sideload-vs-release meaning of "real" (resolved to sideload for this scope); whether Phase 13 gaps + real-audio proof land inside this effort (yes — bounded, no scope expansion on failure); notification-first vs. broader DESIGN-RESSOA surfaces (notification-first only); measured latency/distinctiveness numbers (to be produced, then gate); first non-author user (explicitly deferred); naming/distribution readiness (deferred with the distribution); platform scope (Android only); timing trigger (measurements now gate any later release).

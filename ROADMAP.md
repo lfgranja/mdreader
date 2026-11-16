@@ -4,20 +4,20 @@
 > **Framework de Produto & Governança:** `Now / Next / Later` + Spec Kit (`assess.*` → `specify` → `clarify` → `plan` → `tasks` → `implement` → `converge` / `bug.*`)  
 > **Objetivo Primário:** `OBJETIVO.md` — leitor de documentos Markdown com síntese de voz 100% offline, Rust como única autoridade de playback/transporte/rate/posição, Kotlin como espelho estrito (`SC-035`), Tauri 2.12.1, CPAL 0.18.2 + AAudio, mono f32 @ 22050 Hz, sherpa-onnx 1.13.8 + Piper pt-BR (`offline_default`). Zero permissão de INTERNET.
 
-*Atualizado: 2026-11-14 · Branch atual: `dev`. Ciclo 018 — Sona-Inspired Voice (closed catalog faber+cadu+jeff, persist/cycle/restart, host gates 1-8 PASS, gate 9 Rust compile PASS). Ciclo rc2 — Spec 021 convergida (verificação), rc2 candidate produzido (.specify/releases/v0.1.0-rc2/); gates 1-8 a re-executar em ambiente sem limite; signed build/store pendentes de autorização. Adicionados: DSP post-processing (compressor/reverb/chorus), provider router (closed-set EngineTier), terceira voz pt_BR-jeff-medium (CC0).*
+*Atualizado: 2026-11-14 · Branch atual: `dev`. Ciclo 018 — Ressoa Voice (closed catalog faber+cadu+jeff, persist/cycle/restart, host gates 1-8 PASS, gate 9 Rust compile PASS). Ciclo rc2 — Spec 021 convergida (verificação), rc2 candidate produzido (.specify/releases/v0.1.0-rc2/); gates 1-8 a re-executar em ambiente sem limite; signed build/store pendentes de autorização. Adicionados: DSP post-processing (compressor/reverb/chorus), provider router (closed-set EngineTier), terceira voz pt_BR-jeff-medium (CC0).*
 
 ---
 
 ## 1. Visão Estratégica: Now / Next / Later
 
-```
+`
 ┌─────────────────────────────────────────────────────────────────────────────────────────────┐
 │ NOW (Ciclo 017/018 — Hardening, Dynamic Rate & Cache, ~98% Concluído)                       │
 │ • ✅ Spec 017 (AudioChunkCache): cache LRU 32 MiB em RAM com PBT CONVERGIDA (PR #195)       │
 │ • ✅ Bug #196 / PR #197: velocidade acústica dinâmica, re-ancoragem em tempo real e layout    │
 │ • ✅ Spec 014 (normalização) e Spec 015 (prosódia semântica) CONVERGIDAS                      │
 │ • ✅ Spec 010 (Directory Reading) 100% no host/device; Spec 013 (TTFA) host-converged, device TTFA proof pending (converge: partial) │
-│ • ✅ Spec 018 (Sona-Inspired Voice): closed catalog (faber+cadu+jeff CC0), persist/cycle/restart, tests PASS, gate 9 Rust compile PASS │
+│ • ✅ Spec 018 (Ressoa Voice): closed catalog (faber+cadu+jeff CC0), persist/cycle/restart, tests PASS, gate 9 Rust compile PASS │
 └─────────────────────────────────────────────────────────────────────────────────────────────┘
                                               ↓
 ┌─────────────────────────────────────────────────────────────────────────────────────────────┐
@@ -38,7 +38,7 @@
 │ • Canais: r/ObsidianMD, r/PKMS, Hacker News, F-Droid, Google Play                          │
 │ • Features de Expansão: Catálogo de Vozes Locais ONNX, Tradutor Offline, OCR de Documentos   │
 └─────────────────────────────────────────────────────────────────────────────────────────────┘
-```
+`
 
 ---
 
@@ -56,7 +56,7 @@
 | `ttfa-synthesis-pipeline` | 5/5 | `go` | **Promovido para Spec 013** | `decision.md` → TTFA medido em 1.551 ms no Redmi Note 11 |
 | `tts-symbol-fatigue` | 5/5 | `go` | **Promovido para Spec 014** | `decision.md` → Sanitização de Markdown em `normalize.rs` |
 | `md-semantic-prosody` | 5/5 | `go` | **Promovido para Spec 015** | `decision.md` → Pausas e cadência em `prosody.rs` |
-| `sona-inspired-voice` | 5/5 | `go` | **Promovido para Spec 018** | `decision.md` → Especificação e contratos criados |
+| `ressoa-voice` | 5/5 | `go` | **Promovido para Spec 018** | `decision.md` → Especificação e contratos criados |
 | `open-file-from-title` | 5/5 | `go` | **Promovido para Spec 009** | `decision.md` → Ingestão de arquivo via SAF e auto-play |
 | `design-son-adoption` | 5/5 | `go` | **Promovido para Spec 005** | `decision.md` → Design tokens e acessibilidade TalkBack |
 | `lente-sinestesica-completa` | 5/5 | `go` | **Promovido para Spec 006** | `decision.md` → Animações responsivas a movimento |
@@ -83,9 +83,9 @@
 | **002** | `fr-024-synthesis-adapter` | 80/89 | ✓ | ✓ | `crates/adapter-synthesis/` (110 pass) | **CONVERGIDO** (Attestation V3; benchmark SC-009) |
 | **003** | `reference-device` | 12/14 | ✓ | ✓ | Docs, harness e protocolos | **CONVERGIDO** (Protocolo e hardware de referência) |
 | **004** | `ressoa-dogfood-build` | 173/173 | ✓ | ✓ | `verification/`, `redb`, IPC | **CONVERGIDO** (0 findings no `/speckit.converge`) |
-| **005** | `adopt-design-sona` | 55/55 | ✓ | ✓ | `surface_audit`, SC-001/002/007 | **CONVERGIDO** (TalkBack 10/10, contraste aprovado) |
+| **005** | `adopt-design-ressoa` | 55/55 | ✓ | ✓ | `surface_audit`, SC-001/002/007 | **CONVERGIDO** (TalkBack 10/10, contraste aprovado) |
 | **006** | `lente-sinestesica-completa` | 55/55 | ✓ | ✓ | Canvas dinâmico, tokens | **CONVERGIDO** (Reduced motion preservado) |
-| **007** | `sona-complete-design` | 29/29 | ✓ | ✓ | RMS ~20Hz `AtomicU32`, repeat button | **CONVERGIDO** (100% tasks concluídas) |
+| **007** | `ressoa-complete-design` | 29/29 | ✓ | ✓ | RMS ~20Hz `AtomicU32`, repeat button | **CONVERGIDO** (100% tasks concluídas) |
 | **008** | `ref-device-emulator` | 40/42 | ✓ | ✓ | Harness de emulação estrutural | **CONVERGIDO** |
 | **009** | `open-file-from-title` | 26/30 | ✓ | ✓ | SAF JNI, Blake3 hash, offerDialog | **CONVERGIDO** (0 findings no `/speckit.converge`) |
 | **010** | `directory-reading` | 49/49 | ✓ | ✓ | ChapterQueue, tree SAF, gapless | **CONVERGIDO** (Atestado em hardware real) |
@@ -96,7 +96,7 @@
 | **015** | `md-semantic-prosody` | 5/6 | ✓ | ✓ | `prosody.rs` + cadência | **CONVERGIDO** (Cycle 017) |
 | **016** | `voz-lula` | 0/25 | ✓ | ✓ | — | **DEFERIDO** (Risco legal/regulatório; sem modelo) |
 | **017** | `audio-cache-queue-management` | 6/6 | ✓ | ✓ | `AudioChunkCache` 32 MiB, PBT | **CONVERGIDO** (PR #195 integrado na `dev`) |
-| **018** | `sona-inspired-voice` | 27/27 | ✓ | ✓ | Catalog (faber+cadu CC0), voice.rs, synth_with_voice, set_voice/get_voice, cycle+restart, tests, gate 9 Rust compile | **CONVERGIDO** (host gates 1-8 PASS; Android Rust compile PASS) |
+| **018** | `ressoa-voice` | 27/27 | ✓ | ✓ | Catalog (faber+cadu CC0), voice.rs, synth_with_voice, set_voice/get_voice, cycle+restart, tests, gate 9 Rust compile | **CONVERGIDO** (host gates 1-8 PASS; Android Rust compile PASS) |
 | **019** | `intent-filter-ingress` | 5/5 | ✓ | ✓ | `AndroidManifest.xml`, `DocIngest.kt`, `MainActivity.kt` | **CONVERGIDO (100%)** |
 | **020** | `dynamic-doc-cap-scalability` | 6/6 | ✓ | ✓ | `crates/player/src/interruption.rs`, `DocIngest.kt` | **CONVERGIDO (100%)** |
 
@@ -114,11 +114,11 @@
 | `crash-opening-document` | ✓ | ✓ | ✓ | **VERIFIED (Closed)** | Cache de `GlobalRef` no JNI de ShellHost prevenindo `ClassNotFoundException`. |
 | `controls-not-working` | ✓ | ✓ | ✓ | **VERIFIED (Closed)** | Sincronização de status de reprodução e ancoragem em 100dvh (PR #184). |
 | `directory-nav-buttons-overflow` | ✓ | ✓ | ✓ | **VERIFIED (Closed)** | Ajuste de flexbox e overflow nos botões de navegação de capítulos. |
-| `sona-waveform-missing-in-screenshot` | ✓ | ✓ | ✓ | **PASS (Closed)** | Emissão de `publish_rms(0.0)` em inicialização e pausas. |
-| `sona-visual-core-fix` | ✓ | ✓ | ✓ | **PASS (Closed)** | Alinhamento de cabeçalho, logo e container de onda (PR #153). |
-| `corrupt-design-asset` | ✓ | ✓ | ✓ | **VERIFIED (Closed)** | Substituição por assets vetoriais oficiais em `DESIGN-SONA/assets/`. |
-| `sona-ui-proposta-alignment` | ✓ | ✓ | ✓ | **VERIFIED (Closed)** | Alinhamento tipográfico e contraste de tokens visuais. |
-| `sona-lente-sinestesica-refinement` | ✓ | ✓ | ✓ | **VERIFIED (Closed)** | Animações e congelamento sob `prefers-reduced-motion`. |
+| `ressoa-waveform-missing-in-screenshot` | ✓ | ✓ | ✓ | **PASS (Closed)** | Emissão de `publish_rms(0.0)` em inicialização e pausas. |
+| `ressoa-visual-core-fix` | ✓ | ✓ | ✓ | **PASS (Closed)** | Alinhamento de cabeçalho, logo e container de onda (PR #153). |
+| `corrupt-design-asset` | ✓ | ✓ | ✓ | **VERIFIED (Closed)** | Substituição por assets vetoriais oficiais em `DESIGN-RESSOA/assets/`. |
+| `ressoa-ui-proposta-alignment` | ✓ | ✓ | ✓ | **VERIFIED (Closed)** | Alinhamento tipográfico e contraste de tokens visuais. |
+| `ressoa-lente-sinestesica-refinement` | ✓ | ✓ | ✓ | **VERIFIED (Closed)** | Animações e congelamento sob `prefers-reduced-motion`. |
 | `waveform-slowdown-memory-leak` | ✓ | ✓ | ✓ | **VERIFIED (Closed)** | Limpeza de listeners de animação de canvas no ciclo de vida. |
 | `title-open-waveform-regression` | ✓ | ✓ | ✓ | **VERIFIED (Closed)** | Restauração de RMS ativo durante abertura de documento. |
 
@@ -136,7 +136,7 @@
 7. **Cache Bounded de Áudio em RAM (100% Convergido):** Gerenciamento de memória de 32 MiB (`AudioChunkCache`) com invalidação atômica e política LRU (Spec 017, PR #195).
 8. **Controle Dinâmico de Velocidade (100% Convergido):** Ajuste de taxa dinâmico que afeta o áudio neural imediatamente e re-ancora a reprodução sem travar a interface (PR #197).
 9. **Padrão de Qualidade e Gates de CI:** Gates 1 a 8 rigorosamente verdes (formatação, nextest com 1.050+ testes, docs, clippy pedantic -D warnings, supply chain e pureza do shell).
-10. **DSP Post-Processing (Sona Ethereal):** Camada de pós-processamento em tempo real (compressor óptico → reverb plate/shimmer → chorus) em mono f32 @ 22050 Hz, zero dependências externas, integrada ao backend CPAL e CLI (PRs #203/#204).
+10. **DSP Post-Processing (Ressoa Ethereal):** Camada de pós-processamento em tempo real (compressor óptico → reverb plate/shimmer → chorus) em mono f32 @ 22050 Hz, zero dependências externas, integrada ao backend CPAL e CLI (PRs #203/#204).
 11. **Provider Router (closed-set):** Roteamento de provedores via `Engine` trait com conjuntos fechados (`EngineTier`, `ProviderCapability`, etc.), zero SDK de fornecedor no core; adapter registra apenas `offline_default` (PR #206).
 ### O que ainda falta (~2% para Lançamento do Produto):
 1. **Conformidade Android 16 (API 36):** ✅ Spec 021 convergida (verificação) — targetSdk/compileSdk 36; zero `announceForAccessibility`/`TYPE_ANNOUNCEMENT` no shell Kotlin; `aria-live` presente; sem migração necessária.

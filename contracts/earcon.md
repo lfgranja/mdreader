@@ -22,7 +22,7 @@ All in 300–2500 Hz; play/pause/skip differ in timbre + rhythm + contour from t
 - Must not advance the position bookmark (clock counts speech samples only).
 - Trigger + lock-screen mirror publish is one Rust call (impossible to sound without showing).
 
-## Haptic + silent path (Kotlin `MediaMirror.publish()`)
+## Haptic + silent path (Kotlin `MediaMirror.publish`)
 
 - `Vibrator`/`VibrationEffect.createOneShot` (API 26; `VibratorManager` API 31), `VIBRATE` permission; distinct pattern per action (e.g. single 30 ms play vs double 20+40 ms warning vs 80 ms failure). Acceptance mapping: single 30ms=play vs double 20+40ms=warning vs 80ms=failure (illustrative; exact patterns fixed at implementation, pairwise-distinguishable by duration/count, verified 10/10 blind per SC-004 sounds-on and -off).
 - Rides outside `STREAM_MUSIC` → works muted/DND; fully-disabled-haptic still covered by the giant transport glyph + progress + banner state change.

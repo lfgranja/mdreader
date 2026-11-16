@@ -37,7 +37,7 @@ constitution Principle IX, offline-first; no `INTERNET`).
 ## Curation note (non-imitative)
 
 Curated as a calm, clear long-form reading alternative with
-thematic "Sona-inspired feel" framing only. No League of Legends,
+thematic "harmonious, melodic, calm, soft reading voice" framing only. No ,
 Riot, performer, or character imitation/branding is claimed or
 implied by this voice id, label, or asset.
 

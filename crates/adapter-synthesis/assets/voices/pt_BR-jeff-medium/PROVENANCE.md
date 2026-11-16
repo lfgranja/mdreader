@@ -37,7 +37,7 @@ synthesis time; constitution Principle IX, offline-first; no
 ## Curation note (non-imitative)
 
 Curated as an additional pt-BR reading voice with thematic
-"Sona-inspired feel" framing only. No League of Legends, Riot,
+"harmonious, melodic, calm, soft reading voice" framing only. No 
 performer, or character imitation/branding is claimed or
 implied by this voice id, label, or asset.
 

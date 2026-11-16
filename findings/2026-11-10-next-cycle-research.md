@@ -2,7 +2,7 @@
 
 **Date:** 2026-11-10
 **Author:** research subagent (multilingual web research, EN/PT/ES)
-**Scope:** Eight topics requested for the next 80/20 cycle of `mdreader` (product **Ressoa**), an Android offline Markdown TTS audiobook reader. Rust owns playback/synthesis; Kotlin is a mirror; Tauri bridge; Piper pt-BR via sherpa-onnx; mono `f32` @ 22 050 Hz; zero `INTERNET` permission; design system `DESIGN-SONA`.
+**Scope:** Eight topics requested for the next 80/20 cycle of `mdreader` (product **Ressoa**), an Android offline Markdown TTS audiobook reader. Rust owns playback/synthesis; Kotlin is a mirror; Tauri bridge; Piper pt-BR via sherpa-onnx; mono `f32` @ 22 050 Hz; zero `INTERNET` permission; design system `DESIGN-RESSOA`.
 **Method:** Primary sources prioritized (W3C, CommonMark, ISO/ECMA-style specs, official vendor docs, GitHub issues/source, government gazettes, court opinions, platform policy pages). Secondary sources used only where marked. All URLs accessed **2026-11-10** unless stated.
 
 **Confidence legend**
@@ -374,7 +374,7 @@ Separately, `.specify/assessments/custom-voices/intake.md` records a request for
 - Speech Central, *Text-to-Speech with Word Highlighting* (2025-03-29) — https://speechcentral.net/2025/03/29/text-to-speech-with-word-highlighting-enhance-your-reading-experience-with-speech-central/ (accessed 2026-11-10).
 - Audeus, *Text to Speech Android App* (word-level highlighting claim; vendor marketing) — https://www.audeus.com/text-to-speech-android (accessed 2026-11-10).
 - sherpa-onnx issue #3705 (word timestamps; open) — https://github.com/k2-fsa/sherpa-onnx/issues/3705 (accessed 2026-11-10).
-- Local: `specs/005-adopt-design-sona/`, `specs/007-sona-complete-design/`, `crates/player/src/position.rs` (referenced), `ROADMAP.md` (read 2026-11-10).
+- Local: `specs/005-adopt-design-ressoa/`, `specs/007-ressoa-complete-design/`, `crates/player/src/position.rs` (referenced), `ROADMAP.md` (read 2026-11-10).
 
 ---
 
@@ -397,7 +397,7 @@ Separately, `.specify/assessments/custom-voices/intake.md` records a request for
 ### 6.2 Market reading
 
 - **The UVP is defensible.** No major competitor combines 100% offline, air-gapped operation, and Markdown-native structure. Speechify and NaturalReader are cloud-first; Voice Dream is iOS-only; @Voice/TTSReader/Legere are document-format readers, not Markdown readers.
-- **The closest threat is Lector (F-Droid).** It already ships Markdown + folder reading + zero permissions + offline, using system TTS. mdreader's differentiation must therefore be: (a) **Piper neural pt-BR voice quality** (vs. system TTS), (b) **semantic prosody / structure-aware reading**, (c) **durable bookmarks/fingerprint/resume**, (d) **SONA design**. If the Piper advantage is not audible, Lector wins on simplicity.
+- **The closest threat is Lector (F-Droid).** It already ships Markdown + folder reading + zero permissions + offline, using system TTS. mdreader's differentiation must therefore be: (a) **Piper neural pt-BR voice quality** (vs. system TTS), (b) **semantic prosody / structure-aware reading**, (c) **durable bookmarks/fingerprint/resume**, (d) **RESSOA design**. If the Piper advantage is not audible, Lector wins on simplicity.
 - **Pricing is well-positioned.** A one-time $9.99–14.99 is below Legere ($7.49 is the floor), far below Speechify/NaturalReader subscriptions, and comparable to Voice Dream's annual subscription. The "Pay Once, Own Forever" framing aligns with documented anti-subscription sentiment in the productivity/developer segment.
 - **Caution on competitor claims:** the project's own `ROADMAP.md` competitor table says Speechify does not support Markdown; the primary help-center list supports that, while a third-party review claims otherwise. Store copy should avoid asserting competitor capabilities that cannot be verified.
 
@@ -539,7 +539,7 @@ The project's own `ROADMAP.md` §5 defines the 80/20 rule as "maximum impact vs.
 7. **Migrate deprecated accessibility announcements.** Replace any `announceForAccessibility`/`TYPE_ANNOUNCEMENT` usage with `setAccessibilityLiveRegion`/`setAccessibilityPaneTitle`/`setError`. **Effort: low. Impact: Android 16 correctness; protects the "TalkBack 10/10" claim.**
 8. **Verify Assistant/lock-screen behaviour on device** (spec 003/004), including the audiobook intents ("Read my audiobook on Ressoa"). **Effort: low-medium. Impact: confirms the MediaSession mirror is complete.**
 9. **Audit the cpal Android configuration** against issues #890/#902: read `data.len()` per callback, confirm buffer sizing, confirm `realtime` feature, and measure TTFA before/after the spec 013 worker. **Effort: low. Impact: prevents intermittent glitches and unbounded latency.**
-10. **Keep the competitive positioning honest.** Lector (F-Droid) already does Markdown + folder + offline + zero permissions with system TTS. mdreader's defensible advantages are the Piper neural voice, semantic prosody, durable resume, and SONA design. Store copy should not claim competitor capabilities that cannot be verified (e.g. Speechify Markdown support). **Effort: low. Impact: protects credibility in a niche market.**
+10. **Keep the competitive positioning honest.** Lector (F-Droid) already does Markdown + folder + offline + zero permissions with system TTS. mdreader's defensible advantages are the Piper neural voice, semantic prosody, durable resume, and RESSOA design. Store copy should not claim competitor capabilities that cannot be verified (e.g. Speechify Markdown support). **Effort: low. Impact: protects credibility in a niche market.**
 
 ### 9.4 Suggested 80/20 cycle shape
 

@@ -23,7 +23,7 @@ Nesta versão `v0.1.0-rc1`, o motor soberano em Rust gerencia todo o ciclo de s�
 |---|---|---|---|
 | **001** | Android Media Shell & Service Mirror | ✅ Convergido | Espelhamento declarativo via JNI de MediaSession e controle de lock-screen. |
 | **002** | FR-024 Synthesis Adapter (Sherpa-ONNX / Piper) | ✅ Convergido | Síntese neural local pt-BR (`pt_BR-faber-medium`). |
-| **005 / 007** | Design System SONA & HUD Visual | ✅ Convergido | Contraste externo, conformidade WCAG e visualizador sinestésico em canvas. |
+| **005 / 007** | Design System RESSOA & HUD Visual | ✅ Convergido | Contraste externo, conformidade WCAG e visualizador sinestésico em canvas. |
 | **006** | Lente Sinestésica & RMS Lock-Free | ✅ Convergido | Buffer atômico `AtomicU32` a ~20 Hz sem impacto no thread de áudio. |
 | **009** | Abertura de Arquivo e Bookmarks Duráveis | ✅ Convergido | Android SAF, cálculo de hash Blake3-256 e gravação a cada 20s em `redb`. |
 | **010** | Leitura Contínua de Diretórios | ✅ Convergido | Suporte a árvore SAF (`ACTION_OPEN_DOCUMENT_TREE`), transições gapless e comandos de avanço/recuo de capítulos. |

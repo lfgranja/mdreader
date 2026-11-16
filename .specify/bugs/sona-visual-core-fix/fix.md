@@ -1,8 +1,8 @@
-# Bug Fix: sona-visual-core-fix
+# Bug Fix: ressoa-visual-core-fix
 
-- **Slug**: sona-visual-core-fix
+- **Slug**: ressoa-visual-core-fix
 - **Fixed**: 2026-11-01T19:30:00Z
-- **Assessment**: ./assessment.md
+- **Assessment**:./assessment.md
 - **Status**: applied
 
 ## Summary
@@ -33,5 +33,5 @@ None - fixes align with assessment recommendations.
 
 ## Follow-ups
 
-- Run `/speckit.bug.test slug=sona-visual-core-fix`
+- Run `/speckit.bug.test slug=ressoa-visual-core-fix`
 - Monitor visual appearance in actual device/emulator if possible

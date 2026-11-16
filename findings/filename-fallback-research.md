@@ -9,7 +9,7 @@ Scope: single-column media-player title card (`StatusView` / `.title-text`) with
 
 - **CHK082** (`edge-cases.md:20`): *Is filename fallback behavior specific (truncation, display)?* [Clarity — GAP]. Requires explicit truncation/display rule when `metadata_title` is unavailable and `filename` is used.
 - **CHK089** (`edge-cases.md:31`): *Are there measurable criteria for fallback scenarios?* [Measurability — GAP]. Requires testable assertions: DOM content, CSS present, accessible name matches.
-- Peer context (from roster / spec `005-adopt-design-sona` / `006-lente-sinestesica-completa`): title card must never show empty slot; genuinely empty → glyph `—` (`--sona-hush`) with `aria-label="Sem título"`; otherwise `metadata_title.unwrap_or(filename)` rendered in `.title-text`. Truncation behavior was unspecified → this research.
+- Peer context (from roster / spec `005-adopt-design-ressoa` / `006-lente-sinestesica-completa`): title card must never show empty slot; genuinely empty → glyph `—` (`--ressoa-hush`) with `aria-label="Sem título"`; otherwise `metadata_title.unwrap_or(filename)` rendered in `.title-text`. Truncation behavior was unspecified → this research.
 
 ---
 
@@ -18,7 +18,7 @@ Scope: single-column media-player title card (`StatusView` / `.title-text`) with
 Multi-language, authoritative-source search executed (`web_search`, direct reads) across:
 
 - **EN**: MDN (`text-overflow`, `line-clamp`, Accessible Name), web.dev (Overflow, Flexbox, Layout), W3C WAI-ARIA / WCAG 2.2 (SC 1.4.10 Reflow, Label in Name), Apple HIG (Typography — truncation limits), Material Design 3 (`m3.material.io/foundations/writing/text-truncation`), CSS-Tricks / Primer (GitHub) truncation patterns, Baymard Institute (2014 usability study — 6 truncation guidelines; 200k+ hrs UX research).
-- **PT / repo-local**: `specs/006-lente-sinestesica-completa/spec.md` (§FR-002, SC-001), `spec.md:65–92`, `checklists/ux-visual.md`, `edge-cases.md` (CHK082/089), `005-adopt-design-sona/spec.md` (`metadata_title.unwrap_or(filename)`, `--sona-hush`).
+- **PT / repo-local**: `specs/006-lente-sinestesica-completa/spec.md` (§FR-002, SC-001), `spec.md:65–92`, `checklists/ux-visual.md`, `edge-cases.md` (CHK082/089), `005-adopt-design-ressoa/spec.md` (`metadata_title.unwrap_or(filename)`, `--ressoa-hush`).
 
 Sources accessed (not inferred): MDN `text-overflow`; MDN `line-clamp`; web.dev Overflow + Flexbox; Apple HIG Typography; Material Design 3 Text Truncation (meta-read); Primer `truncation/` (full); Baymard «6 Guidelines for Truncation Design» (full); WAI WCAG 1.4.10 Understanding; W3C ACT / ARIA `aria-label`; CSS-Tricks flexbox + ellipsis.
 
@@ -79,7 +79,7 @@ From spec (§FR-002 / SC-001) + declarative testing patterns (Primer / Playwrigh
 | F-03 | Visual truncation CSS present on `.title-text` | Computed `overflow === 'hidden'`; `white-space === 'nowrap'`; `text-overflow === 'ellipsis'` (or `line-clamp` rules if multi-line option chosen) | MDN / web.dev |
 | F-04 | Flex parent allows truncation (no expansion past container) | Ancestor flex item has `min-width: 0` OR `.title-text` explicitly `min-width: 0`; container width bounded | CSS-Tricks / web.dev |
 | F-05 | Accessible name = full untruncated title (when interactive / when `aria-label` set) | `element.getAttribute('aria-label') === element.textContent` (full); OR for non-interactive static: `textContent` untruncated | WAI-ARIA / Primer |
-| F-06 | Empty-state (no title, no filename) renders glyph `—` with `aria-label="Sem título"` | `.title-text.textContent === '—'` AND `getAttribute('aria-label') === 'Sem título'` (spec §FR-002) | Spec `005-adopt-design-sona` |
+| F-06 | Empty-state (no title, no filename) renders glyph `—` with `aria-label="Sem título"` | `.title-text.textContent === '—'` AND `getAttribute('aria-label') === 'Sem título'` (spec §FR-002) | Spec `005-adopt-design-ressoa` |
 | F-07 | Line budget ≤ 3 (if multi-line option adopted) | CSS `-webkit-line-clamp <= 3` or `line-clamp <= 3`; computed box height ≤ 3 × line-height | MDN `line-clamp`; design constraint |
 | F-08 | No horizontal scroll / overflow visible | `element.scrollWidth <= element.clientWidth` after render (with ellipsis active) | web.dev / Baymard — avoid inline scroll |
 
@@ -147,6 +147,6 @@ Reasoning, step by step:
 - Primer (GitHub) — Truncation pattern — primer.style/accessibility/patterns/truncation/
 - Baymard Institute — «6 Guidelines for Truncation Design» (2014) — baymard.com/research-articles/truncation-design
 - W3C WAI — WCAG 2.2 Understanding 1.4.10 Reflow; SC 2.5.3 Label in Name — w3.org/WAI
-- Repository specs — `specs/006-lente-sinestesica-completa/spec.md` (FR-002, SC-001), `checklists/edge-cases.md` (CHK082, CHK089), `005-adopt-design-sona/spec.md` (`metadata_title.unwrap_or(filename)`; `--sona-hush`; `aria-label="Sem título"`).
+- Repository specs — `specs/006-lente-sinestesica-completa/spec.md` (FR-002, SC-001), `checklists/edge-cases.md` (CHK082, CHK089), `005-adopt-design-ressoa/spec.md` (`metadata_title.unwrap_or(filename)`; `--ressoa-hush`; `aria-label="Sem título"`).
 
 Prepared: 2026-10-27. Multi-language, authoritative, cited. No fabricated studies; all claims backed by retrieved sources or explicit repo contracts.

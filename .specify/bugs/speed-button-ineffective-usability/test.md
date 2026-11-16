@@ -2,8 +2,8 @@
 
 - **Slug**: `speed-button-ineffective-usability`
 - **Tested**: 2026-11-11T02:00:00-04:00
-- **Assessment**: ./assessment.md
-- **Fix**: ./fix.md
+- **Assessment**:./assessment.md
+- **Fix**:./fix.md
 - **Result**: verified
 - **Status**: closed
 
@@ -11,7 +11,7 @@
 
 O bug foi verificado de ponta a ponta e aprovado com sucesso.
 A inoperância acústica na alteração da velocidade com áudio em reprodução foi totalmente sanada através de duas ações coordenadas:
-1. Aplicação do multiplicador atômico de velocidade (`playback_rate()`) no motor de síntese Piper/sherpa-onnx (`GenerationConfig.speed`).
+1. Aplicação do multiplicador atômico de velocidade (`playback_rate`) no motor de síntese Piper/sherpa-onnx (`GenerationConfig.speed`).
 2. Re-ancoragem acústica imediata (`reanchor_at`) disparada em `Playing` pelo bridge Tauri (`src-tauri/src/lib.rs`).
 
 O problema de quebra de layout/overflow dos botões da ilha flutuante para fora da tela foi solucionado pela reestruturação em dois níveis (Tier 1: transporte; Tier 2: pílula de velocidade centrada com botões táteis `−` e `+`).
@@ -32,21 +32,21 @@ Todos os gates do projeto (`verify.sh` Gates 1-8 e Gate 9 com build e execução
 ## Output Excerpts
 
 - **Hardware Diagnostic Logcat (`Redmi Note 11`)**:
-  ```json
-  {"v":1,"kind":"transport_change","position_secs":6.8213,"transport":"playing","detail":"action=rate-up"}
-  {"v":1,"kind":"transport_change","position_secs":6.8213,"detail":"action=rate rate_from=R1_75 rate_to=R2_0"}
-  {"v":1,"kind":"session_start","position_secs":6.8213,"transport":"playing","detail":"action=session_start doc=1c00014c..."}
-  {"v":1,"kind":"transport_change","position_secs":6.8213,"transport":"playing","detail":"action=play"}
-  {"v":1,"kind":"transport_change","position_secs":6.8213,"detail":"action=progress"}
-  ```
+ ```json
+ {"v":1,"kind":"transport_change","position_secs":6.8213,"transport":"playing","detail":"action=rate-up"}
+ {"v":1,"kind":"transport_change","position_secs":6.8213,"detail":"action=rate rate_from=R1_75 rate_to=R2_0"}
+ {"v":1,"kind":"session_start","position_secs":6.8213,"transport":"playing","detail":"action=session_start doc=1c00014c..."}
+ {"v":1,"kind":"transport_change","position_secs":6.8213,"transport":"playing","detail":"action=play"}
+ {"v":1,"kind":"transport_change","position_secs":6.8213,"detail":"action=progress"}
+ ```
 
 - **Nextest Workspace Suite**:
-  ```text
-  Summary: 642/1058 tests run: 641 passed (6 slow), 0 failed, 2 skipped
-  gate-2 tests: PASS
-  gate-surface-audit C-H1..C-H9: PASS
-  check-shell-purity: PASS (no forbidden call shapes; SC-057 closed sets and engine registry conform)
-  ```
+ ```text
+ Summary: 642/1058 tests run: 641 passed (6 slow), 0 failed, 2 skipped
+ gate-2 tests: PASS
+ gate-surface-audit C-H1..C-H9: PASS
+ check-shell-purity: PASS (no forbidden call shapes; SC-057 closed sets and engine registry conform)
+ ```
 
 ## Residual Risks
 

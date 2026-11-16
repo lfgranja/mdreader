@@ -13,9 +13,9 @@ The current 93,636-byte (~91.4 KiB) limit causes premature `FormatUndeliverable`
 
 ## 3. Goals & Non-Goals
 - **Goals**:
-  - Raise the document and chapter byte budget to 1,048,576 bytes (1 MiB / 1,024 KiB).
-  - Retain strict fail-closed boundary checks for files exceeding 1 MiB.
-  - Maintain identical behavior between Kotlin shell and Rust playback core.
+ - Raise the document and chapter byte budget to 1,048,576 bytes (1 MiB / 1,024 KiB).
+ - Retain strict fail-closed boundary checks for files exceeding 1 MiB.
+ - Maintain identical behavior between Kotlin shell and Rust playback core.
 - **Non-Goals**:
-  - Infinite or unbuffered streaming of gigabyte-sized files (which would introduce unbounded OOM risk).
-  - Changing the closed `InterruptionReason::FormatUndeliverable` set.
+ - Infinite or unbuffered streaming of gigabyte-sized files (which would introduce unbounded OOM risk).
+ - Changing the closed `InterruptionReason::FormatUndeliverable` set.

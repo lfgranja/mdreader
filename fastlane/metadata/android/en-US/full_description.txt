@@ -1,0 +1,21 @@
+Ressoa is a 100% offline, air-gapped Markdown audiobook and notes reader.
+
+No byte of text or audio ever leaves your device. No internet permission. No subscription. No telemetry.
+
+WHY RESSOA
+
+• Structured Markdown reading: headings, lists, code blocks and sections are understood, not read as linear text.
+• Local text-to-speech (Piper pt-BR): neural voices run on your device, no cloud.
+• Absolute privacy: zero INTERNET permission. Your documents never leave your device.
+• Durable bookmarks: exact position resumption, persisted locally (redb + Blake3).
+• Full directory reading: navigate folders with gapless transitions between chapters.
+• Speed control: 0.75x to 4.0x, pitch preserved.
+• Accessibility: TalkBack 10/10, WCAG contrast, aria-live, touch targets ≥48×48 px.
+
+BUSINESS MODEL
+
+Freemium + perpetual license ("Pay once, own forever"):
+• Free: unlimited reading of individual Markdown notes with the default Piper pt-BR voice.
+• Pro (one-time payment, R$29.90–49.90 / $9.99–14.99): full directory reading, multiple local voice catalogs, additional themes, diagnostic reports.
+
+All neural inference runs locally on your device's processor — zero server cost per minute of audio synthesized.

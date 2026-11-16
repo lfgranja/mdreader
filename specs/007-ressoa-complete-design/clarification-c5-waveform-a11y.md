@@ -4,9 +4,9 @@
 
 **Source evidence base:**
 - `src-tauri/src/status_view.html` (surface of record; canvas absent today; progress = `#progress` div)
-- `specs/005-adopt-design-sona/contracts/status-surface.md` S4 (aria contract), S5 (movement/freeze), S8 (decorative wave aria-hidden)
-- `specs/007-sona-complete-design/spec.md` FR-008 (waveform), SC-002 (no a11y regressions)
-- `DESIGN-SONA/tokens.md`, constitution v2.0.0 (value-blindness amended for speed-control area only)
+- `specs/005-adopt-design-ressoa/contracts/status-surface.md` S4 (aria contract), S5 (movement/freeze), S8 (decorative wave aria-hidden)
+- `specs/007-ressoa-complete-design/spec.md` FR-008 (waveform), SC-002 (no a11y regressions)
+- `DESIGN-RESSOA/tokens.md`, constitution v2.0.0 (value-blindness amended for speed-control area only)
 - MDN, W3C WAI-ARIA, WCAG 2.2, ARIA APG, Paul J. Adam canvas a11y demo
 
 ---

@@ -6,7 +6,7 @@ description: "Task list for VERIF-EMULATOR structural verification layer (spec 0
 
 **Input**: Design documents from `/specs/008-ref-device-emulator/` (`spec.md`, `plan.md`, `research.md`, `data-model.md`, `contracts/VERIF-EMULATOR-structural.md`, `quickstart.md`, `VERIF-EMULATOR.md`, `checklists/`)
 
-**Prerequisites**: `plan.md` (designated branch `005-adopt-design-sona`, option A confirmed), `spec.md` (FR-001 to FR-006, SC-001 to SC-004), `VERIF-EMULATOR.md` (template created), contracts/reference contracts (`specs/003-reference-device/contracts/`), `AGENTS.md` (constitution v2.0.0)
+**Prerequisites**: `plan.md` (designated branch `005-adopt-design-ressoa`, option A confirmed), `spec.md` (FR-001 to FR-006, SC-001 to SC-004), `VERIF-EMULATOR.md` (template created), contracts/reference contracts (`specs/003-reference-device/contracts/`), `AGENTS.md` (constitution v2.0.0)
 
 **Tests**: Tests included — structural/document-level verification (RED PHASE before implementation). Only verification tasks attest to success; the agent does NOT.
 
@@ -24,7 +24,7 @@ description: "Task list for VERIF-EMULATOR structural verification layer (spec 0
 
 **Purpose**: Confirm design artifacts exist; prepare isolated verification environment; no `crates/*/src` or `src-tauri/src/` edits.
 
-- [X] T001 Confirm feature branch `005-adopt-design-sona` active; `VERIF-EMULATOR.md` template exists at `specs/008-ref-device-emulator/VERIF-EMULATOR.md`
+- [X] T001 Confirm feature branch `005-adopt-design-ressoa` active; `VERIF-EMULATOR.md` template exists at `specs/008-ref-device-emulator/VERIF-EMULATOR.md`
 - [X] T002 [P] Confirm design docs (`spec.md`, `plan.md`, `data-model.md`, `contracts/VERIF-EMULATOR-structural.md`, `quickstart.md`, `research.md`) present and consistent with `AGENTS.md` v2.0.0 at `specs/008-ref-device-emulator/`
 - [X] T003 [P] Confirm `cleanroom-core` empty (no new crate); verify no `Cargo.toml` / `Cargo.lock` changes needed for structural layer at `specs/008-ref-device-emulator/`
 - [X] T004 [P] Confirm `scripts/verify.sh` unchanged (`verify.sh` preserved per `FR-003`); record current `git status` baseline (`0c985ee`, 51 dirty) for isolation verification (`SC-002`) at repo root
@@ -107,7 +107,7 @@ description: "Task list for VERIF-EMULATOR structural verification layer (spec 0
 > ⚠️ **CRITICAL**: Only verification tasks in this phase attest to the complete, correct implementation of this feature. No agent statement substitutes for these.
 
 - [X] T033 [US1] [US2] [US3] Verification — `VERIF-EMULATOR.md` exists and is readable; exclusions list complete (audio-output `22050 Hz`, `SC-009` ≤3 s, Bluetooth/car, telephony/alarm, 10/10, `SC-044`); `verify.sh` reference present; AVD version documented; sign-off path present; delta note present if needed at `specs/008-ref-device-emulator/VERIF-EMULATOR.md` — `SC-001`, `SC-003`
-- [X] T034 [US2] [US3] Verification — Isolation verified: `git status --short` unchanged after verification run; no `crates/*/src` or `src-tauri/src/` edits; dirty `005-adopt-design-sona` preserved (`0c985ee`) at repo root — `SC-002`, `FR-004`
+- [X] T034 [US2] [US3] Verification — Isolation verified: `git status --short` unchanged after verification run; no `crates/*/src` or `src-tauri/src/` edits; dirty `005-adopt-design-ressoa` preserved (`0c985ee`) at repo root — `SC-002`, `FR-004`
 - [X] T035 [US1] [US2] [US3] Verification — No false-equivalence: search `VERIF-EMULATOR.md`, `spec.md`, `quickstart.md`, `ROADMAP.md` for language equating `VERIF-EMULATOR` with `gate-8-full` = 0 hits at `specs/008-ref-device-emulator/` — `SC-004`
 - [X] T036 [US1] [US2] [US3] Verification — No new engine/rate/event variants invented; `FR-006` satisfied; contracts reference `engine-core/src/closed.rs` at `specs/008-ref-device-emulator/contracts/VERIF-EMULATOR-structural.md` — `FR-006`, `SC-001`
 - [X] T037 [US1] [US2] [US3] Verification — Supply chain intact: `Cargo.toml` / `Cargo.lock` unchanged; no denied crates; `deny.toml` and `AGENTS.md` rules preserved; advisory-free at repo root — gates 5/6

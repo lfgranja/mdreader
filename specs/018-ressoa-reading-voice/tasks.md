@@ -1,9 +1,9 @@
-# Tasks: 018-sona-inspired-voice
+# Tasks: 018-ressoa-reading-voice
 
-- **Feature**: 018-sona-inspired-voice
-- **Spec**: `specs/018-sona-inspired-voice/spec.md`
-- **Plan**: `specs/018-sona-inspired-voice/plan.md`
-- **Assessment**: `.specify/assessments/sona-inspired-voice/decision.md` (GO)
+- **Feature**: 018-ressoa-reading-voice
+- **Spec**: `specs/018-ressoa-reading-voice/spec.md`
+- **Plan**: `specs/018-ressoa-reading-voice/plan.md`
+- **Assessment**: `.specify/assessments/ressoa-reading-voice/decision.md` (GO)
 - **Status**: Implemented & Converged (host gates 1-8 PASS, gate 9 Rust compile PASS)
 - **Created**: 2026-11-10
 
@@ -18,8 +18,8 @@
 
 **Purpose**: lock bundled voice choice/provenance and asset layout before runtime refactor.
 
-- [x] T001 [US4] Select and acquire curated alternative voice asset (target `pt_BR-cadu-medium` 22050 Hz CC0, fallback `pt_BR-jeff-medium`) and record auditory/technical validation notes and chosen default rationale in `specs/018-sona-inspired-voice/research.md` or feature notes (contingency: tuned-faber-only catalog documented).
-- [x] T002 [P] [US4] Add bundled voice directory `crates/adapter-synthesis/assets/voices/pt_BR-cadu-medium/` (or chosen fallback) with `<id>.onnx`, `<id>.onnx.json`, `tokens.txt`, `MODEL_CARD`, and `PROVENANCE.md` including upstream source, HF revision/snapshot, CC0 license, file inventory, checksums, and inference defaults (no LoL/Riot/performer branding).
+- [x] T001 [US4] Select and acquire curated alternative voice asset (target `pt_BR-cadu-medium` 22050 Hz CC0, fallback `pt_BR-jeff-medium`) and record auditory/technical validation notes and chosen default rationale in `specs/018-ressoa-reading-voice/research.md` or feature notes (contingency: tuned-faber-only catalog documented).
+- [x] T002 [P] [US4] Add bundled voice directory `crates/adapter-synthesis/assets/voices/pt_BR-cadu-medium/` (or chosen fallback) with `<id>.onnx`, `<id>.onnx.json`, `tokens.txt`, `MODEL_CARD`, and `PROVENANCE.md` including upstream source, HF revision/snapshot, CC0 license, file inventory, checksums, and inference defaults (no third-party/performer branding).
 - [x] T003 [US4] Restructure assets to per-voice dirs plus shared phonemizer data: move/create `crates/adapter-synthesis/assets/voices/_shared/espeak-ng-data/` (or document/implement per-voice contingency) and update `crates/adapter-synthesis/assets/voices/pt_BR-faber-medium/PROVENANCE.md` only if paths/notes require correction (keep existing hashes/license intact).
 - [x] T004 [US3][US4] Update `crates/adapter-synthesis/build.rs` to emit a deterministic sorted manifest covering the full bundled catalog layout (all voice dirs + shared/per-voice espeak data).
 
@@ -60,7 +60,7 @@
 - [x] T015 [US2] Implement catalog-aware `CycleVoiceNext/Prev` handling in `src-tauri/src/lib.rs` (parse/live control path) to advance one step in fixed order, persist/publish selection, and apply safe production restart at authoritative position when active (invalidate generation, re-synthesize through same path).
 - [x] T016 [US2][US3] Update `src-tauri/src/lib.rs` synthesis/production path to resolve active `VoiceId` for each production run and pass it to `adapter-synthesis`; ensure stopped/completed or ineligible cycle requests follow existing shell refusal semantics.
 - [x] T017 [P] [US2] Update `crates/player/src/cli.rs` and `crates/player/tests/contract/test_shell_ipc_us4.rs` only as needed for additive/contract-correct cycle semantics and payload expectations (preserve existing transport/state rules).
-- [x] T018 [P] [US2] Update `contracts/shell-ipc.md` and feature contract `specs/018-sona-inspired-voice/contracts/shell-ipc-voice.md` to document deterministic cycle/select/get behavior, restart-on-change semantics, and any additive fields.
+- [x] T018 [P] [US2] Update `contracts/shell-ipc.md` and feature contract `specs/018-ressoa-reading-voice/contracts/shell-ipc-voice.md` to document deterministic cycle/select/get behavior, restart-on-change semantics, and any additive fields.
 
 **Checkpoint**: voice cycling is deterministic, contract-aligned, and safe under playback.
 
@@ -74,7 +74,7 @@
 - [x] T020 [P] [US3] Update `src-tauri` tests for catalog-aware diagnose/inventory, selection/cycle behavior, and restart semantics as applicable (including `src-tauri/tests/test_noscope.rs` voice-directory assertion to closed bundled catalog, and Android extraction assumptions if covered).
 - [x] T021 [US3] Sweep and update remaining runtime/test/script hardcoded `pt_BR-faber-medium`-as-only-voice assumptions (excluding historical assessment/spec records) across `src-tauri`, `crates/adapter-synthesis`, `crates/player`, and `scripts/` as required for correctness.
 - [x] T022 [US3] Refresh `scripts/expected-tests.txt` if `cargo nextest list --workspace` target set changes; keep diff clean (gate 2 two-way check).
-- [x] T023 [US4] Record provenance/auditory evidence and final default-choice rationale in `specs/018-sona-inspired-voice/research.md` (or dedicated evidence note) and ensure shipped docs/labels remain non-imitative.
+- [x] T023 [US4] Record provenance/auditory evidence and final default-choice rationale in `specs/018-ressoa-reading-voice/research.md` (or dedicated evidence note) and ensure shipped docs/labels remain non-imitative.
 
 **Checkpoint**: behavioral coverage and gate inputs match implemented catalog behavior.
 
@@ -84,7 +84,7 @@
 
 - [x] T024 [US3] Run narrowest affected checks iteratively (`cargo fmt --all`, targeted `cargo nextest`/`cargo test -p adapter-synthesis -p session`, targeted `cargo clippy` as needed) and fix issues.
 - [x] T025 [US3] Run host gates 1–8 / `./scripts/verify.sh` (fmt, nextest+expected diff, clippy -D warnings, doc, deny, audit, closed-set/shell checks) and capture results.
-- [x] T026 [US4] Update relevant contracts/docs (`contracts/shell-ipc.md`, feature `contracts/*`, CLI/diagnose notes as applicable) for additive behavior and provenance; verify no `INTERNET`/LoL-branding regressions.
+- [x] T026 [US4] Update relevant contracts/docs (`contracts/shell-ipc.md`, feature `contracts/*`, CLI/diagnose notes as applicable) for additive behavior and provenance; verify no `INTERNET`/third-party-branding regressions.
 - [x] T027 Report final status: host gate outcomes, auditory/default rationale, contingencies exercised (if any), and gate 9/device as executed or unexecuted with reason.
 
 ## Dependencies & Execution Order

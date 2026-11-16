@@ -10,7 +10,7 @@
 ## Requirement Completeness
 
 - [x] CHK001 - Are decorative wave ribbon requirements fully specified (teal→jade→violet stops, layer count, opacity, animation duration ≤400 ms, one-shot vs. continuous)? [Completeness, Spec §FR-005, §FR-001, Clarifications]
-- [x] CHK002 - Is the glassmorphism title card requirement specified with exact blur radius (24 px), translucent overlay opacity, verbatim token base color, and solid `--sona-stage` fallback? [Completeness, Spec §FR-009, Contract A4]
+- [x] CHK002 - Is the glassmorphism title card requirement specified with exact blur radius (24 px), translucent overlay opacity, verbatim token base color, and solid `--ressoa-stage` fallback? [Completeness, Spec §FR-009, Contract A4]
 - [x] CHK003 - Is the waveform visualizer requirement fully specified (RMS source, ~20 Hz IPC, 4–6 smooth bezier layers, mirrored axis, white progress line + circular playhead, `aria-hidden`, parallel progressbar)? [Completeness, Spec §FR-008, Contract A7, A8]
 - [x] CHK004 - Is the numeric rate display requirement specified with exact format (`1.25×`), placement in speed-control area, and `aria-valuetext` retaining the positional descriptor? [Completeness, Spec §FR-003, Contract A5]
 - [x] CHK005 - Is the repeat control requirement specified (restarts current section, reuses skip/section logic, reuses skip-back earcon, inventory update)? [Completeness, Spec §FR-011, Contract A2]
@@ -26,8 +26,8 @@
 
 ## Requirement Consistency
 
-- [x] CHK013 - Are token usage requirements consistent with sanctioned scopes (jade/celeste only in waveform + decorative wave; rate uses `--sona-harp`)? [Consistency, Spec §FR-007, Contract A1, C-H1, C-H11]
-- [x] CHK014 - Do glassmorphism alpha variants comply with amended S3 (base colors verbatim SonaToken members)? [Consistency, Contract A1, C-H1]
+- [x] CHK013 - Are token usage requirements consistent with sanctioned scopes (jade/celeste only in waveform + decorative wave; rate uses `--ressoa-harp`)? [Consistency, Spec §FR-007, Contract A1, C-H1, C-H11]
+- [x] CHK014 - Do glassmorphism alpha variants comply with amended S3 (base colors verbatim RessoaToken members)? [Consistency, Contract A1, C-H1]
 - [x] CHK015 - Are glow colors consistent with the token set (no jade/celeste in glow elements)? [Consistency, Contract A1, C-H11]
 - [x] CHK016 - Do visual requirements align with the single-surface constraint (no new surfaces beyond StatusView + notification)? [Consistency, Spec §FR-007, §US3]
 
@@ -39,7 +39,7 @@
 
 ## Scenario Coverage
 
- - [x] CHK021 - Are requirements defined for glassmorphism fallback when `backdrop-filter` is unsupported (solid `--sona-stage`)? [Coverage, Spec §Edge Cases, Contract A4]
+ - [x] CHK021 - Are requirements defined for glassmorphism fallback when `backdrop-filter` is unsupported (solid `--ressoa-stage`)? [Coverage, Spec §Edge Cases, Contract A4]
  - [x] CHK020 - Are requirements defined for waveform behavior when RMS data is unavailable (static placeholder or graceful hide, never an empty region)? [Coverage, Spec §Edge Cases, Contract A7]
 - [x] CHK022 - Are requirements defined for indeterminate progress (no playhead knob, omit `aria-valuenow`, announce "carregando" once)? [Coverage, Contract A8, Spec §Edge Cases]
 - [x] CHK023 - Are requirements defined for long filenames / empty title overflow (ellipsis, `flex: min-width: 0`, `white-space: nowrap`)? [Coverage, Spec §Edge Cases, Contract A4]
@@ -47,7 +47,7 @@
 
 - [x] CHK024 - Is dynamic reduced-motion toggle behavior specified (freeze at load and after OS-level toggle, no re-animation)? [Edge Case, Spec §Edge Cases, Clarifications]
 - [x] CHK025 - Is behavior defined for decorative wave CSS/asset failure (`animation: none`, layout preserved, no broken image or alert)? [Edge Case, Spec §Edge Cases]
-- [x] CHK026 - Is the ARIA update gap addressed (`renderProgress()` sets `aria-valuenow`/`aria-valuetext`; live region populated on meaningful changes ≥5% delta or state transition)? [Edge Case, Spec §Edge Cases, Contract A8, C-H5]
+- [x] CHK026 - Is the ARIA update gap addressed (`renderProgress` sets `aria-valuenow`/`aria-valuetext`; live region populated on meaningful changes ≥5% delta or state transition)? [Edge Case, Spec §Edge Cases, Contract A8, C-H5]
 
 ## Dependencies & Assumptions
 

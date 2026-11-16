@@ -3,7 +3,7 @@
 
 #[test]
 fn fr006_fr007_have_red_and_contract_ref() {
-    let spec = include_str!("../../specs/005-adopt-design-sona/spec.md");
+    let spec = include_str!("../../specs/005-adopt-design-ressoa/spec.md");
     // Check both FR-006 and FR-007 present (they are — lines 137/138).
     assert!(spec.contains("FR-006"), "FR-006 missing");
     assert!(spec.contains("FR-007"), "FR-007 missing");

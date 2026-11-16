@@ -1,7 +1,7 @@
-# Research — 018 Sona-Inspired Voice (Option B)
+# Research — 018 harmonious, melodic, calm, soft reading voice (Option B)
 
 Date: 2026-11-12  
-Spec: `specs/018-sona-inspired-voice/spec.md` (GO, 2026-11-10)  
+Spec: `specs/018-ressoa-reading-voice/spec.md` (GO, 2026-11-10)  
 Scope: comparative evaluation of 8 external repos + baseline asset validation for curated alternative voice.
 
 ## 1. Comparative evaluation (mdmv-dark-factory protocol, spec-018 fit)
@@ -38,10 +38,10 @@ Sources: primary repo metadata/README/LICENSE/docs/HF model cards and sherpa-onn
 
 ## 3. Selection and validation baseline (T001)
 
-- **Selected alternative (primary)**: `pt_BR-cadu-medium` (CC0, 22050 Hz, Piper VITS, pt-BR). Rationale: spec-018 contract names cadu as first candidate; CC0/OHF-Voice provenance; sherpa-onnx 1.13.8 compatibility; calm/clear medium-quality profile suitable for curated non-imitative "Sona-inspired feel" (thematic framing only).
+- **Selected alternative (primary)**: `pt_BR-cadu-medium` (CC0, 22050 Hz, Piper VITS, pt-BR). Rationale: spec-018 contract names cadu as first candidate; CC0/OHF-Voice provenance; sherpa-onnx 1.13.8 compatibility; calm/clear medium-quality profile suitable for a curated non-imitative harmonious, melodic, calm, soft reading voice (thematic framing only).
 - **Default remains**: `pt_BR-faber-medium` (index 0) unless auditory evidence in Step 5 clearly favors alternative; preserves conservative continuity.
 - **Fallback**: `pt_BR-jeff-medium` if cadu fails technical/auditory/packaging validation; if neither passes, keep multi-voice-ready catalog/API with `faber` only and document rationale.
-- **Auditory fit validation**: manual side-by-side on representative pt-BR passages (recorded qualitatively in Step 5). Non-imitative audit required: no LoL/Riot/performer branding in ids/labels/assets/docs.
+- **Auditory fit validation**: manual side-by-side on representative pt-BR passages (recorded qualitatively in Step 5). Non-imitative audit required: no third-party/performer branding in ids/labels/assets/docs.
 
 ## 4. Provenance/checksum evidence
 
@@ -70,7 +70,7 @@ Sources: primary repo metadata/README/LICENSE/docs/HF model cards and sherpa-onn
 
 ## 6. Non-imitative identity audit
 
-- Voice ids = upstream directory names (`pt_BR-faber-medium`, `pt_BR-cadu-medium`), no "Sona"/LoL/Riot/performer tokens.
+- Voice ids = upstream directory names (`pt_BR-faber-medium`, `pt_BR-cadu-medium`), no "Ressoa"/third-party/performer tokens.
 - Labels: non-imitative descriptive text only ("Faber (pt-BR, medium)", "Cadu (pt-BR, medium)").
 - Catalog/provenance docs carry CC0/OHF-Voice metadata only; no persona/real-person/brand emulation claims added.
 - Final shipped-id/label/asset/doc branding and INTERNET-permission greps to be included in gate report.

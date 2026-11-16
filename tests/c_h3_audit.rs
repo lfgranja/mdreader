@@ -4,7 +4,7 @@
 //!
 //! C-H3 definition (spec.md, D2):
 //!   rate-blind = no painted numeric rate value in `#progressLabel` / display;
-//!   notification-purity = notification surface carries only `--sona-voice` accent,
+//!   notification-purity = notification surface carries only `--ressoa-voice` accent,
 //!   zero body / rate / voice identity / mark.
 //! Banned colors (reconciled D5 / spec SC-001): `#5AD6A8` + `#5FD0A0` (jade variants),
 //! `#B9A6F5` (celeste) absent from C-H1 census.

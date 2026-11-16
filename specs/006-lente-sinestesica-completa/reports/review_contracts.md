@@ -1,6 +1,6 @@
 # Contracts Consistency Review — CHK050 to CHK074 (006 Lente Sinestésica Completa)
 
-Evidence base: `specs/006-lente-sinestesica-completa/` (spec.md, plan.md, checklists/*), `specs/005-adopt-design-sona/contracts/` (status-surface.md, surface-audit.md, earcon-mapping.md), `contracts/surface.md`, `.specify/memory/constitution.md` (§VII, Principles VII, S1–S6).
+Evidence base: `specs/006-lente-sinestesica-completa/` (spec.md, plan.md, checklists/*), `specs/005-adopt-design-ressoa/contracts/` (status-surface.md, surface-audit.md, earcon-mapping.md), `contracts/surface.md`, `.specify/memory/constitution.md` (§VII, Principles VII, S1–S6).
 
 ---
 
@@ -13,12 +13,12 @@ Clarification question: Does "exactly 2 surfaces" include the resident-paused no
 
 ### CHK051 — Notification purity fully specified (accent-only, no body/rate/voice/mark)
 **VERDICT: PASS**
-Evidence: spec.md §FR-006: "Notification remains accent-only (no body/rate/voice/mark)"; plan.md §S6 references S6; contracts/status-surface.md S6 (MediaStyle constants block) defines ONLY accent `--sona-voice #F2F0E6` (`:728-743`); contracts/status-surface.md §FR-007 (notification purity) defines the invariant: no brand logo, no sound-wave graphic, accent-only + title + progress. Clear and complete.
+Evidence: spec.md §FR-006: "Notification remains accent-only (no body/rate/voice/mark)"; plan.md §S6 references S6; contracts/status-surface.md S6 (MediaStyle constants block) defines ONLY accent `--ressoa-voice #F2F0E6` (`:728-743`); contracts/status-surface.md §FR-007 (notification purity) defines the invariant: no brand logo, no sound-wave graphic, accent-only + title + progress. Clear and complete.
 
 ### CHK052 — Closed token set with guidance on additions
 **VERDICT: UNCLEAR**
 Evidence: spec.md §FR-001: "respecting closed token set where feasible"; §Assumptions: "Token set may need minimal coordinated additions only if unavoidable; prefer reuse"; plan.md §S3 references S3 and says "Closed token set (prefer reuse; additions need justification)". There is guidance (prefer reuse; additions only unavoidable) but the exact mechanism (what document needs update) relies on contract discipline (§VII) rather than a specific token registry reference. Not ambiguous, but could be tighter.
-Clarification question: Which document is the authoritative token registry — `data-model.md` §SonaToken? Should spec.md explicitly cite it?
+Clarification question: Which document is the authoritative token registry — `data-model.md` §RessoaToken? Should spec.md explicitly cite it?
 
 ### CHK053 — Contract update requirements when tokens/layout change
 **VERDICT: PASS**
@@ -44,8 +44,8 @@ Clarification question: Where is justification recorded — in commit message, i
 
 ### CHK057 — 10 token members / closed set definition referenced
 **VERDICT: GAP**
-Evidence: contracts/status-surface.md S3 references `data-model.md` §SonaToken and the design-dir ledger (`DESIGN-SONA/tokens.md`). contracts/surface.md refers to DESIGN-SONA palette tokens (title `#F2F0E6`, section `#A9B8CE`, progress `#55688F`, yellow `#FFD400`, red `#FF4D63`, green prohibited). contracts/surface-audit.md A4 references the allowed hex set owned by contract + `data-model.md`. However, the spec.md for 006 does NOT explicitly reference the 10-member set or `data-model.md` §SonaToken. The contracts-consistency checklist notes this as a gap ("Are the 10 token members or closed set definition referenced?").
-Clarification question: Should spec.md include a normative reference to `data-model.md` §SonaToken (e.g., "All painted colors MUST be members of the 10-token closed set defined in `data-model.md` §SonaToken")?
+Evidence: contracts/status-surface.md S3 references `data-model.md` §RessoaToken and the design-dir ledger (`DESIGN-RESSOA/tokens.md`). contracts/surface.md refers to DESIGN-RESSOA palette tokens (title `#F2F0E6`, section `#A9B8CE`, progress `#55688F`, yellow `#FFD400`, red `#FF4D63`, green prohibited). contracts/surface-audit.md A4 references the allowed hex set owned by contract + `data-model.md`. However, the spec.md for 006 does NOT explicitly reference the 10-member set or `data-model.md` §RessoaToken. The contracts-consistency checklist notes this as a gap ("Are the 10 token members or closed set definition referenced?").
+Clarification question: Should spec.md include a normative reference to `data-model.md` §RessoaToken (e.g., "All painted colors MUST be members of the 10-token closed set defined in `data-model.md` §RessoaToken")?
 
 ### CHK058 — "No new surfaces" unambiguous (StatusView expansion vs new surface)
 **VERDICT: PASS**
@@ -78,7 +78,7 @@ Evidence: spec.md §FR-003: "Rate remains value-blind (positional only), no pain
 
 ### CHK063 — SC-003 (Notification purity unchanged — accent-only) objectively verifiable
 **VERDICT: PASS**
-Evidence: SC-003 is a binary invariant: only `--sona-voice` accent painted in notification; contracts/status-surface.md S6 defines the constants block; contracts/surface-audit.md C-H3 defines the hex-check for MediaStyle (only `#F2F0E6`). Objective, grep-verifiable, byte-comparable. The checklist asks "Can it be objectively verified?" — yes, via C-H3 audit.
+Evidence: SC-003 is a binary invariant: only `--ressoa-voice` accent painted in notification; contracts/status-surface.md S6 defines the constants block; contracts/surface-audit.md C-H3 defines the hex-check for MediaStyle (only `#F2F0E6`). Objective, grep-verifiable, byte-comparable. The checklist asks "Can it be objectively verified?" — yes, via C-H3 audit.
 
 ### CHK064 — SC-005 (Surface inventory valid; no dead `display:none`; aria inventory correct) objectively verifiable
 **VERDICT: PASS**
@@ -86,8 +86,8 @@ Evidence: SC-005 references C-H4 (element inventory — no extra/hidden/dead ele
 
 ### CHK065 — Contract compliance criteria defined for any token additions
 **VERDICT: GAP**
-Evidence: There is no explicit acceptance criterion defining how a token addition is verified against the contract. The contracts (status-surface.md S7) say coordinated edit is required, and data-model.md is the authority, but the spec does not define a measurable acceptance criterion like "Any new hex value appears in `data-model.md` §SonaToken and passes C-H1 census". The checklist notes this as a gap.
-Clarification question: Should SC add an explicit criterion: "Any token addition must be registered in `data-model.md` §SonaToken and pass host hex census (C-H1) before merge"?
+Evidence: There is no explicit acceptance criterion defining how a token addition is verified against the contract. The contracts (status-surface.md S7) say coordinated edit is required, and data-model.md is the authority, but the spec does not define a measurable acceptance criterion like "Any new hex value appears in `data-model.md` §RessoaToken and passes C-H1 census". The checklist notes this as a gap.
+Clarification question: Should SC add an explicit criterion: "Any token addition must be registered in `data-model.md` §RessoaToken and pass host hex census (C-H1) before merge"?
 
 ---
 
@@ -114,7 +114,7 @@ Clarification question: Does the spec need an explicit audit trigger condition (
 
 ### CHK069 — Behavior defined if token additions violate closed set
 **VERDICT: GAP**
-Evidence: No explicit behavior is defined in spec.md or contracts for what happens if a token addition violates the closed set (e.g., uses a non-SonaToken hex, or introduces a new color family). The contracts say coordinated edit is required (S7) and audit fails (C-H1), but there is no described remediation behavior (fail-closed? rollback?).
+Evidence: No explicit behavior is defined in spec.md or contracts for what happens if a token addition violates the closed set (e.g., uses a non-RessoaToken hex, or introduces a new color family). The contracts say coordinated edit is required (S7) and audit fails (C-H1), but there is no described remediation behavior (fail-closed? rollback?).
 Clarification question: Should spec.md or contracts define the failure mode: "If a token addition violates the closed set, the host audit (C-H1) fails and the change is blocked (fail-closed per Principles III–V)"?
 
 ### CHK070 — Behavior defined if layout change affects surface count
@@ -131,9 +131,9 @@ Clarification question: Should spec.md include a dead-CSS removal requirement: "
 
 ## Dependencies & Assumptions
 
-### CHK072 — Dependency on existing contracts (005-adopt-design-sona/contracts) documented
+### CHK072 — Dependency on existing contracts (005-adopt-design-ressoa/contracts) documented
 **VERDICT: PASS**
-Evidence: plan.md §Source Code references explicitly lists `specs/005-adopt-design-sona/contracts/status-surface.md`, `surface-audit.md`, `earcon-mapping.md`; contracts/status-surface.md header references feature 005; contracts/README.md establishes naming convention. Dependency is clearly documented.
+Evidence: plan.md §Source Code references explicitly lists `specs/005-adopt-design-ressoa/contracts/status-surface.md`, `surface-audit.md`, `earcon-mapping.md`; contracts/status-surface.md header references feature 005; contracts/README.md establishes naming convention. Dependency is clearly documented.
 
 ### CHK073 — Assumption "token set may need minimal coordinated additions only if unavoidable" tracked
 **VERDICT: PASS** (with tracking gap)
@@ -183,12 +183,12 @@ Clarification question: Should spec.md include an explicit coordinated-edit proc
 
 **For UNCLEAR/GAP items (CHK052, 055, 056, 057, 061, 065, 066, 069, 070, 071, 073, 074):**
 
-1. **CHK052 / 057**: Add a normative reference in spec.md: "All painted colors MUST be members of the closed token set defined in `specs/005-adopt-design-sona/data-model.md` §SonaToken (10 members; see contract `status-surface.md` S3 and audit `surface-audit.md` C-H1)."
+1. **CHK052 / 057**: Add a normative reference in spec.md: "All painted colors MUST be members of the closed token set defined in `specs/005-adopt-design-ressoa/data-model.md` §RessoaToken (10 members; see contract `status-surface.md` S3 and audit `surface-audit.md` C-H1)."
 2. **CHK055**: Clarify in spec.md or contracts what elements in 006 require coordinated edit: decorative pseudo-element (`::before` on `.card`), title card (`.card`), refined control layout. Does a CSS-only layout change trigger coordinated edit?
-3. **CHK056**: Define justification mechanism: where is the justification recorded? Suggest: "Any token addition requires a justification entry in the feature's commit message and an update to `DESIGN-SONA/tokens.md` (post-v2.2.0 alignment); no addition without justification passes audit."
+3. **CHK056**: Define justification mechanism: where is the justification recorded? Suggest: "Any token addition requires a justification entry in the feature's commit message and an update to `DESIGN-RESSOA/tokens.md` (post-v2.2.0 alignment); no addition without justification passes audit."
 4. **CHK057**: Explicitly list or reference the 10 token members in spec.md or add a cross-reference line.
 5. **CHK061**: Clarify decorative animation loop constraint: "Decorative wave animations MUST NOT loop continuously (must be either one-shot or bounded by a TTL ≤3 s); only the pill (`.pill`) is permitted as a continuous loop per S5."
-6. **CHK065**: Add an SC clause: "SC-007: Any token addition passes C-H1 census and is registered in `data-model.md` §SonaToken; unregistered hex values fail the audit (fail-closed)."
+6. **CHK065**: Add an SC clause: "SC-007: Any token addition passes C-H1 census and is registered in `data-model.md` §RessoaToken; unregistered hex values fail the audit (fail-closed)."
 7. **CHK066 / 074**: Define the coordinated edit workflow explicitly: sequence of files, version treatment, audit trigger.
 8. **CHK069 / 070 / 071**: Add failure-mode clauses: what happens when the audit fails? Suggest referencing Principles III–V (fail-closed gates) and specifying rollback/block behavior.
 9. **CHK073**: Add a validation task in verification/plan: "Confirm whether any token addition was unavoidable; if yes, record justification; if no, revert."

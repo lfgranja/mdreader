@@ -6,7 +6,7 @@
 fn sc_block_no_duplicate_sc_clause() {
     // Evidence: grep over spec.md shows SC-001 clause repeated near lines 155+137.
     // Expected after remediation: single authoritative SC-001 definition with host+device legs.
-    let spec = include_str!("../../specs/005-adopt-design-sona/spec.md");
+    let spec = include_str!("../../specs/005-adopt-design-ressoa/spec.md");
     // Heuristic: count occurrences of full SC-001 header paragraph; must be <= 1.
     let occurrences = spec.matches("SC-001").count();
     // Currently >1; RED fails.

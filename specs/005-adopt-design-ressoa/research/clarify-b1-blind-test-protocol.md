@@ -1,6 +1,6 @@
-# Clarification B1 — Blind Identification Test Protocol for the Sona Earcons
+# Clarification B1 — Blind Identification Test Protocol for the Ressoa Earcons
 
-> **Feature:** `specs/005-adopt-design-sona` (SC-002: "10 of 10 per type without looking at the screen")
+> **Feature:** `specs/005-adopt-design-ressoa` (SC-002: "10 of 10 per type without looking at the screen")
 > **Scope:** research note for the maintainer-driver single-user gate; not a clinical efficacy claim.
 > **Method:** primary-source review (peer-reviewed auditory-display literature + ISO/IEC standards), 2026-10-24.
 

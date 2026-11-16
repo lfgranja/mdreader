@@ -37,7 +37,7 @@ All claims below are backed by retrieved sources (cited inline with URLs in §7)
 ### 3.1 requestAnimationFrame vs event-driven redraw
 
 **Evidence:**
-- MDN rAF: "The frequency of calls to the callback function will generally match the display refresh rate… 60/75/120/144 Hz… `requestAnimationFrame()` calls are paused in most browsers when running in [background]." (MDN, Window.requestAnimationFrame)
+- MDN rAF: "The frequency of calls to the callback function will generally match the display refresh rate… 60/75/120/144 Hz… `requestAnimationFrame` calls are paused in most browsers when running in [background]." (MDN, Window.requestAnimationFrame)
 - web.dev (Smus): rAF "politely ask[s] the browser to call your rendering routine… if the page is not in the foreground, the browser is smart enough not to render." Also warns mobile canvas is slow and that rAF "doesn't guarantee [60 FPS]".
 - web.dev speed-rendering: "Animations in background tabs get paused, conserving system resources and battery life."
 - Chromium issue 40839122: Android WebView canvas/WebGL animations in rAF can jank; WebView rendering path differs from Chrome.
@@ -70,7 +70,7 @@ All claims below are backed by retrieved sources (cited inline with URLs in §7)
 **Recommendation:** Pause redraws (and stop subscribing to RMS updates) when `document.visibilityState === 'hidden'`. Implement defensively with multiple signals:
 1. Primary: `document.addEventListener('visibilitychange', …)` checking `document.visibilityState`.
 2. Fallback for Android WebView gaps: `window.addEventListener('pagehide'/'blur', pause)` and `window.addEventListener('pageshow'/'focus', resume)`; also `document.addEventListener('freeze'/'resume', …)` (Page Lifecycle API) where supported.
-3. Guard with `document.hasFocus()` / `!document.hidden` before any draw.
+3. Guard with `document.hasFocus` / `!document.hidden` before any draw.
 4. On resume, draw a single fresh frame (do not replay backlog); reset the timestamp gate.
 5. If the host (Android) reports the app backgrounded via the native bridge, treat as hidden.
 
@@ -115,7 +115,7 @@ ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
 ### 3.6 Additional canvas hygiene (from web.dev)
 
-- **Batch state changes / paths:** build one path per ribbon layer, single `stroke()`/`fill()` per layer; group by color (web.dev "Avoid unnecessary canvas state changes").
+- **Batch state changes / paths:** build one path per ribbon layer, single `stroke`/`fill` per layer; group by color (web.dev "Avoid unnecessary canvas state changes").
 - **Clear efficiently:** `clearRect(0,0,w,h)` (outperforms `canvas.width = canvas.width` reset in modern browsers); or redraw-region only.
 - **Reuse the canvas:** never recreate per update (web.dev pre-render/offscreen guidance; here a single canvas suffices — no offscreen buffer needed at 388×80).
 - **No allocation on hot path** (FR-008): reuse typed arrays / pre-allocated buffers for RMS samples; do not `new` arrays in the draw or IPC callback.
@@ -172,7 +172,7 @@ This is autonomous (no user decision needed): FR-008 already mandates the 30 fps
 
 ## 7. References (with URLs — all retrieved this session)
 
-- MDN — `Window.requestAnimationFrame()` (rate = display refresh; paused in background): https://developer.mozilla.org/en-US/docs/Web/API/Window/requestAnimationFrame
+- MDN — `Window.requestAnimationFrame` (rate = display refresh; paused in background): https://developer.mozilla.org/en-US/docs/Web/API/Window/requestAnimationFrame
 - MDN — Page Visibility API: https://developer.mozilla.org/en-US/docs/Web/API/Page_Visibility_API
 - MDN — `Document.visibilitychange` event: https://developer.mozilla.org/en-US/docs/Web/API/Document/visibilitychange_event
 - MDN — `Window.devicePixelRatio` (mobile DPR often >2; HiDPI canvas correction): https://developer.mozilla.org/en-US/docs/Web/API/Window/devicePixelRatio
@@ -190,9 +190,9 @@ This is autonomous (no user decision needed): FR-008 already mandates the 30 fps
 - Chart.js — devicePixelRatio config: https://www.chartjs.org/docs/latest/configuration/device-pixel-ratio.html
 - Chromium issue 40839122 — Jank in Android WebView with canvas rendering: https://issues.chromium.org/40839122
 - Stack Overflow — visibilitychange in Android WebView gaps: https://stackoverflow.com/questions/34936777/why-does-visibilitychange-event-not-fire-for-android-webview
-- Repo: `specs/007-sona-complete-design/clarification-waveform-visualization-style.md` (§4 canvas size, §5 perf, §6 decisions)
-- Repo: `specs/005-adopt-design-sona/contracts/status-surface.md` (S5, S8, S11)
-- Repo: `specs/005-adopt-design-sona/data-model.md` (MovementSpec)
+- Repo: `specs/007-ressoa-complete-design/clarification-waveform-visualization-style.md` (§4 canvas size, §5 perf, §6 decisions)
+- Repo: `specs/005-adopt-design-ressoa/contracts/status-surface.md` (S5, S8, S11)
+- Repo: `specs/005-adopt-design-ressoa/data-model.md` (MovementSpec)
 - Repo: `.specify/memory/constitution.md` (v2.0.0 — reduced-motion guard, ≤1 loop, no new surface)
 
 Prepared: 2026-10-28. Candidate C3 closed — evidence-backed recommendation delivered (cadence: event-driven @ ~20 Hz; fps cap: 30 fps; DPR cap: 2×; visibilitychange pause + reduced-motion freeze).

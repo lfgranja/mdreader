@@ -1,7 +1,7 @@
 # Clarification B3 — Contrast Verification Scope for the Restyled Surface
 
-> **Feature:** `specs/005-adopt-design-sona` (SC-001/SC-006: closed-hex color purity on the notification + in-app StatusView/Lente)
-> **Question:** should the spec (a) add its own acceptance criterion that every text/background token pairing on the restyled surface meets WCAG 2.1 AA (4.5:1), or (b) inherit the design system's declared contrast numbers (`DESIGN-SONA/tokens.md` §1) and only verify the shipped values?
+> **Feature:** `specs/005-adopt-design-ressoa` (SC-001/SC-006: closed-hex color purity on the notification + in-app StatusView/Lente)
+> **Question:** should the spec (a) add its own acceptance criterion that every text/background token pairing on the restyled surface meets WCAG 2.1 AA (4.5:1), or (b) inherit the design system's declared contrast numbers (`DESIGN-RESSOA/tokens.md` §1) and only verify the shipped values?
 > **Scope:** research note; not a spec amendment. Informs a clarification decision only.
 > **Method (2026-10-24):** primary-source review (W3C WCAG 2.x Understanding + Techniques; NN/g; ACM CHI 2023; ScienceDirect 2017; Apple HIG; Material Design 3; Deque axe-core; Style Dictionary; Myndex/APCA). Host computation of all 8 closed tokens against `#0B0F1A` (void) and `#141B2D` (stage) with the WCAG 2.1 formula. Note: the task's `#05060A` is not present anywhere in the repo; the declared void is `#0B0F1A`.
 
@@ -32,16 +32,16 @@
 
 | Token | Hex | On void `#0B0F1A` | Declared | On stage `#141B2D` |
 |---|---|---|---|---|
-| `--sona-voice` (text) | `#F2F0E6` | 16.75 | 16.75 | 15.01 |
-| `--sona-hush` (text) | `#A9B8CE` | 9.51 | 9.51 | 8.52 |
-| `--sona-etwahl` (flow) | `#8FD8E8` | 11.99 | 11.98 | 10.74 |
-| `--sona-harp` (rate) | `#E8C46A` | 11.42 | 11.42 | 10.24 |
-| `--sona-celeste` (rate) | `#B9A6F5` | 8.96 | 8.96 | 8.03 |
-| `--sona-aria` (brand) | `#5AD6A8` | **10.59** | **11.20** | 9.49 |
-| `--sona-boundary` (UI) | `#55688F` | 3.43 | 3.43 | **3.07** |
-| `--sona-stage` (surface) | `#141B2D` | 1.19 (n/a) | — | — |
+| `--ressoa-voice` (text) | `#F2F0E6` | 16.75 | 16.75 | 15.01 |
+| `--ressoa-hush` (text) | `#A9B8CE` | 9.51 | 9.51 | 8.52 |
+| `--ressoa-focus` (flow) | `#8FD8E8` | 11.99 | 11.98 | 10.74 |
+| `--ressoa-harp` (rate) | `#E8C46A` | 11.42 | 11.42 | 10.24 |
+| `--ressoa-celeste` (rate) | `#B9A6F5` | 8.96 | 8.96 | 8.03 |
+| `--ressoa-aria` (brand) | `#5AD6A8` | **10.59** | **11.20** | 9.49 |
+| `--ressoa-boundary` (UI) | `#55688F` | 3.43 | 3.43 | **3.07** |
+| `--ressoa-stage` (surface) | `#141B2D` | 1.19 (n/a) | — | — |
 
-All text tokens clear 4.5:1 on both surfaces. `--sona-boundary` clears 3:1 on void (3.43) but is *marginal* on stage (3.07) — if hairlines render on raised cards, re-verify or follow tokens.md's advice and use `--sona-etwahl` for focus rings.
+All text tokens clear 4.5:1 on both surfaces. `--ressoa-boundary` clears 3:1 on void (3.43) but is *marginal* on stage (3.07) — if hairlines render on raised cards, re-verify or follow tokens.md's advice and use `--ressoa-focus` for focus rings.
 
 ## 4. Verification practice: is token-pair contrast a checkable artifact?
 
@@ -54,8 +54,8 @@ All text tokens clear 4.5:1 on both surfaces. `--sona-boundary` clears 3:1 on vo
 **Recommendation: option (a), scoped — require a host-verifiable AA check of the shipped pairings; do not inherit the design-declared ratios as spec authority.**
 
 1. **Add an AC** (amend SC-001/SC-006 or add SC-007) that every *text* token paired with its actual rendered background computes ≥ 4.5:1 under the WCAG 2.1 formula, and every *non-text* graphical token (boundary hairline, focus ring, progress track) computes ≥ 3:1 — measured by a deterministic host test over the token manifest and the two real surfaces (void `#0B0F1A`, stage `#141B2D`), not by design sign-off. This mirrors the existing closed-hex host check already mandated by SC-001/SC-006.
-2. **Do not inherit declared numbers.** Declared ratios are documentation, not evidence: `--sona-aria` is declared 11.20 but computes 10.59 (-0.61). Inheriting them would bake an arithmetic error into the spec. The design doc keeps its numbers as *intent*; the spec's authority is the host computation.
-3. **Flag the marginal case.** `--sona-boundary` at 3.07 on stage is barely above the 3:1 non-text floor. Either (i) re-verify hairlines that render on cards, or (ii) follow tokens.md's existing guidance and use `--sona-etwahl` for focus rings on raised surfaces. Record the decision in the spec.
+2. **Do not inherit declared numbers.** Declared ratios are documentation, not evidence: `--ressoa-aria` is declared 11.20 but computes 10.59 (-0.61). Inheriting them would bake an arithmetic error into the spec. The design doc keeps its numbers as *intent*; the spec's authority is the host computation.
+3. **Flag the marginal case.** `--ressoa-boundary` at 3.07 on stage is barely above the 3:1 non-text floor. Either (i) re-verify hairlines that render on cards, or (ii) follow tokens.md's existing guidance and use `--ressoa-focus` for focus rings on raised surfaces. Record the decision in the spec.
 4. **Keep WCAG 2.1 AA as the gate** (legally referenced, tool-supported, axe-core compatible) for a dark-only, driving-first, non-reading surface, while acknowledging in an Assumption that (i) halation makes near-black + ivory high-contrast glance-optimal but harsh for extended reading, and (ii) the upper bound / excessive-contrast question is out of scope — WCAG 3/APCA is not normative and this feature does not adopt it.
-5. **Verification split.** Host deterministic: token-manifest contrast (this computation, automated). Device trial: OEM re-coloring of the notification accent (R2 risk) — already scoped to the single accent `--sona-voice`. In-app rendered surface: axe-core where a DOM exists (the packaged `status_view.html` once wired).
+5. **Verification split.** Host deterministic: token-manifest contrast (this computation, automated). Device trial: OEM re-coloring of the notification accent (R2 risk) — already scoped to the single accent `--ressoa-voice`. In-app rendered surface: axe-core where a DOM exists (the packaged `status_view.html` once wired).
 6. **Light mode stays deferred** (per tokens.md §5 and the spec Assumptions): adopting it would require full re-verification of every pairing; the host check written now must be parameterized by surface color so a future light-mode pass re-runs it.

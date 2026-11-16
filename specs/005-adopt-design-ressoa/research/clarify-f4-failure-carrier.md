@@ -1,13 +1,13 @@
 # Clarification F4 — Failure-state carrier and clearing transitions for the permanent red signal
 
-> **Feature:** `specs/005-adopt-design-sona` (FR-001/FR-005/FR-008/SC-001; candidate clarification F4)
+> **Feature:** `specs/005-adopt-design-ressoa` (FR-001/FR-005/FR-008/SC-001; candidate clarification F4)
 > **Question:** F4 pins permanent failure to red `--signal-failure` `#FF4D63` as "static paint, no pulse" (E2), but leaves open (i) which in-app surface element carries the red (progress track/fill vs. reason banner vs. a dot) and (ii) which transitions clear it (next play? new document? restart? timeout?). The 004 contract's reason line expires after 3 s (warning TTL); persistent failures use `reason_ttl_ms=null` and outlive that, so in-app failure-indicator persistence is the open design question.
 > **Scope:** research note; not a spec amendment. Informs a clarification decision only.
 > **Method (2026-10-24):** Re-verification of the three papers already cited in this repo's notes (Sarter & Woods 1995; Parasuraman & Riley 1997; Bliss & Acton 2003) plus ISO 15006 temporal classes; FMVSS No. 101 tell-tale rules (primary, eCFR); NHTSA 812360 human-factors guidance (direction only — PDF 403 this pass); W3C Understanding 4.1.3 Status Messages; Material 3 error color roles; IEC 60601-1-8 latching vs. non-latching alarm convention (medical-device analogue); alarm-fatigue origin literature (EBSCO/Joint Commission). pt-BR spec terms quoted verbatim.
 
 ## 1. What is already pinned (and what is not)
 
-- **Pinned (E2/D2):** permanent failure = static red `#FF4D63`, no pulse, no motion >5 s (else 2.2.2). Red is exclusive to the failure state; never adjacent to yellow (2.25:1 mutual contrast). Notification paints no state colour (accent-only `--sona-voice`); states ride the reason line + earcon + TTL.
+- **Pinned (E2/D2):** permanent failure = static red `#FF4D63`, no pulse, no motion >5 s (else 2.2.2). Red is exclusive to the failure state; never adjacent to yellow (2.25:1 mutual contrast). Notification paints no state colour (accent-only `--ressoa-voice`); states ride the reason line + earcon + TTL.
 - **Pinned (004 contract):** persistent failures (`VoiceUnavailable`/`FormatUndeliverable`/`DecodeFailed`) carry `reason_ttl_ms=null` — the reason line never auto-expires on either surface. Transient warnings (focus/device) carry `reason_ttl_ms=3000`.
 - **Pinned (004 spec FR-009):** failure ends the session as `Interrupted` (EndKind); "wait paused with an explicit resume control"; narration never auto-resumes; the Sforzando earcon fires immediately at the state change and is never queued/dropped.
 - **Not pinned (F4):** (a) the in-app surface element that paints red — progress track/fill vs. reason banner vs. a dot; (b) the transition that clears it — next successful play, new document load, app restart, or a timeout (which would contradict `reason_ttl_ms=null`).
@@ -44,7 +44,7 @@
 
 | Option | Verdict | Why |
 |---|---|---|
-| Progress track/fill | Reject | Conflates position (progress) with state (failure); the fill is `--sona-voice` white in both determinate/indeterminate (C1/C5); painting it red would lie about progress and break the fill-token invariant. |
+| Progress track/fill | Reject | Conflates position (progress) with state (failure); the fill is `--ressoa-voice` white in both determinate/indeterminate (C1/C5); painting it red would lie about progress and break the fill-token invariant. |
 | Reason banner text | Reject as sole carrier | The banner already carries the reason *words* + is typed `role="status"` (D5); painting the whole text red hurts legibility (halation, §4 of D2) and double-encodes a message already given by words+earcon. At most a small leading glyph, never the text. |
 | Static red dot (analogous to the yellow pulsing dot) | **Adopt** | Mirrors the established yellow-dot affordance (D2: yellow pulsing dot = transient warning; red static dot = permanent failure); small-area accent (Wear/Material "saturated only as small accents"); no pulse (E2, 2.2.2); preserves the closed element inventory (no new element — same dot slot, different colour/state). |
 

@@ -3,13 +3,13 @@
 
 #[test]
 fn contract_references_exist_and_match() {
-    let spec = include_str!("../../specs/005-adopt-design-sona/spec.md");
+    let spec = include_str!("../../specs/005-adopt-design-ressoa/spec.md");
     // Extract referenced contract filenames (heuristic: "contracts/" + basename).
     let refs: Vec<&str> = spec.split("contracts/").skip(1)
         .filter_map(|s| s.split(|c: char| c == ' ' || c == ')' || c == '\n').next())
         .collect();
     // Check contracts directory contents.
-    let dir = std::fs::read_dir("specs/005-adopt-design-sona/contracts").expect("contracts dir");
+    let dir = std::fs::read_dir("specs/005-adopt-design-ressoa/contracts").expect("contracts dir");
     let names: std::collections::HashSet<String> = dir.filter_map(|e| e.ok())
         .map(|e| e.file_name().to_string_lossy().into_owned())
         .filter(|n| n.ends_with(".md"))

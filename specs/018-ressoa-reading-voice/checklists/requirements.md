@@ -1,19 +1,19 @@
-# Specification Quality Checklist: 018-sona-inspired-voice
+# Specification Quality Checklist: 018-ressoa-reading-voice
 
-- **Feature**: `specs/018-sona-inspired-voice/spec.md`
-- **Assessment (R1)**: `.specify/assessments/sona-inspired-voice/decision.md` — **verdict: go** (2026-11-10)
+- **Feature**: `specs/018-ressoa-reading-voice/spec.md`
+- **Assessment (R1)**: `.specify/assessments/ressoa-reading-voice/decision.md` — **verdict: go** (2026-11-10)
 - **Created**: 2026-11-10
 - **Status**: Draft (ready for planning/implementation validation)
 
 ## Purpose
 
-Validate that `spec.md`, `plan.md`, and `tasks.md` are complete enough to implement requester Option (B): a curated, bundled, offline, non-imitative "Sona-inspired feel" pt-BR reading voice catalog aligned to `DESIGN-SONA/`, with tuning and evolution-ready multi-voice support.
+Validate that `spec.md`, `plan.md`, and `tasks.md` are complete enough to implement requester Option (B): a curated, bundled, offline, non-imitative pt-BR reading voice catalog with a harmonious, melodic, calm, soft voice aligned to `DESIGN-RESSOA/`, with tuning and evolution-ready multi-voice support.
 
 ## Checklist
 
 ### Scope & Decision Traceability
-- [x] Scope matches approved Option (B): curated/tuned Sona-inspired feel, bundled alternative + tuning, multi-voice evolution.
-- [x] Explicitly excludes Option (A): no LoL Sona/character/VO imitation, no Riot trademarks/likeness, no voice cloning, no performer-branded identity.
+- [x] Scope matches approved Option (B): a curated/tuned reading voice (harmonious, melodic, calm, soft), bundled alternative + tuning, multi-voice evolution.
+- [x] Explicitly excludes Option (A): no any third-party character voice/VO imitation, no third-party trademarks/likeness, no voice cloning, no performer-branded identity.
 - [x] Explicitly bounds Option (C) supporting behavior: earcons/prosody/normalization only as needed, no unrelated UI redesign.
 - [x] Excludes user import/download/cloud/marketplace/paid voices and any `INTERNET` capability.
 - [x] Assessment artifacts exist and decision is `go` with conditions carried forward.

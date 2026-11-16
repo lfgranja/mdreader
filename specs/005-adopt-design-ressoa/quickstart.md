@@ -1,6 +1,6 @@
-# Quickstart: Adotar o DESIGN-SONA (Option-A subset) — validation & trial guide
+# Quickstart: Adotar o DESIGN-RESSOA (Option-A subset) — validation & trial guide
 
-**Feature**: `005-adopt-design-sona` | **Date**: 2026-10-24 | Contracts: [status-surface.md](contracts/status-surface.md) · [earcon-mapping.md](contracts/earcon-mapping.md) · [surface-audit.md](contracts/surface-audit.md) | Data model: [data-model.md](data-model.md)
+**Feature**: `005-adopt-design-ressoa` | **Date**: 2026-10-24 | Contracts: [status-surface.md](contracts/status-surface.md) · [earcon-mapping.md](contracts/earcon-mapping.md) · [surface-audit.md](contracts/surface-audit.md) | Data model: [data-model.md](data-model.md)
 
 Zero new dependencies; the restyle is audited by deterministic host checks; the human legs below mirror 004's T051/T052 posture (10/10 sheets, reference phone only, never claimed by host checks).
 
@@ -19,7 +19,7 @@ cargo nextest run --workspace     # census / contrast / inventory / aria / movem
                                   # names follow contracts/surface-audit.md A2 (C-H1…C-H9)
 ```
 
-The twins parse `data-model.md` §SonaToken + the auditee list of `contracts/surface-audit.md` A1; a listed auditee gone missing is a FAILED check, not a skip (`fail-closed`). Spot-checks:
+The twins parse `data-model.md` §RessoaToken + the auditee list of `contracts/surface-audit.md` A1; a listed auditee gone missing is a FAILED check, not a skip (`fail-closed`). Spot-checks:
 
 ```sh
 # hex census twin (both progress states), role-exclusivity twin and movement census:
@@ -28,7 +28,7 @@ cargo nextest run -E 'test(inventory)' --workspace     # C-H4/H5/H6
 cargo nextest run -E 'test(earcon)' --workspace        # C-H9 latency + burst policy
 ```
 
-Expected results: zero off-set hexes; zero celeste/jade paint; `#8FD8E8` present ONLY in `:focus-visible` rules; MediaStyle block paints exactly `#F2F0E6`; the reduced-motion freeze guard present; zero infinite loops outside the closed movement set; every enumerated control labeled; `role="progressbar"`+valuetext present; visually-hidden `role="status"` present; safety counters on bursts are typed tally (no catch-all arm); first-consumed-sample oracle ≤100 ms for every trigger; design v2.2.0 headers + `DESIGN-SONA/VERSION` present; stale rows aligned (the R1 task is audited by the same census — the dir is an auditee).
+Expected results: zero off-set hexes; zero celeste/jade paint; `#8FD8E8` present ONLY in `:focus-visible` rules; MediaStyle block paints exactly `#F2F0E6`; the reduced-motion freeze guard present; zero infinite loops outside the closed movement set; every enumerated control labeled; `role="progressbar"`+valuetext present; visually-hidden `role="status"` present; safety counters on bursts are typed tally (no catch-all arm); first-consumed-sample oracle ≤100 ms for every trigger; design v2.2.0 headers + `DESIGN-RESSOA/VERSION` present; stale rows aligned (the R1 task is audited by the same census — the dir is an auditee).
 
 ## 2. Build + sideload
 
@@ -43,7 +43,7 @@ Then on-device glance: the app's in-app screen IS the restyled StatusView (the s
 
 **3.1 SC-003 — notification purity (10/10 inspections).** Start playback, lock, inspect: only título + seção atual + progresso; accent = marfim only; no body text / rate / voice / mark; warning state renders the static reason line + Ostinato with 3 s TTL (transient-loss exercise: place a call or navigate prompt — the reason line expires, playback behavior per 004).
 
-**3.2 SC-001 visual purity trial (also serves SC-001 device leg — deferred, owner=device-build per A2 remediation).** Drive the surface through determinate AND indeterminate progress; confirm colors match `data-model.md` §SonaToken (text marfim, section periwinkle, track/track fill, gold dot on the ladder, cautions at 3 s pulses, failure static red); no third color anywhere; single column; no excluded screen reachable (try back/links — nothing opens).
+**3.2 SC-001 visual purity trial (also serves SC-001 device leg — deferred, owner=device-build per A2 remediation).** Drive the surface through determinate AND indeterminate progress; confirm colors match `data-model.md` §RessoaToken (text marfim, section periwinkle, track/track fill, gold dot on the ladder, cautions at 3 s pulses, failure static red); no third color anywhere; single column; no excluded screen reachable (try back/links — nothing opens).
 
 **3.3 SC-002 — blind-test protocol (the human gate; do NOT skip).**
 1. Device on a rigid mount; the media speaker is the gate channel (parked car); system assistant/UI sounds silenced — the MEDIA channel stays ON; hands off the device body after start (haptic-disposition line of `contracts/earcon-mapping.md` E6).

@@ -7,14 +7,14 @@
 ## Technical Decisions & Findings
 
 ### Decision 1: Delimitação da Área de Toque e Semântica de Acessibilidade
-- **Chosen**: O container completo `.meta-box` em `src-tauri/src/status_view.html` atua como controle interativo (`role="button"`, `tabindex="0"`, `aria-label="Selecionar documento para leitura"`, `cursor: pointer;`, animação suave no `:active` com scale `0.985`, e `:focus-visible` com anel de foco `var(--sona-etwahl)`).
+- **Chosen**: O container completo `.meta-box` em `src-tauri/src/status_view.html` atua como controle interativo (`role="button"`, `tabindex="0"`, `aria-label="Selecionar documento para leitura"`, `cursor: pointer;`, animação suave no `:active` com scale `0.985`, e `:focus-visible` com anel de foco `var(--ressoa-focus)`).
 - **Rationale**: 
   - O alvo de toque mede ~450px de largura por ~120-160px de altura, superando com folga o mínimo recomendado pelas diretrizes WCAG 2.5.8 (AA, 24px) e Google Material Design 3 / Android Accessibility Scanner (48×48dp).
   - Resolve o problema do estado ocioso/vazio: quando não há texto carregado, `#documentTitle.textContent = ''`, o que colapsaria a área de toque se ela ficasse restrita apenas ao `<h1>`.
   - Evita áreas "mortas" dentro do card de vidro caso o usuário toque na região do subtítulo `#sectionTitle`.
 - **Alternatives Considered**: 
   - Restringir o toque apenas a `#documentTitle`: Rejeitado por deixar o subtítulo inerte e colapsar o hit target no estado vazio.
-  - Botão de ícone extra na barra de status: Rejeitado por quebrar o minimalismo e a pureza estética do design SONA da Lente Sinestésica.
+  - Botão de ícone extra na barra de status: Rejeitado por quebrar o minimalismo e a pureza estética do design RESSOA da Lente Sinestésica.
 
 ### Decision 2: Disparo do Picker Android (SAF) e Roteamento JNI/Tauri
 - **Chosen**:

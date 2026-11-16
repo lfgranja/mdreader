@@ -61,7 +61,7 @@ fn sc002_haptic_none_disposition_documented() {
 fn sc002_earcon_coverage_documented() {
     // Check earcon mapping exists
     let paths = vec![
-        "specs/005-adopt-design-sona/contracts/earcon-mapping.md",
+        "specs/005-adopt-design-ressoa/contracts/earcon-mapping.md",
         "contracts/earcon-mapping.md",
         "crates/player/src/earcon.rs",
     ];

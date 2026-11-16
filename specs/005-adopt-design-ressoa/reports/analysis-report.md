@@ -21,7 +21,7 @@ a) Contracts missing 4 of 7 framework contracts:
 
 b) Quickstart step references don't fully match VERIF-EMULATOR.md sections by number:
 - quickstart.md:212-217 writes attestation referencing sections 2/3/4/6 but never cites section numbers explicitly.
-- quickstart.md:216 references branch `005-adopt-design-eta` (typo; should be `005-adopt-design-sona` per quickstart.md:4 and plan.md:3).
+- quickstart.md:216 references branch `005-adopt-design-eta` (typo; should be `005-adopt-design-ressoa` per quickstart.md:4 and plan.md:3).
 - quickstart.md:203-217 has 7 steps; VERIF-EMULATOR.md has sections 1-7 + attachments. Mapping is implicit, not explicit by section number.
 
 c) Data-model.md missing fields / entities:
@@ -49,7 +49,7 @@ b) Data-model.md entities ≠ spec.md entities:
 - spec.md:115 also references `§MoveSpec` as existing entity; data-model.md mentions `§SurfaceInventory`, `§NotificationSurface`, `§ProgressIndication`, `§RateLadder`, `§DiagnosticEvent`, `§DesignDirState` — missing `§MoveSpec`.
 
 c) Quickstart branch typo vs plan/spec:
-- quickstart.md:216 writes `005-adopt-design-eta`; correct branch is `005-adopt-design-sona` (plan.md:3, quickstart.md:4, spec.md:4, data-model.md:4, contracts:4, VERIF-EMULATOR.md:245).
+- quickstart.md:216 writes `005-adopt-design-eta`; correct branch is `005-adopt-design-ressoa` (plan.md:3, quickstart.md:4, spec.md:4, data-model.md:4, contracts:4, VERIF-EMULATOR.md:245).
 
 d) Research.md design artifacts claim vs actual file:
 - research.md:323 claims `VERIF-EMULATOR.md` has "sections 1-8"; actual VERIF-EMULATOR.md has sections 1-7 (§7 is Attachments/References), so section count is off by 1.

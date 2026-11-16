@@ -1,6 +1,6 @@
 # Implementation Plan: VERIF-EMULATOR — Structural Verification Layer (Option A)
 
-**Branch**: `005-adopt-design-sona` (designated; no branch rename required; feature tracks on current branch)  
+**Branch**: `005-adopt-design-ressoa` (designated; no branch rename required; feature tracks on current branch)  
 **Date**: 2026-10-29  
 **Spec**: `specs/008-ref-device-emulator/spec.md` (Draft; Option A selected; `go` verdict from `.specify/assessments/ref-device-emulator/decision.md` 2026-10-29; 6 clarifications resolved by user)  
 
@@ -70,7 +70,7 @@ Note: This feature delivers documentation and verification scripts only; it does
 
 - `research.md` (`/speckit.assess.research`) completed; 6 gaps resolved by user (G1–G6 all Option A); `decision.md` upgraded to `go`.
 - Evidence: AVD is official SDK (`developer.android.com`); emulator has framework limits (no Bluetooth, no real audio output, no telephony/interruption simulation); structural verification is possible; physical device required for `gate-8-full`.
-- Key finding: `VERIF-EMULATOR.md` should reference existing contracts (`status-surface`, `earcon-mapping`, `surface-audit` from `005-adopt-design-sona`) and `003-reference-device/data-model.md`; must not claim equivalence.
+- Key finding: `VERIF-EMULATOR.md` should reference existing contracts (`status-surface`, `earcon-mapping`, `surface-audit` from `005-adopt-design-ressoa`) and `003-reference-device/data-model.md`; must not claim equivalence.
 
 ---
 
@@ -112,7 +112,7 @@ No new contract needed; `VERIF-EMULATOR.md` references these by path.
 Per `spec.md`, `tasks.md` is a Phase 2 output (`/speckit.tasks`). Not created here. Implementation tasks (when `go` confirmed and T002 passes):
 - Define `VERIF-EMULATOR.md` template and exclusions (reference `AGENTS.md` / `spec.md` / `problem.md`).
 - Create `tests/` stub for structural observation (optional; if added, must not claim gate-8-full).
-- Document CI isolation instruction (isolated AVD / container; not in dirty `005-adopt-design-sona` working tree).
+- Document CI isolation instruction (isolated AVD / container; not in dirty `005-adopt-design-ressoa` working tree).
 - Update `ROADMAP.md` (already done: line 27 / 111 / 112).
 - Record attestation with `decision.md` reference.
 

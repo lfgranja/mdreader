@@ -1,8 +1,8 @@
-# 005-adopt-design-sona — Verification-Only Attestation Schedule
+# 005-adopt-design-ressoa — Verification-Only Attestation Schedule
 
 Status: SCHEDULED END-ONLY. No verification executed yet.
 Only this task (`verify-plan`) claims completion of scheduling; NO subagent / agent / device-trial / host-script claims that any attestation item has passed.
-Plan anchor: `local://PLAN.md` (slug 005-adopt-design-sona-plan); spec dir: `specs/005-adopt-design-sona/`.
+Plan anchor: `local://PLAN.md` (slug 005-adopt-design-ressoa-plan); spec dir: `specs/005-adopt-design-ressoa/`.
 Verification is end-only (post all RED / implement / scaffold / edit / commit steps). Nothing in this file is a claim of pass.
 
 ---
@@ -23,12 +23,12 @@ Format per item: `ID | name | type (host / device / contract / process) | source
 
 ### 2.1 T028–T031 — Host verification gates (deterministic, exit 0/non-0)
 
-These are the 4 named host gates from the spec / quickstart / plan; each maps to a deterministic host script / tool over the audited file set (`status_view.html`, `status_view.rs`, `MediaMirror.kt` constants, `DESIGN-SONA/` audited files, header asset per contracts/status-surface.md).
+These are the 4 named host gates from the spec / quickstart / plan; each maps to a deterministic host script / tool over the audited file set (`status_view.html`, `status_view.rs`, `MediaMirror.kt` constants, `DESIGN-RESSOA/` audited files, header asset per contracts/status-surface.md).
 
 | ID | Gate | Maps to SC / C-H / source | Type | Attestation source | Scheduled position | Claim rule |
 |---|---|---|---|---|---|---|
-| T028 | Host census (10 hex, out-of-role = fail) | SC-001 item (i) C-H1; data-model.md §SonaToken | host | `tests/005-verify/host_census.sh` (or equivalent tool) over audited files; exits 0 iff 10 members and no out-of-role paint | End, after all implement / RED / scaffold / edit / atomic-commit | Only host script claims pass; agent never claims |
-| T029 | Contrast / role exclusivity (WCAG 2.1 AA; only `--sona-*` + signals) | SC-001 item (i) C-H4; C-H2; data-model.md §ContrastPair | host | Same host tool + contrast solver (parametrized by `#0B0F1A` / `#141B2D`); exit 0 iff all pairs ≥4.5:1 text / ≥3:1 non-text and role-exclusive | End | Only host tool claims pass |
+| T028 | Host census (10 hex, out-of-role = fail) | SC-001 item (i) C-H1; data-model.md §RessoaToken | host | `tests/005-verify/host_census.sh` (or equivalent tool) over audited files; exits 0 iff 10 members and no out-of-role paint | End, after all implement / RED / scaffold / edit / atomic-commit | Only host script claims pass; agent never claims |
+| T029 | Contrast / role exclusivity (WCAG 2.1 AA; only `--ressoa-*` + signals) | SC-001 item (i) C-H4; C-H2; data-model.md §ContrastPair | host | Same host tool + contrast solver (parametrized by `#0B0F1A` / `#141B2D`); exit 0 iff all pairs ≥4.5:1 text / ≥3:1 non-text and role-exclusive | End | Only host tool claims pass |
 | T030 | Surface inventory (aria roles + hidden `status`; no numeric rate painted; inventory closed) | SC-001 item (ii) C-H5; item (iv) aria inventory; FR-012/028 value-blind | host | Host inventory over audited file; exit 0 iff enumerable elements match closed inventory (no extra visible/hidden/dead; `aria-label` non-empty per interactive; `role="progressbar"`; live region hidden for value only; dots `aria-hidden`) | End | Only host tool claims pass |
 | T031 | Latency oracle (≤100 ms first-consumed-sample; isolated + burst) | SC-005 C-H9; FR-010; data-model.md latency section | host | Host oracle over `backend.rs` / `player` binary (first consumed sample ≤100 ms); exit 0 iff bound holds in isolated + rapid-sequence (2–3 heterogeneous in 100–150 ms) | End | Only host oracle claims pass |
 
@@ -36,12 +36,12 @@ Verification order within T028–T031: T028 → T029 → T030 → T031 (census �
 
 ### 2.2 SC-001 — Host half (C-H1 … C-H6) — deterministic only
 
-From `specs/005-adopt-design-sona/plan.md` lines 94, 156; `data-model.md` §SC-001 mapping.
+| C-H1 | Census: 10 hex members (8 `--ressoa-*` + `--signal-caution` `#FFD400` + `--signal-failure` `#FF4D63`); no new token; out-of-role = fail | `DESIGN-RESSOA/` audited + touched surface files | host | Host census script; exit 0/non-0 | End (with T028) | Only host script claims; device leg deferred (see §3) |
 
 | Sub-item | Check | Source / file | Type | Attestation source | Scheduled position | Deferred / claim rule |
 |---|---|---|---|---|---|---|
-| C-H1 | Census: 10 hex members (8 `--sona-*` + `--signal-caution` `#FFD400` + `--signal-failure` `#FF4D63`); no new token; out-of-role = fail | `DESIGN-SONA/` audited + touched surface files | host | Host census script; exit 0/non-0 | End (with T028) | Only host script claims; device leg deferred (see §3) |
-| C-H2 | Role exclusivity: only `--sona-*` + 2 signal pins paint; no body text / rate value / voice identity / green on player | Same audited set | host | Same tool (contrast + role filter) | End (with T029) | Only host script |
+| C-H1 | Census: 10 hex members (8 `--ressoa-*` + `--signal-caution` `#FFD400` + `--signal-failure` `#FF4D63`); no new token; out-of-role = fail | `DESIGN-RESSOA/` audited + touched surface files | host | Host census script; exit 0/non-0 | End (with T028) | Only host script claims; device leg deferred (see §3) |
+| C-H2 | Role exclusivity: only `--ressoa-*` + 2 signal pins paint; no body text / rate value / voice identity / green on player | Same audited set | host | Same tool (contrast + role filter) | End (with T029) | Only host script |
 | C-H3 | Accent-only constant check (`MediaMirror.kt` `0xFFF2F0E6`; single flat accent over track; no gradient) | `MediaMirror.kt`; `contracts/earcon.md` routing | host | Constant-check script / grep + hex audit | End | Only host script |
 | C-H4 | Contrast solver (WCAG 2.1 AA) over `#0B0F1A` (void) and `#141B2D` (stage); text ≥4.5, non-text ≥3 | Same | host | Contrast calculator script; exit 0/non-0 | End (with T029) | Only host script |
 | C-H5 | Aria inventory (enumerated interactive controls carry `aria-label`; `role="progressbar"`; hidden live-region for value only; dot strip `aria-hidden`; no numeric painted) | `status_view.html`; `status_view.rs` | host | Inventory script over audited HTML/RS; exit 0/non-0 | End (with T030) | Only host script |
@@ -56,7 +56,7 @@ From `plan.md` line 99; `spec.md` §SC-006.
 | Sub-item | Check | Source | Type | Attestation source | Scheduled position | Claim rule |
 |---|---|---|---|---|---|---|
 | C-H1 (re-run) | Census (same 10 hex, no new token; stamp set in-app: header `R` / stage card / gold active dot; no mark on notification / lock-screen) | Audited files + in-app header asset | host | Host census (re-executed after restyle) | End (after SC-001 C-H1) | Only host script; never agent |
-| C-H2 / C-H3 | Token / stamp placement (accent `#F2F0E6` only; `--sona-stage` `#141B2D` raised surface only; stamps enumerated; no green; exclusion of 4 excluded screens: Cockpit Eyes-Free, Console Braun & Rams, Sumário Editorial, Matriz Telemetria) | `status_view.html`; design-dir | host | Token-placement + exclusion-check script | End | Only host script |
+| C-H2 / C-H3 | Token / stamp placement (accent `#F2F0E6` only; `--ressoa-stage` `#141B2D` raised surface only; stamps enumerated; no green; exclusion of 4 excluded screens: Cockpit Eyes-Free, Console Braun & Rams, Sumário Editorial, Matriz Telemetria) | `status_view.html`; design-dir | host | Token-placement + exclusion-check script | End | Only host script |
 | C-H4 | Contrast (same calculator; header/card/notification pairs) | Same | host | Contrast solver | End | Only host script |
 | C-H5 | Aria inventory (same rules; live region value announced; dots hidden; progress `role="progressbar"`; reason banner `role="status"`; freeze keeps announcements inalterable) | `status_view.html`; `contracts/surface.md` | host | Inventory + semantics script | End | Only host script |
 | A2 dual-state | Served identity: `status_view.html` = actually-rendered surface (`dist/index.html` wiring is prerequisite; without it device legs of SC-001/SC-006 cannot pass; `spec.md` Q at line 97) | Build / bundle; `spec.md` | host / process | Build-check + bundle-identity diff (`status_view.html` vs served `dist/index.html`) | End (with gate 9) | Only build/check claims; agent never claims |
@@ -96,7 +96,7 @@ Mirror of SC-003 posture: device-only; deferred.
 
 ### 2.7 Gate 9 — `cargo tauri android build --target aarch64`
 
-From `specs/005-adopt-design-sona/plan.md` line 21; `quickstart.md` line 36; 004 posture (artifact must exist).
+From `specs/005-adopt-design-ressoa/plan.md` line 21; `quickstart.md` line 36; 004 posture (artifact must exist).
 
 | ID | Check | Source | Type | Attestation source | Scheduled position | Claim rule |
 |---|---|---|---|---|---|---|
@@ -124,13 +124,11 @@ Until these open, the only claims are: (a) host half of SC-001 / SC-006 / T028�
 
 ## 4. Contract alignment checks (diff-based; not execution claims)
 
-From instruction: `contracts/earcon-mapping.md` vs `DESIGN-SONA.md` rate rows; `contracts/surface-audit.md` vs `status_view.html` served identity.
-
-Note: in the workspace the contracts are `contracts/earcon.md` (rate / grammar / routing / haptic / CLI) and `contracts/surface.md` (lock-screen / in-app / notification / payload / DESIGN-SONA tokens). The design-dir file is `DESIGN-SONA/DESIGN-SONA.md`. The served-identity reference is `status_view.html` (required to be the rendered surface, per `spec.md` line 97 / Q). The instruction's filenames (`earcon-mapping.md`, `surface-audit.md`) are the alignment targets — the matching source files are the ones above; the check compares them.
+Note: in the workspace the contracts are `contracts/earcon.md` (rate / grammar / routing / haptic / CLI) and `contracts/surface.md` (lock-screen / in-app / notification / payload / DESIGN-RESSOA tokens). The design-dir file is `DESIGN-RESSOA/DESIGN-RESSOA.md`. The served-identity reference is `status_view.html` (required to be the rendered surface, per `spec.md` line 97 / Q). The instruction's filenames (`earcon-mapping.md`, `surface-audit.md`) are the alignment targets — the matching source files are the ones above; the check compares them.
 
 | ID | Check | Source A | Source B | Type | Attestation source | Scheduled position | Claim rule |
 |---|---|---|---|---|---|---|---|
-| A-earcon | Rate rows match: `contracts/earcon.md` rate-step row (`Unison 880 Hz / 60 ms`; `≤500 ms` all; 300–2500 Hz range; play/pause/skip/warning/failure shapes) aligns with `DESIGN-SONA.md` / design-dir rate/stage description; `PITCH_TOLERANCE_CENTS=50`; `DUCK_GAIN=0.20±0.02`; no new audio assets; `rate` CLI `player` binary matches PCM descriptor | `contracts/earcon.md` (§Rate step, Routing, Named constants) | `DESIGN-SONA.md` (tokens / rate / stage) | contract / diff | `tests/005-verify/align_earcon.md` — line-by-line mapping with differences listed (none expected; any drift = fail) | End (with contract audits) | Only the diff / mapping doc claims alignment; agent never claims |
+| A-earcon | Rate rows match: `contracts/earcon.md` rate-step row (`Unison 880 Hz / 60 ms`; `≤500 ms` all; 300–2500 Hz range; play/pause/skip/warning/failure shapes) aligns with `DESIGN-RESSOA.md` / design-dir rate/stage description; `PITCH_TOLERANCE_CENTS=50`; `DUCK_GAIN=0.20±0.02`; no new audio assets; `rate` CLI `player` binary matches PCM descriptor | `contracts/earcon.md` (§Rate step, Routing, Named constants) | `DESIGN-RESSOA.md` (tokens / rate / stage) | contract / diff | `tests/005-verify/align_earcon.md` — line-by-line mapping with differences listed (none expected; any drift = fail) | End (with contract audits) | Only the diff / mapping doc claims alignment; agent never claims |
 | A-surface | Served identity: `contracts/surface.md` payload / fields (title, section_title, progress kind, transport, reason/reason_ttl_ms, dismissal) matches actually-served `status_view.html` (field presence, no document prose / rate numeric / voice identity / body text; progress `role="progressbar"`; reason line ≤40 chars / ≤8-word pt-BR; accent only `#F2F0E6` / `#A9B8CE` / `#55688F`; no green `#5FD0A0`; single-column preserved) | `contracts/surface.md` (§Payload, Lock-screen, In-app, Resident-paused) | Served `status_view.html` / `dist/index.html` (post G9 wire) | contract / identity | `tests/005-verify/align_surface.md` — payload / display field comparison; identity diff (`status_view.html` == served identity or deviation recorded) | End (with A2 / G9) | Only identity-diff doc claims; agent never claims |
 
 Both alignment outputs are artifacts (`tests/005-verify/align_*.md`), not claims of behavior. Any drift = recorded deviation = not a pass by agent; only the diff doc states the result.

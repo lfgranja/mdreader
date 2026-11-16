@@ -1,12 +1,12 @@
 # Implementation Plan: SONA Complete Design — Real and Exact as Proposed
 
-**Branch**: `007-sona-complete-design` | **Date**: 2026-10-28 | **Spec**: [spec.md](spec.md)
+**Branch**: `007-ressoa-complete-design` | **Date**: 2026-10-28 | **Spec**: [spec.md](spec.md)
 
-**Input**: Feature specification from `/specs/007-sona-complete-design/spec.md`
+**Input**: Feature specification from `/specs/007-ressoa-complete-design/spec.md`
 
 ## Summary
 
-Implement the complete SONA design exactly as proposed (`DESIGN-SONA/assets/ui/ui-proposta-2-lente-sinestesica.png`) on the single StatusView surface: decorative wave ribbons (teal→jade→violet), glassmorphism title card, reactive RMS waveform visualizer (canvas, smooth mirrored ribbons with integrated playhead), numeric rate in the speed-control area, repeat control, and glow/neon accents. Builds on 005/006 and exercises the constitution v2.0.0 amendments (design-token expansion for jade/celeste + supplementary visual elements). Rust owns RMS instrumentation + throttled IPC; Kotlin MediaMirror stays a declarative mirror (no new logic); the frontend renders canvas. Contracts are amended per §VII for token sanctioned scopes and the new inventory element.
+Implement the complete SONA design exactly as proposed (`DESIGN-RESSOA/assets/ui/ui-proposta-2-lente-sinestesica.png`) on the single StatusView surface: decorative wave ribbons (teal→jade→violet), glassmorphism title card, reactive RMS waveform visualizer (canvas, smooth mirrored ribbons with integrated playhead), numeric rate in the speed-control area, repeat control, and glow/neon accents. Builds on 005/006 and exercises the constitution v2.0.0 amendments (design-token expansion for jade/celeste + supplementary visual elements). Rust owns RMS instrumentation + throttled IPC; Kotlin MediaMirror stays a declarative mirror (no new logic); the frontend renders canvas. Contracts are amended per §VII for token sanctioned scopes and the new inventory element.
 
 ## Technical Context
 
@@ -24,7 +24,7 @@ Implement the complete SONA design exactly as proposed (`DESIGN-SONA/assets/ui/u
 
 **Performance Goals**: canvas ≤30 fps (33.3 ms gate); RMS IPC ~20 Hz (50 ms); no allocation on audio hot path; pause redraw on `visibilitychange`; freeze under reduced motion
 
-**Constraints**: ≤1 continuous CSS/JS loop (S5, continuous set = {indeterminate pill}); reduced-motion freeze (not hide); notification accent-only (`#F2F0E6`); value-blind except painted numeric rate in speed-control area; surface count = 2; no scripts/`foreignObject`; glassmorphism fallback to solid `--sona-stage`; glow on 2 elements max; jade/celeste painted only in sanctioned scopes
+**Constraints**: ≤1 continuous CSS/JS loop (S5, continuous set = {indeterminate pill}); reduced-motion freeze (not hide); notification accent-only (`#F2F0E6`); value-blind except painted numeric rate in speed-control area; surface count = 2; no scripts/`foreignObject`; glassmorphism fallback to solid `--ressoa-stage`; glow on 2 elements max; jade/celeste painted only in sanctioned scopes
 
 **Scale/Scope**: single StatusView surface; element inventory 9→10 (canvas added); token set 10→12+ (jade, celeste promoted); repeat control added to transport grid
 
@@ -48,7 +48,7 @@ Implement the complete SONA design exactly as proposed (`DESIGN-SONA/assets/ui/u
 ### Documentation (this feature)
 
 ```text
-specs/007-sona-complete-design/
+specs/007-ressoa-complete-design/
 ├── plan.md              # This file
 ├── research.md          # Phase 0 output
 ├── data-model.md        # Phase 1 output
@@ -76,7 +76,7 @@ src-tauri/src/
 android-shell/src/main/kotlin/app/mdreader/
 └── MediaMirror.kt       # unchanged (declarative mirror; accent-only)
 
-DESIGN-SONA/
+DESIGN-RESSOA/
 ├── tokens.md            # version bump + sanctioned scope notes
 └── assets/              # static SVGs (waves, logo)
 ```

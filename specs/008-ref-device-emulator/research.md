@@ -1,7 +1,7 @@
 # Research — VERIF-EMULATOR (008-ref-device-emulator)
 
 **Status**: Complete — all 6 clarification gaps (G1–G6) resolved; Option A confirmed for all.
-**Branch**: `005-adopt-design-sona` (`0c985ee`, 51 dirty); verification runs isolated.
+**Branch**: `005-adopt-design-ressoa` (`0c985ee`, 51 dirty); verification runs isolated.
 **Date**: 2026-10-29
 
 ---

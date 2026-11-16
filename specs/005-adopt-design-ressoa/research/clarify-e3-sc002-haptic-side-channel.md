@@ -1,6 +1,6 @@
 # Clarification E3 — SC-002 Haptic Side-Channel (Audio Gate vs. Bimodal Stimulation)
 
-> **Feature:** `specs/005-adopt-design-sona` (SC-002: seven confirmation types blind-identified on-device, incl. skip-direction sub-score)
+> **Feature:** `specs/005-adopt-design-ressoa` (SC-002: seven confirmation types blind-identified on-device, incl. skip-direction sub-score)
 > **Question:** SC-002 asks blind listeners to identify the synthesized earcons by ear, but the shipped app fires a *redundant* vibrotactile confirmation on every transport action with asymmetric patterns (20+40 ms vs 40+20 ms for skip-fwd/back). Should haptics be ON (ecological reproduction of the multimodal UX), DISABLED/neutralized (audio-channel isolation), or run as a DUAL condition — and, if isolated, should a separate haptic identification leg be run?
 > **Scope:** research note for the maintainer-driver single-user gate; not a population claim; informs a clarification decision only.
 > **Method:** primary-source review of multisensory perception (redundant-target effect, cross-modal enhancement), earcon-evaluation practice (Brewster/McGookin, ISO 7731/9241-126), vibrotactile psychophysics (two-pulse pattern identification, temporal-order judgments), in-vehicle HMI/accessibility guidance (NHTSA 2013), and Google/Android haptics principles. 2026-10-24.

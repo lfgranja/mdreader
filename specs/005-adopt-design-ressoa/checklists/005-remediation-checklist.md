@@ -1,6 +1,6 @@
-# 005-adopt-design-sona — Remediation Checklist (verified only)
+# 005-adopt-design-ressoa — Remediation Checklist (verified only)
 
-Scope: verified remediated items from analysis A1–A10 (plan 005-adopt-design-sona-plan). Unremediated / deferred items are NOT listed here (see requirements.md / plan.md for deferred device / T029–T031). Truthful attestation only; references are RED file names + commit SHAs from repo history.
+Scope: verified remediated items from analysis A1–A10 (plan 005-adopt-design-ressoa-plan). Unremediated / deferred items are NOT listed here (see requirements.md / plan.md for deferred device / T029–T031). Truthful attestation only; references are RED file names + commit SHAs from repo history.
 
 Verification command (reference, RED compile check):
   rustc --edition 2021 --test
@@ -48,7 +48,7 @@ Verification command (reference, RED compile check):
 ## 7. Property census closed (10 hex)
 - Status: REMEDIATED (PASS)
 - Reference: test_property_census_closed_red PASS
-- Evidence: spec.md SC-001 line 156: "census determinístico de 10 hex tokens (8 sona + 2 pinos de sinal `--signal-caution` `#FFD400`, `--signal-failure` `#FF4D63`)"; closed set; host tool verifies over files touched; no new token outside set (D2); SC-006 references same closed hex set + WCAG 2.1 AA + inventory of elements.
+- Evidence: spec.md SC-001 line 156: "census determinístico de 10 hex tokens (8 ressoa + 2 pinos de sinal `--signal-caution` `#FFD400`, `--signal-failure` `#FF4D63`)"; closed set; host tool verifies over files touched; no new token outside set (D2); SC-006 references same closed hex set + WCAG 2.1 AA + inventory of elements.
 - Note: census is closed and verified on host; device leg remains deferred (see item 6 / SC-001 device leg); this is truthful, not overstated.
 
 ---

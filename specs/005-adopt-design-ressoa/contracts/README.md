@@ -1,6 +1,6 @@
 # Contracts — Naming Convention (A4 remediation, 2026-10-26)
 
-Canonical file names for this feature (spec 005-adopt-design-sona):
+Canonical file names for this feature (spec 005-adopt-design-ressoa):
 
 - `earcon-mapping.md` — authority for earcon grammar (E1–E7), mapping, latency bounds, burst policy.
 - `surface-audit.md` — authority for surface inventory, token census, contrast, aria, movement, accent-only.

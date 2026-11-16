@@ -1,7 +1,7 @@
 # SC-002 Blind-Test Protocol — RED scaffold (NOT EXECUTED)
 
 Status: RED / DEFERRED — protocol scaffold defined; execution deferred (device unavailable).
-Owner: device-build. Feature: `005-adopt-design-sona` (Option-A subset). Section ref: `quickstart.md` §3.3; contract ref: `contracts/earcon-mapping.md` E3 / E5 / E6.
+Owner: device-build. Feature: `005-adopt-design-ressoa` (Option-A subset). Section ref: `quickstart.md` §3.3; contract ref: `contracts/earcon-mapping.md` E3 / E5 / E6.
 File: `tests/005-red/test_sc002_blind_test_protocol.md`
 Created: 2026-10-27 (Rem-T203).
 

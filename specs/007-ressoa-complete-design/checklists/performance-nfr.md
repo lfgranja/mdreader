@@ -15,7 +15,7 @@
 - [x] CHK004 - Are DPR requirements specified: backing store capped at 2×, handling of `devicePixelRatio` changes (rotation/zoom), and fallback when DPR unavailable? [Completeness, Spec §FR-008, Edge Cases]
 - [x] CHK005 - Are battery/thermal requirements specified as testable NFRs: no continuous rAF loop, pause on hidden, freeze under reduced motion, and any adaptive throttling under thermal pressure? [Completeness, Spec §FR-008, Assumptions]
 - [x] CHK006 - Are memory bounds specified: canvas backing-store size cap, no allocation on hot path, cleanup on unmount/navigation, and bounded RMS buffer lifetime? [Completeness, Spec §FR-008, Edge Cases]
-- [x] CHK007 - Are graceful-degradation requirements defined for every failure mode: RMS unavailable → static placeholder, canvas unavailable → `#progress` bar, `backdrop-filter` unsupported → solid `--sona-stage`? [Completeness, Spec §Edge Cases, Clarifications]
+- [x] CHK007 - Are graceful-degradation requirements defined for every failure mode: RMS unavailable → static placeholder, canvas unavailable → `#progress` bar, `backdrop-filter` unsupported → solid `--ressoa-stage`? [Completeness, Spec §Edge Cases, Clarifications]
 - [x] CHK008 - Are offline requirements defined: waveform viz and StatusView function with no network, no remote asset dependency, and no network-triggered redraw? [Completeness, Spec §Assumptions, Spec §FR-008]
 
 ## Requirement Clarity

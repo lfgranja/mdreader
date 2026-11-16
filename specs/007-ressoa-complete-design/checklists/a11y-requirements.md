@@ -10,7 +10,7 @@
 ## Requirement Completeness
 
 - [x] CHK101 - Is the `aria-hidden="true"` requirement explicitly specified for the waveform canvas and all decorative wave containers? [Completeness, Spec §FR-008, Contract A3/A8]
-- [x] CHK102 - Is the requirement specified that `#progress` remains a visually-hidden (not `display:none`) `role="progressbar"` with `aria-valuenow/min/max/valuetext`, including update responsibility in `renderProgress()`? [Completeness, Contract A8, Clarification C5 §3.5]
+- [x] CHK102 - Is the requirement specified that `#progress` remains a visually-hidden (not `display:none`) `role="progressbar"` with `aria-valuenow/min/max/valuetext`, including update responsibility in `renderProgress`? [Completeness, Contract A8, Clarification C5 §3.5]
 - [x] CHK103 - Is the live-region announcement rule specified (trigger conditions, ≥5% delta or state transition, "carregando" once when indeterminate)? [Completeness, Contract A8, Spec Edge Cases]
 - [x] CHK104 - Are reduced-motion freeze requirements specified for canvas (static snapshot, no hide) and all decorative animations, including dynamic toggle handling? [Completeness, Spec §FR-004, Edge Cases, Clarification C5 §3.6]
 - [x] CHK105 - Is empty-title accessibility specified (glyph `—` + `aria-label="Sem título"` + `.sr-only`) for 007 title card? [Completeness, Spec §FR-002, US1 Scenario 3]

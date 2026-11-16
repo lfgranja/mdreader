@@ -42,7 +42,7 @@
 - [x] CHK071 - Are requirements for removing dead CSS (if any) specified? [Edge Case, Gap]
 
 ## Dependencies & Assumptions
-- [x] CHK072 - Is dependency on existing contracts (005-adopt-design-sona/contracts) documented? [Dependency, Plan §Source Code]
+- [x] CHK072 - Is dependency on existing contracts (005-adopt-design-ressoa/contracts) documented? [Dependency, Plan §Source Code]
 - [ ] CHK073 - Is assumption "token set may need minimal coordinated additions only if unavoidable" tracked? [Assumption, Spec §Assumptions]
 - [ ] CHK074 - Is the coordinated edit process requirement clear (follows §VII)? [Dependency, Plan §§VII]
 

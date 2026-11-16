@@ -1,6 +1,6 @@
 # Clarification B2 — Earcon failure / degradation behavior
 
-> Research note for `specs/005-adopt-design-sona/`. Question: when an expected
+> Research note for `specs/005-adopt-design-ressoa/`. Question: when an expected
 > confirmation/warning earcon cannot be produced (synthesis error, audio-channel
 > allocation failure), what does human-factors literature and safety-critical
 > interface practice recommend — given the spec already prohibits *silent

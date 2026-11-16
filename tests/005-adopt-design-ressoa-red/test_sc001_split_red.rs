@@ -3,7 +3,7 @@
 
 #[test]
 fn sc001_has_explicit_host_and_device_legs() {
-    let spec = include_str!("../../specs/005-adopt-design-sona/spec.md");
+    let spec = include_str!("../../specs/005-adopt-design-ressoa/spec.md");
     // Must mention deterministic host census and deferred device leg with owner.
     let has_host = spec.contains("census") || spec.contains("host") || spec.contains("deterministic");
     let has_device = spec.contains("device") || spec.contains("DEFERRED") || spec.contains("trial");

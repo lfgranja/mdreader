@@ -1,15 +1,15 @@
-# Implementation Plan: 018-sona-inspired-voice
+# Implementation Plan: 018-ressoa-reading-voice
 
-- **Feature**: 018-sona-inspired-voice
-- **Spec**: `specs/018-sona-inspired-voice/spec.md`
-- **Assessment**: `.specify/assessments/sona-inspired-voice/decision.md` (GO)
+- **Feature**: 018-ressoa-reading-voice
+- **Spec**: `specs/018-ressoa-reading-voice/spec.md`
+- **Assessment**: `.specify/assessments/ressoa-reading-voice/decision.md` (GO)
 - **Status**: Draft / Ready for Tasks
 - **Created**: 2026-11-10
-- **Canonical reference**: `local://sona-inspired-voice-plan.md` (approved; inline plan authoritative if conflict)
+- **Canonical reference**: `local://ressoa-reading-voice-plan.md` (approved; inline plan authoritative if conflict)
 
 ## 1. Summary
 
-Implement a curated, bundled, offline, CC0-provenanced pt-BR voice catalog for Ressoa that evokes a non-imitative "Sona-inspired feel" aligned to `DESIGN-SONA/` (requester Option B). Keep `pt_BR-faber-medium` as stable default, add a validated curated alternative (target `pt_BR-cadu-medium`, fallback `pt_BR-jeff-medium`) and per-voice tuning/provenance, generalize `crates/adapter-synthesis` runtime/assets/build/CLI, persist/restore selection in `crates/session`, and wire catalog-aware diagnose/inventory/select/cycle behavior in `src-tauri` with safe restart-at-authoritative-position on voice change. Preserve 22050 Hz mono f32 handoff, fail-closed behavior, `OfflineDefault (None,None)`, Rust authority, and zero `INTERNET`.
+Implement a curated, bundled, offline, CC0-provenanced pt-BR voice catalog for Ressoa that evokes a non-imitative harmonious, melodic, calm, soft reading voice aligned to `DESIGN-RESSOA/` (requester Option B). Keep `pt_BR-faber-medium` as stable default, add a validated curated alternative (target `pt_BR-cadu-medium`, fallback `pt_BR-jeff-medium`) and per-voice tuning/provenance, generalize `crates/adapter-synthesis` runtime/assets/build/CLI, persist/restore selection in `crates/session`, and wire catalog-aware diagnose/inventory/select/cycle behavior in `src-tauri` with safe restart-at-authoritative-position on voice change. Preserve 22050 Hz mono f32 handoff, fail-closed behavior, `OfflineDefault (None,None)`, Rust authority, and zero `INTERNET`.
 
 ## 2. Technical Context
 
@@ -26,7 +26,7 @@ Implement a curated, bundled, offline, CC0-provenanced pt-BR voice catalog for R
 
 | Gate | Status | Notes |
 |------|--------|-------|
-| R1 (assess→decision before specify) | PASS | `.specify/assessments/sona-inspired-voice/decision.md` verdict `go` (2026-11-10) |
+| R1 (assess→decision before specify) | PASS | `.specify/assessments/ressoa-reading-voice/decision.md` verdict `go` (2026-11-10) |
 | R3 (clarifications ≤3) | PASS | 0 blocking clarifications; residuals recorded as implementation validations with contingencies |
 | Library-first / one code path | PASS | Same Rust synthesis path for CLI and bridge; `main.rs`/commands remain thin |
 | Rust authority / zero Android API in Rust crates | PASS | No playback/synthesis authority moved to Kotlin; Kotlin mirror-only if inventory fields change |
@@ -44,7 +44,7 @@ Post-design re-check required after implementation (especially closed-set scan, 
 
 - **Layout**: `crates/adapter-synthesis/assets/voices/<voice-id>/` per bundled voice with `MODEL_CARD`, `PROVENANCE.md`, `<voice-id>.onnx`, `<voice-id>.onnx.json`, `tokens.txt` (and required model files). Share phonemizer data in `assets/voices/_shared/espeak-ng-data/` if validated compatible; otherwise per-voice `espeak-ng-data/` with explicit provenance.
 - **Catalog (closed, fixed order):** index 0 `pt_BR-faber-medium` (default), index 1 curated alternative (`pt_BR-cadu-medium` target, `pt_BR-jeff-medium` fallback). Deterministic ids = directory names; no runtime discovery from arbitrary filesystem beyond bundled/packaged roots.
-- **Provenance:** record upstream URL, HF revision/commit or snapshot date, license (CC0), file list, checksums (blake3/sha256 as appropriate), inference defaults (`noise_scale`, `noise_scale_w`, `length_scale`, sample rate 22050), and "Sona-inspired feel" curation note (non-imitative).
+- **Provenance:** record upstream URL, HF revision/commit or snapshot date, license (CC0), file list, checksums (blake3/sha256 as appropriate), inference defaults (`noise_scale`, `noise_scale_w`, `length_scale`, sample rate 22050), and a curation note describing the voice as harmonious, melodic, calm, and soft (non-imitative).
 - **`build.rs`:** emit manifest covering all bundled voice dirs and shared assets deterministically (sorted), failing build/validation only on packaging rules consistent with existing policy.
 
 ### 4.2 `crates/adapter-synthesis` Runtime Refactor
@@ -80,7 +80,7 @@ Post-design re-check required after implementation (especially closed-set scan, 
 
 ## 5. Milestones / Slices
 
-- **Slice 1 — Assessment/Spec artifacts (done/planned):** `.specify/assessments/sona-inspired-voice/*` (GO), `specs/018-sona-inspired-voice/{spec,plan,tasks,checklists,contracts}`.
+- **Slice 1 — Assessment/Spec artifacts (done/planned):** `.specify/assessments/ressoa-reading-voice/*` (GO), `specs/018-ressoa-reading-voice/{spec,plan,tasks,checklists,contracts}`.
 - **Slice 2 — Assets & provenance:** acquire/validate bundled curated voice (target cadu), add `MODEL_CARD`/`PROVENANCE.md`/checksums, restructure to per-voice + shared espeak layout, update `build.rs` manifest.
 - **Slice 3 — Adapter core:** `voice` catalog/types, refactor `synth.rs`/paths/engine lifecycle, update `android_assets.rs`, extend `cli.rs`/`lib.rs` with compatible APIs.
 - **Slice 4 — Persistence & bridge:** `session` `last_voice`, `src-tauri` seed/diagnose/inventory/get/set/cycle + safe restart wiring, publish/contract updates.
@@ -98,16 +98,16 @@ Post-design re-check required after implementation (especially closed-set scan, 
 
 | Risk | Mitigation / Contingency |
 |------|---------------------------|
-| Curated alternative not subjectively "Sona-inspired" enough | Record evidence; keep `faber` default, ship validated alternative as selectable or fall back to tuned-faber-only catalog with multi-voice-ready API |
+| Curated alternative not subjectively "Ressoa" enough | Record evidence; keep `faber` default, ship validated alternative as selectable or fall back to tuned-faber-only catalog with multi-voice-ready API |
 | `sherpa-onnx 1.13.8` cannot cache multiple instances safely | Recreate single active engine on selection/switch (restart-at-boundary) |
 | Shared `espeak-ng-data` incompatible | Per-voice espeak dirs with provenance; accept size increase |
 | APK/extraction size & load time regression | Measure/record; keep catalog minimal (2 voices), deterministic packaging |
 | Broad hardcoded-voice blast radius | Systematic sweep + tests (`test_noscope`, CLI/bridge/session/contract expectations) and gate diff hygiene |
-| IP/branding drift toward LoL imitation | Explicit non-imitative naming/provenance checks and out-of-scope enforcement |
+| IP/branding drift toward third-party imitation | Explicit non-imitative naming/provenance checks and out-of-scope enforcement |
 
 ## 8. Out of Scope (implementation)
 
 - User import/download/cloud/marketplace voices, `INTERNET`, paid packs.
-- LoL Sona/performer imitation, Riot branding/likeness.
+- any third-party character/performer imitation, third-party branding/likeness.
 - SSML/alignment or engine-tier expansion.
 - Unrelated UI redesign, gate-9 device execution unless explicitly run and evidenced.

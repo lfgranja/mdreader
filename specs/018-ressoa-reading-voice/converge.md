@@ -1,4 +1,4 @@
-# Converge: 018 Sona-Inspired Voice
+# Converge: 018 harmonious, melodic, calm, soft reading voice
 
 Status: **CONVERGED** (host gates 1–8 PASS; gate 9 Rust compile PASS; Android assets verified).
 

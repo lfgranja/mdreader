@@ -1,6 +1,6 @@
 # Contract — Status Surface (in-app StatusView + MediaStyle accent)
 
-**Feature**: `005-adopt-design-sona` | **Date**: 2026-10-24 | Authority chain: `spec.md` (FR-001, FR-002, FR-005, FR-008) → this contract → implementation. No parallel lists: `data-model.md` §SonaToken/§SurfaceInventory are THE tables; this document adds binding rules only.
+**Feature**: `005-adopt-design-ressoa` | **Date**: 2026-10-24 | Authority chain: `spec.md` (FR-001, FR-002, FR-005, FR-008) → this contract → implementation. No parallel lists: `data-model.md` §RessoaToken/§SurfaceInventory are THE tables; this document adds binding rules only.
 
 ## S1. Surfaces
 
@@ -12,10 +12,10 @@ Exactly TWO styled surfaces exist: (1) MediaStyle notification — accent-only; 
 
 ## S3. Token binding rules
 
-- Every painted color inside the audited surface is a member of `data-model.md` §SonaToken — verbatim values, no rgb()/derived variants, no `#FFFFFF` (mutual white over the track is 1.14:1). The ledger (`DESIGN-SONA/tokens.md`, post-v2.2.0 alignment) is the ONLY hex authority for `--sona-harp`.
-- Slates `#0f172a` / `#1e293b` (shipped backgrounds) are REPLACED by `--sona-void`/`--sona-stage`.
-- `--sona-etwahl` appears ONLY inside `:focus-visible` rules targeting the enumerated interactive controls (TalkBack draws its own ring). Any other occurrence — including legacy «fluxo ativo»/progress rows — is the E1 violation class.
-- `--sona-celeste` (vacancy semantics, batch C2): the token STAYS in the lexicon but paint of it is a census violation — the sanctioned scope is empty, not the token.
+- Every painted color inside the audited surface is a member of `data-model.md` §RessoaToken — verbatim values, no rgb/derived variants, no `#FFFFFF` (mutual white over the track is 1.14:1). The ledger (`DESIGN-RESSOA/tokens.md`, post-v2.2.0 alignment) is the ONLY hex authority for `--ressoa-harp`.
+- Slates `#0f172a` / `#1e293b` (shipped backgrounds) are REPLACED by `--ressoa-void`/`--ressoa-stage`.
+- `--ressoa-focus` appears ONLY inside `:focus-visible` rules targeting the enumerated interactive controls (TalkBack draws its own ring). Any other occurrence — including legacy «fluxo ativo»/progress rows — is the E1 violation class.
+- `--ressoa-celeste` (vacancy semantics, batch C2): the token STAYS in the lexicon but paint of it is a census violation — the sanctioned scope is empty, not the token.
 
 ## S4. Element inventory + semantics
 
@@ -29,7 +29,7 @@ Continuous motion set = {pill}; the pill carries a `@media (prefers-reduced-moti
 
 ## S6. MediaStyle constants block
 
-`MediaMirror.kt` stays a declarative mirror: the app-painted value set is ONLY the accent `--sona-voice #F2F0E6` (constants block `:728-743`; no structural change, no new Kotlin logic — SC-035 purity untouched). Reason-line states keep their 004 behavior (3 s TTL expiry; no auto-resume).
+`MediaMirror.kt` stays a declarative mirror: the app-painted value set is ONLY the accent `--ressoa-voice #F2F0E6` (constants block `:728-743`; no structural change, no new Kotlin logic — SC-035 purity untouched). Reason-line states keep their 004 behavior (3 s TTL expiry; no auto-resume).
 
 ## S7. Change discipline
 
@@ -37,19 +37,19 @@ Any element addition, token addition, or motion addition = coordinated edit to t
 
 ## S8. Decorative wave pseudo-element (006 — Lente Sinestésica Completa)
 
-`.card::before` renders the decorative wave via static SVG (`DESIGN-SONA/assets/waves/waves-top.svg`) as `background-image`. Rules:
+`.card::before` renders the decorative wave via static SVG (`DESIGN-RESSOA/assets/waves/waves-top.svg`) as `background-image`. Rules:
 - Static SVG preferred (no animated SVG); subtle animation (opacity/translate≤10px/scale≤1.05, duration ≤250ms/≤400ms) permitted ONLY outside `@media(prefers-reduced-motion:reduce)`; freeze (`animation:none !important; transform:none !important`) inside reduce (SC-004, clarification Q3 / Option C).
 - Decorative container carries `aria-hidden="true"` (C-H5); never announces; never interactive.
-- Graceful degradation: if SVG fails to load, pseudo-element keeps token-color background (`--sona-stage`/`--sona-void`); layout preserved; no alert; SC-003 accent-only notification unchanged (CHK079/095).
-- No new surface; no new token member (reuse only — S3). If unavoidable, justify per §VII + record in `DESIGN-SONA/tokens.md` + commit message (T040).
+- Graceful degradation: if SVG fails to load, pseudo-element keeps token-color background (`--ressoa-stage`/`--ressoa-void`); layout preserved; no alert; SC-003 accent-only notification unchanged (CHK079/095).
+- No new surface; no new token member (reuse only — S3). If unavoidable, justify per §VII + record in `DESIGN-RESSOA/tokens.md` + commit message (T040).
 
 ## S9. Title card region
 
-`.card` is `role="region"` with `aria-label` populated from `documentTitle` (metadata_title) or fallback `"Lente Sinestésica"`. Title binding: `metadata_title.unwrap_or(filename)` (FR-002 / data-model.md TitleCard). Empty state renders `—` + `<span class="sr-only">Sem título</span>`. Long filenames: `overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0` (Option C). Acceptance criteria (CHK041): (i) role present; (ii) aria-label equality; (iii) empty-state sr-only; (iv) decorative aria-hidden; (v) focus order unchanged (`:focus-visible` `--sona-etwahl`).
+`.card` is `role="region"` with `aria-label` populated from `documentTitle` (metadata_title) or fallback `"Lente Sinestésica"`. Title binding: `metadata_title.unwrap_or(filename)` (FR-002 / data-model.md TitleCard). Empty state renders `—` + `<span class="sr-only">Sem título</span>`. Long filenames: `overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0` (Option C). Acceptance criteria (CHK041): (i) role present; (ii) aria-label equality; (iii) empty-state sr-only; (iv) decorative aria-hidden; (v) focus order unchanged (`:focus-visible` `--ressoa-focus`).
 
 ## S10. Refined controls (US2)
 
-Controls remain functional with complete visual: transport + stop buttons (focus rings `--sona-etwahl`), `.speed-control` rate dots positional only (no numeric rate painted — value-blindness invariant S4), `.progress` bar (`role="progressbar"`, `aria-valuetext` positional, not numeric rate), `.reason-banner` fixed-height (static failure `#FF4D63`, TTL warning `#FFD400` ≤3s, no alert/assertive). No new interactive elements (CHK019/020).
+Controls remain functional with complete visual: transport + stop buttons (focus rings `--ressoa-focus`), `.speed-control` rate dots positional only (no numeric rate painted — value-blindness invariant S4), `.progress` bar (`role="progressbar"`, `aria-valuetext` positional, not numeric rate), `.reason-banner` fixed-height (static failure `#FF4D63`, TTL warning `#FFD400` ≤3s, no alert/assertive). No new interactive elements (CHK019/020).
 
 ## S11. Contract update workflow (§VII)
 
@@ -58,8 +58,8 @@ Any element/token/motion addition = coordinated edit:
 2. Justify per proposal alignment (non-normative) + token reuse (no new members unless unavoidable).
 3. Atomic conventional commit with detailed edit summary (rule 4); reference §VII.
 4. Verify C-H4 (byte-identical S2, no dead `display:none`), C-H1 (hex census), no token creep (SC-007).
-5. If unavoidable addition: record in `DESIGN-SONA/tokens.md` + commit + re-run T033–T039 (T040).
+5. If unavoidable addition: record in `DESIGN-RESSOA/tokens.md` + commit + re-run T033–T039 (T040).
 
 ## S12. Assumption (token set)
 
-Token set unchanged (10 members, `data-model.md` §SonaToken); additions only if unavoidable per §VII (constitution: version + reason + risk in commit). Decorative wave uses existing palette only (no new members expected — CHK073 sound + validation clause). Surface count = 2 (StatusView + notification) — S1 preserved (CHK025/026).
+Token set unchanged (10 members, `data-model.md` §RessoaToken); additions only if unavoidable per §VII (constitution: version + reason + risk in commit). Decorative wave uses existing palette only (no new members expected — CHK073 sound + validation clause). Surface count = 2 (StatusView + notification) — S1 preserved (CHK025/026).

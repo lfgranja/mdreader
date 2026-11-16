@@ -6,3 +6,4 @@
 - [x] T004 Invariant tests: SourceRange/resume/fingerprint unchanged (`crates/adapter-synthesis/tests/prosody_invariants.rs`).
 - [x] T005 Host gates full (evidence in `converge.md`).
 - [~] T006 Device listening test (optional) — deferred (device-blocked; host invariants + unit tests green).
+- [x] T007 (2026-11-15) Refine speed-only classification for ordered lists, underscore strong (`__`), and conservative detectable highlight markers (`==`, `<u`, `<mark`) without changing plans/speeds/metadata; add unit tests; host verification recorded in `converge.md`; device listening `[NV]`.

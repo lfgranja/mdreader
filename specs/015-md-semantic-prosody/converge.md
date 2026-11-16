@@ -1,8 +1,8 @@
 # Converge: 015 MD Semantic Prosody
 
-Status: implemented (host). `prosody.rs` + wiring in `synth.rs`
-(per-segment `GenerationConfig.speed`). 9 prosody unit tests + 4 invariant
-tests passing. Clippy clean. Fmt clean.
+Status: implemented (host), refined 2026-11-15. `prosody.rs` + wiring in
+`synth.rs` (per-segment `GenerationConfig.speed`). 13 prosody unit tests + 4
+invariant tests passing (host). Clippy clean. Fmt clean.
 
 ## Scope (conservative 80/20)
 
@@ -39,3 +39,29 @@ so the pipeline order is classify → plan → normalize → synthesize.
 - No user-facing prosody control (future opt-in), per the conservative default.
 
 T232/T233 untouched. R4/R7 not claimed.
+
+## Refinement (2026-11-15) — detectable structure/emphasis coverage
+
+Host-side 80/20 refinement within 015 speed-only constraints (no new
+`ProsodyPlan` variants, no `speed()` changes, no segment metadata/fingerprint
+changes, deterministic classification on raw segment content):
+
+- `crates/adapter-synthesis/src/prosody.rs`: ordered list items
+  (`^\d+\.\s+`) classified as `List`; underscore strong (`__...__`) classified
+  as `Strong` alongside `**...**`; conservative detectable highlight/emphasis
+  hints (`==`, `<u`, `<mark`) mapped to existing `Emphasis` plan.
+- Tests: `crates/adapter-synthesis/tests/prosody_unit.rs` adds
+  `ordered_list_detected`, `strong_detected`, `underscore_strong_detected`,
+  `highlight_detected_as_emphasis` (13 unit tests total).
+- Verification (2026-11-15, host): targeted prosody tests passed (7 selected,
+  including existing/affected cases); broader adapter-synthesis run
+  `cargo nextest run -p adapter-synthesis -E 'not test(/arbitrary_documents_read_identically_from_stdin_and_input/)'`
+  passed (170 tests run, 1 skipped, 4 slow). Full run had unrelated environment
+  ENOSPC in `adapter-synthesis::cli_protocol arbitrary_documents_read_identically_from_stdin_and_input`
+  (`/tmp` ~99% full), not attributed to this change.
+  `cargo clippy -p adapter-synthesis -p player -p session --all-targets -- -D warnings`
+  passed. `scripts/expected-tests.txt` updated for added prosody targets.
+- Limitations: speed-only, segment-level prosody; no SSML/pitch contour/word-level
+  emphasis. Subtitle/underline/grifado/chapter-name intonation remains
+  heuristic/marker-dependent or engine-limited; device listening (T006/SC-PROS-004)
+  `[NV]`.

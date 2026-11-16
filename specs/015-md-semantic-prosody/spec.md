@@ -2,7 +2,7 @@
 
 **Feature Branch**: `015-md-semantic-prosody`
 **Created**: 2026-11-08
-**Status**: Converged (Cycle 017, 2026-11-10)
+**Status**: Converged (host, Cycle 017 2026-11-10; refined 2026-11-15, device listening `[NV]`)
 **Input**: `.specify/assessments/md-semantic-prosody/` (decision = go, defaults 80/20) + research.
 
 ## Problem

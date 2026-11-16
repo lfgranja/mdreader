@@ -46,6 +46,34 @@ fn list_detected() {
 }
 
 #[test]
+fn ordered_list_detected() {
+    let segs = split_document("1. item one", "");
+    assert_ne!(segs.len(), 0);
+    assert_eq!(plan_for_segment(&segs[0]), ProsodyPlan::List);
+}
+
+#[test]
+fn strong_detected() {
+    let segs = split_document("**bold** text", "");
+    assert_ne!(segs.len(), 0);
+    assert_eq!(plan_for_segment(&segs[0]), ProsodyPlan::Strong);
+}
+
+#[test]
+fn underscore_strong_detected() {
+    let segs = split_document("__bold__ text", "");
+    assert_ne!(segs.len(), 0);
+    assert_eq!(plan_for_segment(&segs[0]), ProsodyPlan::Strong);
+}
+
+#[test]
+fn highlight_detected_as_emphasis() {
+    let segs = split_document("==highlight== text", "");
+    assert_ne!(segs.len(), 0);
+    assert_eq!(plan_for_segment(&segs[0]), ProsodyPlan::Emphasis);
+}
+
+#[test]
 fn quote_detected() {
     let segs = split_document("> quote text", "");
     assert_ne!(segs.len(), 0);

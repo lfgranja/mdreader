@@ -38,7 +38,27 @@ impl ProsodyPlan {
     }
 }
 
+fn starts_with_ordered_list_item(t: &str) -> bool {
+    let mut chars = t.chars();
+    let mut saw_digit = false;
+    for c in chars.by_ref() {
+        if c.is_ascii_digit() {
+            saw_digit = true;
+            continue;
+        }
+        if saw_digit && c == '.' {
+            return chars.next().is_some_and(char::is_whitespace);
+        }
+        break;
+    }
+    false
+}
+
 /// Determine prosodic plan from segment content.
+///
+/// Conservative speed-only classification (015): the engine applies segment
+/// speed factors only, so this maps detectable markdown structure/emphasis to
+/// existing plans without changing segment metadata.
 #[must_use]
 pub fn plan_for_segment(seg: &crate::chunk::DocumentSegment) -> ProsodyPlan {
     let t = seg.content.trim();
@@ -60,13 +80,22 @@ pub fn plan_for_segment(seg: &crate::chunk::DocumentSegment) -> ProsodyPlan {
     if t.starts_with("```") {
         return ProsodyPlan::Code;
     }
-    if t.starts_with("* ") || t.starts_with("- ") || t.starts_with("+ ") {
+    if t.starts_with("* ")
+        || t.starts_with("- ")
+        || t.starts_with("+ ")
+        || starts_with_ordered_list_item(t)
+    {
         return ProsodyPlan::List;
     }
-    if t.contains("**") {
+    if t.contains("**") || t.contains("__") {
         return ProsodyPlan::Strong;
     }
-    if t.contains('*') || t.contains('_') {
+    if t.contains('*')
+        || t.contains('_')
+        || t.contains("==")
+        || t.contains("<u")
+        || t.contains("<mark")
+    {
         return ProsodyPlan::Emphasis;
     }
     if t.ends_with('?') {

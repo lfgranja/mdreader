@@ -19,6 +19,10 @@ use adapter_synthesis::normalize::{NormalizationMode, normalize_for_speech};
 /// thematic breaks, inline code, URLs and simple math.
 const MARKED: &str = "# Título\n\n*item um* e **item dois**\n\n> citação\n\n---\n\n`código *não* normaliza`\n\nhttps://exemplo.com/a*b e 2*3\n";
 
+/// Includes table cells and tilde fences: table data markers must be stripped
+/// outside protected zones, while fenced content stays verbatim.
+const MARKED_WITH_TABLE_AND_TILDE: &str = "# T\n\n| *a* | **b** | `c*d` | https://x.com/a*b | 2*3 | a*b |\n|---|---|---|---|---|---|\n\n~~~\n# código\n*asterisco*\n~~~\n";
+
 /// The segment metadata the resume/fingerprint contracts bind to:
 /// source range, index, resume point and the raw-content byte length.
 fn metadata(
@@ -74,6 +78,23 @@ fn fluid_mode_strips_structural_markers() {
 }
 
 #[test]
+fn fluid_mode_strips_table_data_markers_outside_protected_zones() {
+    let spoken = normalize_for_speech(MARKED_WITH_TABLE_AND_TILDE, NormalizationMode::Fluid);
+    assert!(
+        spoken.contains("a, b, `c*d`, https://x.com/a*b, 2*3, a*b"),
+        "table data normalization/protection mismatch: {spoken}"
+    );
+    assert!(
+        spoken.contains("\n.\n"),
+        "table delimiter should become a pause row: {spoken}"
+    );
+    assert!(
+        spoken.contains("~~~\n# código\n*asterisco*\n~~~"),
+        "tilde fenced block must stay verbatim: {spoken}"
+    );
+}
+
+#[test]
 fn fluid_mode_preserves_protected_zones() {
     let spoken = normalize_for_speech(MARKED, NormalizationMode::Fluid);
     assert!(
@@ -85,6 +106,20 @@ fn fluid_mode_preserves_protected_zones() {
         "URL altered: {spoken}"
     );
     assert!(spoken.contains("2*3"), "simple math altered: {spoken}");
+
+    let table_spoken = normalize_for_speech(MARKED_WITH_TABLE_AND_TILDE, NormalizationMode::Fluid);
+    assert!(
+        table_spoken.contains("`c*d`"),
+        "inline code in table altered: {table_spoken}"
+    );
+    assert!(
+        table_spoken.contains("https://x.com/a*b"),
+        "URL in table altered: {table_spoken}"
+    );
+    assert!(
+        table_spoken.contains("2*3"),
+        "simple math in table altered: {table_spoken}"
+    );
 }
 
 #[test]

@@ -48,7 +48,7 @@ pub fn normalize_for_speech(text: &str, mode: NormalizationMode) -> String {
     let mut in_fence = false;
     for line in &lines {
         let trimmed = line.trim();
-        if trimmed.starts_with("```") {
+        if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
             in_fence = !in_fence;
             result_lines.push((*line).to_string());
             continue;
@@ -99,6 +99,39 @@ fn restore_zones(placeholders: &[String], s: &str) -> String {
     .to_string()
 }
 
+/// Protect inline verbatim zones (code, URLs, math, simple multiplication).
+fn protect_zones_inline(placeholders: &mut Vec<String>, s: &str) -> String {
+    let mut s = protect_zone(placeholders, s, r"`[^`]*`");
+    s = protect_zone(placeholders, &s, r"https?://\S+");
+    s = protect_zone(placeholders, &s, r"\$[^$]*\$");
+    s = protect_zone(placeholders, &s, r"\b\d+\s*\*\s*\d+\b");
+    // Non-numeric multiplication / intraword asterisks (`a*b`).
+    protect_zone(placeholders, &s, r"\b\w+\*\w+\b")
+}
+
+/// Strip inline markers and remove orphan asterisks (after protections).
+fn strip_inline_markers(s: &str) -> String {
+    let mut s = replace_with(s, r"~~(.+?)~~", "$1");
+    s = replace_with(&s, r"\*\*(.+?)\*\*", "$1");
+    s = replace_with(&s, r"\*(.+?)\*", "$1");
+    s = replace_with(&s, r"__(.+?)__", "$1");
+    s = replace_with(&s, r"_(.+?)_", "$1");
+    s.replace('*', "")
+}
+
+/// Normalize inline content without line-structural transforms.
+fn normalize_cell(cell: &str) -> String {
+    let mut placeholders: Vec<String> = Vec::new();
+    let mut s = cell.to_string();
+    // Links and images reduce to their visible label / alt text
+    // BEFORE the destination can be mistaken for a bare URL.
+    s = replace_with(&s, r"!?\[([^\]]*)\]\([^)]*\)", "$1");
+    s = protect_zones_inline(&mut placeholders, &s);
+    s = replace_with(&s, r"</?[a-zA-Z][^>]*>", "");
+    s = strip_inline_markers(&s);
+    restore_zones(&placeholders, &s)
+}
+
 fn normalize_line(line: &str) -> String {
     let trimmed = line.trim();
     // Thematic break → pause.
@@ -120,12 +153,7 @@ fn normalize_line(line: &str) -> String {
     s = replace_with(&s, r"!?\[([^\]]*)\]\([^)]*\)", "$1");
 
     // Protect verbatim zones before any marker stripping.
-    s = protect_zone(&mut placeholders, &s, r"`[^`]*`");
-    s = protect_zone(&mut placeholders, &s, r"https?://\S+");
-    s = protect_zone(&mut placeholders, &s, r"\$[^$]*\$");
-    s = protect_zone(&mut placeholders, &s, r"\b\d+\s*\*\s*\d+\b");
-    // Non-numeric multiplication / intraword asterisks (`a*b`).
-    s = protect_zone(&mut placeholders, &s, r"\b\w+\*\w+\b");
+    s = protect_zones_inline(&mut placeholders, &s);
 
     // Raw HTML tags are stripped.
     s = replace_with(&s, r"</?[a-zA-Z][^>]*>", "");
@@ -139,17 +167,7 @@ fn normalize_line(line: &str) -> String {
     // List bullets.
     s = replace_with(&s, r"^(\s*)[*+-]\s+", "$1");
 
-    // Strikethrough.
-    s = replace_with(&s, r"~~(.+?)~~", "$1");
-
-    // Emphasis markers.
-    s = replace_with(&s, r"\*\*(.+?)\*\*", "$1");
-    s = replace_with(&s, r"\*(.+?)\*", "$1");
-    s = replace_with(&s, r"__(.+?)__", "$1");
-    s = replace_with(&s, r"_(.+?)_", "$1");
-
-    // Remove orphan asterisks left outside the protected zones.
-    s = s.replace('*', "");
+    s = strip_inline_markers(&s);
 
     restore_zones(&placeholders, &s)
 }
@@ -166,7 +184,11 @@ fn normalize_table_row(trimmed: &str) -> String {
     if is_delimiter {
         return ".".to_string();
     }
-    cells.join(", ")
+    cells
+        .iter()
+        .map(|cell| normalize_cell(cell))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 fn is_thematic_break(s: &str) -> bool {
@@ -292,5 +314,19 @@ mod tests {
     fn fenced_code_is_verbatim() {
         let src = "```\n# não é título\n*a*\n```";
         assert_eq!(normalize_for_speech(src, NormalizationMode::Fluid), src);
+    }
+
+    #[test]
+    fn tilde_fenced_code_is_verbatim() {
+        let src = "~~~\n# não é título\n*a*\n~~~";
+        assert_eq!(normalize_for_speech(src, NormalizationMode::Fluid), src);
+    }
+
+    #[test]
+    fn normalizes_table_data_cells_and_preserves_protected_zones() {
+        let src =
+            "| *a* | **b** | `a*b` | https://x.com/a*b | 2*3 | a*b |\n|---|---|---|---|---|---|";
+        let out = normalize_for_speech(src, NormalizationMode::Fluid);
+        assert_eq!(out, "a, b, `a*b`, https://x.com/a*b, 2*3, a*b\n.");
     }
 }

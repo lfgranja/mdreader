@@ -2,7 +2,7 @@
 
 **Feature Branch**: `014-tts-symbol-normalization`
 **Created**: 2026-11-08
-**Status**: Converged (Cycle 017, 2026-11-10)
+**Status**: Converged (host, Cycle 017 2026-11-10; hardened 2026-11-15, device listening `[NV]`)
 **Input**: `.specify/assessments/tts-symbol-fatigue/` (decision = go, 2026-11-08) + deep research.
 
 ## Problem / Evidence Summary
@@ -57,5 +57,3 @@ As a technical reader, I can choose Literal/Verbatim mode to hear markdown as-is
 - SC-SYM-003: Idempotency property test passes.
 - SC-SYM-004: Range/resume/fingerprint invariants preserved (host tests).
 - SC-SYM-005: Device listening test confirms reduced fatigue (subjective, optional).
-EOF
-echo written

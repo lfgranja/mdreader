@@ -145,6 +145,8 @@ jobs:
 
       - name: Setup Android SDK/NDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
       - name: Install Android NDK and platform tools
         run: |

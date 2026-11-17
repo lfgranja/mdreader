@@ -32,16 +32,16 @@ export PROPTEST_CASES="${PROPTEST_CASES:-32}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-fail {
+fail() {
   printf 'verify.sh: FAIL: %s\n' "$1" >&2
   exit 1
 }
 
-running {
+running() {
   printf 'gate-%s %s: running...\n' "$1" "$2"
 }
 
-pass {
+pass() {
   printf 'gate-%s %s: PASS\n' "$1" "$2"
 }
 
@@ -90,7 +90,7 @@ fi
 # first token — `package::target` for integration
 # targets and bare `package` for lib unit-test binaries
 # — the established format of scripts/expected-tests.txt.
-cargo nextest list --workspace 2>/dev/null \
+cargo nextest list --workspace --color never 2>/dev/null \
   | grep -E "::" \
   | sed -E 's/ .*//' \
   | sort -u > "$LIVE_TARGETS"

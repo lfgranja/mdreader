@@ -465,15 +465,10 @@ fn no_library_view_no_auto_service_no_diag_surface() -> Result<(), Box<dyn Error
 #[test]
 fn no_distribution_artifacts_in_tree() {
     let root = repo_root();
-    // No store listing / changelog / support surface / signing
-    // material committed (maintainer-only sideload; nothing
-    // published).
-    for forbidden in [
-        "fastlane/metadata",
-        "play-store-listing",
-        "CHANGELOG-STORE",
-        "listing.md",
-    ] {
+    // No Play Store listing / changelog / support surface / signing
+    // material committed (`fastlane/metadata` is intentionally
+    // in-tree for F-Droid rc2).
+    for forbidden in ["play-store-listing", "CHANGELOG-STORE", "listing.md"] {
         let candidate = root.join(forbidden);
         assert!(
             !candidate.exists(),

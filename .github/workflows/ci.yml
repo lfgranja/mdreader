@@ -173,7 +173,11 @@ jobs:
         env:
           ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.0.12077973
           NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.0.12077973
-        run: cargo tauri android build --target aarch64 --debug
+        run: |
+          if [ ! -f src-tauri/gen/android/app/build.gradle.kts ]; then
+            cargo tauri android init --ci
+          fi
+          cargo tauri android build --target aarch64 --debug
 
       - name: Upload debug APK artifact
         if: always()

@@ -468,11 +468,7 @@ fn no_distribution_artifacts_in_tree() {
     // No Play Store listing / changelog / support surface / signing
     // material committed (`fastlane/metadata` is intentionally
     // in-tree for F-Droid rc2).
-    for forbidden in [
-        "play-store-listing",
-        "CHANGELOG-STORE",
-        "listing.md",
-    ] {
+    for forbidden in ["play-store-listing", "CHANGELOG-STORE", "listing.md"] {
         let candidate = root.join(forbidden);
         assert!(
             !candidate.exists(),

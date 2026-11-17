@@ -90,7 +90,7 @@ fi
 # first token — `package::target` for integration
 # targets and bare `package` for lib unit-test binaries
 # — the established format of scripts/expected-tests.txt.
-cargo nextest list --workspace 2>/dev/null \
+cargo nextest list --workspace --color never 2>/dev/null \
   | grep -E "::" \
   | sed -E 's/ .*//' \
   | sort -u > "$LIVE_TARGETS"

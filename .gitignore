@@ -119,6 +119,7 @@ __pycache__/
 build-tmp/
 .maestro/
 device-automation-*/
+device-ttfa-*/
 device-validation-*/
 device-validation-*.md
 emulator-validation-*/

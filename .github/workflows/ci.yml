@@ -65,7 +65,7 @@ jobs:
       - name: Gate 2 — expected-tests two-way diff
         run: |
           set -euo pipefail
-          cargo nextest list --workspace 2>/dev/null             | grep -E "::"             | sed -E 's/ .*//'             | sort -u > /tmp/nextest-live.txt
+          cargo nextest list --workspace --color never 2>/dev/null             | grep -E "::"             | sed -E 's/ .*//'             | sort -u > /tmp/nextest-live.txt
           test -s /tmp/nextest-live.txt
           test -f scripts/expected-tests.txt
           sort -u scripts/expected-tests.txt > /tmp/expected.txt

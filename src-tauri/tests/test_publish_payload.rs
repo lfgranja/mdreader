@@ -124,7 +124,7 @@ fn publish_payload_carries_exactly_the_contract_keys_for_each_transport()
         let payload = publish_mirror(
             transport,
             position_secs,
-            section_title,
+            section_title.clone(),
             true, // determinate
             None, // no transient reason
         );

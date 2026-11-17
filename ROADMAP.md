@@ -4,7 +4,7 @@
 > **Framework de Produto & Governança:** `Now / Next / Later` + Spec Kit (`assess.*` → `specify` → `clarify` → `plan` → `tasks` → `implement` → `converge` / `bug.*`)  
 > **Objetivo Primário:** `OBJETIVO.md` — leitor de documentos Markdown com síntese de voz 100% offline, Rust como única autoridade de playback/transporte/rate/posição, Kotlin como espelho estrito (`SC-035`), Tauri 2.12.1, CPAL 0.18.2 + AAudio, mono f32 @ 22050 Hz, sherpa-onnx 1.13.8 + Piper pt-BR (`offline_default`). Zero permissão de INTERNET.
 
-*Atualizado: 2026-11-16 · Branch atual: `dev`. Ciclo 018 — Ressoa Voice (closed catalog faber+cadu+jeff, persist/cycle/restart, host gates 1-8 PASS, gate 9 Rust compile PASS). Ciclo rc2 — Spec 021 convergida (targetSdk 36 alinhado ao prazo Google Play 2026), rc2 candidate produzido (.specify/releases/v0.1.0-rc2/); `./scripts/verify.sh` apresentou falha na linha 35 (`fail: comando não encontrado`) nesta sessão e precisa de correção antes do release; signed build/store e receita F-Droid reprodutível (cargo-ndk + Gradle sem `gradlew`) pendentes.*
+*Atualizado: 2026-11-14 · Branch atual: `dev`. Ciclo 018 — Ressoa Voice (closed catalog faber+cadu+jeff, persist/cycle/restart, host gates 1-8 PASS, gate 9 Rust compile PASS). Ciclo rc2 — Spec 021 convergida (verificação), rc2 candidate produzido (.specify/releases/v0.1.0-rc2/); gates 1-8 a re-executar em ambiente sem limite; signed build/store pendentes de autorização. Adicionados: DSP post-processing (compressor/reverb/chorus), provider router (closed-set EngineTier), terceira voz pt_BR-jeff-medium (CC0).*
 
 ---
 

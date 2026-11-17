@@ -6836,7 +6836,8 @@ pub mod commands {
         let app_data_dir = app
             .path()
             .app_data_dir()
-            .map_or_default(|p| p.to_string_lossy().into_owned());
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or_default();
         let voices_root = adapter_synthesis::synth::voices_root();
         let active = adapter_synthesis::synth::active_voice();
         let voices: Vec<serde_json::Value> = VoiceId::CATALOG

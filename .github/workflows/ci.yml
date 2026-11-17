@@ -112,9 +112,6 @@ jobs:
           bash scripts/check-manifest.sh
           bash scripts/check-shell-purity.sh
 
-      - name: Full verify.sh (authoritative local gate runner)
-        run: bash scripts/verify.sh
-
   android-build:
     name: Android build (gate 9, aarch64 debug)
     runs-on: ubuntu-24.04

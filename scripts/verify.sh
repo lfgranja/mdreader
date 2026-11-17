@@ -230,7 +230,7 @@ declare -A EXPECTED_LINTS=(
   [clippy:wildcard_dependencies]=deny
   [clippy:multiple_crate_versions]=deny
 )
-declare -A ACTUAL_LINTS=
+declare -A ACTUAL_LINTS=()
 while IFS='|' read -r section key value; do
   ACTUAL_LINTS["${section}:${key}"]="$value"
 done < <(

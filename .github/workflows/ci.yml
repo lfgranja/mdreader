@@ -167,7 +167,7 @@ jobs:
       - name: Install Tauri CLI
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-tauri
+          tool: tauri-cli
 
       - name: Gate 9 — Android build (aarch64 debug)
         env:

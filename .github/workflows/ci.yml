@@ -15,7 +15,6 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: "0"
   PROPTEST_CASES: "32"
-  SHERPA_ONNX_ARCHIVE_DIR: ${{ github.workspace }}/vendor/sherpa-onnx-sys
   RUST_BACKTRACE: short
 
 jobs:
@@ -23,6 +22,8 @@ jobs:
     name: Host gates (verify.sh 1-8 subset + supply chain)
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    env:
+      SHERPA_ONNX_ARCHIVE_DIR: ${{ github.workspace }}/vendor/sherpa-onnx-sys
     steps:
       - uses: actions/checkout@v4
         with:

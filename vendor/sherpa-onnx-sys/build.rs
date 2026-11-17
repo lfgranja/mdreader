@@ -177,10 +177,16 @@ fn download_prebuilt_libs(
     // have a top-level directory while others extract directly into cache_root.
     let android_lib_dir = extracted_dir.join("jniLibs").join(android_abi(target_arch));
     let android_lib_dir_alt = cache_root.join("jniLibs").join(android_abi(target_arch));
-    if android_lib_dir.is_dir() {
+    let has_android_shared_libs = |dir: &Path| {
+        dir.is_dir()
+            && ["libsherpa-onnx-c-api.so", "libonnxruntime.so"]
+                .iter()
+                .all(|l| dir.join(l).is_file())
+    };
+    if has_android_shared_libs(&android_lib_dir) {
         return Ok((android_lib_dir, archive_stem.to_string()));
     }
-    if android_lib_dir_alt.is_dir() {
+    if has_android_shared_libs(&android_lib_dir_alt) {
         return Ok((android_lib_dir_alt, archive_stem.to_string()));
     }
 

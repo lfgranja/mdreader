@@ -1180,8 +1180,10 @@
         renderAll();
       }
     } catch (e) {
+      const rawMsg = typeof e === 'string' ? e : (e && e.message) ? e.message : '';
+      if (rawMsg === 'no document loaded') return;
       console.error('refreshStatusView failed:', e);
-      const msg = (e && e.message) ? e.message : 'falha ao atualizar estado';
+      const msg = rawMsg || 'falha ao atualizar estado';
       if (els.reasonBanner) { els.reasonBanner.textContent = msg; els.reasonBanner.className = 'reason-banner visible failure'; }
       if (els.liveRegion) els.liveRegion.textContent = msg;
     }

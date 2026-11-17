@@ -724,14 +724,21 @@ object DocIngest {
         val (bytes, uriStr, extension) = when (action) {
             Intent.ACTION_VIEW -> {
                 val uri = intent.data ?: return false
-                val ext = resolveFormat(resolver, uri) ?: "md"
+                val displayName = queryName(resolver, uri)
+                val ext = displayName?.substringAfterLast('.', "")?.lowercase()?.takeIf { it in setOf("md", "markdown", "txt") }
+                    ?: resolveFormat(resolver, uri) ?: "md"
                 val rawBytes = try {
                     readDocumentBytes(resolver, uri)
                 } catch (e: Exception) {
                     Log.e(TAG, "handleIncomingIntent: failed to read ACTION_VIEW uri=$uri", e)
                     return false
                 }
-                Triple(rawBytes, uri.toString(), ext)
+                val effectiveUri = if (!displayName.isNullOrBlank()) {
+                    "content://display_name/${Uri.encode(displayName)}"
+                } else {
+                    uri.toString()
+                }
+                Triple(rawBytes, effectiveUri, ext)
             }
             Intent.ACTION_SEND -> {
                 val streamUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {

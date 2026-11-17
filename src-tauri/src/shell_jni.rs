@@ -291,6 +291,14 @@ pub fn install(app: AppHandle) {
         tracing::warn!("shell channel: app handle already held; second install dropped");
         return;
     }
+    if let Ok(mut pending) = PENDING_INGEST.lock() {
+        if let Some(snapshot) = pending.take() {
+            drop(pending);
+            if let Err(err) = ingest_snapshot(&snapshot) {
+                tracing::warn!(error = %err, "shell channel: failed to drain pending cold-start ingest");
+            }
+        }
+    }
     let (tx, rx) = std::sync::mpsc::channel::<u32>();
     if VERB_TX.set(Mutex::new(tx)).is_err() {
         tracing::warn!("shell channel: raced install lost; drain not spawned");
@@ -1004,16 +1012,17 @@ impl IngestSnapshot {
 /// carries — either way the picker is re-prompted.
 pub fn ingest_snapshot(snapshot: &IngestSnapshot) -> Result<(), IngestError> {
     let Some(app) = installed_app() else {
-        tracing::warn!(
+        tracing::info!(
             snapshot_path = %snapshot.path,
             fingerprint = %snapshot.fingerprint_hex,
             original_uri = %snapshot.original_uri,
             mime_type = %snapshot.mime_type,
-            "shell channel: document ingest before the app handle is held; dropped with a diagnostic"
+            "shell channel: document ingest before app handle is held; queuing for cold-start drain"
         );
-        return Err(IngestError::Open {
-            reason: "app handle not installed; cannot open ingested document".to_string(),
-        });
+        if let Ok(mut pending) = PENDING_INGEST.lock() {
+            *pending = Some(snapshot.clone());
+        }
+        return Ok(());
     };
     let state = app.state::<AppState>();
     // The user explicitly picked a document in the foreground Activity:
@@ -1164,6 +1173,7 @@ fn percent_decode(segment: &str) -> String {
 /// the same handle the drain thread holds, retained so the
 /// document-ingest entry can reach [`AppState`]'s own session.
 static APP_HANDLE: OnceLock<AppHandle> = OnceLock::new();
+static PENDING_INGEST: Mutex<Option<IngestSnapshot>> = Mutex::new(None);
 
 /// The installed application handle, held once by
 /// [`install`] during setup so the ingest path can reach

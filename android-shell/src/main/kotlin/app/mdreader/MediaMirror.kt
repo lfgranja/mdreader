@@ -1056,6 +1056,20 @@ class MediaMirror(
         renderHaptic(state.hapticId)
         registerControlReceiver()
         mediaSession.isActive = true
+        val metadata = android.media.MediaMetadata.Builder()
+            .putString(android.media.MediaMetadata.METADATA_KEY_TITLE, state.title)
+            .putLong(
+                android.media.MediaMetadata.METADATA_KEY_DURATION,
+                when (val p = state.progress) {
+                    is MirrorProgress.Determinate -> {
+                        val total = p.totalSecs
+                        if (total != null && total > 0.0) (total * 1000.0).toLong() else -1L
+                    }
+                    else -> -1L
+                }
+            )
+            .build()
+        mediaSession.setMetadata(metadata)
         val mirrored = PlaybackState.Builder()
             .setState(
                 playbackConstantOf(state.transport),

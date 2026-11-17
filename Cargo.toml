@@ -42,6 +42,9 @@ allow_attributes_without_reason = "deny"
 wildcard_dependencies = "deny"
 multiple_crate_versions = "deny"
 
+[workspace.lints.cargo]
+unused_dependencies = "allow"
+
 # Exceptions Log entry 12 (PROVISIONAL): vendored `sherpa-onnx-sys` carrying the
 # single-line build-dependency fix zip 2 -> 9, which clears RUSTSEC-2026-0367 /
 # 0368 / 0369 (fixed only in zip >= 9). Upstream fix proposed as

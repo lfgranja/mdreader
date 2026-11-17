@@ -102,6 +102,7 @@ class ShellApplication : Application() {
          * declared, revocable consent).
          */
         override fun onActivityResumed(activity: Activity) {
+            ShellHost.currentActivity = activity
             if (consentFiled || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
                 return
             }
@@ -116,13 +117,23 @@ class ShellApplication : Application() {
             }
         }
 
-        override fun onActivityCreated(activity: Activity, state: Bundle?) {}
+        override fun onActivityCreated(activity: Activity, state: Bundle?) {
+            ShellHost.currentActivity = activity
+        }
 
-        override fun onActivityPaused(activity: Activity) {}
+        override fun onActivityPaused(activity: Activity) {
+            // Do NOT null out currentActivity on pause: onActivityResult is dispatched
+            // to the calling Activity before onResume runs when returning from SAF picker
+            // (DocumentsUI) or system dialogs. Annulling here drops the result silently.
+        }
 
         override fun onActivitySaveInstanceState(activity: Activity, state: Bundle) {}
 
-        override fun onActivityDestroyed(activity: Activity) {}
+        override fun onActivityDestroyed(activity: Activity) {
+            if (ShellHost.currentActivity === activity) {
+                ShellHost.currentActivity = null
+            }
+        }
     }
 
     private companion object {

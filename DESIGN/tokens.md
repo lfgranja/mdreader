@@ -191,4 +191,4 @@ Toda superfície que usa `signal.*` deve ter par auditivo correspondente. Se o e
 |---|---|---|
 | 1.0.0 | 2026-10-06 | Spec inicial do candidato B; paleta corrigida (`#FF4D63` 6.12:1, `#3D8BE8` 5.71:1, `#5D5D5D` 3.01:1); SC-029 declarado FAIL parcial com solução earcon + razão estática + TTL 3 s; única variante `dark`. |
 
-*Fontes: `RELATORIO_BRAND_PRODUTO.md` (escolha de B, paleta corrigida, estratégia confirmada) · `DESIGN_SYSTEMS_5_CANDIDATOS.md` §B · `.specify/memory/constitution.md` Princípio VII (Closed Sets) e VIII (Driving-First) · `.agents/product-marketing.md` (marca `ressona.dev`, Engine `Sona` interno, workspace `mdreader`, F-Droid).*
+*Fontes: `RELATORIO_BRAND_PRODUTO.md` (escolha de B, paleta corrigida, estratégia confirmada) · `DESIGN_SYSTEMS_5_CANDIDATOS.md` §B · `.specify/memory/constitution.md` Princípio VII (Closed Sets) e VIII (Driving-First) · `.agents/product-marketing.md` (marca `ressona.dev`, Engine `Ressoa` interno, workspace `mdreader`, F-Droid).*

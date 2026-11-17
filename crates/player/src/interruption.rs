@@ -3,16 +3,16 @@
 //! Measurement note (T001b):
 //!   Fixture byte size: `tests/device/fixtures/fixture-pt-2h.md`
 //!   Measured via `stat -c %s` → 62424 bytes.
-//!   `MAX_DOC_BYTES` = 62424 × 1.5 = 93636 (headroom for ~3h at 1.0x).
+//!   `MAX_DOC_BYTES` = 1048576 (1 MiB, ~30-35h of audio at 1.0x).
 //!   Wire reference: FR-018 ingest refusal → `FormatUndeliverable` when exceeded.
 
-/// Fixture-scale document byte cap (FR-018).
+/// Document byte cap (FR-018 / Spec 020).
 ///
-/// Fixed at plan time from the measured fixture (`fixture-pt-2h.md`:
-/// 62424 bytes via `stat -c %s`). Headroom factor 1.5 yields support
-/// for ~3 hours at 1.0x speed. Oversize documents refuse before
-/// synthesis with `FormatUndeliverable`.
-pub const MAX_DOC_BYTES: usize = 93636;
+/// Expanded from the early dogfooding 91 KiB fixture threshold to 1 MiB
+/// (1,048,576 bytes) to support long-form markdown books, academic papers,
+/// and extensive PKMS notes without premature refusal. Oversize documents
+/// refuse before synthesis with `FormatUndeliverable`.
+pub const MAX_DOC_BYTES: usize = 1_048_576;
 
 /// The closed interruption-reason set (no `Other` / `Unknown`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

@@ -1,6 +1,7 @@
 [workspace]
 members = ["crates/player", "crates/session", "crates/diag", "crates/engine-core", "crates/doc-structure", "crates/adapter-synthesis", "src-tauri"]
 exclude = []
+
 resolver = "3"
 
 [workspace.dependencies]
@@ -41,6 +42,9 @@ allow_attributes_without_reason = "deny"
 wildcard_dependencies = "deny"
 multiple_crate_versions = "deny"
 
+[workspace.lints.cargo]
+unused_dependencies = "allow"
+
 # Exceptions Log entry 12 (PROVISIONAL): vendored `sherpa-onnx-sys` carrying the
 # single-line build-dependency fix zip 2 -> 9, which clears RUSTSEC-2026-0367 /
 # 0368 / 0369 (fixed only in zip >= 9). Upstream fix proposed as
@@ -50,3 +54,12 @@ multiple_crate_versions = "deny"
 # condition.
 [patch.crates-io]
 sherpa-onnx-sys = { path = "vendor/sherpa-onnx-sys" }
+
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
+[profile.release]
+strip = "debuginfo"

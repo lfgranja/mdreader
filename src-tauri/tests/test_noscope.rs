@@ -8,8 +8,8 @@
 //! curl|tokio::net|std::net::Tcp` + `cargo tree -i`
 //! network-crate reverse-deps + `cargo deny check bans
 //! sources` + Cargo.lock audit), not voice-only — enforces
-//! FR-015 voice ban plus diag no-egress, exactly one bundled
-//! voice dir, no library view, lock-screen no Stop CONTROL,
+//! FR-015 voice ban plus diag no-egress, closed bundled voice catalog
+//! (spec 018), no library view, lock-screen no Stop CONTROL,
 //! no Auto/head-unit service, no in-app diag surface, no
 //! distribution artifacts + naming-boundary grep: no
 //! `mdreader` in user-visible strings, Ressoa-external
@@ -352,34 +352,51 @@ fn manifest_declares_no_network_permission() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
-fn exactly_one_bundled_voice_directory() {
+fn bundled_voice_catalog_is_closed_and_declared() {
     let root = repo_root();
     let voices = root.join("crates/adapter-synthesis/assets/voices");
-    // An absent voice tree is itself a scope violation — the
-    // sole voice is the offline path's source.
     let entries = std::fs::read_dir(&voices).map_or_else(
         |_| Vec::new(),
         |entries| entries.flatten().map(|e| e.path()).collect::<Vec<_>>(),
     );
-    let voice_dirs: Vec<PathBuf> = entries.into_iter().filter(|path| path.is_dir()).collect();
+    let mut dirs: Vec<String> = entries
+        .into_iter()
+        .filter(|path| path.is_dir())
+        .filter_map(|path| path.file_name().map(|n| n.to_string_lossy().into_owned()))
+        .collect();
+    dirs.sort();
+    // Spec 018 closed catalog: three bundled pt-BR Piper voices + shared phonemizer data.
     assert_eq!(
-        voice_dirs.len(),
-        1,
-        "exactly one bundled voice dir (spec: single CC0 pt_BR-faber-medium): found {:?}",
-        voice_dirs
-            .iter()
-            .map(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
-            .collect::<Vec<_>>()
+        dirs,
+        vec![
+            "pt_BR-cadu-medium".to_string(),
+            "pt_BR-faber-medium".to_string(),
+            "pt_BR-jeff-medium".to_string(),
+            "shared".to_string(),
+        ],
+        "bundled voices must match spec 018 closed catalog (faber default + cadu + jeff alternatives + shared espeak)"
     );
-    assert_eq!(
-        voice_dirs[0]
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned()),
-        Some("pt_BR-faber-medium".to_string()),
-        "the sole bundled voice is pt_BR-faber-medium (plan.md R1)"
+    let faber = voices.join("pt_BR-faber-medium");
+    let cadu = voices.join("pt_BR-cadu-medium");
+    let jeff = voices.join("pt_BR-jeff-medium");
+    let shared = voices.join("shared").join("espeak-ng-data");
+    assert!(
+        faber.join("pt_BR-faber-medium.onnx").is_file(),
+        "faber onnx missing"
     );
+    assert!(faber.join("tokens.txt").is_file(), "faber tokens missing");
+    assert!(
+        cadu.join("pt_BR-cadu-medium.onnx").is_file(),
+        "cadu onnx missing"
+    );
+    assert!(cadu.join("tokens.txt").is_file(), "cadu tokens missing");
+    assert!(
+        jeff.join("pt_BR-jeff-medium.onnx").is_file(),
+        "jeff onnx missing"
+    );
+    assert!(jeff.join("tokens.txt").is_file(), "jeff tokens missing");
+    assert!(shared.is_dir(), "shared espeak-ng-data missing");
 }
-
 #[test]
 fn lock_screen_carries_no_stop_control() -> Result<(), Box<dyn Error>> {
     // FR-002/FR-019: the Stop CONTROL exists only on the single
@@ -448,15 +465,10 @@ fn no_library_view_no_auto_service_no_diag_surface() -> Result<(), Box<dyn Error
 #[test]
 fn no_distribution_artifacts_in_tree() {
     let root = repo_root();
-    // No store listing / changelog / support surface / signing
-    // material committed (maintainer-only sideload; nothing
-    // published).
-    for forbidden in [
-        "fastlane/metadata",
-        "play-store-listing",
-        "CHANGELOG-STORE",
-        "listing.md",
-    ] {
+    // No Play Store listing / changelog / support surface / signing
+    // material committed (`fastlane/metadata` is intentionally
+    // in-tree for F-Droid rc2).
+    for forbidden in ["play-store-listing", "CHANGELOG-STORE", "listing.md"] {
         let candidate = root.join(forbidden);
         assert!(
             !candidate.exists(),

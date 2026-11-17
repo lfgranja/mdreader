@@ -1,5 +1,7 @@
 package app.mdreader
 
+import android.content.Intent
+import android.app.Activity
 import android.app.Notification
 import android.content.Context
 import android.media.AudioManager
@@ -150,6 +152,11 @@ object ShellHost {
     @Volatile
     private var initialised = false
 
+    /** The foreground Activity currently attached, if any (T159). */
+    @Volatile
+    @JvmStatic
+    var currentActivity: Activity? = null
+
     /**
      * Builds the four mirrors against the application context and
      * starts the routing observation. Safe to call again: a second
@@ -298,6 +305,7 @@ object ShellHost {
      * service host invokes this when a Play command arrives; Rust owns
      * what the answer means.
      */
+    @JvmStatic
     fun requestFocus() {
         val mirror = focus
         if (mirror == null) {
@@ -399,6 +407,84 @@ object ShellHost {
      * complete either way, and there is no surface left to
      * release.
      */
+    /**
+     * Commands the launch of the Storage Access Framework document
+     * picker (T161) from the active Activity via [DocIngest.pickDocument].
+     *
+     * @return true if the picker was successfully launched, false otherwise.
+     */
+    @JvmStatic
+    fun pickDocument(): Boolean {
+        val activity = currentActivity
+        if (activity == null) {
+            Log.e(TAG, "pickDocument: no active activity attached; cannot launch SAF picker")
+            return false
+        }
+        return try {
+            val launched = DocIngest.pickDocument(activity)
+            if (!launched) {
+                Log.e(TAG, "pickDocument: DocIngest.pickDocument returned false")
+            }
+            launched
+        } catch (e: Exception) {
+            Log.e(TAG, "pickDocument: failed to launch picker", e)
+            false
+        }
+    }
+
+    /**
+     * Commands the launch of the Storage Access Framework directory
+     * picker (T189) from the active Activity via [DocIngest.pickDirectory].
+     *
+     * @return true if the picker was successfully launched, false otherwise.
+     */
+    @JvmStatic
+    fun pickDirectory(): Boolean {
+        val activity = currentActivity
+        if (activity == null) {
+            Log.e(TAG, "pickDirectory: no active activity attached; cannot launch SAF picker")
+            return false
+        }
+        return try {
+            val launched = DocIngest.pickDirectory(activity)
+            if (!launched) {
+                Log.e(TAG, "pickDirectory: DocIngest.pickDirectory returned false")
+            }
+            launched
+        } catch (e: Exception) {
+            Log.e(TAG, "pickDirectory: failed to launch picker", e)
+            false
+        }
+    }
+
+    /**
+     * Routes the Activity result to the ingest paths: the directory-tree
+     * request goes to [DocIngest.handleDirectoryResult] (T198/T199), any
+     * other request to [DocIngest.handlePickResult]. Pure delegation —
+     * no playback decision here.
+     */
+    @JvmStatic
+    fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        onActivityResult(currentActivity, requestCode, resultCode, data)
+    }
+
+    /**
+     * Overload accepting explicit Activity context from the caller Activity
+     * (e.g. MainActivity.onActivityResult), guaranteeing resolution even if
+     * currentActivity is transiently unassigned during lifecycle callbacks.
+     */
+    @JvmStatic
+    fun onActivityResult(activityContext: Activity?, requestCode: Int, resultCode: Int, data: Intent?) {
+        val activity = activityContext ?: currentActivity
+        if (activity == null) {
+            Log.w(TAG, "onActivityResult: dropped result (requestCode=$requestCode, resultCode=$resultCode) because no Activity is attached")
+            return
+        }
+        Log.i(TAG, "onActivityResult: processing requestCode=$requestCode resultCode=$resultCode for ${activity.componentName?.shortClassName ?: activity.javaClass.simpleName}")
+        if (DocIngest.handleDirectoryResult(activity, requestCode, resultCode, data)) return
+        DocIngest.handlePickResult(activity, requestCode, resultCode, data)
+    }
+
     @JvmStatic
     fun commandDocumentEnd() {
         val current = resident

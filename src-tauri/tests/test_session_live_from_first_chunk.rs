@@ -88,8 +88,9 @@ const PLAYER_SESSION: &str = include_str!("../../crates/player/src/cli.rs");
 const SYNTHESIS: &str = "stream_synthesis";
 
 /// The name of the per-chunk enqueue — the call that hands a chunk to
-/// the backend's playback queue.
-const ENQUEUE: &str = "enqueue_chunk";
+/// the backend's playback queue. The 013 generation-safe rename
+/// (`enqueue_chunk` → `enqueue_chunk_for_generation`) is tracked here.
+const ENQUEUE: &str = "enqueue_chunk_for_generation";
 
 /// The name of the durable write the heartbeat performs.
 const DURABLE_WRITE: &str = "persist_bookmark";
@@ -580,6 +581,36 @@ fn callees(
     out
 }
 
+/// The functions reachable from `root` through the production call
+/// graph, the root itself included. The 013 generation-safe producer
+/// moved the first-chunk enqueue out of `stream_synthesis` into a
+/// helper it reaches (`produce_bounded` →
+/// `handover_pending_for_generation` → `enqueue_chunk_for_generation`),
+/// so the enqueue is located by REACHABILITY, not by the body that
+/// lexically contains it.
+fn reachable_functions(source: &str, spans: &[FnSpan], root: &str) -> BTreeSet<String> {
+    let declared: BTreeSet<&str> = spans.iter().map(|span| span.name.as_str()).collect();
+    let mut live: BTreeSet<String> = BTreeSet::new();
+    let mut queue: Vec<String> = vec![root.to_string()];
+    while let Some(name) = queue.pop() {
+        if !live.insert(name.clone()) {
+            continue;
+        }
+        let Some(span) = spans.iter().find(|span| span.name == name) else {
+            continue;
+        };
+        for (callee, offset) in all_calls(source) {
+            if offset < span.body_start || offset >= span.body_end {
+                continue;
+            }
+            if declared.contains(callee.as_str()) && callee != name {
+                queue.push(callee);
+            }
+        }
+    }
+    live
+}
+
 /// The functions whose bodies run before the first chunk reaches the
 /// backend: the open path's own calls made ahead of the synthesis,
 /// the synthesis's own calls made ahead of the enqueue, and every
@@ -596,6 +627,23 @@ fn live_before_the_first_chunk(
     let mut queue: Vec<String> = Vec::new();
     queue.extend(callees(source, spans, &declared, open_name, synthesis_at));
     queue.extend(callees(source, spans, &declared, SYNTHESIS, enqueue_at));
+    // The open path's CALLERS run before it, so their bodies — and the
+    // functions they reach ahead of the call — are live too. The 013
+    // device/host split extracted the synthesis into a helper, so the
+    // obligations now sit in the callers (`play_document` →
+    // `prepare_session_document`), not in the helper's own callees.
+    for span in spans {
+        for (callee, offset) in all_calls(source) {
+            if callee == open_name
+                && offset >= span.body_start
+                && offset < span.body_end
+                && span.name != open_name
+                && !queue.contains(&span.name)
+            {
+                queue.push(span.name.clone());
+            }
+        }
+    }
     while let Some(name) = queue.pop() {
         if live.contains(&name) {
             continue;
@@ -718,10 +766,13 @@ fn analyse(production: &str) -> Result<Analysis, String> {
         return Err("the synthesis call belongs to no declared function".to_string());
     };
 
+    let reachable = reachable_functions(&production, &spans, SYNTHESIS);
     let enqueue_sites: Vec<CallSite> = call_sites(&production, ENQUEUE)
         .into_iter()
         .filter(|site| !is_declaration(&production, site))
-        .filter(|site| enclosing(&spans, site.name_at).is_some_and(|span| span.name == SYNTHESIS))
+        .filter(|site| {
+            enclosing(&spans, site.name_at).is_some_and(|span| reachable.contains(&span.name))
+        })
         .collect();
     if enqueue_sites.len() != 1 {
         return Err(format!(

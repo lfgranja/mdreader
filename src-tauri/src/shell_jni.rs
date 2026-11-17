@@ -80,7 +80,26 @@ pub fn channel_ready() -> bool {
 #[cfg(target_os = "android")]
 static JVM: OnceLock<jni::JavaVM> = OnceLock::new();
 
-/// Captures the JVM handle from one JNI entry's environment.
+/// Cached global reference to `app.mdreader.ShellHost`.
+///
+/// On Android, JNI calls on threads attached via `JavaVM::attach_current_thread`
+/// (such as background tokio/audio threads) use the system bootstrap `ClassLoader`,
+/// which cannot find APK classes. Caching a `GlobalRef` on the first JNI entry from
+/// an app thread allows static methods on `ShellHost` to be called reliably from
+/// any thread.
+#[cfg(target_os = "android")]
+static SHELL_HOST_CLASS: OnceLock<jni::objects::GlobalRef> = OnceLock::new();
+
+/// Returns the cached `JClass` for `ShellHost`.
+#[cfg(target_os = "android")]
+fn get_shell_host_class<'a>() -> Result<&'a jni::objects::JClass<'static>, String> {
+    SHELL_HOST_CLASS
+        .get()
+        .map(|g| <&jni::objects::JClass<'static>>::from(g.as_obj()))
+        .ok_or_else(|| String::from("shell JNI: ShellHost class GlobalRef not cached"))
+}
+
+/// Captures the JVM handle and caches the `ShellHost` class from one JNI entry's environment.
 ///
 /// The first entry wins; every later call observes the set handle and
 /// returns without touching the environment. An unusable environment
@@ -89,14 +108,22 @@ static JVM: OnceLock<jni::JavaVM> = OnceLock::new();
 /// loudly at its call site (fail-closed, never a silent half-wire).
 #[cfg(target_os = "android")]
 fn capture_jvm(raw: *mut jni::sys::JNIEnv) {
-    if JVM.get().is_some() {
-        return;
-    }
     // SAFETY: `raw` is the environment pointer the JVM handed this
     // entry point; it is valid for the duration of the call, and
     // `from_raw` / `get_java_vm` only read it.
-    match unsafe { jni::JNIEnv::from_raw(raw) } {
-        Ok(env) => match env.get_java_vm() {
+    let mut env = match unsafe { jni::JNIEnv::from_raw(raw) } {
+        Ok(env) => env,
+        Err(error) => {
+            tracing::warn!(
+                error = error.to_string(),
+                "shell JNI: environment unusable at entry"
+            );
+            return;
+        }
+    };
+
+    if JVM.get().is_none() {
+        match env.get_java_vm() {
             Ok(vm) => {
                 let _ = JVM.set(vm);
             }
@@ -106,12 +133,28 @@ fn capture_jvm(raw: *mut jni::sys::JNIEnv) {
                     "shell JNI: JVM handle unavailable at entry"
                 );
             }
-        },
-        Err(error) => {
-            tracing::warn!(
-                error = error.to_string(),
-                "shell JNI: environment unusable at entry"
-            );
+        }
+    }
+
+    if SHELL_HOST_CLASS.get().is_none() {
+        match env.find_class("app/mdreader/ShellHost") {
+            Ok(class) => match env.new_global_ref(class) {
+                Ok(global_ref) => {
+                    let _ = SHELL_HOST_CLASS.set(global_ref);
+                }
+                Err(error) => {
+                    tracing::warn!(
+                        error = error.to_string(),
+                        "shell JNI: failed to create GlobalRef for ShellHost"
+                    );
+                }
+            },
+            Err(error) => {
+                tracing::warn!(
+                    error = error.to_string(),
+                    "shell JNI: failed to find ShellHost on entry thread"
+                );
+            }
         }
     }
 }
@@ -145,9 +188,7 @@ pub fn publish_mirror_to_kotlin(
     let mut env = vm
         .attach_current_thread()
         .map_err(|error| format!("shell JNI: attach_current_thread failed: {error}"))?;
-    let class = env
-        .find_class("app/mdreader/ShellHost")
-        .map_err(|error| format!("shell JNI: ShellHost lookup failed: {error}"))?;
+    let class = get_shell_host_class()?;
     let mirror = env
         .new_string(mirror_json)
         .map_err(|error| format!("shell JNI: mirror string allocation failed: {error}"))?;
@@ -207,9 +248,7 @@ pub fn command_document_end_to_kotlin() -> Result<(), String> {
     let mut env = vm
         .attach_current_thread()
         .map_err(|error| format!("shell JNI: attach_current_thread failed: {error}"))?;
-    let class = env
-        .find_class("app/mdreader/ShellHost")
-        .map_err(|error| format!("shell JNI: ShellHost lookup failed: {error}"))?;
+    let class = get_shell_host_class()?;
     let _ = env
         .call_static_method(class, "commandDocumentEnd", "()V", &[])
         .map_err(|error| format!("shell JNI: ShellHost.commandDocumentEnd failed: {error}"))?;
@@ -648,6 +687,44 @@ mod tests {
         );
         Ok(())
     }
+
+    /// Ingesting directory manifests parses JSON, instantiates `ChapterQueue`, and sorts naturally.
+    #[test]
+    fn parse_and_sort_directory_manifest_orders_chapters() -> Result<(), String> {
+        let manifest_json = r#"{
+            "tree_uri": "content://tree/docs",
+            "root_name": "Documentation",
+            "chapters": [
+                {
+                    "filename": "10-conclusion.md",
+                    "uri": "/snapshots/10.md",
+                    "size_bytes": 100
+                },
+                {
+                    "filename": "01-intro.md",
+                    "snapshot_path": "/snapshots/01.md",
+                    "byte_size": 200
+                },
+                {
+                    "filename": "README.md",
+                    "uri": "/snapshots/readme.md",
+                    "size_bytes": 50
+                }
+            ]
+        }"#;
+
+        let (tree_uri, root_name, queue) = super::parse_and_sort_directory_manifest(manifest_json)?;
+        assert_eq!(tree_uri, "content://tree/docs");
+        assert_eq!(root_name, "Documentation");
+        assert_eq!(queue.len(), 3);
+        assert_eq!(
+            queue.current().map(|c| c.filename.as_str()),
+            Some("README.md")
+        );
+        let items: Vec<&str> = queue.items().iter().map(|c| c.filename.as_str()).collect();
+        assert_eq!(items, vec!["README.md", "01-intro.md", "10-conclusion.md"]);
+        Ok(())
+    }
 }
 
 /// JNI: BLAKE3-256 hash computation (T017).
@@ -763,7 +840,7 @@ pub extern "C" fn Java_app_mdreader_DocIngest_onDocumentIngested(
     fingerprint_hex: jni::sys::jstring,
     original_uri: jni::sys::jstring,
     mime_type: jni::sys::jstring,
-) {
+) -> jni::sys::jint {
     use jni::JNIEnv;
     use jni::objects::JString;
 
@@ -777,31 +854,31 @@ pub extern "C" fn Java_app_mdreader_DocIngest_onDocumentIngested(
     let mime_type = unsafe { JString::from_raw(mime_type) };
 
     let snapshot_path = match env.get_string(&snapshot_path) {
-        Ok(s) => s.into(),
+        Ok(s) => String::from(s),
         Err(e) => {
             tracing::error!("JNI onDocumentIngested: failed to get snapshot_path: {e}");
-            return;
+            return 1; // snapshot unreadable
         }
     };
     let fingerprint_hex = match env.get_string(&fingerprint_hex) {
-        Ok(s) => s.into(),
+        Ok(s) => String::from(s),
         Err(e) => {
             tracing::error!("JNI onDocumentIngested: failed to get fingerprint_hex: {e}");
-            return;
+            return 1; // snapshot unreadable
         }
     };
     let original_uri = match env.get_string(&original_uri) {
-        Ok(s) => s.into(),
+        Ok(s) => String::from(s),
         Err(e) => {
             tracing::error!("JNI onDocumentIngested: failed to get original_uri: {e}");
-            return;
+            return 1; // snapshot unreadable
         }
     };
     let mime_type = match env.get_string(&mime_type) {
-        Ok(s) => s.into(),
+        Ok(s) => String::from(s),
         Err(e) => {
             tracing::error!("JNI onDocumentIngested: failed to get mime_type: {e}");
-            return;
+            return 1; // snapshot unreadable
         }
     };
 
@@ -810,13 +887,10 @@ pub extern "C" fn Java_app_mdreader_DocIngest_onDocumentIngested(
     // snapshot file the Kotlin picker wrote is the platform
     // boundary's one read, and its bytes are the sole
     // synthesis input from here on (FR-018 / T019).
-    if let Err(error) = ingest_snapshot(&snapshot) {
-        tracing::error!(
-            snapshot_path = %snapshot.path,
-            fingerprint = %snapshot.fingerprint_hex,
-            error = %error,
-            "document ingest failed: the picker is re-prompted, nothing started (FR-018)"
-        );
+    match ingest_snapshot(&snapshot) {
+        Ok(()) => 0,                                      // success
+        Err(IngestError::SnapshotUnreadable { .. }) => 1, // snapshot unreadable
+        Err(IngestError::Open { .. }) => 2,               // open refused
     }
 }
 
@@ -937,9 +1011,21 @@ pub fn ingest_snapshot(snapshot: &IngestSnapshot) -> Result<(), IngestError> {
             mime_type = %snapshot.mime_type,
             "shell channel: document ingest before the app handle is held; dropped with a diagnostic"
         );
-        return Ok(());
+        return Err(IngestError::Open {
+            reason: "app handle not installed; cannot open ingested document".to_string(),
+        });
     };
-    open_ingested_document(&app.state::<AppState>(), snapshot)
+    let state = app.state::<AppState>();
+    // The user explicitly picked a document in the foreground Activity:
+    // latch foreground state so a deliberate-pause offer expires into
+    // AutoStart rather than ExplicitResume (FR-032c).
+    if let Ok(mut tracker) = state.focus_tracker.lock() {
+        let _ = tracker.apply(player::focus::FocusIntent::AppForegrounded);
+    }
+    if let Ok(mut offer) = state.offer.lock() {
+        offer.on_foregrounded();
+    }
+    open_ingested_document(&state, snapshot)
 }
 
 /// Reads one ingested snapshot's BYTES from its file and
@@ -974,9 +1060,16 @@ pub(crate) fn open_ingested_document(
     let filename = picked_document_name(&snapshot.original_uri, &snapshot.path);
     let opened =
         crate::commands::open_document_bytes_named(state, bytes, &filename).map_err(|error| {
-            IngestError::Open {
-                reason: error.to_string(),
-            }
+            let reason = error.to_string();
+            tracing::error!(
+                target: "shell_jni::ingest",
+                %reason,
+                "open_document_bytes_named refused"
+            );
+            // Publish the refusal to the surface so the reader sees it
+            // instead of a silent failure (FR-023 / FR-037).
+            crate::commands::publish_current_state(state, Some(reason.clone()));
+            IngestError::Open { reason }
         })?;
     tracing::info!(
         snapshot_path = %snapshot.path,
@@ -1078,7 +1171,7 @@ static APP_HANDLE: OnceLock<AppHandle> = OnceLock::new();
 /// cannot be constructed outside a running Tauri app, so the
 /// entry resolves the state through the retained handle
 /// instead.
-fn installed_app() -> Option<&'static AppHandle> {
+pub(crate) fn installed_app() -> Option<&'static AppHandle> {
     APP_HANDLE.get()
 }
 
@@ -1099,9 +1192,16 @@ fn installed_app() -> Option<&'static AppHandle> {
 /// stderr, never a crash and never a playing state
 /// (FR-018).
 fn read_snapshot_bytes(path: &str) -> Result<Vec<u8>, IngestError> {
-    let unreadable = |reason: String| IngestError::SnapshotUnreadable {
-        path: path.to_string(),
-        reason,
+    let unreadable = |reason: String| -> IngestError {
+        tracing::error!(
+            target: "shell_jni::ingest",
+            %reason,
+            "snapshot unreadable {path}"
+        );
+        IngestError::SnapshotUnreadable {
+            path: path.to_string(),
+            reason,
+        }
     };
     match std::fs::read(path) {
         Ok(bytes) => Ok(bytes),
@@ -1110,5 +1210,309 @@ fn read_snapshot_bytes(path: &str) -> Result<Vec<u8>, IngestError> {
                 .to_string(),
         )),
         Err(error) => Err(unreadable(error.to_string())),
+    }
+}
+
+/// Commands the Kotlin  static over the
+/// captured JVM handle (T160): requests launch of the platform SAF
+/// document picker from the active Activity.
+///
+/// # Errors
+/// Returns an error string when the JVM handle was never captured,
+/// when the thread cannot be attached, or when the class lookup or the
+/// invocation fails.
+#[cfg(target_os = "android")]
+pub fn pick_document_from_shell() -> Result<(), String> {
+    let vm = JVM
+        .get()
+        .ok_or_else(|| "shell JNI: JVM not initialized; cannot pick document".to_string())?;
+
+    let mut env = vm
+        .attach_current_thread()
+        .map_err(|error| format!("shell JNI: attach failed: {error}"))?;
+    // JVM handle already captured above; no-op if already set.
+    if SHELL_HOST_CLASS.get().is_none() {
+        match env.find_class("app/mdreader/ShellHost") {
+            Ok(class) => match env.new_global_ref(class) {
+                Ok(global_ref) => {
+                    let _ = SHELL_HOST_CLASS.set(global_ref);
+                }
+                Err(error) => {
+                    tracing::warn!(
+                        error = error.to_string(),
+                        "shell JNI: failed to create GlobalRef for ShellHost"
+                    );
+                }
+            },
+            Err(error) => {
+                tracing::warn!(
+                    error = error.to_string(),
+                    "shell JNI: failed to find ShellHost on entry thread"
+                );
+            }
+        }
+    }
+
+    let class = get_shell_host_class()?;
+    let launched = env
+        .call_static_method(class, "pickDocument", "()Z", &[])
+        .map_err(|error| format!("shell JNI: ShellHost.pickDocument failed: {error}"))?
+        .z()
+        .map_err(|error| {
+            format!("shell JNI: ShellHost.pickDocument returned a non-boolean: {error}")
+        })?;
+    if !launched {
+        return Err("shell JNI: ShellHost.pickDocument returned false".to_string());
+    }
+    Ok(())
+}
+
+/// No-op on non-Android targets.
+///
+/// # Errors
+/// This non-Android host stub never returns an error.
+#[cfg(not(target_os = "android"))]
+pub const fn pick_document_from_shell() -> Result<(), String> {
+    Ok(())
+}
+
+/// Commands the launch of the Storage Access Framework directory
+/// picker (T187): requests launch of the platform SAF directory tree
+/// picker from the active Activity via `ShellHost.pickDirectory()`.
+///
+/// # Errors
+/// Returns an error string when the JVM handle was never captured,
+/// when the thread cannot be attached, or when the class lookup or the
+/// invocation fails.
+#[cfg(target_os = "android")]
+pub fn pick_directory_from_shell() -> Result<(), String> {
+    let vm = JVM
+        .get()
+        .ok_or_else(|| "shell JNI: JVM not initialized; cannot pick directory".to_string())?;
+
+    let mut env = vm
+        .attach_current_thread()
+        .map_err(|error| format!("shell JNI: attach failed: {error}"))?;
+
+    let class = get_shell_host_class()?;
+
+    let launched = env
+        .call_static_method(class, "pickDirectory", "()Z", &[])
+        .map_err(|error| format!("shell JNI: ShellHost.pickDirectory failed: {error}"))?
+        .z()
+        .map_err(|error| {
+            format!("shell JNI: ShellHost.pickDirectory returned a non-boolean: {error}")
+        })?;
+    if !launched {
+        return Err("shell JNI: ShellHost.pickDirectory returned false".to_string());
+    }
+    Ok(())
+}
+
+/// No-op on non-Android targets.
+///
+/// # Errors
+/// This non-Android host stub never returns an error.
+#[cfg(not(target_os = "android"))]
+pub const fn pick_directory_from_shell() -> Result<(), String> {
+    Ok(())
+}
+
+/// Manifest structure representing the directory selection payload from Kotlin.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct IngestDirectoryManifest {
+    /// Persistent SAF tree URI granted by the Android OS.
+    pub tree_uri: String,
+    /// Human-readable root directory name (e.g., "Apostila Rust").
+    pub root_name: String,
+    /// Discovered chapter items in the directory.
+    pub chapters: Vec<IngestChapterEntry>,
+}
+
+/// Manifest chapter item entry serialized by the Android shell.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct IngestChapterEntry {
+    /// File base name (e.g., `01-intro.md`).
+    pub filename: String,
+    /// Snapshot file path or individual document URI.
+    #[serde(alias = "snapshot_path", alias = "uri")]
+    pub file_uri: String,
+    /// Relative path from root (e.g., `capitulo1/01-intro.md`).
+    #[serde(default)]
+    pub relative_path: String,
+    /// Size in bytes (checked against `MAX_DOC_BYTES`).
+    #[serde(alias = "byte_size", alias = "size_bytes")]
+    pub byte_size: u64,
+    /// Blake3-256 fingerprint hex string (optional from Kotlin, parsed if present).
+    #[serde(default)]
+    pub fingerprint_hex: Option<String>,
+}
+
+/// Parses and validates a directory manifest JSON, natural-sorting the chapters
+/// into an initialized [`player::queue::ChapterQueue`].
+///
+/// # Errors
+///
+/// Returns an error string if JSON deserialization fails or if chapters are empty.
+pub fn parse_and_sort_directory_manifest(
+    manifest_json: &str,
+) -> Result<(String, String, player::queue::ChapterQueue), String> {
+    let manifest: IngestDirectoryManifest = serde_json::from_str(manifest_json)
+        .map_err(|e| format!("Failed to parse directory manifest JSON: {e}"))?;
+
+    let mut items: Vec<player::queue::ChapterItem> = manifest
+        .chapters
+        .into_iter()
+        .map(|entry| {
+            let relative_path = if entry.relative_path.is_empty() {
+                entry.filename.clone()
+            } else {
+                entry.relative_path
+            };
+            let mut fp = [0u8; 32];
+            if let Some(ref hex_str) = entry.fingerprint_hex
+                && let Ok(bytes) = hex::decode(hex_str)
+                && bytes.len() == 32
+            {
+                fp.copy_from_slice(&bytes);
+            }
+            player::queue::ChapterItem {
+                filename: entry.filename,
+                file_uri: entry.file_uri,
+                relative_path,
+                byte_size: entry.byte_size,
+                content_fingerprint: fp,
+                playback_status: player::queue::ChapterStatus::Pending,
+            }
+        })
+        .collect();
+
+    player::queue::sort_natural(&mut items);
+
+    Ok((
+        manifest.tree_uri,
+        manifest.root_name,
+        player::queue::ChapterQueue::new(items),
+    ))
+}
+
+/// Handles parsed directory selection by updating `AppState` and dispatching events.
+///
+/// # Errors
+///
+/// Returns an error string if `manifest_json` fails to parse into a valid manifest.
+pub fn handle_directory_selected(
+    tree_uri: &str,
+    root_name: &str,
+    manifest_json: &str,
+) -> Result<(), String> {
+    let (_tree_uri, _root_name, queue) = parse_and_sort_directory_manifest(manifest_json)?;
+
+    tracing::info!(
+        tree_uri,
+        root_name,
+        chapters_count = queue.len(),
+        "Directory manifest parsed and natural-sorted successfully"
+    );
+
+    if let Some(app) = installed_app() {
+        use tauri::{Emitter, Manager};
+        let state = app.state::<crate::AppState>();
+        let resume = crate::install_chapter_queue(&state, queue.clone());
+
+        // Auto-play the current (or restored) chapter if not resuming via offer dialog
+        let current_index = {
+            let guard = state.chapter_queue.lock().ok();
+            guard
+                .as_ref()
+                .and_then(|g| g.as_ref().map(player::queue::ChapterQueue::current_index))
+                .unwrap_or(0)
+        };
+
+        let should_auto_play = resume
+            .as_ref()
+            .is_none_or(|r| r.offer_route == crate::OfferRoute::NoRoute);
+        if should_auto_play && let Err(e) = crate::open_chapter_at_index(&state, current_index) {
+            tracing::error!(error = %e, current_index, "Failed to auto-open first directory chapter");
+        }
+
+        let event_payload = serde_json::json!({
+            "type": "directory_selected",
+            "tree_uri": tree_uri,
+            "root_name": root_name,
+            "total_chapters": queue.len(),
+            "first_chapter": queue.current().map(|c| &c.filename),
+        });
+        if let Err(e) = app.emit("tauri://channel/directory-selected", event_payload) {
+            tracing::warn!(error = %e, "Failed to emit directory-selected event");
+        }
+    }
+
+    Ok(())
+}
+
+/// JNI: Directory selection result callback (T194, directory-playback.md §1.3).
+///
+/// Called from Kotlin `DocIngest.onDirectorySelected` after picking and scanning
+/// a directory. Deserializes the directory manifest JSON containing chapters list,
+/// validates and sorts it, and notifies AppState and channel listeners.
+///
+/// # Safety
+/// JNI entry point — reads string arguments and hands environment to [`capture_jvm`].
+#[cfg(target_os = "android")]
+#[expect(
+    unsafe_code,
+    reason = "JNI entry point: the JNI export requires the exact symbol name. Body reads input JNI strings and delegates to AppState on the mobile plugin channel."
+)]
+#[unsafe(no_mangle)]
+pub extern "C" fn Java_app_mdreader_DocIngest_onDirectorySelected(
+    env: *mut jni::sys::JNIEnv,
+    _this: jni::sys::jobject,
+    tree_uri: jni::sys::jstring,
+    root_name: jni::sys::jstring,
+    manifest_json: jni::sys::jstring,
+) {
+    use jni::JNIEnv;
+    use jni::objects::JString;
+
+    capture_jvm(env);
+    let mut env = match unsafe { JNIEnv::from_raw(env) } {
+        Ok(e) => e,
+        Err(e) => {
+            tracing::error!("JNI onDirectorySelected: invalid JNIEnv: {e}");
+            return;
+        }
+    };
+
+    let tree_uri_obj = unsafe { JString::from_raw(tree_uri) };
+    let root_name_obj = unsafe { JString::from_raw(root_name) };
+    let manifest_json_obj = unsafe { JString::from_raw(manifest_json) };
+
+    let tree_uri_str = match env.get_string(&tree_uri_obj) {
+        Ok(s) => String::from(s),
+        Err(e) => {
+            tracing::error!("JNI onDirectorySelected: failed to get tree_uri: {e}");
+            return;
+        }
+    };
+
+    let root_name_str = match env.get_string(&root_name_obj) {
+        Ok(s) => String::from(s),
+        Err(e) => {
+            tracing::error!("JNI onDirectorySelected: failed to get root_name: {e}");
+            return;
+        }
+    };
+
+    let manifest_json_str = match env.get_string(&manifest_json_obj) {
+        Ok(s) => String::from(s),
+        Err(e) => {
+            tracing::error!("JNI onDirectorySelected: failed to get manifest_json: {e}");
+            return;
+        }
+    };
+
+    if let Err(e) = handle_directory_selected(&tree_uri_str, &root_name_str, &manifest_json_str) {
+        tracing::error!("JNI onDirectorySelected failed: {e}");
     }
 }

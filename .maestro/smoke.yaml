@@ -1,0 +1,10 @@
+appId: app.mdreader
+---
+# Ressoa smoke flow (Maestro)
+# Note: Ressoa is a Tauri webview app; Maestro can launch and verify
+# no crash, but cannot interact with webview HTML content.
+# For document E2E, use DebugIngestActivity + ADB (see device-automation-smoke.sh).
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd
+- assertVisible: ".*"  # any visible element = app rendered

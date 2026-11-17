@@ -35,6 +35,12 @@ use engine_core::closed::SessionEnd;
 
 use crate::store::StoredPosition;
 
+/// The deliberate-pause offer window (FR-032c), in
+/// milliseconds: 3 seconds. Shared by the offer
+/// dialog and the adapter-side `MAX_OFFER_MS`
+/// (`crates/adapter-synthesis/src/failure.rs`).
+pub const OFFER_WINDOW_MS: u32 = 3_000;
+
 /// The offer a session end opens (FR-032c /
 /// FR-032d): the continue offer a deliberate
 /// pause presents, or the start-over alternative.

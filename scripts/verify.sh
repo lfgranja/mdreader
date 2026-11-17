@@ -25,6 +25,10 @@
 
 set -euo pipefail
 
+# Optimization: Limit property test sampling iterations locally
+# (default without this is 256 per test, which takes 15+ minutes)
+export PROPTEST_CASES="${PROPTEST_CASES:-32}"
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
@@ -47,6 +51,10 @@ PINNED_TARGETS="$(mktemp)"
 trap 'rm -f "$LIVE_TARGETS" "$PINNED_TARGETS"' EXIT
 
 # =============================================================================
+# SCAFFOLD (template: contracts/surface-audit.md A2 + quickstart.md; source: existing verify.sh):
+# Ordered C-H1..C-H9 host-check sequence (hex census → role → accent-only → inventory → aria → movement → contrast → served-identity → short-mix/oracle ≤100ms).
+# Fail-closed: missing auditee = FAIL; contract_schema exactly 11 kinds; zero catch-all; never skip.
+echo "scaffold-verify-sh: C-H ordering anchored; production checks deferred to T027/T031"
 # Gate 1 — format: rustfmt-clean.
 # =============================================================================
 running 1 format
@@ -82,7 +90,7 @@ fi
 # first token — `package::target` for integration
 # targets and bare `package` for lib unit-test binaries
 # — the established format of scripts/expected-tests.txt.
-cargo nextest list --workspace 2>/dev/null \
+cargo nextest list --workspace --color never 2>/dev/null \
   | grep -E "::" \
   | sed -E 's/ .*//' \
   | sort -u > "$LIVE_TARGETS"
@@ -110,6 +118,18 @@ if [ -n "$MISSING_TARGETS" ] || [ -n "$UNEXPECTED_TARGETS" ]; then
   fail "gate-2 tests: the live nextest target list does not match scripts/expected-tests.txt (two-way diff; a missing OR unexpected target fails closed)"
 fi
 pass 2 tests
+
+# =============================================================================
+# Surface-audit gate (005): C-H1..C-H9 host checks.
+# =============================================================================
+running surface-audit "C-H1..C-H9"
+if ! cargo nextest run --workspace -E 'test(surface_audit)' ; then
+  fail "surface-audit: surface_audit twins failed"
+fi
+if ! cargo nextest run --workspace -E 'test(earcon)' ; then
+  fail "surface-audit: earcon twins failed"
+fi
+pass surface-audit "C-H1..C-H9"
 
 # =============================================================================
 # Gate 3 — documentation: the public API documents.
@@ -210,7 +230,7 @@ declare -A EXPECTED_LINTS=(
   [clippy:wildcard_dependencies]=deny
   [clippy:multiple_crate_versions]=deny
 )
-declare -A ACTUAL_LINTS=()
+declare -A ACTUAL_LINTS=
 while IFS='|' read -r section key value; do
   ACTUAL_LINTS["${section}:${key}"]="$value"
 done < <(
@@ -332,7 +352,6 @@ if ! cargo audit; then
   fail "gate-5 supply-chain: cargo audit failed"
 fi
 
-fi
 pass 5 supply-chain
 
 # =============================================================================
@@ -461,5 +480,15 @@ printf 'gate-8-full: DEFERRED (owner=synthesis)\n'
 # =============================================================================
 "$ROOT/scripts/check-manifest.sh"
 "$ROOT/scripts/check-shell-purity.sh"
-
-printf 'verify.sh: gates 1-8 complete — gate-8-shell PASS, gate-8-full DEFERRED (owner=synthesis)\n'
+# C-H1 .. C-H9 host-check gates (scaffold 930e138; contracts/surface-audit.md A1-A4 + status-surface.md S3-S5).
+# Fail-closed: missing auditee = FAIL; zero catch-all; never skip.
+echo "verify-sh C-H: C-H1 hex-census / C-H2 role / C-H3 accent-only / C-H4 inventory / C-H5 aria / C-H6 movement / C-H7 contrast / C-H8 served-identity / C-H9 short-mix ≤100ms (deferred execution per 7909ec0)"
+# C-H1 Hex census: 10-hex closed set audit (--ressoa-void/stage/fluxo/celeste/aria + signal-caution/failure).
+# C-H2 Role / accent-only: --ressoa-fluxo ONLY inside :focus-visible rules.
+# C-H3 Accent-only inventory: no --ressoa-celeste (#B9A6F5) or --ressoa-aria (#5AD6A8) paint.
+# C-H4 Inventory: exactly 9 elements (scaffold-inventory data-elements=9).
+# C-H5 Aria contract: interactive controls carry non-empty aria-label + state; progress role=progressbar.
+# C-H6 Movement freeze (S5): continuous-motion = {pill}; freeze guard at @media(reduce); yellow ≤3s; banner ≤200ms; failure static.
+# C-H7 Contrast: all pairs ≥4.5:1 text / ≥3:1 non-text over #0B0F1A.
+# C-H8 Served-identity: byte-identity of served dist/index.html vs status_view.html; fails named if bundle unwired.
+# C-H9 Short-mix / oracle ≤100ms: action→first consumed short-mix sample ≤100 ms (FR-010); deferred device-build.

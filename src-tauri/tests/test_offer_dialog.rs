@@ -85,7 +85,7 @@ const SHELL_SOURCE: &str = include_str!("../src/lib.rs");
 /// and the dedicated Stop) plus FR-012's value-blind speed
 /// stepper. They are the surface's own vocabulary, never the
 /// offer's.
-const CONTROL_VERBS: [&str; 7] = [
+const CONTROL_VERBS: [&str; 8] = [
     "play",
     "pause",
     "stop",
@@ -93,8 +93,8 @@ const CONTROL_VERBS: [&str; 7] = [
     "skip_back5s",
     "rate_up",
     "rate_down",
+    "repeat_section",
 ];
-
 /// The two closed offer-choice verbs (FR-009): continue from
 /// the stored position, and start over from the first spoken
 /// position. The set is closed — a third choice does not exist.

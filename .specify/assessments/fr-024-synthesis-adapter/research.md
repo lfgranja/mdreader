@@ -31,10 +31,10 @@
 - **Taxa / formato declarado:** 22050 Hz, mono f32, fixo; o engine entrega já resamplado; a conversão do dispositivo é feita pelo `player` (Rust), nunca pelo engine. — [source: `spec.md` linha 75, `plan.md` linha 67] (confidence: high)
 - **Vozes disponíveis:** `faber` / `cadu` / `jeff` (Piper, CC0); `edresson` (CC-BY-4.0, excluído por atribuição); `Kokoro-82M` pt-BR deferred (sherpa-onnx só entrega zh+en). — [source: `constitution.md` §Engine Registry linhas 529-537] (confidence: high)
 - **Restrições de plataforma (altas):**
-  - Android 13+ deriva controles da notificação de `PlaybackState` (apenas 5 slots compactos); `Stop` pode ser só expandido (R3). — [source: `DESIGN/risks.md` R3; `spec.md` FR-018]
-  - OEM relayout (Samsung One UI 7, Xiaomi HyperOS) pode colapsar layout; cor não é confiável; forma + posição é o que importa (R2). — [source: `DESIGN/risks.md` R2]
-  - `Live Updates` (Android 16) proíbem `customContentView`; `MediaStyle` padrão é obrigatório (R4). — [source: `DESIGN/risks.md` R4]
-  - `setWillPauseWhenDucked(true)` é deliberadamente desviado do padrão Android (ADR-001); duck ~20% em perda transitória. — [source: `.specify/memory/constitution.md` v1.3.0 Sync Impact Report, linha 14; `spec.md` linha 40]
+ - Android 13+ deriva controles da notificação de `PlaybackState` (apenas 5 slots compactos); `Stop` pode ser só expandido (R3). — [source: `DESIGN/risks.md` R3; `spec.md` FR-018]
+ - OEM relayout (Samsung One UI 7, Xiaomi HyperOS) pode colapsar layout; cor não é confiável; forma + posição é o que importa (R2). — [source: `DESIGN/risks.md` R2]
+ - `Live Updates` (Android 16) proíbem `customContentView`; `MediaStyle` padrão é obrigatório (R4). — [source: `DESIGN/risks.md` R4]
+ - `setWillPauseWhenDucked(true)` é deliberadamente desviado do padrão Android (ADR-001); duck ~20% em perda transitória. — [source: `.specify/memory/constitution.md` v1.3.0 Sync Impact Report, linha 14; `spec.md` linha 40]
 - **Limites de áudio / buffer:** pre-roll ≤60 s (`FR-015a`); replay após kill ≤30 s (`FR-015b`); resume de posição com rewind acumulativo (5% do tempo pausado, cap 30 s). — [source: `spec.md` linhas 29, 44, 45]
 - **Requisitos de verificação:** `SC-009` (≤3 s play-to-audio), `SC-051` (failover com stand-ins), `SC-044` (dois motores reais — deferred). — [source: `spec.md` linhas 24, 67, 93-94]
 

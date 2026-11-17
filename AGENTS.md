@@ -1,85 +1,228 @@
-# AGENTS.md
+# Repository Guidelines
 
-> Greenfield: no `Cargo.toml`, `crates/`, `src-tauri/`, or `scripts/verify.sh` yet.
-> Only `specs/`, `.specify/memory/constitution.md`, and Spec Kit scaffolding exist.
-> Do not assume code layout — `plan.md` describes the *intended* layout.
+> mdreader (product **Ressoa**, package `app.mdreader`) — Android media-shell TTS audiobook reader. Rust owns synthesis + PCM playback as the sole playback authority; Kotlin (`android-shell/`) owns `Service`, `MediaSession`, notification, and `AudioFocusRequest` as **mirrors only**; the Tauri 2.12.1 bridge (`src-tauri/`) is one consumer among many. Synthesized from repo state 2026-11-13.
 
-## Read first
+---
 
-- `.specify/memory/constitution.md` (v1.2.0) is binding and overrides convenience.
-  Amendments need a Sync Impact Report header + Exceptions Log entry in the same commit.
-- Current feature: `specs/001-android-media-shell/` — `spec.md`, `plan.md`,
-  `research.md`, `data-model.md`, `contracts/`, `checklists/`, `quickstart.md`.
-  Branch `001-android-media-shell` tracks it.
-- Workflow commands: `.opencode/commands/speckit.*.md`
-  (`specify` → `clarify` → `plan` → `tasks` → `implement`).
+## Project Overview
 
-## Intended architecture (from `plan.md`, not yet built)
+`mdreader` is an Android media-shell TTS audiobook reader. **Rust owns synthesis and PCM playback as the sole playback authority**; Kotlin (`android-shell/`) owns `Service`, `MediaSession`, notification, and `AudioFocusRequest` as **mirrors only**. The Tauri 2.12.1 bridge (`src-tauri/`) is one consumer among many. Every crate is CLI-drivable (`clap` derive, stdin/args → stdout, errors → stderr, `--format json`). Target: Android `minSdk 29`. Host-checkable gates 1–8 via `scripts/verify.sh`; device gate 9 via `cargo tauri android build --target aarch64`.
 
-- Cargo-workspace modular monolith: `crates/player` (transport, position, buffering,
-  pre-roll ≤60 s, rate, rewind math), `crates/session` (`redb` bookmarks + settings,
-  `blake3` fingerprint), `crates/diag` (JSONL record), `crates/engine-core` (trait +
-  stand-in engines). Tauri app is one consumer, never the only one; no organiser-only crates.
-- **Rust owns synthesis + PCM playback** (`cpal` 0.18.2, AAudio); sole authority for
-  position/buffering/transport. Kotlin (`android-shell/`) owns only `Service`,
-  `MediaSession` (mirror, never computes position), notification, `AudioFocusRequest`.
-  Zero playback logic in Kotlin — enforced by check (SC-035).
-- Every crate is CLI-drivable (`clap` derive, stdin/args → stdout, errors → stderr,
-  `--format json`); IPC (`tauri::ipc::Channel`, no `InvokeBody::Streaming`) calls the same code.
+Key principles (from `docs/architecture.md` / `.specify/memory/constitution.md`):
+- **Library-first:** Every capability reachable as a Rust API; CLI is thin (`main.rs` → `cli::run`).
+- **One code path:** Identical CLI and IPC (`tauri::ipc::Channel`, no `InvokeBody::Streaming`).
+- **Zero Android API in Rust:** Kotlin pushes answers across the boundary.
+- **Pipeline degrades observably:** Never silently infers SSML/alignment; uses declared capabilities (`crates/adapter-synthesis/src/reg.rs`: `offline_default` only at v1).
+- **Closed sets everywhere:** Exhaustive `match`, no `_ =>` arms, no `Other`/`Unknown`; adding variants requires coordinated edits + docs + semver bump + gate 7 passing (`crates/engine-core/src/closed.rs` is the single declaration site).
+- **Durability:** 20 s heartbeat while `Playing`; event-durable writes; hard kill replays ≤ ~30 s.
+- **Position advances only on audible progress:** `PositionClock` (`crates/player/src/position.rs`) — never during pre-roll, never on timer.
 
-## Verify (constitution gates; `scripts/verify.sh` is the entrypoint once created)
+---
 
-Prereqs: Rust 1.85+ (Edition 2024), `cargo-nextest`, Android SDK + one API-29+ device.
+## Architecture & Data Flow
 
-```sh
-cargo fmt --all -- --check
-cargo nextest run --workspace
-cargo doc --workspace --no-deps
-cargo deny check advisories licenses bans sources && cargo audit
-cargo tauri android build --target aarch64   # gate 9: must produce device artifact
-./scripts/verify.sh                          # gates 1–8 once it exists
+### Authority Split
+- **Rust = sole playback authority** (`crates/*`). Position/transport/rate/focus/interruption/recovery live here.
+- **Kotlin/Android shell (`android-shell/`) = mirror only.** Renders published JSON verbatim; no position/progress/haptics computation.
+- **Tauri bridge (`src-tauri/src/lib.rs`)** connects frontend/Kotlin/JNI → Rust; publishes mirror state via channel; builds Kotlin mirror JSON; holds `AppState` with strict lock ordering.
+
+### Pipeline (one Rust code path)
+```
+Kotlin surface (Service / MediaSession / notification / focus) — mirror only
+        ↓ intents
+Tauri bridge: src-tauri/src/lib.rs (AppState, commands, publish, heartbeat/playback watch)
+        ↓ same Rust code path
+crates/engine-core   — Engine trait, closed vocabulary, handoff format (mono f32 @ 22050 Hz), stand-ins
+        ↓ (declared capabilities)
+crates/adapter-synthesis — offline_default (sherpa-onnx / Piper pt-BR), chunking/synth, registry
+        ↓
+crates/player        — transport, PositionClock (audible-progress only), buffering/pre-roll (≤60 s), rate/skip/rewind, focus/routing/interruption, backend (cpal 0.18.2, AAudio Android), surface/mirror, earcons
+        ↓
+crates/session       — redb bookmarks + settings (blake3-256 fingerprint), offer/resume state machine
+crates/diag          — append-only JSONL diagnostics (30-day / 10 MiB)
+crates/doc-structure — ordered headings → timeline / FR-038 re-anchor
 ```
 
-Host-checkable without a device: rewind/snap math, 7-rung ladder, fingerprint,
-trim bounds, closed-set exhaustiveness, manifest check, shell-purity check.
-On-device trials are 10/10 (lock-screen, focus, routing, ≤3 s play-to-audio, failover).
+### State, Locks & DI
+- **DI:** explicit path deps in `Cargo.toml`; constructor injection; no DI container.
+- **AppState** (`src-tauri/src/lib.rs`): `Mutex` fields taken alone/released before next; lock order `session` first, `bookmark_store` last; poisoned locks skipped with `tracing::warn`.
+- **Position clock:** advances only via `on_audible_progress(elapsed_secs)`.
+- **Bookmarking:** content-addressed via blake3-256 (`crates/session/src/fingerprint.rs`).
 
-## Constraints agents get wrong
+### Audio & Handoff
+- **Format:** Mono `f32` @ `22050` Hz. Mismatches → named `EngineError` (never silent resample/downmix).
+- **Engine contract:** requires `declared_capabilities()`, `set_rate()` (pitch-preserving; deviation beyond `PITCH_TOLERANCE_CENTS` → `EngineError::RateMismatch`), `stream(position_secs, max_secs)` returns buffered-only chunks.
+- **Backend:** `cpal` 0.18.2 (AAudio on Android). Host CI stereo devices return named refusal. Pre-roll ≤ 60 s; bounded resident queue.
+- **Wire format:** Rust `PascalCase` → JSON `snake_case`. `Display` returns wire strings.
 
-- Rust rigor: `unsafe/missing_docs/missing_debug/unreachable_pub/unused_results` deny;
-  `clippy::all,pedantic` deny, `nursery,cargo` warn; `unwrap/expect/panic/todo/dbg/println`
-  deny — use `thiserror` + `tracing`. Only suppression is
-  `#[expect(lint, reason = "...")]`; never weaken `Cargo.toml`/`clippy.toml` to silence a lint.
-  Every workspace member declares `[lints] workspace = true`.
-- Closed sets everywhere: rate ladder `[0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 4.0]`, transport,
-  focus outcomes, error kinds, session-end reasons. No `Other`/`Unknown`, no `_ =>` in
-  `crates/*/src` (gate 7). Engine IDs live only in the constitution registry — never a second
-  list. Adding a variant = coordinated edit + semver bump + docs.
-- Supply chain fail-closed: latest stable only (exceptions need version + reason + risk in
-  commit msg); `--locked` + committed `Cargo.lock`; reject advisories, non-crates.io sources,
-  yanked versions; never auto-substitute a failing crate. Deny-list + copyleft-permitted
-  allow-list are in the constitution; `ort` 2.0.0-rc.13 is the sole pre-recorded stability
-  exception. No secrets in repo/binary (`.env`, `*.pem`, `*.key` gitignored); per-provider
-  revocable consent; Edge endpoint is consent-gated fallback-last, never default, never via
-  the OpenAI-compatible Python wrapper.
-- Android manifest has no plugin API (`mobile::update_manifest`, `registerService` do not
-  exist in Tauri 2): edit `AndroidManifest.xml`/Gradle directly for
-  `<service android:foregroundServiceType="mediaPlayback">` + `FOREGROUND_SERVICE*`
-  permissions; re-verify on every Tauri upgrade. `Service` is Kotlin for a structural reason
-  (ActivityManager reflection); bridge is `register_android_plugin` + `run_mobile_plugin`,
-  constructor `(Activity;)V`; Service self-bootstraps from Application/Activity (API 34+
-  FGS-start restrictions apply). Pinned: Tauri **2.12.1** (not 3.0.0-alpha).
-- Audio handoff: engine delivers mono f32 at declared **22050 Hz**; engine resamples,
-  Rust converts device format only. Rate/channel/width mismatch = named `EngineError`,
-  never silent resample/downmix. Rate stretch is an engine-contract op (pitch-preserving).
-- Notification shows title + current section title + progress only — no body text,
-  elapsed/remaining, rate, or voice. Determinate iff total known at session start, else
-  indeterminate for the whole session. Non-dismissable while playing; pause is the route
-  to dismissal. Focus: `*_MAY_DUCK` → ~20% duck, keep reading; call/alarm/permanent loss →
-  pause + reason expiring everywhere after 3 s, never auto-resume. `BECOMING_NOISY` +
-  `onAudioDevicesRemoved` both held to the ≤1 s pause bound.
-- Diagnostic record: append-only JSONL in app-private storage, 30-day + 10 MB oldest-first
-  trim, never transmitted, no in-app surface, no document text in any entry
-  (`detail` ≤200 chars identifier-pattern or typed fields only; `error` required on
-  `failure` *and* `refusal`). Position keyed by `blake3` content hash (edit = different
-  document = no resume); Stop/document-end clears it; kill/power-loss replay ≤30 s.
+---
+
+## Key Directories
+
+|Directory|Purpose|
+|---|---|
+|`crates/engine-core/`|Closed vocabulary, `Engine` trait, handoff format (22050 Hz mono f32), stand-ins, fallback/order|
+|`crates/player/`|Playback authority (transport, `PositionClock`, rate/skip/rewind, focus/routing/interruption, backend/cpal, surface, earcons); CLI|
+|`crates/session/`|`redb` bookmarks/settings, blake3-256 fingerprint, offer/resume state machine|
+|`crates/adapter-synthesis/`|Offline adapter `offline_default` (sherpa-onnx/Piper pt-BR), chunk/synth, capabilities, registry (only `offline_default` at v1)|
+|`crates/diag/`|Append-only JSONL diagnostics, retention (30-day/10 MiB)|
+|`crates/doc-structure/`|Ordered headings → timeline/re-anchor|
+|`crates/cleanroom-core/`|Standalone `proptest` helpers (not workspace member)|
+|`src-tauri/`|Tauri bridge (`AppState`, commands, publish, heartbeat/playback watch), JNI shell bridge|
+|`android-shell/`|Kotlin mirror only (Service/MediaSession/notification/focus) — no playback logic|
+|`vendor/sherpa-onnx-sys/`|Vendored patch (remove when upstream fixes)|
+|`scripts/`|Gates (`verify.sh` 1-8), checks, `expected-tests.txt`|
+|`contracts/`|Normative contracts and JSON schemas|
+|`docs/`|Architecture, IPC, diagnostics, ADRs|
+|`specs/`|Feature specs/tasks/contracts (001-020)|
+|`tests/`|Integration/contract/UI/audit tests|
+
+---
+
+## Development Commands
+
+```sh
+# Format (gate 1)
+cargo fmt --all -- --check
+cargo fmt --all
+
+# Tests (gate 2) — cargo-nextest required
+cargo nextest run --workspace
+cargo nextest run --workspace --profile ci
+# Verify test list matches expected
+cargo nextest list --workspace | sort > /tmp/nextest-live.txt
+sort scripts/expected-tests.txt > /tmp/expected.txt
+diff -u /tmp/expected.txt /tmp/nextest-live.txt
+
+# Docs (gate 3)
+cargo doc --workspace --no-deps
+
+# Lint (gate 4) — must be clean
+cargo clippy --workspace --all-targets -- -D warnings
+
+# Supply chain (gate 5)
+cargo deny check advisories licenses bans sources
+cargo audit
+
+# All gates 1-8
+./scripts/verify.sh
+
+# Android build (gate 9, device-checkable)
+cargo tauri android build --target aarch64
+cargo tauri android build --target aarch64 --debug
+
+# Build/check
+cargo build --workspace
+cargo build --release --workspace --locked
+cargo check -p player
+cargo check --target x86_64-unknown-linux-gnu
+```
+
+---
+
+## Code Conventions & Common Patterns
+
+### Formatting & Imports
+- Indent 4 spaces, no tabs; line length 100 soft/120 hard
+- Always run `cargo fmt` (gate 1 enforced)
+- Imports: group std/external/local, alphabetical within groups; prefer `use crate::`
+- Derives: `Debug, Clone, Serialize, Deserialize` where appropriate
+
+### Naming
+- Structs/enums/traits: `PascalCase`
+- Functions/variables/modules: `snake_case`
+- Constants: `UPPER_SNAKE_CASE`
+- Test functions: descriptive with underscores
+- Generics: single uppercase (`T`, `U`, `E`, `I`)
+
+### Types & Error Handling
+- Prefer `f64` for positions; `String` owned/`&str` borrowed
+- `Option<T>`/`Result<T, E>` everywhere
+- Custom errors with `thiserror`; propagate with `?`
+- **Forbidden (workspace-denied):** `unwrap`/`expect`/`panic`/`todo`/`dbg`/`println`/`print_stdout`/`print_stderr`. Suppress only via `#[expect(lint, reason = "...")]`
+
+### Async, Runtime & Backend
+- `tokio` only in `src-tauri`; library crates are synchronous
+- `cpal` blocking callbacks; position advances only on audible progress
+- JNI 0.21, Android `minSdk 29`
+
+### CLI Protocol (same code path as IPC)
+- `clap` derive; stdin/args → stdout (JSON default), errors → stderr; exit 0 on Ok, 1 on Err
+- Each crate exposes `pub fn run(args, streams) -> Result<(), CliError>`; thin `main.rs` forwards stdio
+
+### Closed Sets
+- One declaration site: `crates/engine-core/src/closed.rs`
+- Exhaustive matches, **no `_ =>` arms** (comments stripped), no `Other`/`Unknown`
+- Adding variants requires coordinated edits + docs + semver bump + gate 7 passing
+
+### State Management
+- Mutex fields taken alone, released before next (never nested); `BookmarkStore` locked last
+- Rust-only logic; Kotlin/JNI transport/mirror only, zero Android API in Rust crates
+- Content-addressed bookmarks via blake3-256
+- Diagnostics append-only JSONL with strict schema
+
+---
+
+## Important Files
+
+|File|Role|
+|---|---|
+|`Cargo.toml`|Workspace members/deps, `[workspace.lints]` strict denies|
+|`Cargo.lock`|Committed (use `--locked`)|
+|`rust-toolchain.toml`|Stable + rustfmt + clippy|
+|`.cargo/config.toml`|Clang linker on x86_64-unknown-linux-gnu|
+|`deny.toml`|Supply-chain policy|
+|`.config/nextest.toml`|cargo-nextest CI profile|
+|`src-tauri/tauri.conf.json`|Tauri config (minSdk 29, product Ressoa, id app.mdreader)|
+|`src-tauri/src/lib.rs`|Bridge entry, AppState, commands, RMS/waveform plumbing|
+|`crates/engine-core/src/closed.rs`|Canonical closed vocabulary|
+|`crates/engine-core/src/format.rs`|Handoff shape (22050 Hz mono f32)|
+|`crates/engine-core/src/trait_.rs`|Engine trait/contracts|
+|`crates/player/src/position.rs`|PositionClock (audible-progress only)|
+|`crates/player/src/backend.rs`|cpal backend, RMS, bounded queue|
+|`crates/session/src/store.rs` / `fingerprint.rs`|redb store + blake3-256|
+|`crates/diag/src/writer.rs` / `scan.rs`|Diagnostics|
+|`crates/adapter-synthesis/src/reg.rs`|Tier registry (offline_default only)|
+|`scripts/verify.sh`|Gates 1-8 orchestrator|
+|`scripts/expected-tests.txt`|Pinned nextest target list (diff for gate 2)|
+|`scripts/check-*.sh`|Manifest/shell-purity/apk-classes checks|
+|`.specify/memory/constitution.md`|Normative governance (v2.0.0)|
+|`ROADMAP.md`|Current state|
+
+---
+
+## Runtime/Tooling Preferences
+
+- **Language/toolchain:** Rust 2024 edition, stable channel, rustfmt+clippy, MSRV ≥ 1.85; use `--locked`
+- **Build/orchestration:** cargo workspace, `cargo tauri android build` for Android (gate 9)
+- **Android:** minSdk 29, manifest edited directly, JNI 0.21, Kotlin mirror only
+- **Testing:** `cargo-nextest` (not plain `cargo test`); proptest, tempfile, jsonschema; real redb/temp dirs; regression files checked in
+- **Lint/format/supply chain:** rustfmt+clippy strict denies, cargo-deny+cargo-audit
+- **Audio/backend:** cpal 0.18.2, AAudio on Android, mono f32 @ 22050 Hz, AtomicU32 RMS, throttled publishing
+- **CI profile:** threads-required=1, failure-output=final, leaks-request=forbid
+
+---
+
+## Testing & QA
+
+### Locations
+|Area|Notes|
+|---|---|
+|`crates/*/src/**` (`#[cfg(test)]`)|Inline unit tests|
+|`crates/*/tests/`|Integration/contract/property tests|
+|`crates/cleanroom-core/tests/`|Blocking invariants (not workspace member)|
+|`src-tauri/tests/`|Bridge/integration/diagnostic/surface/RMS/waveform/repeat tests|
+|`tests/` (root)|Spec/contract/UI/audit tests (005-red, 007 convergence)|
+
+### Running & Gates
+- **Gate 1:** format check
+- **Gate 2:** nextest + two-way diff vs `scripts/expected-tests.txt` (~130 targets)
+- **Gate 3:** docs build
+- **Gate 4:** clippy -D warnings (strict workspace lints)
+- **Gate 5:** cargo-deny + cargo audit
+- **Gate 6:** deny-list scan (allows sherpa-onnx/ort/espeak-rs/msedge-tts)
+- **Gate 7:** closed-set (no `_ =>` in crates, no Other/Unknown)
+- **Gate 8:** pipeline/shell checks
+- **Gate 9:** Android build + manifest/apk class checks
+
+**Notes:** No coverage tooling configured. Strict linting, closed sets, shell purity, and fail-closed gates are primary QA mechanisms.

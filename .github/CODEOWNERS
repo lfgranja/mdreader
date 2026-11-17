@@ -1,0 +1,28 @@
+# Code ownership / mandatory review routing (mdmv-dark-factory determinism-first + adversarial review).
+# Configure repository branch protection to require CODEOWNERS review on protected branches.
+
+# Default owner
+* @lfgranja
+
+# Rust core / playback authority / session / adapters (high blast radius)
+crates/ @lfgranja
+src-tauri/ @lfgranja
+vendor/ @lfgranja
+Cargo.toml @lfgranja
+Cargo.lock @lfgranja
+deny.toml @lfgranja
+rust-toolchain.toml @lfgranja
+
+# Android shell (transport/mirror)
+android-shell/ @lfgranja
+src-tauri/gen/android/ @lfgranja
+
+# CI/CD, verification gates, supply chain
+.github/ @lfgranja
+scripts/ @lfgranja
+
+# Contracts, specs, constitution/governance
+contracts/ @lfgranja
+docs/ @lfgranja
+specs/ @lfgranja
+.specify/ @lfgranja

@@ -151,6 +151,9 @@ pub enum PlayerError {
     /// The engine is not available.
     #[error("engine {0} is not available")]
     EngineNotAvailable(&'static str),
+    /// The DSP preset string is not a recognised preset.
+    #[error("unknown DSP preset '{0}'")]
+    DspConfigInvalid(String),
 }
 
 /// The effect a legal verb press has on the session —

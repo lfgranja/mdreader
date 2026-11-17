@@ -20,13 +20,17 @@ pub mod cli;
 pub mod consume;
 pub mod failure;
 pub mod format_check;
+pub mod normalize;
+pub mod prosody;
 pub mod reg;
+pub mod router;
 pub mod synth;
+pub mod voice;
 
 /// The tier this adapter registers at: `OfflineDefault` only.
 ///
 /// The sole selectable tier at v1 (`contracts/adapter-handoff.md`
-/// §6.1; SC-051). The `test_double` stand-ins (`engine_core::standin_a` /
+/// The sole selectable tier at v1 (`contracts/adapter-handoff.md`
 /// `standin_b`) are fixtures and are never selectable while this
 /// non-`test_double` adapter is registered (`closed.rs`:398-406).
 pub const REGISTERED_TIER: EngineTier = EngineTier::OfflineDefault;
@@ -41,17 +45,17 @@ pub struct AdapterCapabilities {
 }
 
 /// Unconditional capability declaration (constitution.md:304-305 /
-/// FR-024c; contracts/adapter-capabilities.md §2).
-///
-/// Option A (v1): the adapter is `offline_default` only, so it
-/// declares `(SsmlLevel::None, AlignmentGranularity::None)` —
-/// plain-text delivery and paragraph/heading resume —
-/// unconditionally, with no engine state and before any chunk is
-/// split or synthesized. The declaration is a constant of the
-/// adapter contract: no input, document, or operation can change
-/// it, and callers branch on it explicitly (never silently
-/// inferring SSML presence or sentence-level alignment;
-/// Principle VI).
+// FR-024c; contracts/adapter-capabilities.md §2).
+//
+// Option A (v1): the adapter is `offline_default` only, so it
+// declares `(SsmlLevel::None, AlignmentGranularity::None)` —
+// plain-text delivery and paragraph/heading resume —
+// unconditionally, with no engine state and before any chunk is
+// split or synthesized. The declaration is a constant of the
+// adapter contract: no input, document, or operation can change
+// it, and callers branch on it explicitly (never silently
+// inferring SSML presence or sentence-level alignment;
+// Principle VI).
 #[must_use]
 pub const fn declared_capabilities() -> AdapterCapabilities {
     AdapterCapabilities {
@@ -66,4 +70,17 @@ pub use crate::consume::{PlayerPlan, ResumeAnchor, SsmlDelivery, plan_for};
 pub use crate::failure::{
     EngineError, EngineFailure, FailureCondition, FailureReportError, MAX_CONDITION_DETAIL_CHARS,
     MAX_OFFER_MS,
+};
+pub use crate::normalize::{
+    NormalizationMode, normalization_mode, normalize_for_speech, set_normalization_mode,
+};
+pub use crate::prosody::{ProsodyPlan, plan_for_segment};
+pub use crate::synth::{
+    active_voice, playback_rate, replace_active_voice, set_active_voice, set_asset_dir,
+    set_model_path, set_playback_rate, set_voices_dir, synthesize, synthesize_with_voice,
+    voices_root,
+};
+pub use crate::voice::{
+    InferenceDefaults, ParseVoiceIdError, VoiceId, VoiceSpec, inference_defaults,
+    spec as voice_spec,
 };

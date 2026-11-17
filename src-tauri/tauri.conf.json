@@ -5,7 +5,10 @@
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "",
+    "beforeBuildCommand": {
+      "cwd": ".",
+      "script": "cp ../dist/index.html gen/android/app/src/main/assets/index.html"
+    },
     "beforeDevCommand": ""
   },
   "app": {
@@ -27,7 +30,8 @@
       "minSdkVersion": 29
     },
     "resources": {
-      "../crates/adapter-synthesis/assets/voices/pt_BR-faber-medium": "voices/pt_BR-faber-medium"
+      "../crates/adapter-synthesis/assets/voices": "voices",
+      "../assets/samples/bem-vindo-ao-ressoa.md": "welcome.md"
     }
   }
 }

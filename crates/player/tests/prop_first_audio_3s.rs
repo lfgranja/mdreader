@@ -750,7 +750,7 @@ fn visit_step(
         .functions
         .get(step.function)
         .filter(|_| depth < MAX_INLINE_DEPTH)
-        .map(|function| {
+        .map_or_default(|function| {
             let outer = scanner.suppressed;
             scanner.suppressed = Some(step.boundary);
             let inner = scan_region(
@@ -761,8 +761,7 @@ fn visit_step(
             );
             scanner.suppressed = outer;
             inner
-        })
-        .unwrap_or_default();
+        });
     steps.push(Step::Event(step.event(handed_over(&arguments))));
     steps.extend(inner);
     end

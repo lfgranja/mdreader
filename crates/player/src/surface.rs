@@ -281,6 +281,11 @@ pub struct SurfaceSnapshot {
 /// not. Its Rust frontend form adds optional `progress_label`
 /// for the in-app display; the separate Kotlin lock-screen
 /// payload remains unchanged.
+///
+/// The optional `transient_reason` carries a named
+/// refusal or pause reason the surface must render
+/// (FR-023 / FR-037 / FR-041). It is `None` when no
+/// transient reason is active.
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct MirrorState {
     /// The session's authoritative transport state
@@ -290,6 +295,10 @@ pub struct MirrorState {
     /// seconds (FR-002 / FR-003), mirrored — never
     /// computed here.
     pub position_secs: f64,
+    /// Whether synthesis is currently running in the
+    /// background (UI hint for waveform/dot state).
+    #[serde(default, skip_serializing_if = "MirrorState::is_false")]
+    pub synthesizing: bool,
     /// The progress indication (FR-028a), determinate
     /// iff the duration was known at session start.
     pub progress: Progress,
@@ -297,6 +306,11 @@ pub struct MirrorState {
     /// absent when progress is indeterminate.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub progress_label: Option<String>,
+    /// A named transient reason (refusal / pause) the
+    /// surface must render, or `None` when none is
+    /// active (FR-023 / FR-037 / FR-041).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transient_reason: Option<String>,
 }
 
 /// The notification-surface content resolver (T061) —
@@ -431,6 +445,16 @@ impl SurfaceResolver {
         }
     }
 
+    /// Ensure the unit total is non-zero so the waveform has a
+    /// deterministic payload for rendering (T154). Only call when
+    /// the session opened with zero units; never overwrites a
+    /// positive total.
+    pub const fn ensure_nonzero_total_units(&mut self) {
+        if self.total_units == 0 {
+            self.total_units = 1;
+        }
+    }
+
     /// Note the MEASURED end of one parsed unit (T143 / FR-013):
     /// the synthesis's own measurement of where the unit's audio
     /// ends, in the document's timeline (the seconds from the
@@ -441,6 +465,10 @@ impl SurfaceResolver {
     /// backward (FR-013) and never passes the session-start unit
     /// total. An end that would move the timeline back is ignored:
     /// the measured timeline only grows.
+    /// Ensure the unit total is non-zero so the waveform has a
+    /// deterministic payload for rendering (T154). Only call when
+    /// the session opened with zero units; never overwrites a
+    /// positive total.
     pub fn note_measured_unit_end(&mut self, end_secs: f64) {
         if self
             .measured_unit_ends
@@ -639,6 +667,16 @@ fn most_recent_passed_section(headings: &[Heading], position_secs: f64) -> Optio
         .rev()
         .find(|heading| heading.position_secs <= position_secs)
         .map(|heading| heading.title.clone())
+}
+
+impl MirrorState {
+    #[expect(
+        clippy::trivially_copy_pass_by_ref,
+        reason = "serde skip_serializing_if requires a fn(&T) -> bool"
+    )]
+    const fn is_false(b: &bool) -> bool {
+        !*b
+    }
 }
 
 #[cfg(test)]

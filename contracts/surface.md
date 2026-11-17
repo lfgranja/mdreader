@@ -1,13 +1,13 @@
 # Contract: Playback Surfaces (lock-screen + resident notification + single in-app screen)
 
-FR-002 + FR-009 + FR-011 + FR-012 + FR-013 + FR-014 + FR-019, plus 001 FR-009a/FR-028e/FR-032 for the resident-paused notification surface. DESIGN-SONA appearance. Rust is the single authority; Kotlin `MediaSession`/notification is a mirror (SC-035).
+FR-002 + FR-009 + FR-011 + FR-012 + FR-013 + FR-014 + FR-019, plus 001 FR-009a/FR-028e/FR-032 for the resident-paused notification surface. DESIGN-RESSOA appearance. Rust is the single authority; Kotlin `MediaSession`/notification is a mirror (SC-035).
 
 ## Lock-screen surface (MediaStyle notification — the media playback surface)
 
 - Fields: **at most** document title (original language — proper noun, exempt from pt-BR per FR-011) + current section title + progress indication. Never: document prose, elapsed/remaining time, playback rate, voice identity.
 - Controls: play, pause, skip-forward/back. Rate-step reachable without unlock via lock-screen custom action (no value display; in-app stepper is full control). Skip = next/previous section boundary, fallback ±10 s when zero sections. **No Stop CONTROL on the media lock-screen surface** — `transport: playing|paused|stopped` is STATE (Interrupted/Completed are EndKind, never transport values), distinct from the Stop CONTROL (the transport Stop, which clears the stored position) which exists in-app only. The always-resident service's paused notification is a DIFFERENT surface and is outside this clause: its resident-stop ends residency and PRESERVES the stored position (§Resident-paused notification surface).
 - Progress: bar = content-offset fraction + label `"Section {k} of {N} — {p}% (content-offset)"` (frozen template; English identifier — CLI `--format json` per T030b/T040b outputs this identifier string directly; the rendered user-visible pt-BR translation, e.g. `"Seção {k} de {N} — {p}% (deslocamento de conteúdo)"`, is a separate rendering step); determinate only when section count + total units known at session start, else indeterminate whole session (no flip, no backward jump); zero sections → indeterminate + no title.
-- Interruption reason: ≤8-word pt-BR line (soft target) + ≤40-char hard limit (Android content-text limit; if the two conflict, ≤40 chars wins) + distinct earcon, `reason_ttl_ms=3000` then cleared; undeliverable failures (`VoiceUnavailable`/`FormatUndeliverable`/`DecodeFailed`) persistent (`reason_ttl_ms=null`). No spoken announcement. Mirror visual = giant transport glyph (≥48dp, high-contrast DESIGN-SONA tokens below, never body text) + progress + warning/failure banner asserted by T026 snapshot; haptic distinct per contracts/earcon.md rides outside STREAM_MUSIC so sounds-off/DND path holds.
+- Interruption reason: ≤8-word pt-BR line (soft target) + ≤40-char hard limit (Android content-text limit; if the two conflict, ≤40 chars wins) + distinct earcon, `reason_ttl_ms=3000` then cleared; undeliverable failures (`VoiceUnavailable`/`FormatUndeliverable`/`DecodeFailed`) persistent (`reason_ttl_ms=null`). No spoken announcement. Mirror visual = giant transport glyph (≥48dp, high-contrast DESIGN-RESSOA tokens below, never body text) + progress + warning/failure banner asserted by T026 snapshot; haptic distinct per contracts/earcon.md rides outside STREAM_MUSIC so sounds-off/DND path holds.
 - Fixed reason lines (closed; `FocusDelayed`/`Deferred` shows no line — zero-audio hold):
 | Reason | Lock-screen line (pt-BR) |
 |---|---|
@@ -30,7 +30,7 @@ FR-002 + FR-009 + FR-011 + FR-012 + FR-013 + FR-014 + FR-019, plus 001 FR-009a/F
 
 ## CLI surface (Principle II) — `player progress` mirrors tasks.md T030b flag shape (`--consumed/--total/--k/--n | --indeterminate`, `--format json`); tasks.md is normative for flags.
 
-## DESIGN-SONA palette tokens (single source of truth, resolves T044)
+## DESIGN-RESSOA palette tokens (single source of truth, resolves T044)
 
 - Title `#F2F0E6`, section `#A9B8CE`, progress white / `#55688F`.
 - Yellow `#FFD400` warning-only, red `#FF4D63` failure-only, green `#5FD0A0` prohibited.
@@ -38,7 +38,7 @@ FR-002 + FR-009 + FR-011 + FR-012 + FR-013 + FR-014 + FR-019, plus 001 FR-009a/F
 
 ## Payload (Rust → Kotlin mirror, `Channel`)
 
-```json
+`json
 {
   "title": "string (metadata, never first-sentence)",
   "section_title": "string | null (most-recent-passed heading; null before first / zero sections)",
@@ -49,7 +49,7 @@ FR-002 + FR-009 + FR-011 + FR-012 + FR-013 + FR-014 + FR-019, plus 001 FR-009a/F
   "reason_ttl_ms": 3000 | null,
   "dismissal": "non_dismissable_while_playing | dismissable"
 }
-```
+`
 
 Display-vs-payload: purity applies to display fields only — display projection keys ⊆ {title, section_title, progress}. The full mirror payload additionally carries transport ∈ {playing,paused,stopped}, reason/reason_ttl_ms, dismissal per this contract; these are state/behavior, not display leaks. Prohibited anywhere: document prose, elapsed/remaining time, numeric rate value, voice identity.
 
@@ -65,3 +65,7 @@ The always-resident service's paused notification — the surface that persists 
 - Rationale (T131 adjudication): FR-002 forbids the Stop CONTROL on the lock screen because that control is destructive — it discards the stored position — and a one-tap destructive action does not belong on a glance surface. The resident-stop is not destructive, so the prohibition's purpose is not defeated by it, and the surface it lives on is not the media lock-screen surface. The resident-stop exists because the resident notification MAY persist indefinitely after a pause (001 FR-009a): it is the reader's labelled, no-unlock way out of that persistence, and it is the route 001 FR-028e names as "stops the resident component"; the swipe-away is a second route (001 FR-009a), not a substitute for a labelled one, and the resident notification occupies the foreground-service id, so the platform's foreground handling makes the swipe-away an unreliable sole exit. Removing the resident-stop would contradict 001 FR-009a/FR-028e and the `resident_stop` intent in 001's `contracts/shell-ipc.md`, and would leave the reader unable to end a resident session without unlocking — a driving-safety regression under constitution Principle VIII. Resolution: scope adjudication — this surface is outside FR-002's lock-screen-surface scope, the contract names it explicitly, and the implementation is unchanged.
 
 Adjudication record: T131 (Phase 16 Addendum 3, feature 004-ressoa-dogfood-build) — scope adjudication; contract amended, no code changed. The paired change required in `specs/004-ressoa-dogfood-build/spec.md` FR-002 (scoping the prohibition to the media playback surface and naming this surface) is recorded in the T131 adjudication report and WAS applied by the spec owner in the same coordination cycle — `specs/004-ressoa-dogfood-build/spec.md:153` carries the amended FR-002 with the resident carve-out (T132, commit 4c1f9f7) (004 spec.md §Normative Contract References: "When a contract and this spec appear to diverge, the contract is authoritative; updates must be coordinated").
+
+## FR-006 / FR-007 surface clauses (RED verification)
+- FR-006 (sound / access): Pre: audio path available; system MUST operate with or without sound — earcon is redundancy, never barrier (mutismo como dignidade). Post: sound plays / silent path holds regardless of mute/DND state. Invariant: earcon never blocks access; fully operable sounds-off per contracts/earcon.md haptic+silent path.
+- FR-007 (notification / lock-screen): Pre: MediaStyle notification or lock-screen rendered. Post: system MUST NOT show brand logo or sound waves in notification MediaStyle or lock-screen (FR-028/FR-029). Invariant: no brand logo, no sound-wave graphic on either surface; design-dir identity = tokens + Concha Harmônica "R" only on StatusView, never on notification/lock-screen.

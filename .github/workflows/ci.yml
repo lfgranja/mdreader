@@ -178,6 +178,8 @@ jobs:
           if [ ! -f src-tauri/gen/android/app/build.gradle.kts ]; then
             cargo tauri android init --ci
           fi
+          mkdir -p src-tauri/gen/android/app/src/main/kotlin
+          cp -r android-shell/src/main/kotlin/* src-tauri/gen/android/app/src/main/kotlin/
           sed -i '/org\.gradle\.java\.home/d' src-tauri/gen/android/gradle.properties
           printf '\norg.gradle.java.home=%s\n' "$JAVA_HOME" >> src-tauri/gen/android/gradle.properties
           cargo tauri android build --target aarch64 --debug

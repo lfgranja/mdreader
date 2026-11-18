@@ -7,6 +7,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.DocumentsContract
+import android.provider.OpenableColumns
 import android.util.Log
 import android.widget.Toast
 import java.io.File
@@ -626,6 +627,13 @@ object DocIngest {
             ?.use { if (it.moveToFirst()) it.getString(0) else null }
     }
 
+    private fun queryName(resolver: ContentResolver, uri: Uri): String? = try {
+        resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+            ?.use { if (it.moveToFirst()) it.getString(0) else null }
+    } catch (_: Exception) {
+        null
+    }
+
     private fun listChildren(resolver: ContentResolver, treeUri: Uri, parentDocId: String): List<Entry> {
         val children = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, parentDocId)
         val cols = arrayOf(
@@ -719,7 +727,7 @@ object DocIngest {
         val action = intent.action ?: return false
         val resolver = activity.contentResolver
 
-        Log.i(TAG, "handleIncomingIntent: action=$action type=${intent.type} data=${intent.data}")
+        Log.i(TAG, "handleIncomingIntent: action=$action")
 
         val (bytes, uriStr, extension) = when (action) {
             Intent.ACTION_VIEW -> {
@@ -729,8 +737,8 @@ object DocIngest {
                     ?: resolveFormat(resolver, uri) ?: "md"
                 val rawBytes = try {
                     readDocumentBytes(resolver, uri)
-                } catch (e: Exception) {
-                    Log.e(TAG, "handleIncomingIntent: failed to read ACTION_VIEW uri=$uri", e)
+                } catch (_: Exception) {
+                    Log.e(TAG, "handleIncomingIntent: failed to read ACTION_VIEW document")
                     return false
                 }
                 val effectiveUri = if (!displayName.isNullOrBlank()) {
@@ -752,8 +760,8 @@ object DocIngest {
                     val ext = resolveFormat(resolver, streamUri) ?: "md"
                     val rawBytes = try {
                         readDocumentBytes(resolver, streamUri)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "handleIncomingIntent: failed to read ACTION_SEND streamUri=$streamUri", e)
+                    } catch (_: Exception) {
+                        Log.e(TAG, "handleIncomingIntent: failed to read ACTION_SEND document")
                         return false
                     }
                     Triple(rawBytes, streamUri.toString(), ext)

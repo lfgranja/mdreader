@@ -291,12 +291,12 @@ pub fn install(app: AppHandle) {
         tracing::warn!("shell channel: app handle already held; second install dropped");
         return;
     }
-    if let Ok(mut pending) = PENDING_INGEST.lock() {
-        if let Some(snapshot) = pending.take() {
-            drop(pending);
-            if let Err(err) = ingest_snapshot(&snapshot) {
-                tracing::warn!(error = %err, "shell channel: failed to drain pending cold-start ingest");
-            }
+    if let Ok(mut pending) = PENDING_INGEST.lock()
+        && let Some(snapshot) = pending.take()
+    {
+        drop(pending);
+        if let Err(err) = ingest_snapshot(&snapshot) {
+            tracing::warn!(error = %err, "shell channel: failed to drain pending cold-start ingest");
         }
     }
     let (tx, rx) = std::sync::mpsc::channel::<u32>();

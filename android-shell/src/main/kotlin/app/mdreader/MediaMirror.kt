@@ -28,11 +28,10 @@ import android.util.Log
  * wire string through [forwardVerb]. The mirror is derived,
  * never a second clock (SC-035 / FR-003): it holds no
  * position, rate or transport state of its own and computes
- * nothing — the only arithmetic in the class is the seconds
- * to millis unit conversion the platform APIs require
- * (PlaybackState and the notification progress report
- * millis), applied to the published position_secs and to
- * the determinate progress, never to an estimate.
+ * nothing — the published position_secs is converted to millis
+ * only where PlaybackState requires it. Notification progress
+ * represents the published content-offset fraction at platform
+ * integer resolution; it is not converted to a duration.
  *
  * Notification content is exactly the FR-028 series: the
  * document title (metadata title else the stable filename
@@ -1058,16 +1057,6 @@ class MediaMirror(
         mediaSession.isActive = true
         val metadata = android.media.MediaMetadata.Builder()
             .putString(android.media.MediaMetadata.METADATA_KEY_TITLE, state.title)
-            .putLong(
-                android.media.MediaMetadata.METADATA_KEY_DURATION,
-                when (val p = state.progress) {
-                    is MirrorProgress.Determinate -> {
-                        val total = p.totalSecs
-                        if (total != null && total > 0.0) (total * 1000.0).toLong() else -1L
-                    }
-                    else -> -1L
-                }
-            )
             .build()
         mediaSession.setMetadata(metadata)
         val mirrored = PlaybackState.Builder()

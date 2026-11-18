@@ -411,3 +411,11 @@ T028: gate-9 build artifact confirmed: app-universal-release.apk (118MB, aarch64
 - **Gate 9 release-only (confirmado):** gates Host 1–8 permanecem nos PRs; Gate 9 roda manualmente (`workflow_dispatch`) no commit candidato de release; tags `v*` devem ser protegidas por ruleset GitHub exigindo sucesso de Host e Android antes da liberação. A implementação e a configuração remota ainda estão pendentes de execução e verificação.
 - **Âncora SDD observada:** `specs/010-directory-reading` (`.specify/feature.json`). A decisão Gate 9 está aprovada, mas a escolha 80/20 e o ciclo SDD completo ainda precisam ser registrados após as auditorias de evidência dos Blocos 2–5.
 - **Entrega documental em andamento:** PR #221 contém a atualização de `CONTRIBUTING.md`; seu estado atual de CI é [NV] até nova confirmação ao vivo. PR #220 teve Host e Android verdes na consulta de 2026-11-17 22:01:21 -04:00; estado posterior [NV].
+
+## 2026-11-18 — Bloco 5: escolha 80/20 (ciclo Gate 9 release-only)
+
+- **Critério:** impacto na missão × confiança na evidência ÷ esforço × risco (escala 1–5 cada; denominador declarado).
+- **Ranque:** (1) Gate 9 release-only = (5×5)/(2×2) = **6,25**; (2) corrigir baselines do aparato SDD = (2×5)/(3×1) = 3,33; (3) implementar 013 TTFA completo = (5×3)/(5×4) = 0,75.
+- **Escolha:** **Gate 9 release-only**. Decisão de governança já aprovada (STATE.md 2026-11-18); evidência determinística local: `.github/workflows/ci.yml:116-121` mostra Gate 9 rodando em todo PR/push, e `gh api repos/lfgranja/mdreader/rulesets` retorna vazio (sem ruleset de tags `v*`). CI do PR #222 verde (Host 9m47s, Android 27m29s) e merge em `dev` confirmado (`ff1b20e9`) — "elevar a CI" não é candidato nº1.
+- **Evidência remota [NV] no momento da escolha:** ruleset de tags ainda não criado; será verificado via `gh api` após implementação.
+- **Âncora:** `specs/022-gate9-release-only` (nova). HEAD da factory fonte dos aparatos SDD: `357e1c10bd4782bf5c3dad8666fe010539c25500` (mutou concorrentemente durante a sessão; factory somente leitura).

@@ -431,3 +431,11 @@ T028: gate-9 build artifact confirmed: app-universal-release.apk (118MB, aarch64
 - **[NV] remoto:** execução real de `workflow_dispatch` e push de tag `v*`; proteção efetiva do ruleset na criação de tag (payload verificado, aplicação real não exercitada).
 - **Dívida:** spec 013 permanece parcial (ver `specs/013-ttfa-synthesis-pipeline/converge.md`); T232/T233 abertos; baselines do aparato SDD ausentes no alvo (checks informativos falham, não são o gate autoritativo).
 - **Próximo 80/20 (provisório):** implementar 013 TTFA completo (score 0,75 na fila anterior) — depende de acesso a dispositivo 2201117TY e decisão sobre reabrir o ciclo.
+
+## 2026-11-18 — Bloco 5: escolha 80/20 do ciclo 023
+
+- **Critério:** impacto na missão × confiança na evidência ÷ esforço × risco (escala 1–5 cada).
+- **Ranque:** T229/T230/T234 = (5×5)/(3×3) = **2,78**; coerência documental upstream = (1×5)/(2×1) = 2,50; T232/T233 = (5×4)/(5×4) = 1,00; 013 TTFA completo = (5×3)/(5×4) = 0,75.
+- **Escolha:** **T229/T230/T234** — follow-ups abertos da spec 010: botão `btnPickDirectory`, listener `directory-selected` e controles de navegação de capítulos na view canônica. Evidência determinística: bridge já expõe e testa `pick_directory`/`next_chapter`/`previous_chapter` (`origin/dev:src-tauri/src/lib.rs:4495-4497,7491-7502`), mas `status_view.html` só tem handler opcional para `#btnPickDirectory` e nenhum botão/listener de capítulo.
+- **Não exige autorização nova:** são follow-ups da spec 010 já aceita; mudança reversível, verificável em host. Sem dispositivo necessário. CI de `dev` verde em `3fcba2aa`, então "elevar a CI" não é candidato nº1.
+- **Âncora:** `specs/023-directory-ui-controls`. Factory fonte: HEAD `fce55ca` (mutou nesta sessão; somente leitura).

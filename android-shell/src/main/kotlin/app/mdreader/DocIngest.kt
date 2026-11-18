@@ -563,8 +563,16 @@ object DocIngest {
                     Log.w(TAG, "Skipping unreadable chapter ${f.relativePath}", e)
                     return
                 }
+                if (bytes.isEmpty()) {
+                    Log.w(TAG, "Skipping empty chapter: ${f.relativePath}")
+                    return
+                }
                 if (bytes.size > MAX_DOC_BYTES) {
                     Log.w(TAG, "Skipping chapter past the byte cap: ${f.relativePath}")
+                    return
+                }
+                if (bytes.contains(0.toByte())) {
+                    Log.w(TAG, "Skipping binary chapter (contains null byte): ${f.relativePath}")
                     return
                 }
                 val hex = bytesToHex(blake3_256(bytes))

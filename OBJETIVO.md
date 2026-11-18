@@ -50,9 +50,9 @@ Um leitor de audiolivros e notas Markdown (`mdreader`, produto **Ressoa*) voltad
 - **Spec 005 a 007:** Adoção de design tokens SONA, Lente Sinestésica no canvas com RMS a 20 Hz e botão repeat — **100% CONVERGIDO**.
 - **Spec 008:** Harness de emulação e testes estruturais de AVD — **CONVERGIDO**.
 - **Spec 009:** Ingestão de arquivos Markdown via Storage Access Framework (SAF) ao tocar no título, diálogo inteligente de retomada (`offerDialog`) e persistência Blake3 — **CONVERGIDO**.
-- **Spec 010:** Leitura de múltiplos capítulos em diretórios (`directory-reading`), ordenação natural, permissões persistentes de árvore SAF e transições gapless — **CONVERGIDO**.
+- **Spec 010:** Escopo core de leitura de diretórios convergido (49/49); follow-ups T229/T230/T232/T233 permanecem abertos.
 - **Spec 011 & 012:** Setup de emuladores AVD e automação de hooks de ingestão para debug via ADB — **CONVERGIDO**.
-- **Spec 013:** Otimização de tempo até primeiro som (TTFA) via worker pré-roll assíncrono, comprovado em hardware real em 1.551 ms (< orçamento de 3.000 ms) — **CONVERGIDO**.
+- **Spec 013:** Otimização de tempo até primeiro som (TTFA) — **PARCIAL / EM PROGRESSO**. O smoke herdado de 2026-11-07 registrou 1.204 s em documento curto e 8.908 s em documento de 80 KB; a retomada em alto offset não teve atribuição limpa. Implementação, cobertura host e validação do dispositivo continuam pendentes; ver `specs/013-ttfa-synthesis-pipeline/converge.md`.
 - **Spec 014 & 015:** Sanitização de símbolos técnicos e formatação (`normalize.rs`) e prosódia semântica estrutural de Markdown (`prosody.rs`) — **CONVERGIDAS**.
 - **Spec 016 (Voz Lula):** **DEFERIDA** formalmente por restrições de licenciamento, ausência de modelo permissivo e riscos regulatórios (LGPD/STJ/TSE).
 - **Spec 017:** Cache em memória RAM limitado a 32 MiB (`AudioChunkCache`) com política LRU e invalidação por taxa (PR #195) — **CONVERGIDO**.

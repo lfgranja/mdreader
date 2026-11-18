@@ -63,3 +63,15 @@ adb -s adb-53cf9aa7-4VfOJ6._adb-tls-connect._tcp shell \
   run-as app.mdreader cat /data/data/app.mdreader/diagnostic-record.jsonl > /tmp/mdreader-013-diag.jsonl
 rg 'play_to_audio_measured|play_to_audio_ms|position_secs' /tmp/mdreader-013-diag.jsonl | tail -n 40
 ```
+
+## Device smoke evidence (2026-11-07, controlled, 2201117TY)
+- Cold StartNow (t184-teste.md): `play_to_audio_ms=1204` (position 1.81 s), preroll 5.59, cap 60, dropped 0.
+- Cold StartNow (medium.md, 80 KB): `play_to_audio_ms=8908` (position 8.86 s), preroll 18.54, cap 60, dropped 0.
+- High-offset resume: stored pause 63.32 s; resume measured `play_to_audio_ms=12967` (position 14.30 s) — clean high-offset attribution not achieved.
+- Switch/cancel: only short doc played (`play_to_audio_ms=5190`); medium cancelled; no crash/ANR.
+- Sustained playback (~2 min): preroll_cap=60, dropped_samples=0, no underrun; monkey 200 events stable.
+- Captures: `/tmp/mdreader-013-diag-{cold-startnow,high-offset-resume,switch-cancel,long-playback}.jsonl`.
+
+## Recovery audit (2026-11-18)
+
+The device values above are inherited 2026-11-07 reports; the referenced `/tmp` capture files are absent from the current recovery environment and have not been revalidated. Treat the smoke as partial: the high-offset run was not cleanly attributed and the sustained run was about two minutes, not the specified five-plus minutes. The separate 1,551 ms value in `verification/T051_T052_attestation.md` is not 013 evidence. See `converge.md` for the recovery-baseline code gaps and status.

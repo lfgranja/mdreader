@@ -101,3 +101,8 @@ The assessment proposed checking the `pickDocument` boolean return value in `she
 - Verify `dist/` build output is regenerated from updated `src/` HTML before release
 - Keep `src/status_view.html` and `src-tauri/src/assets/index.html` in sync for future changes to `triggerDocumentPicker`
 - Consider adding an instrumented (Robolectric) test for `ShellHost.pickDocument` null-activity path on the Android side
+
+## Follow-up — served asset parity (2026-11-17)
+
+- Regenerated `dist/index.html` from the canonical `src-tauri/src/status_view.html`.
+- No new UI behavior was introduced; this closes the previously recorded stale-dist follow-up.

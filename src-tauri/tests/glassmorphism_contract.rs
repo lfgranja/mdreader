@@ -15,5 +15,5 @@ fn glassmorphism_contract() {
         html.contains("border") && html.contains("doppel") || html.contains("Doppel"),
         "Doppelrand borders present"
     );
-    assert!(html.contains("--sona-stage"), "solid fallback present");
+    assert!(html.contains("--ressoa-stage"), "solid fallback present");
 }

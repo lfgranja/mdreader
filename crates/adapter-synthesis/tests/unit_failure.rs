@@ -72,7 +72,7 @@ use adapter_synthesis::format_check::{
     DECLARED_CHANNELS, DECLARED_RATE_HZ, DECLARED_WIDTH_BITS, check_delivery,
 };
 use adapter_synthesis::reg::{REGISTERED_TIERS, is_selectable, registered_tiers};
-use adapter_synthesis::synth::{Voice, synthesize};
+use adapter_synthesis::synth::synthesize;
 use engine_core::closed::EngineTier;
 
 // ---------------------------------------------------------------------------
@@ -638,7 +638,7 @@ fn synthesis_delivers_real_audio_and_a_reachable_failure_names_its_condition() {
         "a non-empty document yields at least one segment"
     );
     for segment in &segments {
-        match synthesize(segment, Voice::Faber) {
+        match synthesize(segment) {
             Ok(buffer) => {
                 assert!(
                     !buffer.is_empty(),
@@ -698,7 +698,7 @@ fn synthesis_delivers_real_audio_and_a_reachable_failure_names_its_condition() {
         Some(resume_point) => resume_point,
         None => unreachable_segment.source_range,
     };
-    match synthesize(&unreachable_segment, Voice::Faber) {
+    match synthesize(&unreachable_segment) {
         Ok(buffer) => {
             // Negative assertion (R2 / R7 / SC-035): `Ok` here —
             // with or without samples — is a defect. An interior NUL

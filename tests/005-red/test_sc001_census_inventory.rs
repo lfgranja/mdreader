@@ -16,6 +16,6 @@ fn sc001_census_aria_inventory_present() {
 fn sc001_contrast_token_census_match() {
     // Token census must match closed hex count (10) in surfaces
     let html = std::fs::read_to_string("status_view.html").unwrap_or_default();
-    let count = html.matches("sona-").count();
-    assert_eq!(count, 10, "SC-001 contrast census: expected 10 sona tokens, got {}", count);
+    let count = html.matches("ressoa-").count();
+    assert_eq!(count, 10, "SC-001 contrast census: expected 10 ressoa tokens, got {}", count);
 }

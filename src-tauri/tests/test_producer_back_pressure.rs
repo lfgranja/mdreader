@@ -205,7 +205,7 @@ fn calls_in(body: &str) -> BTreeSet<String> {
 fn handover_reaches_the_rule(bodies: &BTreeMap<String, String>) -> bool {
     let handoffs: Vec<&String> = bodies
         .iter()
-        .filter(|(_, body)| body.contains("enqueue_chunk("))
+        .filter(|(_, body)| body.contains("enqueue_chunk_for_generation("))
         .map(|(name, _)| name)
         .collect();
     if handoffs.is_empty() {

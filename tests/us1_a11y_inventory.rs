@@ -26,6 +26,6 @@ fn us1_no_alert_assertive_misuse() {
 #[test]
 fn us1_focus_ring_visible() {
     let html = std::fs::read_to_string("src-tauri/src/status_view.html").unwrap_or_default();
-    assert!(html.contains("--sona-etwahl") && html.contains(":focus-visible"),
-        "focus ring --sona-etwahl must be visible via :focus-visible (SC-002)");
+    assert!(html.contains("--ressoa-focus") && html.contains(":focus-visible"),
+        "focus ring --ressoa-focus must be visible via :focus-visible (SC-002)");
 }

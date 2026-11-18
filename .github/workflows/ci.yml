@@ -22,6 +22,8 @@ jobs:
     name: Host gates (verify.sh 1-8 subset + supply chain)
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    env:
+      SHERPA_ONNX_ARCHIVE_DIR: ${{ github.workspace }}/vendor/sherpa-onnx-sys
     steps:
       - uses: actions/checkout@v4
         with:
@@ -64,7 +66,7 @@ jobs:
       - name: Gate 2 — expected-tests two-way diff
         run: |
           set -euo pipefail
-          cargo nextest list --workspace 2>/dev/null             | grep -E "::"             | sed -E 's/ .*//'             | sort -u > /tmp/nextest-live.txt
+          cargo nextest list --workspace --color never 2>/dev/null             | grep -E "::"             | sed -E 's/ .*//'             | sort -u > /tmp/nextest-live.txt
           test -s /tmp/nextest-live.txt
           test -f scripts/expected-tests.txt
           sort -u scripts/expected-tests.txt > /tmp/expected.txt
@@ -111,9 +113,6 @@ jobs:
           bash scripts/check-manifest.sh
           bash scripts/check-shell-purity.sh
 
-      - name: Full verify.sh (authoritative local gate runner)
-        run: bash scripts/verify.sh
-
   android-build:
     name: Android build (gate 9, aarch64 debug)
     runs-on: ubuntu-24.04
@@ -147,6 +146,8 @@ jobs:
 
       - name: Setup Android SDK/NDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
       - name: Install Android NDK and platform tools
         run: |
@@ -167,13 +168,22 @@ jobs:
       - name: Install Tauri CLI
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-tauri
+          tool: tauri-cli
 
       - name: Gate 9 — Android build (aarch64 debug)
         env:
           ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.0.12077973
           NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.0.12077973
-        run: cargo tauri android build --target aarch64 --debug
+        run: |
+          unset SHERPA_ONNX_ARCHIVE_DIR
+          if [ ! -f src-tauri/gen/android/app/build.gradle.kts ]; then
+            cargo tauri android init --ci
+          fi
+          mkdir -p src-tauri/gen/android/app/src/main/kotlin
+          cp -r android-shell/src/main/kotlin/* src-tauri/gen/android/app/src/main/kotlin/
+          sed -i '/org\.gradle\.java\.home/d' src-tauri/gen/android/gradle.properties
+          printf '\norg.gradle.java.home=%s\n' "$JAVA_HOME" >> src-tauri/gen/android/gradle.properties
+          cargo tauri android build --target aarch64 --debug
 
       - name: Upload debug APK artifact
         if: always()

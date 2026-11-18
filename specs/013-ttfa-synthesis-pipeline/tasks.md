@@ -17,7 +17,7 @@
 ## Path Conventions
 
 - Bridge/production authority: `src-tauri/src/lib.rs`
-- Bridge tests: `src-tauri/tests/test_ttfa_synthesis_pipeline.rs` (new, targeted), plus existing `src-tauri/tests/test_play_to_audio_measured.rs` compatibility checks as needed
+- Bridge tests: `ttfa_013_tests` and `playback_watch_tests` in `src-tauri/src/lib.rs`, plus existing `src-tauri/tests/test_play_to_audio_measured.rs` compatibility checks. A dedicated integration file is optional only when a behavior can be tested through a public seam.
 - Backend invariants: `crates/player/src/backend.rs` (preserve semantics; tests only if behavior changes)
 - Synthesis: `crates/adapter-synthesis/src/synth.rs` (prefer unchanged)
 - Session/fingerprint: `crates/session/src/*` (preserve semantics)
@@ -28,7 +28,7 @@
 
 **Purpose**: establish targeted TTFA/production test scaffolding and baseline evidence hooks.
 
-- [~] T001 (ttfa_013_tests module used as targeted host harness; dedicated integration file optional) Create targeted test module `src-tauri/tests/test_ttfa_synthesis_pipeline.rs` with shared helpers for `AppState`/production setup, fake or controllable synthesis boundaries where feasible, and generation assertions; prefer host-checkable seams over real sherpa inference in unit-level RED where possible. Record `N/A:<reason>` if a seam is unavailable and use integration-style harness.
+- [~] T001 Use the existing `ttfa_013_tests` module in `src-tauri/src/lib.rs` as the targeted host harness, with controllable synthesis hooks and generation assertions. A dedicated `src-tauri/tests/test_ttfa_synthesis_pipeline.rs` does not currently exist and is not required unless a behavior needs a public integration seam.
 - [x] T002 [P] Capture baseline evidence references in `specs/013-ttfa-synthesis-pipeline/quickstart.md` (append evidence log section): device 2201117TY `play_to_audio_ms` range from handoff, code refs (`play_document`, `stream_synthesis`, `produce_next_unit`, `advance_production`, `playback_watch_tick`), and current watch→synth coupling observation.
 
 ---
@@ -39,8 +39,8 @@
 
 ### RED (write first)
 
-- [~] T003 (host tests: stale active target, stale bounded no-op/no-start, stale commit side-effect discard, stale demand/handover no-op, stale commit mutates no current production; hook-driven first-useful commit covered by T007 host test; `enqueue_chunk_for_generation`/`start_backend_for_generation` added; full publish/after-return matrix still pending) [US1][US3] In `src-tauri/tests/test_ttfa_synthesis_pipeline.rs`, add failing tests that a stale production generation cannot commit PCM, cannot start backend/playback for stale request, and cannot publish healthy started state after invalidation/switch/stop. Cover race-shaped case: result arrives after generation changed.
-- [~] T004 (runtime watch synthesis-free refactor+smoke; stronger structural assertion pending) [P] [US1][US2] In `src-tauri/tests/test_ttfa_synthesis_pipeline.rs`, add failing test/contract assertion that `playback_watch_tick`/watch path does not perform synthesis (`produce_next_unit`/`adapter_synthesis::synth::synthesize`) and remains lightweight for production advancement (observation/wake only).
+- [~] T003 (host tests cover stale target/no-op/commit and hook-driven stale-result discard; full publish/after-return matrix pending) [US1][US3] Extend `ttfa_013_tests` in `src-tauri/src/lib.rs` to prove stale production cannot commit PCM, start the backend, or publish healthy playback after invalidation/switch/stop. Cover the result-after-invalidation race.
+- [~] T004 (existing test checks the demand-signal helper only; it does not exercise the production watch tick) [P] [US1][US2] Add a failing host test through the watch test seam proving the actual `playback_watch_tick` path does not call synthesis and only signals producer demand.
 
 ### Implementation (blocked until T003–T004 RED)
 
@@ -59,14 +59,14 @@
 
 ### RED
 
-- [~] T007 [P] [US1] Host hook-driven tests prove bounded first-useful commit (`t007_produce_bounded_commits_first_useful_audio_via_synth_hook`) and multi-segment incrementality (`t007_produce_bounded_commits_first_unit_without_draining_all_segments`, only first unit advanced). Full `stream_synthesis`/`play_document` end-to-end startup proof still pending.
+- [~] T007 [P] [US1] Host hook-driven tests in `ttfa_013_tests` prove bounded first-useful commit (`t007_produce_bounded_commits_first_useful_audio_via_synth_hook`) and multi-segment incrementality (`t007_produce_bounded_commits_first_unit_without_draining_all_segments`, only first unit advanced). Full `stream_synthesis`/`play_document` end-to-end startup proof still pending.
 - [ ] T008 [P] [US1] Add failing test: producer continues under `queue_room`/`MAX_PREROLL_SECS` backpressure without dropping committed audio and without blocking cpal callback contract assumptions (host-level queue/admission assertions acceptable where direct callback test is impractical).
 
 ### Implementation
 
-- [~] T009 (spawn_blocking demand driver + bounded produce_bounded; startup still performs bounded inline first-useful work; dedicated robustness pending) [US1] Move CPU-bound synthesis in `src-tauri/src/lib.rs` off async watch/critical caller path: bounded `tauri::async_runtime::spawn_blocking` units or dedicated producer thread. Snapshot segment/production inputs under short locks, call `adapter_synthesis::synth::synthesize` outside locks, validate generation, commit under short locks.
-- [x] T010 [US1] Refactor `playback_watch_tick` in `src-tauri/src/lib.rs` to be synthesis-free: keep audible progress crediting, crossing/republish, chapter pre-roll arm, drain/end gated by `production_running`/buffer state; replace direct `advance_production` synthesis with wake/signal or safe non-blocking coordination to producer.
-- [~] T011 (startup reordered to first-useful before Playing publish; abandon_landing seam tested; user smoke shows persistent black screen/UI freeze and blocked switch during synthesis; full FR matrix pending) [US1] Preserve FR-001/005-safe startup in `play_document`/open path (`src-tauri/src/lib.rs`): no healthy audible playing publish before first valid useful-audio start/handoff for current generation; failures use `abandon_playing_landing`/named refusal paths.
+- [~] T009 (background driver uses `spawn_blocking`, but initial synthesis currently runs inside ordinary async `spawn`; not complete) [US1] Move all CPU-bound synthesis in `src-tauri/src/lib.rs` off async watch and UI-sensitive paths using bounded `spawn_blocking` work or a dedicated producer thread. Snapshot under short locks, synthesize outside locks, then validate generation and commit.
+- [ ] T010 The current `playback_watch_tick` still calls `advance_production`, which can synthesize synchronously. Refactor it to credit audible progress, handle publish/drain/chapter duties, and signal producer demand only.
+- [~] T011 (current `stream_synthesis_and_land` publishes `Playing` before synthesis/handoff; the required FR-001/005-safe ordering is not implemented) [US1] In `play_document`/open path, avoid publishing healthy audible `Playing` until first useful current-generation audio has been handed off and the backend start succeeds. Preserve named failure/refusal and abandon paths.
 - [ ] T012 [US1] Re-run RED tests T004/T007/T008/T003 for MVP scope; record GREEN evidence in task notes/commit body (non-attesting until Phase 7).
 
 **Checkpoint**: MVP — fast first useful audio path and non-synthesizing watch, with stale-generation safety.
@@ -81,8 +81,8 @@
 
 ### RED
 
-- [ ] T013 [P] [US2] Add failing test in `src-tauri/tests/test_ttfa_synthesis_pipeline.rs`: resume offset near later segment starts backend/enqueues useful audio without synthesizing every leading segment in full when a correctness-preserving fast path is implemented; if initial correctness-first path still synthesizes in order, test must instead assert minimal discard + bounded early useful handoff behavior and be named accordingly.
-- [ ] T014 [P] [US2] Add failing invariant tests: `sample_index_of`/`samples_before_entry` trimming, `segment_index`/`resume_point`/`SourceRange` semantics, and timeline/section measurements remain correct for committed current-generation units after offset start.
+- [ ] T013 [P] [US2] Add a failing test in `ttfa_013_tests` for a later resume offset reaching useful audio without synthesizing avoidable discarded work. If the correctness-first path synthesizes in order, assert minimal discard and bounded early handoff instead.
+- [ ] T014 [P] [US2] Add invariant tests for `sample_index_of`/`samples_before_entry` trimming and `segment_index`/`resume_point`/`SourceRange` plus timeline/section behavior after offset start.
 
 ### Implementation
 
@@ -102,8 +102,8 @@
 
 ### RED
 
-- [ ] T018 [P] [US3] Add failing tests in `src-tauri/tests/test_ttfa_synthesis_pipeline.rs` for cancellation during/after synth: stale generation result discarded; backend not started for stale generation; no late `Playing`/audible publish.
-- [ ] T019 [P] [US3] Add failing FR-001/005 tests: synthesis error or backend start failure after play request does not leave healthy audible `Playing`; `abandon_playing_landing`/refusal observable as appropriate.
+- [ ] T018 [P] [US3] Add failing tests in `ttfa_013_tests` for cancellation during/after synth: stale result discarded, backend not started, and no late `Playing`/audible publish.
+- [ ] T019 [P] [US3] Add failing FR-001/005 tests proving synthesis/backend-start failure does not leave healthy `Playing`; assert observable abandon/refusal.
 
 ### Implementation
 
@@ -129,9 +129,9 @@
 
 **Purpose**: host gates and device TTFA evidence. Do not claim TTFA fixed without device data.
 
-- [ ] T026 Run targeted host checks and record results: `cargo fmt --all -- --check`; `cargo nextest run -p mdreader --test test_ttfa_synthesis_pipeline` (and related impacted tests); `cargo clippy -p mdreader --all-targets -- -D warnings` (expand to workspace as needed by repo rules).
-- [x] T027 Device smoke on 2201117TY (SDK 33, `adb-53cf9aa7-4VfOJ6._adb-tls-connect._tcp`): executed cold open, switch during startup, sustained playback, monkey stress; high-offset resume attempted (clean attribution not achieved). Captured `diagnostic-record.jsonl` `play_to_audio_ms`/buffer/underrun/responsiveness. See converge.md "controlled device smoke (executed, attributed)".
-- [x] T028 Attest spec outcomes in converge.md: SC mapping updated (SC-TTFA-001 partial, SC-CANCEL-001 strengthened, others partial). T232/T233 left unchecked.
+- [ ] T026 Re-run final-tree checks after conflict resolution and implementation: `cargo fmt --all -- --check`; targeted `cargo nextest run -p src-tauri --lib playback_watch_tests ttfa_013_tests` and affected integration tests; `cargo clippy --workspace --all-targets -- -D warnings`. Do not cite earlier-tree or unrelated CI runs as final-tree evidence.
+- [x] T027 Record the inherited 2026-11-07 device smoke on 2201117TY (SDK 33): cold StartNow measured 1,204 ms on a short document and 8,908 ms on an 80 KB document; the 63.32 s resume was not cleanly attributed; switch/cancel and about two minutes of playback were observed. See `converge.md` for limitations. This is partial smoke evidence, not full acceptance.
+- [x] T028 Update `converge.md` with partial SC mapping: no paired baseline, clean high-offset attribution, 5+ minute run, full failure/cancellation matrix, R4/R7, or T232/T233 completion. Do not claim Spec 013 fully attested.
 
 ---
 

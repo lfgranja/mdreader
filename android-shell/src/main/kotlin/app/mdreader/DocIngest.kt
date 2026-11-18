@@ -7,7 +7,9 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.DocumentsContract
+import android.provider.OpenableColumns
 import android.util.Log
+import android.widget.Toast
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
@@ -74,13 +76,13 @@ object DocIngest {
     )
 
     /**
-     * Fixture-scale document byte cap (FR-018) — the Rust constant
+     * Document byte cap (FR-018 / Spec 020) — the Rust constant
      * `player::interruption::MAX_DOC_BYTES`
      * (crates/player/src/interruption.rs), mirrored at the picker
-     * boundary. A document past the cap is refused with
+     * boundary. A document past the cap (1 MiB / 1,048,576 bytes) is refused with
      * [REFUSAL_FORMAT_UNDELIVERABLE] before synthesis.
      */
-    const val MAX_DOC_BYTES = 93636
+    const val MAX_DOC_BYTES = 1048576
 
     /**
      * Closed ingest-refusal reason (FR-018): the picker boundary
@@ -222,6 +224,11 @@ object DocIngest {
         // document, and nothing is written for an oversize pick.
         if (bytes.size > MAX_DOC_BYTES) {
             Log.w(TAG, "Pick refused past the byte cap: ${bytes.size} > $MAX_DOC_BYTES bytes")
+            Toast.makeText(
+                activity,
+                "Arquivo muito grande para leitura: ${(bytes.size / 1024 / 1024).toInt()} MiB (limite: 1 MiB)",
+                Toast.LENGTH_LONG,
+            ).show()
             return IngestOutcome.Refused(REFUSAL_FORMAT_UNDELIVERABLE)
         }
 
@@ -255,7 +262,8 @@ object DocIngest {
             // A missing native library is recorded as a diagnostic
             // log — the snapshot stands and the event is never
             // dropped silently (the ShellHost idiom).
-            try {
+            ShellHost.requestFocus()
+            val ingestStatus = try {
                 onDocumentIngested(
                     result.snapshotPath,
                     result.fingerprintHex,
@@ -264,8 +272,17 @@ object DocIngest {
                 )
             } catch (error: UnsatisfiedLinkError) {
                 Log.e(TAG, "Ingest channel unavailable: ${error.message}")
+                -1
             }
-            IngestOutcome.Accepted(result)
+            
+            val outcome = when (ingestStatus) {
+                0 -> IngestOutcome.Accepted(result)
+                1 -> IngestOutcome.Unreadable
+                2 -> IngestOutcome.Refused(REFUSAL_FORMAT_UNDELIVERABLE)
+                else -> IngestOutcome.Unreadable
+            }
+            
+            outcome
         } catch (e: Exception) {
             Log.e(TAG, "Snapshot write failed; the picker is re-prompted", e)
             IngestOutcome.Unreadable
@@ -618,6 +635,13 @@ object DocIngest {
             ?.use { if (it.moveToFirst()) it.getString(0) else null }
     }
 
+    private fun queryName(resolver: ContentResolver, uri: Uri): String? = try {
+        resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+            ?.use { if (it.moveToFirst()) it.getString(0) else null }
+    } catch (_: Exception) {
+        null
+    }
+
     private fun listChildren(resolver: ContentResolver, treeUri: Uri, parentDocId: String): List<Entry> {
         val children = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, parentDocId)
         val cols = arrayOf(
@@ -676,12 +700,13 @@ object DocIngest {
      * Native callback to Rust after successful document ingestion.
      * Forwards snapshot path, fingerprint, original URI, and MIME type.
      */
+    @JvmStatic
     private external fun onDocumentIngested(
         snapshotPath: String,
         fingerprintHex: String,
         originalUri: String,
         mimeType: String
-    )
+    ): Int
 
     // --- Debug/test automation hooks (BuildConfig.DEBUG-gated callers only) ---
     internal fun debugDeliverDocument(
@@ -696,8 +721,95 @@ object DocIngest {
         val snapshot = writeSnapshot(context, bytes, extension, hex)
         currentSnapshot = snapshot
         trimSnapshots(context, snapshot)
-        onDocumentIngested(snapshot.absolutePath, hex, originalUri, mimeType)
-        Log.i(TAG, "debugDeliverDocument: $sourceName -> ${snapshot.absolutePath}")
+        val status = onDocumentIngested(snapshot.absolutePath, hex, originalUri, mimeType)
+        Log.i(TAG, "debugDeliverDocument: $sourceName -> ${snapshot.absolutePath} (jniStatus=$status)")
+    }
+
+    /**
+     * Spec 019: Ingest incoming Intent from ACTION_VIEW (open .md file) or ACTION_SEND (share sheet).
+     *
+     * Extracts URI or text stream, creates durable snapshot and delegates to onDocumentIngested JNI.
+     */
+    fun handleIncomingIntent(activity: Activity, intent: Intent?): Boolean {
+        if (intent == null) return false
+        val action = intent.action ?: return false
+        val resolver = activity.contentResolver
+
+        Log.i(TAG, "handleIncomingIntent: action=$action")
+
+        val (bytes, uriStr, extension) = when (action) {
+            Intent.ACTION_VIEW -> {
+                val uri = intent.data ?: return false
+                val displayName = queryName(resolver, uri)
+                val ext = displayName?.substringAfterLast('.', "")?.lowercase()?.takeIf { it in setOf("md", "markdown", "txt") }
+                    ?: resolveFormat(resolver, uri) ?: "md"
+                val rawBytes = try {
+                    readDocumentBytes(resolver, uri)
+                } catch (_: Exception) {
+                    Log.e(TAG, "handleIncomingIntent: failed to read ACTION_VIEW document")
+                    return false
+                }
+                val effectiveUri = if (!displayName.isNullOrBlank()) {
+                    "content://display_name/${Uri.encode(displayName)}"
+                } else {
+                    uri.toString()
+                }
+                Triple(rawBytes, effectiveUri, ext)
+            }
+            Intent.ACTION_SEND -> {
+                val streamUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent.getParcelableExtra(Intent.EXTRA_STREAM) as? Uri
+                }
+
+                if (streamUri != null) {
+                    val ext = resolveFormat(resolver, streamUri) ?: "md"
+                    val rawBytes = try {
+                        readDocumentBytes(resolver, streamUri)
+                    } catch (_: Exception) {
+                        Log.e(TAG, "handleIncomingIntent: failed to read ACTION_SEND document")
+                        return false
+                    }
+                    Triple(rawBytes, streamUri.toString(), ext)
+                } else {
+                    val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return false
+                    val textBytes = text.toByteArray(Charsets.UTF_8)
+                    Triple(textBytes, "content://shared-text/${System.currentTimeMillis()}.md", "md")
+                }
+            }
+            else -> return false
+        }
+
+        if (bytes.isEmpty() || bytes.size > MAX_DOC_BYTES) {
+            Log.w(TAG, "handleIncomingIntent: document empty or exceeds MAX_DOC_BYTES (${bytes.size} bytes)")
+            if (bytes.size > MAX_DOC_BYTES) {
+                Toast.makeText(
+                    activity,
+                    "Arquivo muito grande para leitura: ${(bytes.size / 1024 / 1024).toInt()} MiB (limite: 1 MiB)",
+                    Toast.LENGTH_LONG,
+                ).show()
+            }
+            return false
+        }
+
+        return try {
+            val fingerprint = blake3_256(bytes)
+            val hexName = bytesToHex(fingerprint)
+            val snapshotFile = writeSnapshot(activity, bytes, extension, hexName)
+            currentSnapshot = snapshotFile
+            trimSnapshots(activity, snapshotFile)
+
+            val mime = MIME_BY_EXTENSION[extension] ?: "text/markdown"
+            ShellHost.requestFocus()
+            val status = onDocumentIngested(snapshotFile.absolutePath, hexName, uriStr, mime)
+            Log.i(TAG, "handleIncomingIntent: successfully ingested snapshot=${snapshotFile.absolutePath} (jniStatus=$status)")
+            status == 0
+        } catch (e: Exception) {
+            Log.e(TAG, "handleIncomingIntent: snapshot delivery failed", e)
+            false
+        }
     }
 
     internal fun debugFingerprintHex(bytes: ByteArray): String = bytesToHex(blake3_256(bytes))

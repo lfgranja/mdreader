@@ -79,7 +79,7 @@
     transform: scale(0.985);
   }
   .meta-box:focus-visible {
-    outline: 2px solid var(--sona-etwahl);
+    outline: 2px solid var(--ressoa-focus);
     outline-offset: 4px;
   }
   ```

@@ -53,6 +53,7 @@ use diag::writer::{
 use engine_core::closed::SessionEnd;
 use player::backend::CpalBackend;
 use player::cli::{PlaybackSession, SessionSnapshot, ShellVerb};
+use player::dsp::DspPreset;
 use player::focus::FocusOutcome;
 use player::rate::RateStep;
 use player::surface::MirrorState;
@@ -287,6 +288,7 @@ pub struct AppState {
     /// 10.0 s from the chapter end, cancelled and purged on any manual
     /// skip or seek. Locked alone, never nested.
     pub(crate) chapter_preroll: Mutex<player::skip::NextChapterPreRoll>,
+    pub(crate) dsp_preset: Mutex<u8>,
 }
 
 impl std::fmt::Debug for AppState {
@@ -434,6 +436,7 @@ impl AppState {
             playback_watch: Mutex::new(PlaybackWatch::default()),
             chapter_queue: Mutex::new(None),
             chapter_preroll: Mutex::new(player::skip::NextChapterPreRoll::new()),
+            dsp_preset: Mutex::new(0u8),
         }
     }
 
@@ -458,14 +461,14 @@ impl AppState {
 const HEARTBEAT_PERIOD_SECS: u64 = 20;
 
 /// The playback-watch period, in milliseconds (F1/F3):
-/// the 500 ms audit cadence that feeds the session clock
+/// the 250 ms audit cadence that feeds the session clock
 /// from the backend's audible clock, republishes the
 /// mirror when the consumed-unit count crosses, and
 /// commands the document-end teardown when the stream
 /// drains — fine enough that the end of a document is
 /// detected within a bound no run can notice, coarse
 /// enough to stay far off the audio path.
-const PLAYBACK_WATCH_PERIOD_MS: u64 = 500;
+const PLAYBACK_WATCH_PERIOD_MS: u64 = 250;
 /// The current unix time in milliseconds — the epoch
 /// the FR-015 supersede clock stamps (T011). A clock
 /// set before the unix epoch (an impossible
@@ -505,6 +508,17 @@ fn current_first_yield_ms(state: &AppState) -> u64 {
         .map_or(0, |clock| clock.unwrap_or(0))
 }
 
+/// Record an already-computed blake3-256 content fingerprint in shared
+/// state (FR-036). Prefer this when the fingerprint was computed for another
+/// use in the same open path to avoid redundant full-document hashing.
+fn set_document_fingerprint_value(state: &AppState, fingerprint: [u8; 32]) {
+    if let Ok(mut guard) = state.current_fingerprint.lock() {
+        *guard = Some(fingerprint);
+    } else {
+        tracing::warn!("document fingerprint not recorded: the state lock is poisoned");
+    }
+}
+
 /// Record the loaded document's blake3-256 content
 /// fingerprint in the shared state (FR-036): the one
 /// call site every document-opening path routes
@@ -517,14 +531,12 @@ fn current_first_yield_ms(state: &AppState) -> u64 {
 /// A poisoned fingerprint lock is recorded and
 /// skipped: durability is best-effort, never a
 /// panic, and a missed write only means the next
-/// heartbeat finds no document.
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "used by #[cfg(test)] call sites")
+)]
 pub(crate) fn set_document_fingerprint(state: &AppState, bytes: &[u8]) {
-    let fp = fingerprint::fingerprint(bytes);
-    if let Ok(mut guard) = state.current_fingerprint.lock() {
-        *guard = Some(fp);
-    } else {
-        tracing::warn!("document fingerprint not recorded: the state lock is poisoned");
-    }
+    set_document_fingerprint_value(state, fingerprint::fingerprint(bytes));
 }
 
 /// Note the transport the session landed in for the
@@ -848,9 +860,33 @@ fn teardown_outgoing_session(state: &AppState) {
 /// inherits the first one's position, and the first one's
 /// bookmark is never deleted nor overwritten.
 fn switch_to_document(state: &AppState, bytes: &[u8]) {
+    switch_to_document_with_fingerprint(state, bytes, fingerprint::fingerprint(bytes));
+}
+
+/// Like [`switch_to_document`], but reuses an already-computed fingerprint
+/// for the incoming document (same semantics, one fewer full-document hash).
+fn switch_to_document_with_fingerprint(
+    state: &AppState,
+    _bytes: &[u8],
+    document_fingerprint: [u8; 32],
+) {
     save_outgoing_bookmark(state);
     teardown_outgoing_session(state);
-    set_document_fingerprint(state, bytes);
+    set_document_fingerprint_value(state, document_fingerprint);
+}
+
+/// Convert a closed `PlaybackRate` rung to its floating-point multiplier value.
+#[must_use]
+pub(crate) const fn rate_to_f32(rate: PlaybackRate) -> f32 {
+    match rate {
+        PlaybackRate::R0_75 => 0.75,
+        PlaybackRate::R1_0 => 1.0,
+        PlaybackRate::R1_25 => 1.25,
+        PlaybackRate::R1_5 => 1.5,
+        PlaybackRate::R1_75 => 1.75,
+        PlaybackRate::R2_0 => 2.0,
+        PlaybackRate::R4_0 => 4.0,
+    }
 }
 
 /// Persist the last playback rate (T042, write-on-change /
@@ -885,6 +921,65 @@ fn persist_last_rate(state: &AppState, rate: PlaybackRate) {
         tracing::debug!("last rate persisted");
     }
     drop(store_guard);
+}
+/// Persist the last DSP preset (off=0, `ressoa_ethereal=1`), written on
+/// every preset change, crossing sessions and documents.
+///
+/// This is the store half of the DSP preset wiring — the
+/// write-on-change half: the call site (the shell, over the player
+/// DSP config) writes the preset byte every time it changes, and
+/// reads it back at the next session open through
+/// [`read_dsp_preset`]. The setting is document-independent (the
+/// `settings` table), so it survives a document change and a store
+/// reopen.
+///
+/// # Errors
+///
+/// [`Error::Storage`] when the write transaction cannot begin or
+/// commit. The error is logged as a warn and the call returns
+/// silently — the preset is a preference, never a failure of the
+/// control that set it.
+pub(crate) fn persist_dsp_preset(state: &AppState, preset: DspPreset) {
+    let Ok(mut store_guard) = state.bookmark_store.lock() else {
+        tracing::warn!("dsp preset not persisted: the store lock is poisoned");
+        return;
+    };
+    let Some(store) = store_guard.as_mut() else {
+        return; // the store never opened — the setting degrades to unpersisted
+    };
+    if let Err(error) = store.put_last_dsp_preset(preset as u8) {
+        tracing::warn!(%error, "dsp preset not persisted: the store write failed");
+    } else {
+        tracing::debug!("dsp preset persisted");
+    }
+    drop(store_guard);
+}
+
+/// Read the last DSP preset, or `Off` (0) on first use.
+///
+/// This is the read-at-start half: the call site reads it when a
+/// session opens and resolves the default (`Off`) once on the shell
+/// side.
+pub(crate) fn read_dsp_preset(state: &AppState) -> DspPreset {
+    let Ok(mut store_guard) = state.bookmark_store.lock() else {
+        tracing::warn!("dsp preset not read: the store lock is poisoned");
+        return DspPreset::Off;
+    };
+    let Some(store) = store_guard.as_mut() else {
+        return DspPreset::Off;
+    };
+    match store.get_last_dsp_preset() {
+        Ok(Some(0) | None) => DspPreset::Off,
+        Ok(Some(1)) => DspPreset::RessoaEthereal,
+        Ok(Some(_other)) => {
+            tracing::warn!("unknown dsp preset value, defaulting to Off");
+            DspPreset::Off
+        }
+        Err(_error) => {
+            tracing::warn!("dsp preset not read: the store read failed");
+            DspPreset::Off
+        }
+    }
 }
 
 /// The direction and the number of one-rung rate presses
@@ -1023,6 +1118,14 @@ fn seed_session_rate(state: &AppState) {
             break;
         }
     }
+    drop(session);
+    let final_rate = {
+        let Ok(session) = state.session.lock() else {
+            return;
+        };
+        session.snapshot().rate
+    };
+    adapter_synthesis::set_playback_rate(rate_to_f32(final_rate));
 }
 
 /// The named failures of the cold-start open and play paths
@@ -2047,6 +2150,7 @@ pub(crate) const fn offer_route_wire(route: OfferRoute) -> (&'static str, Option
 /// and the stored position the offer continues from — never a
 /// decision: the offer machine owns the decision of whether and
 /// where the reading starts (FR-044).
+#[expect(dead_code, reason = "directory reading not yet wired")]
 /// Park a directory chapter resume behind the in-app offer dialog (T233/FR-009).
 pub(crate) fn park_directory_resume(
     state: &AppState,
@@ -2487,46 +2591,6 @@ struct PlaybackWatch {
 /// The backend is the only clock that advances on consumed
 /// speech samples (FR-015); the session clock is the position
 /// authority every ack, bookmark, and publish reads. This tick
-/// Test-only watch tick: no AppHandle/producer spawn; checks progress/end state.
-#[cfg(test)]
-#[cfg(test)]
-fn playback_watch_tick_test(state: &AppState, watch: &mut PlaybackWatch) {
-    let transport = {
-        let Ok(guard) = state.session.lock() else {
-            return;
-        };
-        guard.snapshot().transport
-    };
-    match transport {
-        TransportState::Playing => {}
-        TransportState::Stopped | TransportState::Completed => {
-            *watch = PlaybackWatch::default();
-            return;
-        }
-        TransportState::Paused | TransportState::Interrupted => return,
-    }
-    let (drained, position_secs) = {
-        let Ok(guard) = state.backend.lock() else {
-            return;
-        };
-        let Some(backend) = guard.as_ref() else {
-            return;
-        };
-        (backend.is_drained(), backend.position_secs())
-    };
-    feed_audible_progress(state, position_secs, watch);
-    maybe_start_chapter_preroll(state, position_secs);
-    if drained && !crate::commands::production_running(state) {
-        if advance_chapter_queue(state) {
-            return;
-        }
-        signal_document_end(state);
-        return;
-    }
-    let _ = maybe_republish_progress(state, watch);
-    commands::watch_signal_production(state);
-}
-
 /// is the single place the two meet: the delta since the last
 /// tick is credited while `Playing`, so a paused session never
 /// advances and a missed tick is caught up whole.
@@ -2584,7 +2648,7 @@ fn playback_watch_tick(state: &AppState, watch: &mut PlaybackWatch) {
     // while the producer still holds audio the reader has not heard,
     // an empty queue is the producer WAITING for the device, never
     // the end of the document.
-    if drained && !crate::commands::production_running(state) {
+    if drained && !commands::production_running(state) {
         // T200: a directory reading moves to the next chapter without
         // tearing the stream down; only the last chapter ends the reading.
         if advance_chapter_queue(state) {
@@ -2772,10 +2836,12 @@ fn maybe_republish_progress(state: &AppState, watch: &mut PlaybackWatch) -> bool
 /// resident surface alone is left to the user's dismissal.
 /// Advance the directory chapter queue gaplessly (T200).
 ///
-/// Returns `true` when a next chapter exists and the queue moved to it
-/// (the position clock restarts at the transition's `new_position_secs`),
-/// `false` when there is no queue or the current chapter is the last.
-/// The queue lock is taken alone and released before returning.
+/// Returns `true` when a next chapter exists and the queue moved to it.
+/// On device (`installed_app()` present), chapter snapshot read/open is
+/// offloaded to avoid blocking the playback-watch/drain loop; the transition
+/// is committed in queue state and open errors are logged asynchronously.
+/// On host/non-device paths the read/open remains synchronous for
+/// deterministic behavior in tests.
 fn advance_chapter_queue(state: &AppState) -> bool {
     let next_info = {
         let Ok(mut guard) = state.chapter_queue.lock() else {
@@ -2799,6 +2865,39 @@ fn advance_chapter_queue(state: &AppState) -> bool {
     let Some((snapshot_path, filename)) = next_info else {
         return false;
     };
+    if let Some(app) = crate::shell_jni::installed_app() {
+        let app = app.clone();
+        crate::cancel_chapter_preroll(state);
+        std::mem::drop(tauri::async_runtime::spawn(async move {
+            let state = app.state::<AppState>();
+            match std::fs::read(&snapshot_path) {
+                Ok(bytes) => {
+                    if let Err(error) =
+                        crate::commands::open_document_bytes_named(&state, bytes, &filename)
+                    {
+                        tracing::error!(
+                            error = %error,
+                            filename = %filename,
+                            "gapless chapter advance: failed to open next chapter"
+                        );
+                    } else {
+                        tracing::info!(
+                            filename = %filename,
+                            "gapless chapter advance: started next chapter"
+                        );
+                    }
+                }
+                Err(error) => {
+                    tracing::error!(
+                        error = %error,
+                        snapshot_path = %snapshot_path,
+                        "gapless chapter advance: failed to read snapshot"
+                    );
+                }
+            }
+        }));
+        return true;
+    }
     match std::fs::read(&snapshot_path) {
         Ok(bytes) => {
             crate::cancel_chapter_preroll(state);
@@ -2844,9 +2943,39 @@ pub(crate) fn open_chapter_at_index(state: &AppState, index: usize) -> Result<St
         drop(guard);
         info
     };
+    crate::cancel_chapter_preroll(state);
+    if let Some(app) = crate::shell_jni::installed_app() {
+        let app = app.clone();
+        let filename_for_task = filename.clone();
+        std::mem::drop(tauri::async_runtime::spawn(async move {
+            let state = app.state::<AppState>();
+            match std::fs::read(&snapshot_path) {
+                Ok(bytes) => {
+                    if let Err(error) = crate::commands::open_document_bytes_named(
+                        &state,
+                        bytes,
+                        &filename_for_task,
+                    ) {
+                        tracing::error!(
+                            error = %error,
+                            filename = %filename_for_task,
+                            "chapter open: failed to open selected chapter"
+                        );
+                    }
+                }
+                Err(error) => {
+                    tracing::error!(
+                        error = %error,
+                        snapshot_path = %snapshot_path,
+                        "chapter open: failed to read snapshot"
+                    );
+                }
+            }
+        }));
+        return Ok(filename);
+    }
     let bytes = std::fs::read(&snapshot_path)
         .map_err(|e| format!("failed to read chapter snapshot {snapshot_path}: {e}"))?;
-    crate::cancel_chapter_preroll(state);
     let _ = crate::commands::open_document_bytes_named(state, bytes, &filename)
         .map_err(|e| e.to_string())?;
     Ok(filename)
@@ -2982,6 +3111,7 @@ pub(crate) fn directory_contextual_skip(
     }
 }
 
+#[expect(dead_code, reason = "directory reading not yet wired")]
 /// Directory resume info from `DIRECTORY_BOOKMARKS` (T233 / FR-009).
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct DirectoryResume {
@@ -3065,6 +3195,70 @@ fn signal_document_end(state: &AppState) {
         }
     }
 }
+/// Show the welcome document on first start (Android).
+///
+/// Embeds `assets/samples/bem-vindo-ao-ressoa.md` into the APK via
+/// `tauri.conf.json` resources, reads it on first launch, and opens it
+/// through the single synthesis path (`open_document_bytes`). A marker
+/// file in the app data directory guarantees it opens exactly once —
+/// never again on subsequent launches (FR-009 first-start contract).
+///
+/// Best-effort by construction: a missing asset, an unreadable file,
+/// or a refused open is logged as a warning and never prevents the
+/// app from starting.
+#[cfg(target_os = "android")]
+fn maybe_open_welcome_document(state: &AppState, app: &tauri::AppHandle) {
+    use std::io::Read;
+
+    /// Marker file proving the welcome document has already been shown.
+    const MARKER: &str = ".welcome_shown";
+    /// Asset name of the welcome document inside the APK resources.
+    const ASSET: &str = "welcome.md";
+
+    let data_dir = match app.path().app_data_dir() {
+        Ok(dir) => dir,
+        Err(error) => {
+            tracing::warn!(%error, "welcome: cannot resolve app data dir");
+            return;
+        }
+    };
+    let marker = data_dir.join(MARKER);
+    if marker.is_file() {
+        return; // already shown on a previous launch
+    }
+
+    let welcome_bytes = match app.path().resource_dir() {
+        Ok(resource_dir) => {
+            let mut file = match std::fs::File::open(resource_dir.join(ASSET)) {
+                Ok(f) => f,
+                Err(error) => {
+                    tracing::warn!(%error, "welcome: asset not found in APK resources");
+                    return;
+                }
+            };
+            let mut bytes = Vec::new();
+            if file.read_to_end(&mut bytes).is_err() {
+                tracing::warn!("welcome: failed to read asset bytes");
+                return;
+            }
+            bytes
+        }
+        Err(error) => {
+            tracing::warn!(%error, "welcome: cannot resolve resource dir");
+            return;
+        }
+    };
+
+    match crate::commands::open_document_bytes(state, welcome_bytes) {
+        Ok(_) => tracing::info!("welcome document opened on first start"),
+        Err(error) => tracing::warn!(%error, "welcome document could not be opened"),
+    };
+
+    // Persist the marker so the welcome document opens exactly once.
+    if let Err(error) = std::fs::write(&marker, b"1") {
+        tracing::warn!(%error, "welcome: could not persist first-start marker");
+    }
+}
 
 /// Run the Tauri application.
 ///
@@ -3107,6 +3301,7 @@ pub fn run() {
             playback_watch: Mutex::new(PlaybackWatch::default()),
             chapter_queue: Mutex::new(None),
             chapter_preroll: Mutex::new(player::skip::NextChapterPreRoll::new()),
+            dsp_preset: Mutex::new(0u8),
         })
         .setup(|app| {
             // Voice assets ship inside the APK: extract them to a
@@ -3115,26 +3310,90 @@ pub fn run() {
             #[cfg(target_os = "android")]
             {
                 if let Ok(data) = app.path().app_data_dir() {
-                    if let Ok(voice) = adapter_synthesis::android_assets::extract_voices(&data) {
-                        adapter_synthesis::synth::set_asset_dir(voice);
+                    if let Ok(voices_root) = adapter_synthesis::android_assets::extract_voices(&data) {
+                        adapter_synthesis::synth::set_voices_dir(voices_root);
                     }
                 }
             }
-            // Seed normalization mode from persisted settings (default Fluid).
+
+            // Configure Ressoa/override voice model before the first synthesis
+            // when a complete bundle is available. This must run before the
+            // synthesis engine's OnceLock initializes.
+            // Objective form: adapter_synthesis::synth::set_model_path(
+            //   PathBuf::from("ressoa_ethereal_ptbr.onnx")) when the bundle is
+            // resolved to that model path with sibling tokens.txt and
+            // espeak-ng-data.
             {
-                let state = app.state::<AppState>();
-                let fluid = state
-                    .bookmark_store
-                    .lock()
-                    .ok()
-                    .and_then(|mut guard| guard.as_mut()?.get_normalization_mode().ok().flatten())
-                    .unwrap_or(true);
-                let mode = if fluid {
-                    adapter_synthesis::normalize::NormalizationMode::Fluid
-                } else {
-                    adapter_synthesis::normalize::NormalizationMode::Literal
-                };
-                adapter_synthesis::normalize::set_normalization_mode(mode);
+                let explicit = std::env::var_os("MDREADER_VOICE_MODEL_PATH")
+                    .or_else(|| std::env::var_os("PIPER_MODEL_PATH"))
+                    .or_else(|| std::env::var_os("RESSOA_MODEL_PATH"))
+                    .map(std::path::PathBuf::from);
+                let mut model: Option<std::path::PathBuf> = None;
+                if let Some(path) = explicit {
+                    if path.is_file()
+                        && path
+                            .extension()
+                            .and_then(|ext| ext.to_str())
+                            .is_some_and(|ext| ext.eq_ignore_ascii_case("onnx"))
+                    {
+                        model = Some(path);
+                    } else if path.is_dir() {
+                        let named = path.join("ressoa_ethereal_ptbr.onnx");
+                        if named.is_file() {
+                            model = Some(named);
+                        } else if let Ok(entries) = std::fs::read_dir(&path) {
+                            for entry in entries.flatten() {
+                                let candidate = entry.path();
+                                if candidate
+                                    .extension()
+                                    .and_then(|ext| ext.to_str())
+                                    .is_some_and(|ext| ext.eq_ignore_ascii_case("onnx"))
+                                {
+                                    model = Some(candidate);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                if model.is_none()
+                    && let Ok(data_dir) = app.path().app_data_dir()
+                {
+                    for candidate in [
+                        data_dir
+                            .join("voices")
+                            .join("ressoa_ethereal_ptbr")
+                            .join("ressoa_ethereal_ptbr.onnx"),
+                        data_dir
+                            .join("voices")
+                            .join("pt_BR-ressoa-ethereal")
+                            .join("ressoa_ethereal_ptbr.onnx"),
+                        data_dir.join("ressoa_ethereal_ptbr.onnx"),
+                    ] {
+                        if candidate.is_file() {
+                            model = Some(candidate);
+                            break;
+                        }
+                    }
+                }
+                if let Some(model_path) = model {
+                    let has_tokens = model_path.with_file_name("tokens.txt").is_file();
+                    let has_espeak = model_path
+                        .parent()
+                        .is_some_and(|parent| parent.join("espeak-ng-data").is_dir());
+                    if has_tokens && has_espeak {
+                        tracing::info!(
+                            model = %model_path.display(),
+                            "configuring Ressoa/override voice model before first synthesis"
+                        );
+                        adapter_synthesis::synth::set_model_path(model_path);
+                    } else {
+                        tracing::warn!(
+                            model = %model_path.display(),
+                            "voice model override found but missing sibling tokens.txt or espeak-ng-data; keeping default voice"
+                        );
+                    }
+                }
             }
 
             // Get the AppState for bookmark store initialization and permission gate
@@ -3164,6 +3423,87 @@ pub fn run() {
             if let Ok(mut guard) = app_state.bookmark_store.lock() {
                 *guard = store_for_app;
             }
+
+            // Seed normalization mode from persisted settings (default Fluid).
+            {
+                let state = app.state::<AppState>();
+                let fluid = state
+                    .bookmark_store
+                    .lock()
+                    .ok()
+                    .and_then(|mut guard| guard.as_mut()?.get_normalization_mode().ok().flatten())
+                    .unwrap_or(true);
+                let mode = if fluid {
+                    adapter_synthesis::normalize::NormalizationMode::Fluid
+                } else {
+                    adapter_synthesis::normalize::NormalizationMode::Literal
+                };
+                adapter_synthesis::normalize::set_normalization_mode(mode);
+            }
+
+            // Seed DSP preset from persisted settings (default Off).
+            {
+                let state = app.state::<AppState>();
+                let preset = read_dsp_preset(&state);
+                if let Ok(mut backend_guard) = state.backend.lock()
+                    && let Some(backend) = backend_guard.as_mut()
+                {
+                    let _ = backend.set_dsp_config(player::dsp::DspConfig { preset });
+                }
+                if let Ok(mut guard) = state.dsp_preset.lock() {
+                    *guard = preset as u8;
+                }
+            }
+
+            // Seed bundled voice catalog root and active voice selection (spec 018).
+            {
+                let state = app.state::<AppState>();
+                // Host/dev: resolve voices root from resource dir or compile-time assets.
+                if let Ok(resource_dir) = app.path().resource_dir() {
+                    let candidate = resource_dir.join("voices");
+                    if candidate.is_dir() {
+                        adapter_synthesis::synth::set_voices_dir(candidate);
+                    }
+                }
+                if !adapter_synthesis::synth::voices_root()
+                    .join(adapter_synthesis::voice::VoiceId::DEFAULT.id())
+                    .join("pt_BR-faber-medium.onnx")
+                    .is_file()
+                {
+                    // Fallback to compile-time bundled assets for dev/test runs.
+                    let dev = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                        .parent()
+                        .unwrap_or_else(|| std::path::Path::new("."))
+                        .join("crates/adapter-synthesis/assets/voices");
+                    if dev.is_dir() {
+                        adapter_synthesis::synth::set_voices_dir(dev);
+                    }
+                }
+                let seeded = state
+                    .bookmark_store
+                    .lock()
+                    .ok()
+                    .and_then(|mut guard| guard.as_mut()?.get_last_voice().ok().flatten())
+                    .and_then(|id| adapter_synthesis::voice::VoiceId::parse_id(&id).ok())
+                    .unwrap_or(adapter_synthesis::voice::VoiceId::DEFAULT);
+                let _ = adapter_synthesis::synth::set_active_voice(seeded);
+                let _ = adapter_synthesis::synth::replace_active_voice(seeded);
+                tracing::info!(voice = seeded.id(), "voice selection seeded");
+                // TTFA pre-warm: load the default voice engine now so the
+                // first synthesis (press-to-first-audio) does not pay the
+                // model-load cost (SC-002). Best-effort — a load failure is
+                // cached and reported on the first real synthesis attempt.
+                adapter_synthesis::synth::prewarm_default_voice();
+            }
+            // Welcome document on first start (Android): embeds
+            // assets/samples/bem-vindo-ao-ressoa.md into the APK via
+            // tauri.conf.json resources, opens it through the single
+            // synthesis path exactly once, gated by a marker file.
+            #[cfg(target_os = "android")]
+            {
+                maybe_open_welcome_document(&*app_state, &app.app_handle());
+            }
+
             // The diagnostic record (T097, FR-017): the private,
             // on-device JSONL trace, opened in the app's own data
             // directory — the same private storage the bookmark
@@ -3277,10 +3617,14 @@ pub fn run() {
             commands::run_mobile_plugin,
             commands::update_permissions,
             commands::get_status_view,
+            commands::get_voice,
+            commands::set_voice,
             commands::session_delete,
             commands::offer_route,
             commands::open_document,
             commands::set_normalization_mode,
+            commands::set_dsp_preset,
+            commands::get_dsp_preset,
             publish::register_publish_listener,
             publish::register_rms_listener,
             publish::set_rms_visibility,
@@ -3297,25 +3641,22 @@ pub mod commands {
     use std::sync::atomic::Ordering;
 
     use super::permissions::{self, PermissionSnapshot};
-    use super::{
-        AppState, CpalBackend, DocumentSection, LoadedDocument, OpenError, PlaybackSession,
-        Production, producer,
-    };
+    use super::{AppState, DocumentSection, LoadedDocument, OpenError, Production, producer};
     use crate::{
         DEFAULT_DOCUMENT_FILENAME, OfferRoute, after_background, after_execute, after_skip,
         delete_bookmark, diag_error_cause, diag_error_of, diag_focus_name, diag_focus_value,
         diag_section_index, document_title, note_first_consumed_sample, note_play_request,
         note_removal_request, note_resume_origin, offer_route_wire, park_cold_start,
         pcm_from_sample, pending_open_exists, persist_last_rate, publish_route, rate_press_of,
-        read_published_route, record_buffer_state, record_failure, record_focus_transition,
-        record_named_refusal, record_output_device, record_rate_change, record_refusal,
-        record_section_progress, record_transport_change, resolve_parked_choice, route_offer,
-        sample_index_of, seed_session_rate, switch_to_document,
+        rate_to_f32, read_published_route, record_buffer_state, record_failure,
+        record_focus_transition, record_named_refusal, record_output_device, record_rate_change,
+        record_refusal, record_section_progress, record_transport_change, resolve_parked_choice,
+        route_offer, sample_index_of, seed_session_rate, switch_to_document,
     };
     use diag::writer::{DeviceDirection, DeviceEvent, ErrorValue, FocusValue};
     use std::collections::VecDeque;
 
-    use player::cli::{SessionSnapshot, ShellVerb};
+    use player::cli::{PlaybackSession, SessionSnapshot, ShellVerb};
     use player::focus::{FocusClassification, FocusIntent, FocusOutcome};
     use player::rate::RateStepper;
     use player::routing::{RoutingDecision, RoutingSignal, RoutingTracker};
@@ -3475,7 +3816,10 @@ pub mod commands {
     ///
     /// The name is a DISPLAY input only: the bytes remain the sole
     /// synthesis input (FR-018), and the name never enters the
-    /// fingerprint or the synthesis.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "cold-start open path kept as one coherent function"
+    )]
     pub(crate) fn open_document_bytes_named(
         state: &AppState,
         bytes: Vec<u8>,
@@ -3492,8 +3836,11 @@ pub mod commands {
         // The content fingerprint (FR-036): the key the 20 s
         // heartbeat and every event-durable put persist under,
         // recorded through the one call site every
-        // document-opening path shares (T011 / T035).
-        let fingerprint_hex = hex::encode(fingerprint::fingerprint(document.as_bytes()));
+        // document-opening path shares (T011 / T035). Computed
+        // once and reused for lookup/switch to avoid redundant
+        // full-document hashing on open.
+        let document_fingerprint = fingerprint::fingerprint(document.as_bytes());
+        let fingerprint_hex = hex::encode(document_fingerprint);
 
         // The open lookup (T036): bytes → fingerprint → the
         // stored row → the offer form, through the library fn
@@ -3519,17 +3866,22 @@ pub mod commands {
                     },
                 )
             })?;
-            let lookup =
-                session::store::lookup_on_open(store, document.as_bytes()).map_err(|error| {
-                    refuse(
-                        state,
-                        OpenError::Store {
-                            reason: error.to_string(),
-                        },
-                    )
-                })?;
+            let stored = store.get(&document_fingerprint).map_err(|error| {
+                refuse(
+                    state,
+                    OpenError::Store {
+                        reason: error.to_string(),
+                    },
+                )
+            })?;
             drop(store_guard);
-            lookup
+            let mut machine = session::offer::OfferMachine::new();
+            let offer = machine.resolve_open(stored);
+            session::store::OpenLookup {
+                fingerprint: document_fingerprint,
+                stored,
+                offer,
+            }
         };
 
         // The FR-017 diagnostic record (T097): a session that
@@ -3547,7 +3899,11 @@ pub mod commands {
         // fingerprint recorded. The first bookmark is never
         // deleted by the switch, and the incoming document never
         // inherits the outgoing one's position.
-        switch_to_document(state, document.as_bytes());
+        crate::switch_to_document_with_fingerprint(
+            state,
+            document.as_bytes(),
+            document_fingerprint,
+        );
 
         // The offer route (T037): the stored end kind resolves
         // to the surface that renders the resume decision, and
@@ -3792,7 +4148,11 @@ pub mod commands {
         };
         matches!(
             guard.snapshot().transport,
-            TransportState::Playing | TransportState::Paused | TransportState::Interrupted
+            TransportState::Playing
+                | TransportState::Paused
+                | TransportState::Interrupted
+                | TransportState::Completed
+                | TransportState::Stopped
         )
     }
 
@@ -4399,10 +4759,39 @@ pub mod commands {
     /// persistence is exercisable on the host (a `State`
     /// handle cannot be constructed outside a running Tauri
     /// app), never as a second dispatch.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "closed live-control dispatch must remain one exhaustive function per repo convention"
+    )]
     pub(crate) fn execute_live_control(
         state: &AppState,
         verb: ShellVerb,
     ) -> Result<serde_json::Value, String> {
+        // When transport is completed or stopped, live rate changes should still update and persist the rate
+        if let Some(step) = rate_press_of(verb) {
+            let transport = state
+                .session
+                .lock()
+                .map(|s| s.snapshot().transport)
+                .map_err(|e| e.to_string())?;
+            if transport == TransportState::Completed || transport == TransportState::Stopped {
+                let previous_rate = state
+                    .session
+                    .lock()
+                    .map(|s| s.snapshot().rate)
+                    .map_err(|e| e.to_string())?;
+                if let Some(rung) = RateStepper::open(Some(previous_rate)).step(step) {
+                    persist_last_rate(state, rung);
+                    adapter_synthesis::set_playback_rate(rate_to_f32(rung));
+                    publish_current_state(state, None);
+                }
+                return Ok(serde_json::json!({
+                    "status": transport.to_string(),
+                    "position_secs": 0.0,
+                    "transport": transport.to_string(),
+                }));
+            }
+        }
         if matches!(verb, ShellVerb::SkipForward | ShellVerb::SkipBackward) {
             // T217: a manual skip never plays pre-synthesized audio.
             crate::cancel_chapter_preroll(state);
@@ -4424,6 +4813,61 @@ pub mod commands {
                 }));
             }
         }
+        // Voice cycle (spec 018): deterministic catalog step, persist, publish,
+        // and safe restart-on-change when playback/production is active.
+        if matches!(verb, ShellVerb::CycleVoiceNext | ShellVerb::CycleVoicePrev) {
+            // Validate legality through the session's closed transition table.
+            {
+                let mut session = state.session.lock().map_err(|e| e.to_string())?;
+                let _ = session.execute(verb).map_err(|e| e.to_string())?;
+            }
+            let transport = state
+                .session
+                .lock()
+                .map(|s| s.snapshot().transport)
+                .map_err(|e| e.to_string())?;
+            let resume_secs = state
+                .session
+                .lock()
+                .map(|s| s.snapshot().position_secs)
+                .map_err(|e| e.to_string())?;
+            let current = adapter_synthesis::synth::active_voice();
+            let next = if verb == ShellVerb::CycleVoiceNext {
+                current.next()
+            } else {
+                current.prev()
+            };
+            let _previous = adapter_synthesis::synth::replace_active_voice(next);
+            {
+                let mut store_guard = state.bookmark_store.lock().map_err(|e| e.to_string())?;
+                if let Some(store) = store_guard.as_mut() {
+                    store
+                        .put_last_voice(next.id())
+                        .map_err(|e| format!("voice persistence failed: {e}"))?;
+                }
+            }
+            let _ = invalidate_production_generation(state);
+            stop_backend(state);
+            if transport == TransportState::Playing {
+                // Safe restart-on-change: invalidate stale generation/production and
+                // re-synthesize from authoritative resume position in new voice.
+                // reanchor_at resets session and lands Playing through the same path.
+                reanchor_at(state, resume_secs).map_err(|e| e.to_string())?;
+            } else if let Ok(mut prod) = state.production.lock() {
+                // Paused/Interrupted: drop stale queued/produced audio so resume
+                // never mixes voices; keep transport/position for next resume.
+                *prod = None;
+            }
+            publish_current_state(state, None);
+            let snapshot = state.session.lock().map_err(|e| e.to_string())?.snapshot();
+            return Ok(serde_json::json!({
+                "status": snapshot.transport.to_string(),
+                "position_secs": snapshot.position_secs,
+                "transport": snapshot.transport.to_string(),
+                "voice": next.id(),
+            }));
+        }
+
         let (snapshot, previous_rate) = {
             let mut session = state.session.lock().map_err(|e| e.to_string())?;
             let previous_rate = session.snapshot().rate;
@@ -4450,9 +4894,15 @@ pub mod commands {
             && let Some(rung) = RateStepper::open(Some(previous_rate)).step(step)
         {
             persist_last_rate(state, rung);
+            adapter_synthesis::set_playback_rate(rate_to_f32(rung));
             // The FR-017 diagnostic record (T097): the per-rate
             // change entry — the rung before and the rung after.
             record_rate_change(state, &snapshot, previous_rate, rung);
+            // Dynamic rate change during active playback (immediate acoustic response):
+            // re-anchor synthesis and backend at current audible position under the new rate.
+            if snapshot.transport == TransportState::Playing {
+                let _ = reanchor_at(state, snapshot.position_secs);
+            }
         } else if matches!(verb, ShellVerb::SkipForward | ShellVerb::SkipBackward) {
             if snapshot.transport == TransportState::Playing {
                 let _ = reanchor_at(state, snapshot.position_secs);
@@ -4944,7 +5394,32 @@ pub mod commands {
             return;
         };
         let Some(resolver) = resolver_guard.as_ref() else {
-            return; // no document loaded
+            // No document loaded: still publish a transient reason
+            // (e.g. an open refusal) so the surface can render it.
+            if let Some(reason) = transient_reason {
+                let snapshot = player::cli::SessionSnapshot {
+                    transport: TransportState::Stopped,
+                    position_secs: 0.0,
+                    rate: engine_core::closed::PlaybackRate::R1_0,
+                    engine_id: "offline_default",
+                };
+                let surface = player::surface::SurfaceSnapshot {
+                    title: String::new(),
+                    section_title: None,
+                    progress: player::surface::Progress::Indeterminate,
+                };
+                let _headings: Vec<player::surface::Heading> = Vec::new();
+                let dismissal = player::surface::Dismissal::Dismissable;
+                drop(resolver_guard);
+                crate::publish::publish_mirror_to_channel(
+                    state,
+                    &snapshot,
+                    &surface,
+                    Some(reason),
+                    &dismissal,
+                );
+            }
+            return;
         };
         let Ok(headings_guard) = state.headings.lock() else {
             return;
@@ -5181,11 +5656,9 @@ pub mod commands {
             install_test_synth_hook(hook);
             return result;
         }
-        adapter_synthesis::synth::synthesize(segment, adapter_synthesis::Voice::Faber).map_err(
-            |failure| OpenError::Synthesis {
-                reason: format!("{failure:?}"),
-            },
-        )
+        adapter_synthesis::synth::synthesize(segment).map_err(|failure| OpenError::Synthesis {
+            reason: format!("{failure:?}"),
+        })
     }
 
     #[cfg(test)]
@@ -5198,15 +5671,22 @@ pub mod commands {
     static TEST_SYNTH_HOOK: std::sync::Mutex<Option<TestSynthHook>> = std::sync::Mutex::new(None);
     #[cfg(test)]
     pub(crate) fn install_test_synth_hook(hook: TestSynthHook) {
-        *TEST_SYNTH_HOOK.lock().expect("test synth hook") = Some(hook);
+        if let Ok(mut guard) = TEST_SYNTH_HOOK.lock() {
+            *guard = Some(hook);
+        }
     }
     #[cfg(test)]
     pub(crate) fn clear_test_synth_hook() {
-        let _ = TEST_SYNTH_HOOK.lock().expect("test synth hook").take();
+        if let Ok(mut guard) = TEST_SYNTH_HOOK.lock() {
+            let _ = guard.take();
+        }
     }
     #[cfg(test)]
     fn take_test_synth_hook() -> Option<TestSynthHook> {
-        TEST_SYNTH_HOOK.lock().expect("test synth hook").take()
+        TEST_SYNTH_HOOK
+            .lock()
+            .ok()
+            .and_then(|mut guard| guard.take())
     }
 
     /// 013 TTFA: run bounded production steps off async tick/UI caller.
@@ -5506,12 +5986,9 @@ pub mod commands {
 
     /// 013 TTFA: request bounded background production for current generation.
     /// Serialized by `producer_driving`; CPU-bound synthesis runs on blocking executor.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "013 alternate driver API; runtime uses spawn_production_driver_task + produce_bounded"
-        )
+    #[expect(
+        dead_code,
+        reason = "013 alternate driver API; runtime uses spawn_production_driver_task + produce_bounded"
     )]
     pub(crate) fn request_background_production(app: &tauri::AppHandle, state: &AppState) {
         let generation = current_playback_generation(state);
@@ -5622,21 +6099,109 @@ pub mod commands {
             }
             produce_bounded(state, generation, 1)?;
         }
-        if production_generation_matches(state, generation)
-            && production_running_for_generation(state, generation)
-        {
-            let _ = produce_bounded(state, generation, 1);
-        }
+        // Removed: the extra produce_bounded call finished production
+        // prematurely (finish_production_if_current took the production
+        // out of state), causing NoSegments. The loop above already
+        // produced until the first useful audio started.
         if !production_generation_matches(state, generation) {
             return Err(OpenError::NoStart {
                 reason: String::from("production was invalidated before start"),
             });
         }
-        if !production_started_for_generation(state, generation)
+        // Production may have been finished (taken out of state) by
+        // finish_production_if_current during the loop above; that is
+        // a successful completion, not a NoSegments failure.
+        let production_still_present = state
+            .production
+            .lock()
+            .is_ok_and(|g| g.as_ref().is_some_and(|p| p.generation == generation));
+        if production_still_present
+            && !production_started_for_generation(state, generation)
             && pending_samples_for_generation(state, generation) == 0
         {
             return Err(OpenError::NoSegments);
         }
+        Ok(())
+    }
+
+    /// Run the streaming synthesis and land the playing state — the
+    /// single open path shared by the synchronous host/test seam and
+    /// the device's background task (T142/T152/T158).
+    ///
+    /// # Errors
+    ///
+    /// Returns the named [`OpenError`] of the synthesis or the landing,
+    /// after invalidating the production and abandoning the landing.
+    fn stream_synthesis_and_land(
+        state: &AppState,
+        segments: &[adapter_synthesis::chunk::DocumentSegment],
+        sections: &[DocumentSection],
+        start_offset_secs: f64,
+        generation: u64,
+    ) -> Result<(), OpenError> {
+        // Ensure audio backend queue is completely cleared and stopped before new playback lands
+        if let Ok(backend_guard) = state.backend.lock()
+            && let Some(backend) = backend_guard.as_ref()
+        {
+            backend.stop();
+        }
+
+        // T143 / FR-002: the landing on Playing, the clock open and the
+        // surface publish all run BEFORE the first chunk reaches the
+        // backend, so the durable write, the audible clock and the
+        // surface are live for the whole synthesis window.
+        let snapshot = {
+            let mut session = state.session.lock().map_err(|e| OpenError::NoStart {
+                reason: e.to_string(),
+            })?;
+            if session.snapshot().transport != TransportState::Playing {
+                let _landed = session
+                    .execute(ShellVerb::Play)
+                    .map_err(|e| OpenError::NoStart {
+                        reason: e.to_string(),
+                    })?;
+            }
+            if start_offset_secs > 0.0 {
+                let pos = session.snapshot().position_secs;
+                if pos < start_offset_secs {
+                    session.on_audible_progress(start_offset_secs - pos);
+                }
+            }
+            session.snapshot()
+        };
+        after_execute(state, &snapshot, ShellVerb::Play);
+        publish_current_state(state, None);
+
+        if let Err(error) =
+            stream_synthesis(segments, sections, state, start_offset_secs, generation)
+        {
+            let _ = invalidate_production_generation(state);
+            abandon_playing_landing(state);
+            return Err(error);
+        }
+        let production_finished = !state
+            .production
+            .lock()
+            .is_ok_and(|g| g.as_ref().is_some_and(|p| p.generation == generation));
+        if !production_generation_matches(state, generation)
+            || (!production_started_for_generation(state, generation) && !production_finished)
+        {
+            let _ = invalidate_production_generation(state);
+            abandon_playing_landing(state);
+            return Err(OpenError::Backend {
+                reason: String::from("playback did not reach a valid started state"),
+            });
+        }
+        let landed = {
+            let Ok(guard) = state.session.lock() else {
+                return Err(OpenError::NoStart {
+                    reason: String::from("the session lock is poisoned"),
+                });
+            };
+            guard.snapshot()
+        };
+        record_buffer_state(state, &landed);
+        request_production_wake(state);
         Ok(())
     }
 
@@ -5889,9 +6454,17 @@ pub mod commands {
             reason: error.to_string(),
         })?;
         if backend.is_none() {
-            let opened = CpalBackend::new().map_err(|error| OpenError::Backend {
-                reason: error.to_string(),
-            })?;
+            let opened =
+                player::backend::CpalBackend::new().map_err(|error| OpenError::Backend {
+                    reason: error.to_string(),
+                })?;
+            if let Ok(preset_u8) = state.dsp_preset.lock() {
+                let preset = match *preset_u8 {
+                    1 => player::dsp::DspPreset::RessoaEthereal,
+                    _ => player::dsp::DspPreset::Off,
+                };
+                let _ = opened.set_dsp_config(player::dsp::DspConfig { preset });
+            }
             *backend = Some(opened);
         }
         drop(backend);
@@ -6152,9 +6725,8 @@ pub mod commands {
     }
 
     #[expect(
-        clippy::too_many_lines,
         clippy::redundant_clone,
-        reason = "play_document owns the full open+synth+publish flow; clones moved into async spawn"
+        reason = "play_document owns the full open+synth+publish flow"
     )]
     pub(crate) fn play_document(
         document: &str,
@@ -6193,6 +6765,13 @@ pub mod commands {
         // handle), run synchronously to keep the test seam working.
         if crate::shell_jni::installed_app().is_some() {
             let segment_count = segments.len();
+            // The response's `transport` MUST be a member of the closed
+            // `TransportState` set; the synthesizing condition is carried
+            // by the `status` field and the mirror's `synthesizing` flag.
+            let transport = state.session.lock().map_or_else(
+                |_| String::from("stopped"),
+                |guard| guard.snapshot().transport.to_string(),
+            );
             let segments_for_spawn = segments.clone();
             let sections_for_spawn = sections.clone();
             let generation_for_spawn = generation;
@@ -6206,95 +6785,36 @@ pub mod commands {
                     return;
                 };
                 let state = app.state::<AppState>();
-                // Wait for state to be available (it should be already).
-                let result =
-                    stream_synthesis(&segments, &sections, &state, start_offset_secs, generation);
-                if let Err(error) = result {
-                    let _ = invalidate_production_generation(&state);
-                    abandon_playing_landing(&state);
+                if let Err(error) = stream_synthesis_and_land(
+                    &state,
+                    &segments,
+                    &sections,
+                    start_offset_secs,
+                    generation,
+                ) {
                     tracing::warn!(error=%error, "background initial synthesis failed");
-                    return;
                 }
-                if !production_generation_matches(&state, generation)
-                    || !production_started_for_generation(&state, generation)
-                {
-                    let _ = invalidate_production_generation(&state);
-                    abandon_playing_landing(&state);
-                    return;
-                }
-                // Publish state for the frontend.
-                let snapshot = {
-                    let Ok(mut session) = state.session.lock() else {
-                        return;
-                    };
-                    if session.snapshot().transport != TransportState::Playing {
-                        let _ = session.execute(ShellVerb::Play);
-                    }
-                    if start_offset_secs > 0.0 {
-                        let pos = session.snapshot().position_secs;
-                        if pos < start_offset_secs {
-                            session.on_audible_progress(start_offset_secs - pos);
-                        }
-                    }
-                    session.snapshot()
-                };
-                after_execute(&state, &snapshot, ShellVerb::Play);
-                record_buffer_state(&state, &snapshot);
-                publish_current_state(&state, None);
-                request_production_wake(&state);
             }));
-            // Return immediately with a "synthesizing" status.
             return Ok(serde_json::json!({
                 "status": "synthesizing",
                 "segments": segment_count,
                 "position_secs": 0.0,
-                "transport": "synthesizing",
+                "transport": transport,
             }));
         }
 
         // Host/test path: synchronous (original behavior).
-        if let Err(error) =
-            stream_synthesis(&segments, &sections, state, start_offset_secs, generation)
-        {
-            let _ = invalidate_production_generation(state);
-            abandon_playing_landing(state);
-            return Err(error);
-        }
-        if !production_generation_matches(state, generation)
-            || !production_started_for_generation(state, generation)
-        {
-            let _ = invalidate_production_generation(state);
-            abandon_playing_landing(state);
-            return Err(OpenError::Backend {
-                reason: String::from("playback did not reach a valid started state"),
-            });
-        }
-
-        let snapshot = {
-            let mut session = state.session.lock().map_err(|e| OpenError::NoStart {
-                reason: e.to_string(),
-            })?;
-            if session.snapshot().transport != TransportState::Playing {
-                let _landed = session
-                    .execute(ShellVerb::Play)
-                    .map_err(|e| OpenError::NoStart {
-                        reason: e.to_string(),
-                    })?;
-            }
-            if start_offset_secs > 0.0 {
-                let pos = session.snapshot().position_secs;
-                if pos < start_offset_secs {
-                    session.on_audible_progress(start_offset_secs - pos);
-                }
-            }
-            session.snapshot()
-        };
-        after_execute(state, &snapshot, ShellVerb::Play);
-        record_buffer_state(state, &snapshot);
-        publish_current_state(state, None);
-        request_production_wake(state);
+        stream_synthesis_and_land(state, &segments, &sections, start_offset_secs, generation)?;
 
         let (duration_secs, pcm_samples) = production_counters(state);
+        let snapshot = {
+            let Ok(guard) = state.session.lock() else {
+                return Err(OpenError::NoStart {
+                    reason: String::from("the session lock is poisoned"),
+                });
+            };
+            guard.snapshot()
+        };
         Ok(serde_json::json!({
             "status": "playing",
             "segments": segments.len(),
@@ -6305,42 +6825,71 @@ pub mod commands {
         }))
     }
 
-    /// Report the packaged voice-asset state: the resolved resource
-    /// dir and whether each required file is present. Read-only;
-    /// never touches playback.
+    /// Report catalog-aware packaged voice-asset state (spec 018).
+    /// Read-only; never touches playback.
     fn diagnose(app: &AppHandle) -> serde_json::Value {
+        use adapter_synthesis::voice::VoiceId;
         let resource_dir = app.path().resource_dir().map_or_else(
             |e| format!("unresolvable: {e}"),
             |path| path.to_string_lossy().into_owned(),
         );
-        let voice = app
-            .path()
-            .resource_dir()
-            .map(|dir| dir.join("voices").join("pt_BR-faber-medium"))
-            .unwrap_or_default();
-        let data_voice = app
+        let app_data_dir = app
             .path()
             .app_data_dir()
-            .map(|dir| dir.join("voices").join("pt_BR-faber-medium"))
-            .unwrap_or_default();
+            .map_or_default(|p| p.to_string_lossy().into_owned());
+        let voices_root = adapter_synthesis::synth::voices_root();
+        let active = adapter_synthesis::synth::active_voice();
+        let voices: Vec<serde_json::Value> = VoiceId::CATALOG
+            .iter()
+            .copied()
+            .map(|voice| {
+                let s = adapter_synthesis::voice::spec(voice);
+                let dir = voices_root.join(s.dir_name);
+                let (files_total, espeak_is_dir, espeak_files, onnx_bytes) = inventory(&dir);
+                let shared_espeak = voices_root.join("shared").join("espeak-ng-data");
+                let effective_espeak_is_dir = espeak_is_dir || shared_espeak.is_dir();
+                serde_json::json!({
+                    "id": s.voice_id.id(),
+                    "label": s.label,
+                    "default": voice == VoiceId::DEFAULT,
+                    "active": voice == active,
+                    "present": dir.join(s.onnx).is_file() && dir.join(s.tokens).is_file(),
+                    "model_present": dir.join(s.onnx).is_file(),
+                    "tokens_present": dir.join(s.tokens).is_file(),
+                    "provenance_present": dir.join(s.provenance).is_file(),
+                    "espeak_present": effective_espeak_is_dir,
+                    "files_total": files_total,
+                    "espeak_files": espeak_files,
+                    "onnx_bytes": onnx_bytes,
+                })
+            })
+            .collect();
+        let faber_dir = voices_root.join("pt_BR-faber-medium");
         let (data_files, data_espeak_is_dir, data_espeak_files, data_onnx_bytes) =
-            inventory(&data_voice);
+            inventory(&faber_dir);
+        let shared_espeak = voices_root.join("shared").join("espeak-ng-data");
         serde_json::json!({
             "resource_dir": resource_dir,
-            "model_present": voice.join("pt_BR-faber-medium.onnx").exists(),
-            "tokens_present": voice.join("tokens.txt").exists(),
-            "espeak_present": voice.join("espeak-ng-data").exists(),
-            "data_model_present": data_voice.join("pt_BR-faber-medium.onnx").exists(),
-            "data_tokens_present": data_voice.join("tokens.txt").exists(),
+            "app_data_dir": app_data_dir,
+            "voices_root": voices_root.to_string_lossy(),
+            "active_voice": active.id(),
+            "default_voice": VoiceId::DEFAULT.id(),
+            "voices": voices,
+            // Backward-compatible legacy fields (faber-centric).
+            "model_present": faber_dir.join("pt_BR-faber-medium.onnx").exists(),
+            "tokens_present": faber_dir.join("tokens.txt").exists(),
+            "espeak_present": faber_dir.join("espeak-ng-data").is_dir() || shared_espeak.is_dir(),
+            "data_model_present": faber_dir.join("pt_BR-faber-medium.onnx").exists(),
+            "data_tokens_present": faber_dir.join("tokens.txt").exists(),
             "data_files_total": data_files,
-            "data_espeak_is_dir": data_espeak_is_dir,
+            "data_espeak_is_dir": data_espeak_is_dir || shared_espeak.is_dir(),
             "data_espeak_files": data_espeak_files,
             "data_onnx_bytes": data_onnx_bytes,
         })
     }
 
-    /// Count the extracted tree: total files, whether espeak-ng-data
-    /// is a real dir, files inside it, and the model byte size.
+    /// Count files in a voice directory: total files, whether local espeak
+    /// data dir exists, files inside it, and the model byte size.
     /// Read-only; capped so a huge tree cannot stall IPC.
     fn inventory(voice: &std::path::Path) -> (usize, bool, usize, u64) {
         let mut total = 0;
@@ -6361,9 +6910,16 @@ pub mod commands {
         }
         let espeak = voice.join("espeak-ng-data");
         let espeak_is_dir = espeak.is_dir();
-        let espeak_files = std::fs::read_dir(&espeak).map_or(0, std::iter::Iterator::count);
-        let onnx_bytes =
-            std::fs::metadata(voice.join("pt_BR-faber-medium.onnx")).map_or(0, |meta| meta.len());
+        let espeak_files = if espeak_is_dir {
+            std::fs::read_dir(&espeak).map_or(0, std::iter::Iterator::count)
+        } else {
+            0
+        };
+        let onnx_name = voice.file_name().and_then(|n| n.to_str()).map_or_else(
+            || "pt_BR-faber-medium.onnx".to_string(),
+            |name| format!("{name}.onnx"),
+        );
+        let onnx_bytes = std::fs::metadata(voice.join(onnx_name)).map_or(0, |meta| meta.len());
         (total, espeak_is_dir, espeak_files, onnx_bytes)
     }
 
@@ -6439,6 +6995,80 @@ pub mod commands {
             reason,
             fingerprint,
         ))
+    }
+
+    /// Get the active/default/available voice catalog state (spec 018).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string when a state lock is poisoned.
+    #[command]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "Tauri's CommandArg extractor is implemented for State by value; &State is not a supported command parameter"
+    )]
+    pub fn get_voice(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+        use adapter_synthesis::voice::VoiceId;
+        let active = adapter_synthesis::synth::active_voice();
+        let _ = state; // state reserved for future parity checks
+        let voices: Vec<serde_json::Value> = VoiceId::CATALOG
+            .iter()
+            .copied()
+            .map(|voice| {
+                let s = adapter_synthesis::voice::spec(voice);
+                let dir = adapter_synthesis::synth::voice_dir(voice);
+                serde_json::json!({
+                    "id": s.voice_id.id(),
+                    "label": s.label,
+                    "default": voice == VoiceId::DEFAULT,
+                    "active": voice == active,
+                    "present": dir.join(s.onnx).is_file() && dir.join(s.tokens).is_file(),
+                })
+            })
+            .collect();
+        Ok(serde_json::json!({
+            "active_voice": active.id(),
+            "default_voice": VoiceId::DEFAULT.id(),
+            "voices": voices,
+        }))
+    }
+
+    /// Set the active catalog voice and persist it (spec 018).
+    ///
+    /// Unknown ids are rejected (no silent remap). Safe restart-on-change
+    /// for active playback is handled by cycle/live-control paths; this
+    /// command updates selection for subsequent synthesis/production.
+    ///
+    /// # Errors
+    ///
+    /// Returns a named refusal string for unknown ids or poisoned locks.
+    #[command]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "Tauri's CommandArg extractor is implemented for State by value; &State is not a supported command parameter"
+    )]
+    pub fn set_voice(
+        voice: String,
+        state: State<'_, AppState>,
+    ) -> Result<serde_json::Value, String> {
+        use adapter_synthesis::voice::VoiceId;
+        let parsed =
+            VoiceId::parse_id(&voice).map_err(|e| format!("voice selection refused: {e}"))?;
+        let _previous = adapter_synthesis::synth::replace_active_voice(parsed);
+        {
+            let mut store_guard = state.bookmark_store.lock().map_err(|e| e.to_string())?;
+            if let Some(store) = store_guard.as_mut() {
+                store
+                    .put_last_voice(parsed.id())
+                    .map_err(|e| format!("voice persistence failed: {e}"))?;
+            }
+        }
+        publish_current_state(state.inner(), None);
+        Ok(serde_json::json!({
+            "active_voice": parsed.id(),
+            "default_voice": VoiceId::DEFAULT.id(),
+            "persisted": true,
+        }))
     }
 
     /// Delete the session bookmark for a fingerprint (Stop control).
@@ -6568,6 +7198,61 @@ pub mod commands {
             let _ = store.put_normalization_mode(fluid);
         }
         Ok(())
+    }
+    /// Set the DSP preset (`off/ressoa_ethereal`) and persist it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string only if the preset is unknown or a
+    /// state lock is poisoned.
+    #[command]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "Tauri's CommandArg extractor is implemented for State by value"
+    )]
+    pub fn set_dsp_preset(preset: String, state: State<'_, AppState>) -> Result<(), String> {
+        let dsp_preset = match preset.as_str() {
+            "off" => super::DspPreset::Off,
+            "ressoa_ethereal" => super::DspPreset::RessoaEthereal,
+            other => {
+                return Err(format!("unknown DSP preset '{other}'"));
+            }
+        };
+        super::persist_dsp_preset(&state, dsp_preset);
+        if let Ok(mut backend_guard) = state.backend.lock()
+            && let Some(backend) = backend_guard.as_mut()
+        {
+            let _ = backend.set_dsp_config(player::dsp::DspConfig { preset: dsp_preset });
+        }
+        if let Ok(mut guard) = state.dsp_preset.lock() {
+            *guard = dsp_preset as u8;
+        }
+        Ok(())
+    }
+
+    /// Get the current DSP preset.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string only if a state lock is poisoned.
+    #[command]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "Tauri's CommandArg extractor is implemented for State by value"
+    )]
+    pub fn get_dsp_preset(state: State<'_, AppState>) -> Result<String, String> {
+        let preset = *state.dsp_preset.lock().map_err(|e| e.to_string())?;
+        Ok(match preset {
+            0 => "off".to_string(),
+            1 => "ressoa_ethereal".to_string(),
+            other => {
+                tracing::warn!(
+                    preset = other,
+                    "unknown dsp preset value, defaulting to off"
+                );
+                "off".to_string()
+            }
+        })
     }
 }
 
@@ -7101,6 +7786,7 @@ pub mod publish {
             snapshot.position_secs,
             crate::commands::production_running(state),
             surface,
+            transient_reason.clone(),
         );
 
         if let (Some(app), Some(chapters)) =
@@ -7139,6 +7825,7 @@ pub mod publish {
         position_secs: f64,
         synthesizing: bool,
         surface: &SurfaceSnapshot,
+        transient_reason: Option<String>,
     ) -> MirrorState {
         let progress = match surface.progress {
             Progress::Determinate {
@@ -7160,6 +7847,7 @@ pub mod publish {
             synthesizing,
             progress,
             progress_label: pt_br_progress_label(&surface.progress),
+            transient_reason,
         }
     }
 
@@ -8056,6 +8744,10 @@ mod open_document_tests {
     /// Whether the backend open succeeded on this host — the
     /// device-gated twin of `prop_duck_gain`'s hardware note.
     fn backend_available() -> bool {
+        // The backend must not only open but actually play: on
+        // hosts where cpal opens a stream that cannot start
+        // (headless/VM environments), the device branch is
+        // unavailable and the refusal path is exercised.
         CpalBackend::new().is_ok()
     }
 
@@ -8410,6 +9102,11 @@ mod second_document_tests {
     /// content fingerprint (FR-036).
     const SECOND: &[u8] = b"# Segundo\n\nO trem passa as sete.";
 
+    /// Whether the backend open succeeded on this host.
+    fn backend_available() -> bool {
+        CpalBackend::new().is_ok()
+    }
+
     /// A fresh state whose bookmark store lives in a temp dir —
     /// one redb file per test, dropped with it.
     fn state_with_store() -> Result<(tempfile::TempDir, AppState), String> {
@@ -8634,6 +9331,60 @@ mod second_document_tests {
         );
         Ok(())
     }
+
+    /// Validates that switching to a second document while the first is Playing
+    /// terminates the outgoing audio queue and resets backend stream state (no overlap).
+    #[test]
+    fn switching_documents_while_playing_clears_outgoing_audio_queue() -> Result<(), String> {
+        if !backend_available() {
+            return Ok(());
+        }
+        let (_dir, state) = state_with_store()?;
+        // Store a Paused bookmark for SECOND so cold-start enters AwaitOffer without playing SECOND immediately
+        let second_fp = fingerprint::fingerprint(SECOND);
+        state
+            .bookmark_store
+            .lock()
+            .map_err(|e| e.to_string())?
+            .as_mut()
+            .ok_or("no bookmark store")?
+            .put(
+                &second_fp,
+                session::store::StoredPosition {
+                    offset_secs: 5.0,
+                    first_yield_ms: 100,
+                    end_kind: SessionEnd::Paused,
+                },
+            )
+            .map_err(|e| e.to_string())?;
+
+        open_first_at(&state, 10.0, ShellVerb::Play)?;
+
+        // Ensure first document actually enqueued samples
+        if let Ok(guard) = state.backend.lock()
+            && let Some(backend) = guard.as_ref()
+        {
+            assert!(
+                backend.buffered_samples() > 0,
+                "first document must have buffered samples"
+            );
+        }
+
+        // Open second document: hits AwaitOffer, tearing down outgoing session without auto-starting SECOND
+        let _opened = open_document_bytes(&state, SECOND.to_vec());
+
+        // Verify that backend state is stopped / cleaned up and has no residual audio from FIRST
+        if let Ok(guard) = state.backend.lock()
+            && let Some(backend) = guard.as_ref()
+        {
+            assert_eq!(
+                backend.buffered_samples(),
+                0,
+                "backend speech queue must be completely empty after document switch"
+            );
+        }
+        Ok(())
+    }
 }
 
 /// T110 (FR-009 / FR-032c) — the cold-start offer gate.
@@ -8684,6 +9435,10 @@ mod cold_start_gate_tests {
     /// Whether the backend open succeeded on this host — the
     /// device-gated twin of the open path's own note.
     fn backend_available() -> bool {
+        // The backend must not only open but actually play: on
+        // hosts where cpal opens a stream that cannot start
+        // (headless/VM environments), the device branch is
+        // unavailable and the refusal path is exercised.
         CpalBackend::new().is_ok()
     }
 
@@ -9876,11 +10631,12 @@ mod ttfa_013_tests {
     use engine_core::closed::TransportState;
 
     #[test]
-    fn t004_watch_tick_is_synthesis_free_contract() {
+    fn t004_watch_tick_is_synthesis_free_contract() -> Result<(), String> {
         let state = AppState::test_state();
         commands::watch_signal_production(&state);
-        let running = commands::pump_production_demand(&state).expect("pump");
+        let running = commands::pump_production_demand(&state).map_err(|e| e.to_string())?;
         assert!(!running);
+        Ok(())
     }
 
     #[test]
@@ -9899,11 +10655,18 @@ mod ttfa_013_tests {
     fn t011_abandon_landing_never_leaves_healthy_playing() {
         let state = AppState::test_state();
         {
-            let mut session = state.session.lock().expect("session lock");
+            let mut session = state
+                .session
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             let _ = session.execute(player::cli::ShellVerb::Play);
         }
         commands::abandon_playing_landing(&state);
-        let snapshot = state.session.lock().expect("session lock").snapshot();
+        let snapshot = state
+            .session
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .snapshot();
         assert_ne!(snapshot.transport, TransportState::Playing);
     }
 
@@ -9959,11 +10722,13 @@ mod ttfa_013_tests {
         let (pending, played, before_entry) = {
             let guard = state.production.lock().map_err(|e| e.to_string())?;
             let production = guard.as_ref().ok_or("missing production")?;
-            (
+            let values = (
                 production.pending.len(),
                 production.played_samples,
                 production.samples_before_entry,
-            )
+            );
+            drop(guard);
+            values
         };
         assert_eq!(pending, 120);
         assert_eq!(played, 120);
@@ -10037,7 +10802,9 @@ mod ttfa_013_tests {
         let (pending, played) = {
             let guard = state.production.lock().map_err(|e| e.to_string())?;
             let production = guard.as_ref().ok_or("missing production")?;
-            (production.pending.len(), production.total_samples)
+            let values = (production.pending.len(), production.total_samples);
+            drop(guard);
+            values
         };
         assert_eq!(pending, 3);
         assert_eq!(played, 3);
@@ -10082,12 +10849,14 @@ mod ttfa_013_tests {
         let (pending, next_unit, total, started) = {
             let guard = state.production.lock().map_err(|e| e.to_string())?;
             let production = guard.as_ref().ok_or("missing production")?;
-            (
+            let values = (
                 production.pending.len(),
                 production.next_unit,
                 production.total_samples,
                 production.started,
-            )
+            );
+            drop(guard);
+            values
         };
         assert_eq!(next_unit, 1);
         assert_eq!(total, 220);
@@ -10105,9 +10874,9 @@ mod ttfa_013_tests {
         let mk = |i: u64, text: &str| DocumentSegment {
             content: text.into(),
             source_range: SourceRange {
-                line_start: i as u32 + 1,
+                line_start: u32::try_from(i).unwrap_or(u32::MAX).saturating_add(1),
                 col_start: 1,
-                line_end: i as u32 + 1,
+                line_end: u32::try_from(i).unwrap_or(u32::MAX).saturating_add(1),
                 col_end: 2,
             },
             boundary_kind: BoundaryKind::Paragraph,
@@ -10138,11 +10907,13 @@ mod ttfa_013_tests {
         let (next_unit, total, remaining_segments) = {
             let guard = state.production.lock().map_err(|e| e.to_string())?;
             let production = guard.as_ref().ok_or("missing production")?;
-            (
+            let values = (
                 production.next_unit,
                 production.total_samples,
                 production.segments.len(),
-            )
+            );
+            drop(guard);
+            values
         };
         assert_eq!(next_unit, 1, "only first useful unit should be produced");
         assert_eq!(total, 220);
@@ -10195,11 +10966,13 @@ mod ttfa_013_tests {
         let (next_unit, total, pending) = {
             let guard = state.production.lock().map_err(|e| e.to_string())?;
             let production = guard.as_ref().ok_or("missing production")?;
-            (
+            let values = (
                 production.next_unit,
                 production.total_samples,
                 production.pending.len(),
-            )
+            );
+            drop(guard);
+            values
         };
         assert_eq!(next_unit, 0, "failed unit must not advance production");
         assert_eq!(total, 0);

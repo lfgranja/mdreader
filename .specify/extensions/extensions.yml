@@ -1,6 +1,6 @@
-# .specify/extensions/extensions.yml — feature 005-adopt-design-sona prerequisites
+# .specify/extensions/extensions.yml — feature 005-adopt-design-ressoa prerequisites
 # Verified: 2026-10-26 (P3)
-feature: 005-adopt-design-sona
+feature: 005-adopt-design-ressoa
 host:
   value: Linux x64
   verified: true
@@ -21,7 +21,7 @@ extensions:
   justification: >-
     No plugin or API extensions required for token-only restyle of the
     MediaStyle notification + in-app StatusView. Surface restyle works via
-    DESIGN-SONA token substitution (FR-001, FR-003, SC-001) in existing
+    DESIGN-RESSOA token substitution (FR-001, FR-003, SC-001) in existing
     Rust/HTML pipeline; no external SDK, accessibility-service, or media
     framework extension needed. Extensions.yml documented rather than
     omitted per constitution / Finding A8.

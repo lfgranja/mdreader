@@ -39,9 +39,9 @@ fallback order — the one authoritative list (`EngineTier::ORDER`), which
 the fallback selector consumes directly; a second order list would drift
 (FR-044):
 
-```
+`
 offline_default < cloud_default < cloud_escalation < test_double < evaluated_fallback
-```
+`
 
 Wire form: the `snake_case` tier name (`engine_tier` field).
 `EngineTier::is_selectable` reflects adapter registration, not a second
@@ -71,7 +71,7 @@ evaluated fallback is never first.
 failures, the open 3-second offer, and the modeled app-private consent
 store.
 
-**`selectable()`** returns the admissible, consented, non-failed
+**`selectable`** returns the admissible, consented, non-failed
 engines, ascending `EngineTier::ORDER` with registry order preserved
 within a tier (a stable sort):
 
@@ -98,9 +98,9 @@ declared tier): with `sherpa-onnx-piper-pt-br` (offline default),
 (evaluated fallback) registered, the stand-ins are inadmissible and the
 selectable order is exactly:
 
-```
+`
 sherpa-onnx-piper-pt-br → google-cloud-tts-wavenet → microsoft-edge-read-aloud-msedge-ts
-```
+`
 
 **`on_failure(engine_id)`** records the failure and returns the fresh
 3-second offer (FR-023a): the **first** remaining engine in the
@@ -111,7 +111,7 @@ so the set shrank exactly once per engine). The fresh offer supersedes
 any open offer (FR-023's supersede rule). Returns `None` when nothing
 remains selectable — the no-alternative case (FR-005).
 
-**`expire_offer()`** consumes the open offer:
+**`expire_offer`** consumes the open offer:
 
 - window elapsed **with** an alternative →
   `FallbackExpiry::ContinueFromLastPosition { engine_id }` — the
@@ -152,7 +152,7 @@ state: the session's default engine and the open 3-second offer.
   `no remaining selectable engine to continue from — every registered
   engine has failed, is inadmissible, or is unconsented (FR-023 /
   FR-005)`).
-- **`on_offer_expired()`** (the 3-second window elapsing) returns
+- **`on_offer_expired`** (the 3-second window elapsing) returns
   `RecoveryDecision::Takeover { engine_id, from_position_secs }` — the
   first offered alternative, the next engine in the declared order,
   continuing from exactly the reported position (no rounding, no
@@ -185,7 +185,7 @@ Worked examples (from the machine's tests):
 | `mixed_registry` | `sherpa-onnx-piper-pt-br` (the default) at 10.0 s | `Offered { alternatives: ["google-cloud-tts-wavenet", "microsoft-edge-read-aloud-msedge-ts"] }` — every remaining selectable engine in declared ascending order |
 | `mixed_registry` | repeated `google-cloud-tts-wavenet` failure at 20.0 s | the same offer as the first failure (idempotent recording) |
 | `two_standin` (SC-051 configuration) | `standin_a` at 120.0 s, then expiry | `Takeover { engine_id: "standin_b", from_position_secs: 120.0 }` — exactly the reported position (the quarter-second grid, e.g. 3.25 s, is an exact binary fraction: stored and returned exactly) |
-| `two_standin` | `standin_a` at 120.5 s, then `choose("standin_b")` | `Takeover { engine_id: "standin_b", from_position_secs: 120.5 }`; a later `on_offer_expired()` pauses with a stated reason — the choice consumed the window |
+| `two_standin` | `standin_a` at 120.5 s, then `choose("standin_b")` | `Takeover { engine_id: "standin_b", from_position_secs: 120.5 }`; a later `on_offer_expired` pauses with a stated reason — the choice consumed the window |
 | `single_standin` | `standin_a` at 120.0 s | `PausedWithReason` with a non-empty reason — nothing remains to offer |
 
 ## The Edge endpoint

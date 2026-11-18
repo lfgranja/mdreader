@@ -28,11 +28,10 @@ import android.util.Log
  * wire string through [forwardVerb]. The mirror is derived,
  * never a second clock (SC-035 / FR-003): it holds no
  * position, rate or transport state of its own and computes
- * nothing — the only arithmetic in the class is the seconds
- * to millis unit conversion the platform APIs require
- * (PlaybackState and the notification progress report
- * millis), applied to the published position_secs and to
- * the determinate progress, never to an estimate.
+ * nothing — the published position_secs is converted to millis
+ * only where PlaybackState requires it. Notification progress
+ * represents the published content-offset fraction at platform
+ * integer resolution; it is not converted to a duration.
  *
  * Notification content is exactly the FR-028 series: the
  * document title (metadata title else the stable filename
@@ -660,8 +659,8 @@ class MediaMirror(
                 PlaybackState.ACTION_SKIP_TO_PREVIOUS
 
         // ---------------------------------------------------------------
-        // DESIGN-SONA palette tokens (contracts/surface.md,
-        // "DESIGN-SONA palette tokens (single source of
+        // DESIGN-RESSOA palette tokens (contracts/surface.md,
+        // "DESIGN-RESSOA palette tokens (single source of
         // truth, resolves T044)") — the appearance
         // vocabulary of the one media surface, declared
         // here once so the mirror's styling never invents
@@ -700,51 +699,51 @@ class MediaMirror(
         // ride any token: none is declared, none is colorable.
         // ---------------------------------------------------------------
 
-        /** DESIGN-SONA title token (`#F2F0E6`) — the color of the
+        /** DESIGN-RESSOA title token (`#F2F0E6`) — the color of the
          *  surface title (contracts/surface.md). The value
          *  [buildSurface] hands the platform's one
          *  per-notification color channel, so the accent paints
          *  the transport glyph and the app name. */
-        private const val DESIGN_SONA_TITLE = 0xFFF2F0E6.toInt()
+        private const val DESIGN_RESSOA_TITLE = 0xFFF2F0E6.toInt()
 
-        /** DESIGN-SONA section token (`#A9B8CE`) — the color of
+        /** DESIGN-RESSOA section token (`#A9B8CE`) — the color of
          *  the section title the surface renders under the
          *  title (contracts/surface.md). The platform themes
          *  the notification's text fields, so the token is the
          *  declared contract of that field's color; the mirror
          *  never tints text (no per-field channel exists). */
-        private const val DESIGN_SONA_SECTION = 0xFFA9B8CE.toInt()
+        private const val DESIGN_RESSOA_SECTION = 0xFFA9B8CE.toInt()
 
-        /** DESIGN-SONA progress track token (`#55688F`) — the
+        /** DESIGN-RESSOA progress track token (`#55688F`) — the
          *  track of the progress indication [buildSurface]
          *  reports through the platform's progress APIs
          *  (contracts/surface.md). The bar itself is
          *  system-themed; the token is the declared color of
          *  the indication's track. */
-        private const val DESIGN_SONA_PROGRESS_TRACK = 0xFF55688F.toInt()
+        private const val DESIGN_RESSOA_PROGRESS_TRACK = 0xFF55688F.toInt()
 
-        /** DESIGN-SONA progress fill token (`#F2F0E6` = `--sona-voice`) — the fill of
+        /** DESIGN-RESSOA progress fill token (`#F2F0E6` = `--ressoa-voice`) — the fill of
          *  the progress indication (contracts/surface.md), retokenized from the
          *  vetoed literal white `#FFFFFF` (C1: the literal-white reading is
-         *  vetoed; fill = `--sona-voice` — registro 2026-10-24, C1; contract
+         *  vetoed; fill = `--ressoa-voice` — registro 2026-10-24, C1; contract
          *  "progress white" superseded). Canonical token names:
-         *  `--sona-voice`, `--signal-caution`, `--signal-failure`. */
-        private const val DESIGN_SONA_PROGRESS_FILL = 0xFFF2F0E6.toInt()
+         *  `--ressoa-voice`, `--signal-caution`, `--signal-failure`. */
+        private const val DESIGN_RESSOA_PROGRESS_FILL = 0xFFF2F0E6.toInt()
 
-        /** DESIGN-SONA warning token (`#FFD400`) — the warning
+        /** DESIGN-RESSOA warning token (`#FFD400`) — the warning
          *  banner ONLY (contracts/surface.md). Reserved: the
          *  banner's class is Rust's classification and the
          *  platform's theming renders the reason line, so the
          *  token is the declared color of that one banner and
          *  no other role ever borrows it. */
-        private const val DESIGN_SONA_WARNING = 0xFFFFD400.toInt()
+        private const val DESIGN_RESSOA_WARNING = 0xFFFFD400.toInt()
 
-        /** DESIGN-SONA failure token (`#FF4D63`) — the failure
+        /** DESIGN-RESSOA failure token (`#FF4D63`) — the failure
          *  banner ONLY (contracts/surface.md). Reserved the
          *  same way: the failure banner of the mirror's
          *  reason line, never a control, never a glyph. The
          *  contract's prohibited green is declared nowhere. */
-        private const val DESIGN_SONA_FAILURE = 0xFFFF4D63.toInt()
+        private const val DESIGN_RESSOA_FAILURE = 0xFFFF4D63.toInt()
     }
 
     /** The platform MediaSession this mirror reflects state
@@ -1056,6 +1055,10 @@ class MediaMirror(
         renderHaptic(state.hapticId)
         registerControlReceiver()
         mediaSession.isActive = true
+        val metadata = android.media.MediaMetadata.Builder()
+            .putString(android.media.MediaMetadata.METADATA_KEY_TITLE, state.title)
+            .build()
+        mediaSession.setMetadata(metadata)
         val mirrored = PlaybackState.Builder()
             .setState(
                 playbackConstantOf(state.transport),
@@ -1405,10 +1408,10 @@ class MediaMirror(
             val configured = builder
                 .setSmallIcon(icon)
                 // The one per-notification color channel the
-                // platform exposes carries the DESIGN-SONA title
+                // platform exposes carries the DESIGN-RESSOA title
                 // token (contracts/surface.md) — see the token
                 // table on the companion.
-                .setColor(DESIGN_SONA_TITLE)
+                .setColor(DESIGN_RESSOA_TITLE)
                 .setContentTitle(state.title)
                 .setContentIntent(launch)
                 .setOngoing(ongoing)

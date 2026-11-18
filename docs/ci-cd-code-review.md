@@ -1,7 +1,7 @@
 # CI/CD e Code Review Rigoroso (mdmv-dark-factory)
 
-Data: 2026-11-07
-Status: implementado e com branch protection aplicado via API/gh (2026-11-07)
+Data: 2026-11-18
+Status: branch protection conferido via GitHub API; verificação de workflow e Gate 9 release-only ainda pendentes.
 
 ## Princípios (determinism-first + revisão adversarial)
 - **Determinismo decide merge**: build/test/lint/scan/gates hardcoded no pipeline; falha = bloqueio. (mdmv-dark-factory `20-determinism-first`, `04-camada-verificacao`)
@@ -17,12 +17,15 @@ Status: implementado e com branch protection aplicado via API/gh (2026-11-07)
 ## Code review
 - `.github/CODEOWNERS`, `.github/pull_request_template.md`, `.github/CONTRIBUTING.md`.
 
-## Branch protection (aplicado em `lfgranja/mdreader`)
-Aplicado 2026-11-07 via `gh api` (token autenticado, `viewerPermission=ADMIN`) em `dev` e `main`:
-- Required status checks (strict/up-to-date): `Host gates (verify.sh 1-8 subset + supply chain)`.
-- PR obrigatório, `required_approving_review_count=1`, CODEOWNERS review, dismiss stale approvals.
-- Required conversation resolution: enabled.
-- Force-push: disabled; deletions: disabled.
-- `enforce_admins=false` (admins não forçados pelo gate; pode ser elevado para `true` se desejado).
+## Branch protection (`lfgranja/mdreader`)
+Conferido em 2026-11-18 com `gh api` nos endpoints `repos/lfgranja/mdreader/branches/dev/protection` e `repos/lfgranja/mdreader/branches/main/protection`:
 
-Observação: check `Android build (gate 9, aarch64 debug)` não exigido como required (custo/tempo; roda condicionalmente). Pode ser adicionado quando o runner Android estiver estável.
+| Branch | Aprovações | CODEOWNERS | Check requerido |
+|---|---:|---|---|
+| `dev` | 0 | Não | `Host gates (verify.sh 1-8 subset + supply chain)` |
+| `main` | 1 | Sim | `Host gates (verify.sh 1-8 subset + supply chain)` |
+
+Política aprovada: a aprovação em `main` deve ser independente do autor; `dev` aceita merge sem aprovação após os checks exigidos. A configuração observada da branch é autoridade para o estado remoto.
+
+## Gate 9
+O workflow Android atual ainda está configurado fora do ciclo release-only. A mudança pendente deve executar Gate 9 via `workflow_dispatch` no commit candidato e exigir os checks Host e Android em um ruleset de tags `v*`; ainda não implementada nem verificada.

@@ -51,7 +51,7 @@ Rust `Debug` forms — `"Playing"`, `R1_0` — while the canonical wire form per
 the case-mapping table below is snake_case, which the Tauri bridge emits via
 `Display`/serde):
 
-```sh
+`sh
 player play              # → {"transport":"Playing","position_secs":0,"rate":R1_0,"engine_id":"rust-player"}
 player pause             # → {"transport":"Paused","position_secs":0,"rate":R1_0,"engine_id":"rust-player"}
 player rate-up           # → {"transport":"Paused","position_secs":0,"rate":R1_25,"engine_id":"rust-player"}
@@ -61,9 +61,9 @@ player resume-at-stored  # → {"transport":"Playing","position_secs":0,"rate":R
 player position          # → {"transport":"Paused","position_secs":0}     (read-only query, not a verb)
 player state             # → {"transport":"Paused"}                        (read-only query)
 player engine-tier       # → {"engine_tier":"offline_default"}             (read-only query)
-```
+`
 
-Each invocation is a fresh session: `PlaybackSession::new()` starts at position
+Each invocation is a fresh session: `PlaybackSession::new` starts at position
 0.0, rate `R1_0`, transport `Paused` (FR-019b), with no duration knowledge
 (FR-028c). The read-only queries (`position`, `state`, `engine-tier`) are
 handled separately and are not part of the closed-verb exhaustiveness.
@@ -158,13 +158,13 @@ The Kotlin shell reads the platform permissions and forwards the answer through
 the `update_permissions` Tauri command as a `PermissionSnapshot`
 (`src-tauri/src/permissions.rs`) — mirror-only, no decision:
 
-```json
+`json
 {"foreground_service_media_playback":"denied","post_notifications":"denied"}
-```
+`
 
 Each field is the closed three-member `PermissionState` — exactly
 `granted | denied | not_requested` (wire form: the snake_case state name).
-`PermissionSnapshot::default()` is the all-granted host/CI baseline; a real
+`PermissionSnapshot::default` is the all-granted host/CI baseline; a real
 device pushes the platform answer.
 
 Two pure gates consume the snapshot and nothing else (never the manifest
@@ -236,10 +236,10 @@ nothing else from the document.
 
 Three `#[command]`s in `src-tauri/src/lib.rs`:
 
-- `register_android_plugin()` — binds the native Android plugin surface; the
+- `register_android_plugin` — binds the native Android plugin surface; the
   Kotlin `PlaybackService` self-bootstraps from the Application/Activity
   and reaches Rust through `run_mobile_plugin`.
-- `update_permissions(snapshot: PermissionSnapshot) -> Result<(), String>` —
+- `update_permissions(snapshot: PermissionSnapshot) -> Result<, String>` —
   stores the pushed platform permission answer (T030b; see above).
 - `run_mobile_plugin(action: String, document: Option<String>) ->
   Result<serde_json::Value, String>` — executes one playback action over IPC.

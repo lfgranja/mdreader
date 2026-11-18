@@ -7,7 +7,7 @@
 ## Entities (existing, referenced — no new entities)
 
 - **VERIF-EMULATOR attestation document** (document-level, not database entry):
-  - Fields: feature-id (`ref-device-emulator`), branch (`005-adopt-design-sona`), date, AVD version (e.g., `API 29` / `API 29+`), verified framework contracts list, exclusions list (audio-output / `SC-009` / Bluetooth / 10/10), reference to physical `verify.sh`, sign-off path.
+  - Fields: feature-id (`ref-device-emulator`), branch (`005-adopt-design-ressoa`), date, AVD version (e.g., `API 29` / `API 29+`), verified framework contracts list, exclusions list (audio-output / `SC-009` / Bluetooth / 10/10), reference to physical `verify.sh`, sign-off path.
   - Identity: derived from `blake3` fingerprint of attestation content (optional; not required; can use commit SHA + date).
   - Relationships: references `003-reference-device` contracts (`status-surface`, `earcon-mapping`, `surface-audit`); does not create or modify `blake3` resume fingerprint (`session` crate unchanged).
   - Validation: exclusions must be complete (no false-equivalence claim); must reference `problem.md` / `decision.md`; must not claim `gate-8-full`.
@@ -18,7 +18,7 @@
   - `§ProgressIndication`: progress bar rules.
   - `§RateLadder`: 7-rung ladder (`0.75` … `4.0`) — verified structural (UI exists); not verified by audio-output.
   - `§DiagnosticEvent`: `EventKind` 9 variants; JSONL local; no transmission.
-  - `§DesignDirState`: `DESIGN-SONA` tokens / palette / contrast (already adopted in `005`).
+  - `§DesignDirState`: `DESIGN-RESSOA` tokens / palette / contrast (already adopted in `005`).
   - No new fields added; layer verifies existing contracts are honored by framework.
   - `§MoveSpec`: existing from parent contracts (`003-reference-device`); structural verification references but does not modify.
 

@@ -1,0 +1,91 @@
+# DESIGN-RESSOA/accessibility.md — Acessibilidade / Eyes-Free / Muda (identidade Ressoa)
+
+**Versão:** 1.0.0 · **Data:** 2026-10-06
+> Aplicável a todo `DESIGN-RESSOA/`. Base: `DESIGN/accessibility.md` (B — eyes-free, earcon, 48dp, não-WCAG-declarado). Mudanças: gramática sonora expandida com terminologia musical (Adagio/Andante/Allegro/Sforzando/Ostinato/Crescendo/Aria/Unison); synesthesia como metáfora para visualização sonora; mutismo como dignidade (não deficiência); acesso não depende de áudio, mas áudio é redundante.
+
+---
+
+## 1. Contrato de acessibilidade — mesmo do B, expandido
+
+**Não é WCAG/TalkBack.** É "operável sem olhos, confirmado pelo ouvido" (FR-018a / SC-008). Nenhum requisito de acessibilidade visual está adicionado sem emenda de spec.
+
+**Mudança:** o earcon não é apenas "2 notas" — é uma **linguagem musical completa** (ver §3). Isso não aumenta a complexidade; aumenta a **distintividade**, o que é útil para diferenciar estados sem depender de cor.
+
+---
+
+## 2. Earcon — Gramática musical Ressoa (expandido do B)
+
+Referência: referência conceitual (terminologia musical: Adagio, Andante, Allegro, Sforzando, Ostinato, Crescendo, Aria, Unison); referência de áudio; referência histórica .
+
+| Ação | Termo musical | Som (Rust 22050 Hz mono f32) | Duração / Característica |
+|---|---|---|---|
+| Play / Resume | **Adagio** | C5 → E5 ascendente, suave | 120 ms/nota; curador |
+| Pause | **Andante** | E5 → C5 descendente | 120 ms/nota; leve |
+| Skip ± | **Allegro** | C5 → E5 + tick breve | Confirmação de salto |
+| Rate change | **Sforzando** | Tick 1000 Hz / 40 ms | Acente preciso |
+| Warning 3 s | **Ostinato** | Duplo tick A5 (60 + 80 ms) | Contagem regressiva |
+| Failure | **Sforzando** + **Crescendo** (interrompido) | D3 quadrado 200 ms + breve repetição | Falha — claramente diferente do aviso |
+| Section boundary | **Unison** | Tick 880 Hz / 60 ms | Estrutural, leve |
+| Resume offer (3 s) | **Aria / Unison** | Soft 2 notas + fala de estado | Suave, de apoio |
+
+**Regra:** todos os earcons são sintetizados pelo engine — nenhum asset externo, nenhuma dependência de áudio do sistema Android. Isso é a mesma regra do B, apenas com uma gramática mais rica.
+
+---
+
+## 3. Synesthesia — Visualização da voz (tríade acústica e faixa in-app)
+
+**Referência conceitual:** a música pode ser tratada como estímulo visual (synesthesia) como metáfora de design.
+
+**Aplicação no design:**
+- **Identidade da Marca (Logo e Ícones):** A voz ganha corpo visual através de três ondas senoidais harmônicas que representam as frequências da fala:
+  - Onda Superior (Azul `#8FD8E8`): Agudos e foco intelectual.
+  - Onda Central (Verde `#5AD6A8`): Médios vocálicos e cura do silêncio.
+  - Onda Inferior (Roxo `#B9A6F5`): Graves e cadência temporal.
+- **In-app StatusView (opcional):** Uma faixa sutil de 3–5 px que varia suavemente com a intensidade RMS da síntese PCM. É decorativa; não é canal de informação; não substitui a barra de progresso.
+- **Nunca na notificação:** A notificação não tem espaço para decoração; a faixa é só in-app.
+- **Regra:** se a faixa existe, é apenas uma "visualização da voz" — não é canal de informação (não mostra posição, não mostra estado). Se o usuário não a vê, o sistema funciona igual.
+
+---
+
+## 4. Muda — Não é deficiência, é dignidade
+
+**Referência conceitual:** comunicação não verbal e dignidade do mutismo como metáfora de acessibilidade.
+
+**Implicação para o design:**
+- O sistema funciona **com ou sem som**. Se o usuário desativa o earcon, a interface ainda opera: cor + forma + texto + posição continuam. **Não há dependência sonora.**
+- Isso é o oposto de "earcon é obrigatório" — o earcon é obrigatório para quem está dirigindo (FR-018a), mas o sistema não falha se o usuário o desativa.
+- Se o usuário é mudinho (não fala, mas ouve), o earcon ainda funciona — ele confirma por som, não por fala.
+- Se o usuário é surdo (não ouve), a interface ainda funciona — ele confirma por visão (cor + forma + texto) e por gesto (swipe da razão).
+
+---
+
+## 5. Confirmação por voz (TTS do sistema, não conteúdo do documento)
+
+Quando o estado muda (play → pause → resume → skip), pode haver uma breve confirmação por voz (TTS do Android, não do documento):
+- *"Leitura pausada — outro app usando o áudio"* (FR-041, razão de pausa).
+- *"Leitura retomada"* (FR-032c, resume offer).
+- **Nunca** fala o conteúdo do documento — respeita o invariante FR-028 (não body text na notificação / superfície pública).
+
+---
+
+## 6. Touch targets / gestos
+
+- **In-app:** ≥ 48 dp (M3); espaço ≥ 8 dp; razão scroll por swipe (gesto, não leitura de texto que escapa).
+- **Notificação:** controles da plataforma (MediaStyle) — nenhum target custom desenhado (B — disciplina institucional).
+- **Gestos de "sign language" (opcional):** swipe de 3 dedos para pausa (não exige olhar); swipe de 2 dedos para pular ±5 s; swipe vertical longo para mudar taxa (um rung por gesto, não por lista). **Não implementado no escopo atual — documento como extensão acessível futura.**
+
+---
+
+## 7. Testes (mesmo do B, com nota Ressoa e validação cromática)
+
+- **Blind-test (SC-008):** confirmar que cada earcon (Adagio, Andante, Allegro, Sforzando, Ostinato, Unison) é distintivo sem olhar. O earcon de "Aviso 3s" (Ostinato) deve ser distinto do "Falha" (Sforzando) — a frequência e a duração devem ser claramente diferentes.
+- **Colorblind & Monocromático (Logo e Ondas):** testar com simulação de deuteranopia, protanopia e acromatopsia total:
+  - As três ondas sonoras contam com **espaçamento físico negativo (gap) de 3.5px**, garantindo que a identificação das 3 frequências seja perceptível por **forma e posição espacial**, e nunca apenas por cor.
+  - A distinção entre turquesa (`#8FD8E8`) e dourado (`#E8C46A`) in-app mantém redundância por símbolo e posição de campo na grade 2-campo.
+- **Mudo:** testar com earcon desativado — confirmar que cor + forma + texto + posição continuam operáveis.
+- **Matrix:** Pixel / Samsung / Xiaomi (mesmo do B).
+
+---
+
+*Referências:* `DESIGN/accessibility.md` (B base); `briefing-logo-ressoa-design-ressoa.md` (Briefing Oficial v2.0.0); referência conceitual (§6c — synesthesia); referência histórica (mudez, sign language, sound);; `m3.material.io` touch targets; `developer.android.com` (MediaStyle, AudioAttributes — USAGE_MEDIA / USAGE_NOTIFICATION).
+

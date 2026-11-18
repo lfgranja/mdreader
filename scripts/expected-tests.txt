@@ -1,14 +1,20 @@
+adapter-synthesis
 adapter-synthesis::audio_chunk
 adapter-synthesis::cli_protocol
+adapter-synthesis::normalize_invariants
 adapter-synthesis::prop_chunk
 adapter-synthesis::prop_chunk_refined
 adapter-synthesis::prop_declare
 adapter-synthesis::prop_format
 adapter-synthesis::prop_segmentation_shapes
+adapter-synthesis::prosody_invariants
+adapter-synthesis::prosody_unit
+adapter-synthesis::synth_voice
 adapter-synthesis::t045_adapter_observability_consumer
 adapter-synthesis::t059_prop_declare_fr024
 adapter-synthesis::unit_consume
 adapter-synthesis::unit_failure
+adapter-synthesis::voice_catalog
 diag::contract_schema
 diag::contract_schema_negative
 diag::contract_trace
@@ -26,6 +32,7 @@ engine-core::standin_shape
 engine-core::test_engine_handoff_us1
 engine-core::test_standin_conformance_us5
 player
+player::prop_audio_cache_invariants
 player::prop_canonical_guard
 player::prop_chapter_queue_natural_sort
 player::prop_duck_gain
@@ -54,6 +61,7 @@ player::prop_surface
 player::prop_transport_math
 player::prop_waveform_us2
 player::t069_adapter_declaration_consumption
+player::test_audio_cache
 player::test_earcon_mirror
 player::test_external_start_us1
 player::test_failover_us5

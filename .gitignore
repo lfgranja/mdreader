@@ -12,12 +12,15 @@ Cargo.lock.bak
 # Tauri
 /src-tauri/target/
 /src-tauri/gen/
+!/src-tauri/gen/android/app/src/main/AndroidManifest.xml
 !/src-tauri/gen/android/app/src/main/java/app/mdreader/MainActivity.kt
 !/src-tauri/gen/android/app/src/main/assets/index.html
+!/src-tauri/gen/android/app/src/main/res/mipmap-*/ic_launcher.png
+!/src-tauri/gen/android/app/src/main/res/mipmap-*/ic_launcher_round.png
 
 # Node / Svelte
 node_modules/
-dist/
+!dist/
 !dist/index.html
 .vite/
 .svelte-kit/
@@ -106,6 +109,46 @@ target/
 # Spec Kit generated skills & integrations
 .agents/skills/speckit-*
 .specify/integrations/
+.specify/validations/
+
+# Ephemeral test, device automation & temporary validation logs
+__pycache__/
+*.py[cod]
+*$py.class
+.tmp-gradle/
+build-tmp/
+.maestro/
+device-automation-*/
+device-ttfa-*/
+device-validation-*/
+device-validation-*.md
+emulator-validation-*/
+ressoa-validation-*/
+t184-t226-*/
+*.bak*
 
 # Tauri capabilities generated
 src-tauri/capabilities/
+
+# Experimental training scripts
+/scripts/build_all_waves.py
+/scripts/extract_ressoa_audio.sh
+/scripts/test_wave_builder.py
+/scripts/train_ressoa_model.py
+
+# Experimental training artifacts (not product code)
+/training/
+/DESIGN-DETONACAO-DESCONTROLADA/
+/docs/RESSOA_VOICE_TRAINING.md
+
+# Android signing (never commit)
+keystore.properties
+*.keystore
+*.jks
+
+# Local root organization archive (moved clutter, not source)
+archive/
+
+# Agent orchestration runtime (ledger and isolated worktrees)
+/.specify/queue/concurrency.jsonl
+/.specify/queue/worktrees/

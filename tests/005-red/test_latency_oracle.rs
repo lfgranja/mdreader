@@ -1,5 +1,5 @@
 // RED — latency oracle ≤100ms (first-consumed sample bound)
-// Contract: specs/005-adopt-design-sona/spec.md FR-006/FR-007 + earcon latency oracle
+// Contract: specs/005-adopt-design-ressoa/spec.md FR-006/FR-007 + earcon latency oracle
 use std::time::{Instant, Duration};
 
 fn first_sample_latency_ms() -> u64 {

@@ -1,4 +1,4 @@
-# Problem Definition: Real Ressoa mobile app on DESIGN-SONA
+# Problem Definition: Real Ressoa mobile app on DESIGN-RESSOA
 
 - **Slug**: ressoa-mobile-app
 - **Created**: 2026-10-12T12:49Z
@@ -6,7 +6,7 @@
 
 ## Problem Statement
 
-A reader of long technical documents who is driving (or otherwise unable to look at a screen) cannot today listen to those documents on a phone with position that survives, interruptions that stay safe, and a lock-screen surface that respects attention — the existing engine/shell work is host-verified mechanism and the DESIGN-SONA surface is paper, so there is no distributable app that closes this loop.
+A reader of long technical documents who is driving (or otherwise unable to look at a screen) cannot today listen to those documents on a phone with position that survives, interruptions that stay safe, and a lock-screen surface that respects attention — the existing engine/shell work is host-verified mechanism and the DESIGN-RESSOA surface is paper, so there is no distributable app that closes this loop.
 
 ## Affected Users & Stakeholders
 
@@ -46,13 +46,13 @@ A reader of long technical documents who is driving (or otherwise unable to look
 
 ## Cost of Inaction
 
-If this is never built, the playback shell stays a host-verified mechanism with no audible output on real hardware, DESIGN-SONA stays an unimplemented paper system, and reading stays a CLI/host activity — the driving reader keeps losing position, keeps facing invasive or silent audio behavior from existing tools, and no distributable artifact ever tests whether anyone beyond the maintainer wants this.
+If this is never built, the playback shell stays a host-verified mechanism with no audible output on real hardware, DESIGN-RESSOA stays an unimplemented paper system, and reading stays a CLI/host activity — the driving reader keeps losing position, keeps facing invasive or silent audio behavior from existing tools, and no distributable artifact ever tests whether anyone beyond the maintainer wants this.
 
 ## Open Questions
 
 - [NEEDS CLARIFICATION: What does "Real" concretely mean — signed release APK/AAB, F-Droid listing (own repo vs. public), versioned release with changelog, or only a device-installable debug artifact?]
-- [NEEDS CLARIFICATION: Are the open 001 Phase 13 gaps plus real-audio proof (SC-044) prerequisites for "real," or is a silent-but-faithful DESIGN-SONA shell acceptable as v1?]
-- [NEEDS CLARIFICATION: Which DESIGN-SONA surfaces are in v1 scope — notification only, or also StatusView, rate control, earcon grammar, envelope strip, gestures?]
+- [NEEDS CLARIFICATION: Are the open 001 Phase 13 gaps plus real-audio proof (SC-044) prerequisites for "real," or is a silent-but-faithful DESIGN-RESSOA shell acceptable as v1?]
+- [NEEDS CLARIFICATION: Which DESIGN-RESSOA surfaces are in v1 scope — notification only, or also StatusView, rate control, earcon grammar, envelope strip, gestures?]
 - [NEEDS CLARIFICATION: Measured first-audio latency and earcon blind-test distinctiveness on the reference device — what are the numbers?]
 - [NEEDS CLARIFICATION: Who is the first non-author user and what do they need beyond the maintainer's dogfooding cases?]
 - [NEEDS CLARIFICATION: Naming/distribution readiness — `ressona.dev` state, F-Droid metadata/screenshots state, package label vs. technical name?]

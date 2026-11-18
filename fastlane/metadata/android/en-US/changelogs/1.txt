@@ -1,0 +1,9 @@
+v0.1.0-rc2 — Ressoa Candidate Release
+
+• Closed bundled voice catalog (faber + cadu, CC0) with persistent cycle
+• Intent-filter ingress (ACTION_VIEW / ACTION_SEND)
+• Full directory reading with gapless chapter transitions
+• Android 16 (API 36) accessibility compliance — TalkBack support
+• 32 MiB bounded audio cache (LRU)
+• 100% on-device synthesis — zero internet permission
+• WCAG contrast, sinesthetic canvas visualizer (RMS lock-free ~20 Hz)

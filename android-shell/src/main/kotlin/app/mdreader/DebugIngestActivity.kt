@@ -56,6 +56,14 @@ class DebugIngestActivity : Activity() {
                 uri != null && uri.scheme == "file" -> DebugIngestHook.ingestDirectory(ctx, uri.path ?: "")
                 else -> "error:missing-directory-path"
             }
+            "pick_document", "pick", "open_picker", "picker" -> {
+                // Automation aid (debug only, gated at onCreate): exercises the same
+                // ShellHost -> DocIngest SAF launch path as the title-box action.
+                if (ShellHost.pickDocument()) "ok:pick_document_launched" else "error:pick_document_false"
+            }
+            "pick_directory" -> {
+                if (ShellHost.pickDirectory()) "ok:pick_directory_launched" else "error:pick_directory_false"
+            }
             "uri" -> if (uri != null) DebugIngestHook.ingestUri(ctx, uri.toString()) else "error:missing-uri"
             else -> "error:unknown-mode:$mode"
         }

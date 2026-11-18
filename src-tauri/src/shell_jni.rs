@@ -46,7 +46,7 @@ use std::ffi::c_void;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Mutex, OnceLock};
 
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
 
 use crate::AppState;
 use crate::commands::run_mobile_plugin;
@@ -290,6 +290,14 @@ pub fn install(app: AppHandle) {
     if APP_HANDLE.set(app.clone()).is_err() {
         tracing::warn!("shell channel: app handle already held; second install dropped");
         return;
+    }
+    if let Ok(mut pending) = PENDING_INGEST.lock()
+        && let Some(snapshot) = pending.take()
+    {
+        drop(pending);
+        if let Err(err) = ingest_snapshot(&snapshot) {
+            tracing::warn!(error = %err, "shell channel: failed to drain pending cold-start ingest");
+        }
     }
     let (tx, rx) = std::sync::mpsc::channel::<u32>();
     if VERB_TX.set(Mutex::new(tx)).is_err() {
@@ -840,7 +848,7 @@ pub extern "C" fn Java_app_mdreader_DocIngest_onDocumentIngested(
     fingerprint_hex: jni::sys::jstring,
     original_uri: jni::sys::jstring,
     mime_type: jni::sys::jstring,
-) {
+) -> jni::sys::jint {
     use jni::JNIEnv;
     use jni::objects::JString;
 
@@ -857,28 +865,28 @@ pub extern "C" fn Java_app_mdreader_DocIngest_onDocumentIngested(
         Ok(s) => String::from(s),
         Err(e) => {
             tracing::error!("JNI onDocumentIngested: failed to get snapshot_path: {e}");
-            return;
+            return 1; // snapshot unreadable
         }
     };
     let fingerprint_hex = match env.get_string(&fingerprint_hex) {
         Ok(s) => String::from(s),
         Err(e) => {
             tracing::error!("JNI onDocumentIngested: failed to get fingerprint_hex: {e}");
-            return;
+            return 1; // snapshot unreadable
         }
     };
     let original_uri = match env.get_string(&original_uri) {
         Ok(s) => String::from(s),
         Err(e) => {
             tracing::error!("JNI onDocumentIngested: failed to get original_uri: {e}");
-            return;
+            return 1; // snapshot unreadable
         }
     };
     let mime_type = match env.get_string(&mime_type) {
         Ok(s) => String::from(s),
         Err(e) => {
             tracing::error!("JNI onDocumentIngested: failed to get mime_type: {e}");
-            return;
+            return 1; // snapshot unreadable
         }
     };
 
@@ -887,13 +895,10 @@ pub extern "C" fn Java_app_mdreader_DocIngest_onDocumentIngested(
     // snapshot file the Kotlin picker wrote is the platform
     // boundary's one read, and its bytes are the sole
     // synthesis input from here on (FR-018 / T019).
-    if let Err(error) = ingest_snapshot(&snapshot) {
-        tracing::error!(
-            snapshot_path = %snapshot.path,
-            fingerprint = %snapshot.fingerprint_hex,
-            error = %error,
-            "document ingest failed: the picker is re-prompted, nothing started (FR-018)"
-        );
+    match ingest_snapshot(&snapshot) {
+        Ok(()) => 0,                                      // success
+        Err(IngestError::SnapshotUnreadable { .. }) => 1, // snapshot unreadable
+        Err(IngestError::Open { .. }) => 2,               // open refused
     }
 }
 
@@ -1007,13 +1012,16 @@ impl IngestSnapshot {
 /// carries — either way the picker is re-prompted.
 pub fn ingest_snapshot(snapshot: &IngestSnapshot) -> Result<(), IngestError> {
     let Some(app) = installed_app() else {
-        tracing::warn!(
+        tracing::info!(
             snapshot_path = %snapshot.path,
             fingerprint = %snapshot.fingerprint_hex,
             original_uri = %snapshot.original_uri,
             mime_type = %snapshot.mime_type,
-            "shell channel: document ingest before the app handle is held; dropped with a diagnostic"
+            "shell channel: document ingest before app handle is held; queuing for cold-start drain"
         );
+        if let Ok(mut pending) = PENDING_INGEST.lock() {
+            *pending = Some(snapshot.clone());
+        }
         return Ok(());
     };
     let state = app.state::<AppState>();
@@ -1061,9 +1069,16 @@ pub(crate) fn open_ingested_document(
     let filename = picked_document_name(&snapshot.original_uri, &snapshot.path);
     let opened =
         crate::commands::open_document_bytes_named(state, bytes, &filename).map_err(|error| {
-            IngestError::Open {
-                reason: error.to_string(),
-            }
+            let reason = error.to_string();
+            tracing::error!(
+                target: "shell_jni::ingest",
+                %reason,
+                "open_document_bytes_named refused"
+            );
+            // Publish the refusal to the surface so the reader sees it
+            // instead of a silent failure (FR-023 / FR-037).
+            crate::commands::publish_current_state(state, Some(reason.clone()));
+            IngestError::Open { reason }
         })?;
     tracing::info!(
         snapshot_path = %snapshot.path,
@@ -1158,6 +1173,7 @@ fn percent_decode(segment: &str) -> String {
 /// the same handle the drain thread holds, retained so the
 /// document-ingest entry can reach [`AppState`]'s own session.
 static APP_HANDLE: OnceLock<AppHandle> = OnceLock::new();
+static PENDING_INGEST: Mutex<Option<IngestSnapshot>> = Mutex::new(None);
 
 /// The installed application handle, held once by
 /// [`install`] during setup so the ingest path can reach
@@ -1186,9 +1202,16 @@ pub(crate) fn installed_app() -> Option<&'static AppHandle> {
 /// stderr, never a crash and never a playing state
 /// (FR-018).
 fn read_snapshot_bytes(path: &str) -> Result<Vec<u8>, IngestError> {
-    let unreadable = |reason: String| IngestError::SnapshotUnreadable {
-        path: path.to_string(),
-        reason,
+    let unreadable = |reason: String| -> IngestError {
+        tracing::error!(
+            target: "shell_jni::ingest",
+            %reason,
+            "snapshot unreadable {path}"
+        );
+        IngestError::SnapshotUnreadable {
+            path: path.to_string(),
+            reason,
+        }
     };
     match std::fs::read(path) {
         Ok(bytes) => Ok(bytes),
@@ -1241,9 +1264,16 @@ pub fn pick_document_from_shell() -> Result<(), String> {
     }
 
     let class = get_shell_host_class()?;
-    let _ = env
+    let launched = env
         .call_static_method(class, "pickDocument", "()Z", &[])
-        .map_err(|error| format!("shell JNI: ShellHook.pickDocument failed: {error}"))?;
+        .map_err(|error| format!("shell JNI: ShellHost.pickDocument failed: {error}"))?
+        .z()
+        .map_err(|error| {
+            format!("shell JNI: ShellHost.pickDocument returned a non-boolean: {error}")
+        })?;
+    if !launched {
+        return Err("shell JNI: ShellHost.pickDocument returned false".to_string());
+    }
     Ok(())
 }
 
@@ -1276,9 +1306,16 @@ pub fn pick_directory_from_shell() -> Result<(), String> {
 
     let class = get_shell_host_class()?;
 
-    let _ = env
+    let launched = env
         .call_static_method(class, "pickDirectory", "()Z", &[])
-        .map_err(|error| format!("shell JNI: ShellHost.pickDirectory failed: {error}"))?;
+        .map_err(|error| format!("shell JNI: ShellHost.pickDirectory failed: {error}"))?
+        .z()
+        .map_err(|error| {
+            format!("shell JNI: ShellHost.pickDirectory returned a non-boolean: {error}")
+        })?;
+    if !launched {
+        return Err("shell JNI: ShellHost.pickDirectory returned false".to_string());
+    }
     Ok(())
 }
 
@@ -1388,98 +1425,37 @@ pub fn handle_directory_selected(
         "Directory manifest parsed and natural-sorted successfully"
     );
 
-    let Some(app) = installed_app() else {
-        return Err("installed_app is None: cannot start directory playback".to_string());
-    };
-    let state = app.state::<crate::AppState>();
+    if let Some(app) = installed_app() {
+        use tauri::{Emitter, Manager};
+        let state = app.state::<crate::AppState>();
+        let resume = crate::install_chapter_queue(&state, queue.clone());
 
-    // Install the chapter queue and check for directory resume (T233/FR-009).
-    let resume = crate::install_chapter_queue(&state, queue.clone());
+        // Auto-play the current (or restored) chapter if not resuming via offer dialog
+        let current_index = {
+            let guard = state.chapter_queue.lock().ok();
+            guard
+                .as_ref()
+                .and_then(|g| g.as_ref().map(player::queue::ChapterQueue::current_index))
+                .unwrap_or(0)
+        };
 
-    // Open the chapter and start playback (TTFA < 3.0s). If resume offers
-    // continuation, open at stored offset; the UI offer dialog is driven by
-    // the published offer route from the document open path.
-    if let Some(chapter) = queue.current() {
-        let snapshot_path = &chapter.file_uri;
-        let filename = &chapter.filename;
-        let _start_offset = resume.map_or(0.0, |r| {
-            if r.offer_route == crate::OfferRoute::InAppDialog {
-                0.0
-            } else {
-                r.offset_secs
-            }
-        });
-        match std::fs::read(snapshot_path) {
-            Ok(bytes) => {
-                // T233/FR-009: interrupted resume (no dialog) starts at offset;
-                // paused resume parks the open behind the in-app offer dialog.
-                let open_result = if let Some(r) = resume {
-                    if r.offer_route == crate::OfferRoute::InAppDialog {
-                        // Park document for offer resolution; open without auto-play,
-                        // then let the UI offer dialog drive resume_at_stored/start_over.
-                        crate::commands::open_document_bytes_named(&state, bytes.clone(), filename)
-                            .map(|_| ())
-                            .map_err(|e| e.to_string())?;
-                        crate::park_directory_resume(
-                            &state,
-                            std::str::from_utf8(&bytes).unwrap_or_default(),
-                            filename,
-                            r.offset_secs,
-                        );
-                        Ok(())
-                    } else if r.offset_secs > 0.0 {
-                        crate::commands::play_document(
-                            std::str::from_utf8(&bytes).unwrap_or_default(),
-                            &state,
-                            filename,
-                            r.offset_secs,
-                        )
-                        .map(|_| ())
-                        .map_err(|e| e.to_string())
-                    } else {
-                        crate::commands::open_document_bytes_named(&state, bytes, filename)
-                            .map(|_| ())
-                            .map_err(|e| e.to_string())
-                    }
-                } else {
-                    crate::commands::open_document_bytes_named(&state, bytes, filename)
-                        .map(|_| ())
-                        .map_err(|e| e.to_string())
-                };
-                if let Err(e) = open_result {
-                    tracing::error!(
-                        error = %e,
-                        snapshot_path = %snapshot_path,
-                        "Failed to open directory chapter"
-                    );
-                }
-            }
-            Err(e) => {
-                tracing::error!(
-                    error = %e,
-                    snapshot_path = %snapshot_path,
-                    "Failed to read chapter snapshot"
-                );
-            }
+        let should_auto_play = resume
+            .as_ref()
+            .is_none_or(|r| r.offer_route == crate::OfferRoute::NoRoute);
+        if should_auto_play && let Err(e) = crate::open_chapter_at_index(&state, current_index) {
+            tracing::error!(error = %e, current_index, "Failed to auto-open first directory chapter");
         }
-    }
 
-    let event_payload = serde_json::json!({
-        "type": "directory_selected",
-        "tree_uri": tree_uri,
-        "root_name": root_name,
-        "total_chapters": queue.len(),
-        "first_chapter": queue.current().map(|c| &c.filename),
-        "resume_chapter_index": resume.map(|r| r.chapter_index),
-        "resume_offset_secs": resume.map(|r| r.offset_secs),
-        "offer_route": resume.map(|r| match r.offer_route {
-            crate::OfferRoute::InAppDialog => "in_app_dialog",
-            crate::OfferRoute::LockScreenResume => "lockscreen_resume",
-            crate::OfferRoute::NoRoute => "none",
-        }),
-    });
-    if let Err(e) = app.emit("tauri://channel/directory-selected", event_payload) {
-        tracing::warn!(error = %e, "Failed to emit directory-selected event");
+        let event_payload = serde_json::json!({
+            "type": "directory_selected",
+            "tree_uri": tree_uri,
+            "root_name": root_name,
+            "total_chapters": queue.len(),
+            "first_chapter": queue.current().map(|c| &c.filename),
+        });
+        if let Err(e) = app.emit("tauri://channel/directory-selected", event_payload) {
+            tracing::warn!(error = %e, "Failed to emit directory-selected event");
+        }
     }
 
     Ok(())

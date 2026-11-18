@@ -29,7 +29,7 @@
 
 - [x] CHK012 Is the hierarchical skip behavior in Spec §FR-011 consistent with the media session action mapping defined in `contracts/directory-playback.md` and `android-shell/MediaMirror.kt`? [Consistency, Spec §FR-011, Contracts §2.1]
 - [x] CHK013 Is the live region announcement content in Spec §FR-010 consistent with the internationalization (pt-BR) and earcon tone conventions established in `contracts/earcon.md`? [Consistency, Spec §FR-010, AGENTS.md Architecture & Data Flow]
-- [x] CHK014 Are the UI elements for directory playback strictly compatible with the existing SONA token design system and Lente Sinestésica visual hierarchy? [Consistency, Plan §Summary, AGENTS.md Key Principles]
+- [x] CHK014 Are the UI elements for directory playback strictly compatible with the existing RESSOA token design system and Lente Sinestésica visual hierarchy? [Consistency, Plan §Summary, AGENTS.md Key Principles]
 - [x] CHK015 Is the requirement for zero visual distraction while driving (Princípio VIII) consistently reflected across MediaStyle notification actions and lock-screen widgets? [Consistency, Plan §Constitution Check, Research §Decision 4]
 
 ## Edge Case Coverage

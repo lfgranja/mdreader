@@ -31,11 +31,11 @@ O veredito está condicionado a: o adaptador deve ser integrado com falha nomead
 - **In scope / out of scope**: In scope = adapter trait (`engine-core`), output format (mono f32 @ 22050 Hz), basic split, named failure on mismatch. Out of scope = redesign do `player`/`session`/`diag`; cloud synthesis; perfect segmentation (`SentenceBoundary`); byte-budget rigoroso inicial; diagnostic viewer; document picker; second voice.
 - **Success metrics**: `SC-009` (≤3 s play-to-audio), `SC-044` (dois motores reais comprovados no hardware), `SC-051` preservado (failover não quebrado), P1 `US1-US3` demonstrável com áudio real e tela apagada.
 - **Carried-forward open questions (para `/speckit.clarify` após `/speckit.specify`)**:
-  - [NEEDS CLARIFICATION] Qual a latência real do `sherpa-onnx` + `ort` (`NNAPI`) no dispositivo de referência (`mid-range arm64`, 6 GB RAM) para o primeiro chunk a 22050 Hz mono (`SC-009`)?
-  - [NEEDS CLARIFICATION] `Piper` expõe eventos de limite de sentença (`SentenceBoundary` / `WordBoundary`)? Se não, a segmentação básica (`pulldown-cmark`) é suficiente para `FR-036` / `FR-023a` sem quebra de resume?
-  - [NEEDS CLARIFICATION] Como o byte-budget de 5.000 bytes (`constitution.md` linha 353) interage com chunks de Markdown maiores que o limite — split antes da síntese impacta alinhamento de posição?
-  - [NEEDS CLARIFICATION] A ordem de integração preserva `SC-051` (stand-in mechanism) durante a transição para adaptador real? Qual a sequência exata de testes?
-  - [NEEDS CLARIFICATION] Se o adaptador entregará falha nomeada (`FR-035`) desde o primeiro ciclo — o `player` já declara `FR-035`, mas o adapter precisa respeitar; como é verificado?
+ - [NEEDS CLARIFICATION] Qual a latência real do `sherpa-onnx` + `ort` (`NNAPI`) no dispositivo de referência (`mid-range arm64`, 6 GB RAM) para o primeiro chunk a 22050 Hz mono (`SC-009`)?
+ - [NEEDS CLARIFICATION] `Piper` expõe eventos de limite de sentença (`SentenceBoundary` / `WordBoundary`)? Se não, a segmentação básica (`pulldown-cmark`) é suficiente para `FR-036` / `FR-023a` sem quebra de resume?
+ - [NEEDS CLARIFICATION] Como o byte-budget de 5.000 bytes (`constitution.md` linha 353) interage com chunks de Markdown maiores que o limite — split antes da síntese impacta alinhamento de posição?
+ - [NEEDS CLARIFICATION] A ordem de integração preserva `SC-051` (stand-in mechanism) durante a transição para adaptador real? Qual a sequência exata de testes?
+ - [NEEDS CLARIFICATION] Se o adaptador entregará falha nomeada (`FR-035`) desde o primeiro ciclo — o `player` já declara `FR-035`, mas o adapter precisa respeitar; como é verificado?
 
 ## Clarify After Specify
 

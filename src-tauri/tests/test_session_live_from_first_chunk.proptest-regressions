@@ -6,3 +6,4 @@
 # everyone who runs the test benefits from these saved cases.
 cc 5fe5df84b6706227cecc4932fca361c0c91e624242503134b91e5d307d5e8982 # shrinks to document = "# Capítulo Um\n"
 cc 1a2c00368ff866b80fb44745fdead423c5f476c8b48a676496b528fa0d8121e0 # shrinks to picks = [0]
+cc c7b0f9a27a7e8db529e851623dde2e6d2ec60ad0a8e1235931d9bdab50af5a17 # shrinks to picks = [1]

@@ -27,7 +27,7 @@ Cinco candidatos foram compilados (`DESIGN_SYSTEMS_5_CANDIDATOS.md`). **B — Si
 2. **Sobrevivência OEM alta** — MediaStyle padrão, nenhum `RemoteViews` customizado; nada de gradiente para o OEM reinterpretar.
 3. **Disciplina de closed set mais forte** ("cor como função regulada") — alinhamento direto ao Princípio VII da constituição.
 4. **Contraste verificável em todos os primitivos** (mínimo 3.01:1, computado contra `night`).
-5. **Nenhum risco de confusão com "Sona"** (campeã de LoL) — `Sona` permanece como engine interno, fora da marca pública.
+5. **Nenhum risco de confusão com identidade de personagem** — `Engine Ressoa` permanece como engine interno, fora da marca pública.
 
 Por que não os outros: **A** é honesto sobre o SC-029, mas exige força in-app (agulha RMS real) além do escopo do spec 001; **C** é institucionalmente sólida, mas seu ciano-identidade não tem função semântica regulada; **D** é o mais forte in-app, mas monocromático não entrega o código de sinal; **E** transforma progresso em gradiente decorativo, com risco de expansão de conjunto e `cool` 3.12:1 marginal.
 
@@ -54,7 +54,7 @@ Por que não os outros: **A** é honesto sobre o SC-029, mas exige força in-app
 | `tokens.md` | vivo, v1.0.0 | Arquitetura de tokens em 3 camadas; paleta corrigida com contraste computado (fórmula WCAG); regras do conjunto fechado (§4); variante única `dark` (§5); earcons (§6); matriz uso/proibido (§7) |
 | `components.md` | especificado (escopo fixado neste mestre) | Specs detalhados por componente — **NotificationSurface**, **StatusView**, **RateView**, **FocusMirror**: layout, regras de conteúdo, determinate/indeterminate, non-dismissable, targets 48 dp, estados e transições permitidas |
 | `accessibility.md` | especificado | Contrato eyes-free: earcons (forma, síntese Rust 22050 Hz mono f32), confirmação audível, alvos WCAG 2.2, condução, matriz de redundância cor ↔ áudio |
-| `brand.md` | especificado | `ressona.dev` (marca pública), Engine `Sona` (interno), `mdreader` (workspace técnico), F-Droid, direção de logo (onda + documento), tom de voz |
+| `brand.md` | especificado | `ressona.dev` (marca pública), Engine `Ressoa` (interno), `mdreader` (workspace técnico), F-Droid, direção de logo (onda + documento), tom de voz |
 | `risks.md` | especificado | Registro de riscos e desvios declarados: SC-029, OEM recolor, minSdk, light mode, throttling de pulso, Live Updates |
 
 ---
@@ -147,7 +147,7 @@ Três camadas; valores completos, contraste computado e CSS em `tokens.md` §1�
 ## 8. Marca e integração
 
 - **`ressona.dev`** — marca de divulgação (RDAP 404 = livre): landing, F-Droid, comunidade.
-- **Engine `Sona`** — nome do motor interno (código), **nunca** marca pública (evita associação com LoL).
+- **Engine `Ressoa`** — nome do motor interno (código), **nunca** marca pública (mantido separado da marca pública).
 - **`mdreader`** — workspace/repo/package técnico (`app.mdreader`); mantido e confirmado.
 - **F-Droid** — distribuição confirmada (não Play Store); copyleft é permitido pela licence policy da constituição.
 - **Direção de logo:** símbolo simples (onda + documento); tipografia clara. **Tom:** técnico, direto, sem hype; não-invasivo — o produto rejeita teleprompter e body text no lock-screen, e a marca reflete isso. Detalhes: `brand.md`.
@@ -187,4 +187,4 @@ Registro completo: `risks.md`.
 |---|---|---|
 | 1.0.0 | 2026-10-06 | Especificação inicial do mestre: candidato B adotado; paleta corrigida (`#FF4D63` 6.12:1, `#3D8BE8` 5.71:1, `#5D5D5D` 3.01:1); `tokens.md` vivo; `components.md`, `accessibility.md`, `brand.md`, `risks.md` com escopo fixado; SC-029 declarado com solução earcon + razão estática + TTL 3 s; única variante `dark`. |
 
-*Fontes: `RELATORIO_BRAND_PRODUTO.md` · `DESIGN_SYSTEMS_5_CANDIDATOS.md` · `DESIGN/tokens.md` v1.0.0 · `.specify/memory/constitution.md` (Princípios VII e VIII) · `.agents/product-marketing.md` (marca `ressona.dev`, Engine `Sona`, workspace `mdreader`, F-Droid) · `specs/001-android-media-shell/` (spec, VERIFICATION, checklists).*
+*Fontes: `RELATORIO_BRAND_PRODUTO.md` · `DESIGN_SYSTEMS_5_CANDIDATOS.md` · `DESIGN/tokens.md` v1.0.0 · `.specify/memory/constitution.md` (Princípios VII e VIII) · `.agents/product-marketing.md` (marca `ressona.dev`, Engine `Ressoa`, workspace `mdreader`, F-Droid) · `specs/001-android-media-shell/` (spec, VERIFICATION, checklists).*

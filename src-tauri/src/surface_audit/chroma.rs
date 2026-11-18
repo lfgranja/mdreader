@@ -3,7 +3,7 @@
 use std::fs;
 use std::path::Path;
 
-const SONA_PALETTE_HEX: &[&str] = &[
+const RESSOA_PALETTE_HEX: &[&str] = &[
     "#0B0F1A", "#141B2D", "#F2F0E6", "#8FD8E8", "#A9B8CE", "#E8C46A", "#B9A6F5", "#55688F",
     "#FFD400", "#FF4D63", "#5AD6A8",
 ];
@@ -12,10 +12,10 @@ const JADE_HEX: &[&str] = &["#5AD6A8"];
 const CELESTE_HEX: &[&str] = &["#B9A6F5"];
 const JADE_ERRATUM: &[&str] = &["#5FD0A0"];
 
-const DESIGN_SONA_FILES: &[&str] = &[
+const DESIGN_RESSOA_FILES: &[&str] = &[
     "tokens.md",
     "components.md",
-    "DESIGN-SONA.md",
+    "DESIGN-RESSOA.md",
     "preview.html",
     "CHANGELOG.md",
     "VERSION",
@@ -86,9 +86,9 @@ fn skip_comment(bytes: &[u8], mut i: usize) -> usize {
 #[cfg(test)]
 fn is_in_ledger_declaration(text: &str, hex_start: usize) -> bool {
     let before = &text[..hex_start];
-    if before.contains("--sona-celeste") || before.contains("--sona-aria") {
+    if before.contains("--ressoa-celeste") || before.contains("--ressoa-aria") {
         let recent = &before[before.len().saturating_sub(120)..];
-        if recent.contains("--sona-celeste") || recent.contains("--sona-aria") {
+        if recent.contains("--ressoa-celeste") || recent.contains("--ressoa-aria") {
             // It's in a declaration context
             if recent.rfind(':').is_some() {
                 return true;
@@ -112,7 +112,7 @@ fn is_sanctioned_scope(path: &Path, text: &str, hex_start: usize, hex_str: &str)
     // Jade #5AD6A8
     if hex_upper == "#5AD6A8" {
         // Brand-layer assets
-        if path_str.contains("design-sona/assets") {
+        if path_str.contains("design-ressoa/assets") {
             return true;
         }
         // Decorative wave SVG/CSS
@@ -152,7 +152,7 @@ fn is_sanctioned_scope(path: &Path, text: &str, hex_start: usize, hex_str: &str)
         {
             return true;
         }
-        if path_str.contains("design-sona/assets") {
+        if path_str.contains("design-ressoa/assets") {
             return true;
         }
         if path_str.contains("wave-subtle") {
@@ -173,7 +173,7 @@ fn is_sanctioned_scope(path: &Path, text: &str, hex_start: usize, hex_str: &str)
         return false;
     }
 
-    if SONA_PALETTE_HEX.iter().any(|&h| h == hex_upper) {
+    if RESSOA_PALETTE_HEX.iter().any(|&h| h == hex_upper) {
         return true;
     }
 
@@ -248,7 +248,7 @@ fn scan_text(path: &Path, text: &str, violations: &mut Vec<String>) {
                     continue;
                 }
 
-                if !SONA_PALETTE_HEX.iter().any(|&h| h == hex_upper) {
+                if !RESSOA_PALETTE_HEX.iter().any(|&h| h == hex_upper) {
                     violations.push(format!(
                         "C-H1 chroma census: {}:{} {} not in closed hex set",
                         path.display(),
@@ -292,8 +292,8 @@ mod tests {
 
         for (auditee, path) in &auditees {
             match auditee {
-                Auditee::DesignSonaDir => {
-                    for name in DESIGN_SONA_FILES {
+                Auditee::RessoaDesignDir => {
+                    for name in DESIGN_RESSOA_FILES {
                         let f = path.join(name);
                         if f.exists() {
                             // Hex census applies to code/config surfaces

@@ -74,7 +74,7 @@
 ### Decision 4: Controles de Mídia Contextuais e Hierárquicos (Skip Intra-arquivo vs Inter-arquivo)
 - **Decision**:
   - Os comandos de transporte remotos (`ACTION_SKIP_TO_NEXT` e `ACTION_SKIP_TO_PREVIOUS`, recebidos de fones Bluetooth, lock-screen e Android Auto) operam com semântica contextual:
-    - **Avançar (`SkipToNext`)**: Se o arquivo atual possui múltiplos títulos/seções (`headings`) e o cursor não está na última seção, o comando salta para o início da próxima seção interna (comportamento SONA padrão). Caso o cursor já esteja na última seção (ou o documento não tenha seções intermediárias), o comando avança para o início do próximo capítulo da pasta (`ChapterQueue::next()`).
+    - **Avançar (`SkipToNext`)**: Se o arquivo atual possui múltiplos títulos/seções (`headings`) e o cursor não está na última seção, o comando salta para o início da próxima seção interna (comportamento Ressoa padrão). Caso o cursor já esteja na última seção (ou o documento não tenha seções intermediárias), o comando avança para o início do próximo capítulo da pasta (`ChapterQueue::next()`).
     - **Retroceder (`SkipToPrevious`)**: Se o cursor estiver após os primeiros 3 segundos da seção atual, ele volta ao início dessa seção. Se estiver nos primeiros 3 segundos da primeira seção do arquivo atual e houver um capítulo anterior na pasta, ele retrocede para o capítulo anterior (`ChapterQueue::previous()`).
   - No frontend da Lente Sinestésica, o botão `#btn-repeat` preserva sua função de repetir a seção atual, e botões de capítulo dedicados ou atalhos de navegação acionam explicitamente os comandos `next_chapter` e `previous_chapter`.
 - **Rationale**:
@@ -98,7 +98,7 @@
   - A fonte utiliza `font-variant-numeric: tabular-nums` para impedir oscilações de layout durante mudanças de dígitos.
   - Leitores de tela (TalkBack) recebem atualizações de transição de capítulo através do `#liveRegion` com `aria-live="polite"` e `aria-atomic="true"`, sem movimentação forçada do foco de acessibilidade.
 - **Rationale**:
-  - Respeita integralmente o design SONA e as diretrizes de acessibilidade WCAG 2.1 (AA) e 4.1.3 (Status Messages).
+  - Respeita integralmente o design RESSOA e as diretrizes de acessibilidade WCAG 2.1 (AA) e 4.1.3 (Status Messages).
   - Garante que ouvintes com baixa visão ou usuários de TalkBack sejam informados com discrição da mudança de capítulo sem interromper a fala sintetizada em andamento.
 - **Alternatives Considered**:
   - Criar um novo card visual para exibir a lista completa de capítulos: Rejeitado categoricamente pelo Princípio VIII (Driving-First) e pela regra de pureza da tela única minimalista da Lente Sinestésica.
@@ -106,4 +106,4 @@
 - **Invariants Preserved**:
   - Zero CLS (Cumulative Layout Shift = 0.00).
   - Altura cravada em `100dvh`.
-  - Paleta DESIGN-SONA fechada (título `#F2F0E6`, subtítulo `#A9B8CE`).
+  - Paleta DESIGN-RESSOA fechada (título `#F2F0E6`, subtítulo `#A9B8CE`).

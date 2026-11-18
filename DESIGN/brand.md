@@ -10,8 +10,8 @@
 
 - **Workspace técnico:** `mdreader` — mantido, não renomeado. É o nome do repositório, do package Kotlin (`app.mdreader`), do workspace Cargo, do Tauri `tauri.conf.json`. Nunca será usado como marca de divulgação.
 - **Marca de divulgação:** `ressona.dev` — confirmado livre pelo RDAP do registry autoritativo (`pubapi.registry.google` → HTTP 404 com `errorCode: 404`; `.org`/`.com.br` tomados por terceiros; `ressona.es` e `ressona.com.br` são sites de terceiros — não são a marca do projeto).
-- **Name of engine:** `Engine Sona` — confinado aos crates `engine-core` / `player`; nunca aparece na UI de superfície, nunca na notificação, nunca no site; referência interna de código.
-- **Por que não `Sona` como marca pública:** `Sona` é campeã de LoL (Sona, a Curandeira). Usar como marca de divulgação cria risco de confusão de marca + associação ao jogo que não é intenção do produto. `Sona` como engine evita esse risco por confinamento.
+- **Nome do engine:** `Engine Ressoa` — confinado aos crates `engine-core` / `player`; nunca aparece na UI de superfície, nunca na notificação, nunca no site; referência interna de código.
+- **Por que `ressona` como marca pública:** a marca pública usa `ressona.dev`, confirmado livre, sem associação a personagem de jogo ou franquia existente, evitando risco de confusão de marca que não é intenção do produto. `Engine Ressoa` como engine interna mantém o nome do motor separado da marca pública.
 
 ---
 
@@ -47,7 +47,7 @@
 - **Categoria:** Leitor de áudio de documentos técnicos (não podcast, não audiolivro, não revista).
 - **Personalidade:** Técnica, confiável, simples, respeitosa com a atenção do usuário.
 - **Tom:** Direto. Não hype. Não gamificação. "Operável por sentimento, confirmado pelo ouvido" — a voz reflete isso.
-- **Referência cultural:** CTB/DIN (sinalização brasileira), NRK/DR (disciplinaridade institucional), M3 (estrutura técnica). **Não** referência a gaming (LoL Sona), **não** referência a entretenimento.
+- **Referência cultural:** CTB/DIN (sinalização brasileira), NRK/DR (disciplinaridade institucional), M3 (estrutura técnica). **Não** referência a gaming, **não** referência a entretenimento.
 - **F-Droid:** a marca deve ser compatível com distribuição open-source — não exige assinatura Google, não exige conta de desenvolvedor Apple, não tem taxa de 30%.
 
 ---
@@ -59,7 +59,7 @@
 | **Notificação MediaStyle** | **NÃO** | O título é do documento (FR-029); a marca não substitui conteúdo do documento. A notificação é operada pelo Android, não pelo design da marca. |
 | **In-app status view** | **SIM — mínimo** | Logo no topo (16 dp) + palavra "ressona" (12 sp, `#C9CDD2`) — nunca no fluxo de leitura; apenas no cabeçalho da status view. |
 | **Site / Landing** | **SIM — completo** | Logo grande + wordmark + descrição + links para repo + F-Droid + docs. |
-| **F-Droid / Repo** | **SIM** | Nome do repo pode ser `ressona` (ou `ressona/leitura`); descrição menciona `mdreader` como workspace técnico; `Engine Sona` mencionado apenas em docs internos. |
+| **F-Droid / Repo** | **SIM** | Nome do repo pode ser `ressona` (ou `ressona/leitura`); descrição menciona `mdreader` como workspace técnico; `Engine Ressoa` mencionado apenas em docs internos. |
 | **Earcon / Áudio** | **NÃO** | O earcon é sintético (Rust 22050 Hz); não há "som de marca". Se futuramente houver, seria uma variação do earcon existente, não um asset separado. |
 
 ---
@@ -70,8 +70,8 @@
 - **Não é uma personagem** (não há mascote, não há animação de personagem — o ponto amarelo é estado, não mascote).
 - **Não é uma música** (não há jingle; apenas earcon de estado).
 - **Não é uma identidade de luxo** (não usar serif premium, não usar gradientes, não usar sombra decorativa — o candidato B é disciplina institucional).
-- **Não confunde com LoL** ("Engine Sona" é confinado; a marca pública é "ressona").
+- **Não confunde com identidade de personagem** (`Engine Ressoa` é confinado; a marca pública é "ressona").
 
 ---
 
-*Referências:* `DESIGN.md` §9; `DESIGN_SYSTEMS_5_CANDIDATOS.md` §B-9; `RELATORIO_BRAND_PRODUTO.md` §8 (Top 5: Leitora, DocSona, Audileitura, LeituraAud, Sona — com notas de risco); `spec.md` FR-029 (título vem de metadado, não de marca); `.agents/product-marketing.md` (marca = referência, não conteúdo).
+*Referências:* `DESIGN.md` §9; `DESIGN_SYSTEMS_5_CANDIDATOS.md` §B-9; `RELATORIO_BRAND_PRODUTO.md` §8 (Top 5: Leitora, Audileitura, LeituraAud — com notas de risco); `spec.md` FR-029 (título vem de metadado, não de marca); `.agents/product-marketing.md` (marca = referência, não conteúdo).

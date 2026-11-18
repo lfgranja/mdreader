@@ -1,0 +1,25 @@
+Categories:
+  - Reading
+License: MIT
+AuthorName: MDMV - Laboratório de Soluções Digitais
+WebSite: https://github.com/lfgranja/mdreader
+SourceCode: https://github.com/lfgranja/mdreader
+IssueTracker: https://github.com/lfgranja/mdreader/issues
+
+AutoName: Ressoa
+
+RepoType: git
+Repo: https://github.com/lfgranja/mdreader.git
+
+Builds:
+  - versionName: 0.1.0-rc2
+    versionCode: 1
+    commit: v0.1.0-rc2
+    subdir: src-tauri/gen/android
+    gradle:
+      - yes
+
+AutoUpdateMode: None
+UpdateCheckMode: None
+CurrentVersion: 0.1.0-rc2
+CurrentVersionCode: 1

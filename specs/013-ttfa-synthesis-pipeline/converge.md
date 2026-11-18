@@ -260,3 +260,11 @@ Environment: 2201117TY (SDK 33, `adb-53cf9aa7-4VfOJ6._adb-tls-connect._tcp`), 01
 - `SC-REG-001`: partial (targeted host regressions + device smoke + monkey stable; full 5+ min not completed — capture window ~2 min).
 - `T232/T233`: unchanged, not complete.
 - `R4/R7`: not satisfied (no full gate sweep/release review performed).
+
+## Recovery audit (2026-11-18; no new device run)
+
+- The inherited 2026-11-07 smoke report is retained as historical evidence, not independently revalidated in this recovery environment. Its referenced `/tmp/mdreader-013-diag-*` captures are not present here.
+- Keep the 013 device results partial: 1,204 ms on a short document, 8,908 ms on an 80 KB document, an ambiguously attributed 12,967 ms resume, a switch/cancel observation, and about two minutes of playback. This does not satisfy the paired-baseline, clean high-offset, or 5+ minute acceptance criteria.
+- Do not attribute the 1,551 ms value in `verification/T051_T052_attestation.md` to 013. That artifact is the separate T051/T052 attestation; it does not establish a controlled 013 build/scenario.
+- Audit of the `origin/dev` baseline found `playback_watch_tick` calling `advance_production`, which can synthesize synchronously; the initial path uses ordinary async `spawn`; `stream_synthesis_and_land` publishes `Playing` before first synthesis/handoff; and resume offset is applied via `on_audible_progress`. These are implementation gaps against the 013 contract and audible-position invariant, not evidence of completion.
+- `SC-TTFA-001..005` remain partial or blocked as detailed above. `R4/R7` and `T232/T233` remain incomplete.

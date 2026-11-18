@@ -21,6 +21,7 @@ pub mod cli;
 pub mod closed;
 pub mod fallback;
 pub mod format;
+pub mod router;
 pub mod standin_a;
 pub mod standin_b;
 pub mod trait_;

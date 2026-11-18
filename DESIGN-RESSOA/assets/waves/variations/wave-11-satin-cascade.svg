@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 200" width="1200" height="200">
+  <defs>
+    <filter id="satin-shadow" x="-10%" y="-30%" width="120%" height="160%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.04   0 0 0 0 0.06   0 0 0 0 0.10  0 0 0 0.5 0"/>
+      <feOffset dx="0" dy="6"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+
+    <filter id="spec-glow-11" x="-10%" y="-30%" width="120%" height="160%">
+      <feGaussianBlur stdDeviation="3.5" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+
+    <!-- Gradientes Multidirecionais de Cetim Pesado -->
+    <!-- Segmento 1: Ciano/Turquesa Sedoso com Volume Transversal -->
+    <linearGradient id="satin-seg1" x1="0%" y1="0%" x2="100%" y2="30%">
+      <stop offset="0%" stop-color="#8FD8E8" stop-opacity="0.98"/>
+      <stop offset="50%" stop-color="#6EE7B7" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#5AD6A8" stop-opacity="0.98"/>
+    </linearGradient>
+
+    <!-- Dobra 1: Sombra Interna & Reversão do Cetim -->
+    <linearGradient id="satin-fold1" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#1B4238" stop-opacity="0.95"/>
+      <stop offset="50%" stop-color="#2D6B5A" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#5AD6A8" stop-opacity="0.95"/>
+    </linearGradient>
+
+    <!-- Segmento 2: Menta/Jade Central em Cascata -->
+    <linearGradient id="satin-seg2" x1="0%" y1="10%" x2="100%" y2="40%">
+      <stop offset="0%" stop-color="#5AD6A8" stop-opacity="0.98"/>
+      <stop offset="45%" stop-color="#46BD92" stop-opacity="0.96"/>
+      <stop offset="75%" stop-color="#72BEE0" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#B9A6F5" stop-opacity="0.98"/>
+    </linearGradient>
+
+    <!-- Dobra 2: Reversão Lavanda em Cascata -->
+    <linearGradient id="satin-fold2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#40326A" stop-opacity="0.95"/>
+      <stop offset="60%" stop-color="#5D4B94" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#B9A6F5" stop-opacity="0.98"/>
+    </linearGradient>
+
+    <!-- Segmento 3: Lavanda Majestoso -->
+    <linearGradient id="satin-seg3" x1="0%" y1="20%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#B9A6F5" stop-opacity="0.98"/>
+      <stop offset="50%" stop-color="#C4B5FD" stop-opacity="0.96"/>
+      <stop offset="100%" stop-color="#A78BFA" stop-opacity="0.98"/>
+    </linearGradient>
+
+    <!-- Brilho Especular Cilíndrico de Tecido Cetim -->
+    <linearGradient id="satin-specular" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0"/>
+      <stop offset="35%" stop-color="#FFFFFF" stop-opacity="0.95"/>
+      <stop offset="70%" stop-color="#E0F7FA" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+
+    <radialGradient id="hotspot-left" cx="30%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.7"/>
+      <stop offset="50%" stop-color="#8FD8E8" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#8FD8E8" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="hotspot-right" cx="70%" cy="35%" r="50%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.7"/>
+      <stop offset="50%" stop-color="#C4B5FD" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#B9A6F5" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- 1. Sombra Escultural do Caimento (Volume Real de Tecido) -->
+  <g opacity="0.4" transform="translate(0, 7)">
+    <path d="M -25.00 42.00 C -20.83 42.33, -27.50 45.67, 0.00 44.00 C 27.50 42.33, 96.67 31.67, 140.00 32.00 C 183.33 32.33, 223.33 38.33, 260.00 46.00 C 296.67 53.67, 343.33 72.67, 360.00 78.00 L 360.00 168.00 C 343.33 162.67, 296.67 144.33, 260.00 136.00 C 223.33 127.67, 183.33 119.00, 140.00 118.00 C 96.67 117.00, 27.50 128.33, 0.00 130.00 C -27.50 131.67, -20.83 128.33, -25.00 128.00 Z" fill="#0B0F1A" filter="url(#satin-shadow)"/>
+    <path d="M 390.00 88.00 C 405.00 92.67, 448.33 109.67, 480.00 116.00 C 511.67 122.33, 545.00 130.00, 580.00 126.00 C 615.00 122.00, 655.00 103.33, 690.00 92.00 C 725.00 80.67, 773.33 63.67, 790.00 58.00 L 790.00 138.00 C 773.33 143.00, 725.00 159.67, 690.00 168.00 C 655.00 176.33, 615.00 185.00, 580.00 188.00 C 545.00 191.00, 511.67 189.67, 480.00 186.00 C 448.33 182.33, 405.00 169.33, 390.00 166.00 Z" fill="#0B0F1A" filter="url(#satin-shadow)"/>
+    <path d="M 820.00 72.00 C 836.67 68.00, 883.33 51.00, 920.00 48.00 C 956.67 45.00, 1003.33 51.67, 1040.00 54.00 C 1076.67 56.33, 1113.33 61.00, 1140.00 62.00 C 1166.67 63.00, 1185.83 60.67, 1200.00 60.00 C 1214.17 59.33, 1220.83 58.33, 1225.00 58.00 L 1225.00 142.00 C 1220.83 142.50, 1214.17 144.00, 1200.00 145.00 C 1185.83 146.00, 1166.67 148.17, 1140.00 148.00 C 1113.33 147.83, 1076.67 145.67, 1040.00 144.00 C 1003.33 142.33, 956.67 137.33, 920.00 138.00 C 883.33 138.67, 836.67 146.33, 820.00 148.00 Z" fill="#0B0F1A" filter="url(#satin-shadow)"/>
+  </g>
+
+  <!-- 2. Segmento 2 (Central em Cascata) -->
+  <path d="M 390.00 88.00 C 405.00 92.67, 448.33 109.67, 480.00 116.00 C 511.67 122.33, 545.00 130.00, 580.00 126.00 C 615.00 122.00, 655.00 103.33, 690.00 92.00 C 725.00 80.67, 773.33 63.67, 790.00 58.00 L 790.00 138.00 C 773.33 143.00, 725.00 159.67, 690.00 168.00 C 655.00 176.33, 615.00 185.00, 580.00 188.00 C 545.00 191.00, 511.67 189.67, 480.00 186.00 C 448.33 182.33, 405.00 169.33, 390.00 166.00 Z" fill="url(#satin-seg2)"/>
+
+  <!-- 3. Dobra 1 (Under-fold escultural esquerdo) -->
+  <path d="M 330.00 70.00 C 336.67 68.33, 356.67 58.33, 370.00 60.00 C 383.33 61.67, 398.33 70.33, 410.00 80.00 C 421.67 89.67, 435.00 111.67, 440.00 118.00 L 440.00 142.00 C 435.00 145.00, 421.67 155.67, 410.00 160.00 C 398.33 164.33, 383.33 169.67, 370.00 168.00 C 356.67 166.33, 336.67 153.00, 330.00 150.00 Z" fill="url(#satin-fold1)"/>
+
+  <!-- 4. Segmento 1 (Ciano / Menta Esquerdo Sobreposto) -->
+  <path d="M -25.00 42.00 C -20.83 42.33, -27.50 45.67, 0.00 44.00 C 27.50 42.33, 96.67 31.67, 140.00 32.00 C 183.33 32.33, 223.33 38.33, 260.00 46.00 C 296.67 53.67, 343.33 72.67, 360.00 78.00 L 360.00 168.00 C 343.33 162.67, 296.67 144.33, 260.00 136.00 C 223.33 127.67, 183.33 119.00, 140.00 118.00 C 96.67 117.00, 27.50 128.33, 0.00 130.00 C -27.50 131.67, -20.83 128.33, -25.00 128.00 Z" fill="url(#satin-seg1)"/>
+  <ellipse cx="220" cy="85" rx="140" ry="40" fill="url(#hotspot-left)" opacity="0.6"/>
+
+  <!-- 5. Dobra 2 (Under-fold escultural direito) -->
+  <path d="M 760.00 52.00 C 766.67 50.67, 786.67 43.00, 800.00 44.00 C 813.33 45.00, 828.33 50.33, 840.00 58.00 C 851.67 65.67, 865.00 84.67, 870.00 90.00 L 870.00 124.00 C 865.00 127.00, 851.67 138.00, 840.00 142.00 C 828.33 146.00, 813.33 149.67, 800.00 148.00 C 786.67 146.33, 766.67 134.67, 760.00 132.00 Z" fill="url(#satin-fold2)"/>
+
+  <!-- 6. Segmento 3 (Lavanda Direito Sobreposto) -->
+  <path d="M 820.00 72.00 C 836.67 68.00, 883.33 51.00, 920.00 48.00 C 956.67 45.00, 1003.33 51.67, 1040.00 54.00 C 1076.67 56.33, 1113.33 61.00, 1140.00 62.00 C 1166.67 63.00, 1185.83 60.67, 1200.00 60.00 C 1214.17 59.33, 1220.83 58.33, 1225.00 58.00 L 1225.00 142.00 C 1220.83 142.50, 1214.17 144.00, 1200.00 145.00 C 1185.83 146.00, 1166.67 148.17, 1140.00 148.00 C 1113.33 147.83, 1076.67 145.67, 1040.00 144.00 C 1003.33 142.33, 956.67 137.33, 920.00 138.00 C 883.33 138.67, 836.67 146.33, 820.00 148.00 Z" fill="url(#satin-seg3)"/>
+  <ellipse cx="980" cy="95" rx="160" ry="42" fill="url(#hotspot-right)" opacity="0.6"/>
+
+  <!-- 7. Faixas de Brilho Especular Cetim (Luz Refletida na Superfície Lustrosa) -->
+  <path d="M -25.00 56.00 C 2.50 54.00, 89.17 43.00, 140.00 44.00 C 190.83 45.00, 243.33 53.50, 280.00 62.00 C 316.67 70.50, 346.67 89.50, 360.00 95.00" fill="none" stroke="url(#satin-specular)" stroke-width="4.5" stroke-linecap="round" opacity="0.9" filter="url(#spec-glow-11)"/>
+  <path d="M -25.00 56.00 C 2.50 54.00, 89.17 43.00, 140.00 44.00 C 190.83 45.00, 243.33 53.50, 280.00 62.00 C 316.67 70.50, 346.67 89.50, 360.00 95.00" fill="none" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round" opacity="0.95"/>
+
+  <path d="M 410.00 104.00 C 428.33 109.00, 478.33 132.33, 520.00 134.00 C 561.67 135.67, 616.67 124.00, 660.00 114.00 C 703.33 104.00, 760.00 80.67, 780.00 74.00" fill="none" stroke="url(#satin-specular)" stroke-width="4.5" stroke-linecap="round" opacity="0.85" filter="url(#spec-glow-11)"/>
+  <path d="M 410.00 104.00 C 428.33 109.00, 478.33 132.33, 520.00 134.00 C 561.67 135.67, 616.67 124.00, 660.00 114.00 C 703.33 104.00, 760.00 80.67, 780.00 74.00" fill="none" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round" opacity="0.9"/>
+
+  <path d="M 840.00 62.00 C 856.67 61.00, 900.00 55.00, 940.00 56.00 C 980.00 57.00, 1032.50 65.67, 1080.00 68.00 C 1127.50 70.33, 1200.83 69.67, 1225.00 70.00" fill="none" stroke="url(#satin-specular)" stroke-width="4.5" stroke-linecap="round" opacity="0.9" filter="url(#spec-glow-11)"/>
+  <path d="M 840.00 62.00 C 856.67 61.00, 900.00 55.00, 940.00 56.00 C 980.00 57.00, 1032.50 65.67, 1080.00 68.00 C 1127.50 70.33, 1200.83 69.67, 1225.00 70.00" fill="none" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round" opacity="0.95"/>
+
+  <!-- 8. Contornos Superiores de Cetim -->
+  <path d="M -25.00 42.00 C -20.83 42.33, -27.50 45.67, 0.00 44.00 C 27.50 42.33, 96.67 31.67, 140.00 32.00 C 183.33 32.33, 223.33 38.33, 260.00 46.00 C 296.67 53.67, 343.33 72.67, 360.00 78.00" fill="none" stroke="#FFFFFF" stroke-width="0.8" opacity="0.5"/>
+  <path d="M 390.00 88.00 C 405.00 92.67, 448.33 109.67, 480.00 116.00 C 511.67 122.33, 545.00 130.00, 580.00 126.00 C 615.00 122.00, 655.00 103.33, 690.00 92.00 C 725.00 80.67, 773.33 63.67, 790.00 58.00" fill="none" stroke="#FFFFFF" stroke-width="0.8" opacity="0.45"/>
+  <path d="M 820.00 72.00 C 836.67 68.00, 883.33 51.00, 920.00 48.00 C 956.67 45.00, 1003.33 51.67, 1040.00 54.00 C 1076.67 56.33, 1113.33 61.00, 1140.00 62.00 C 1166.67 63.00, 1185.83 60.67, 1200.00 60.00 C 1214.17 59.33, 1220.83 58.33, 1225.00 58.00" fill="none" stroke="#FFFFFF" stroke-width="0.8" opacity="0.5"/>
+</svg>

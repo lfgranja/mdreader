@@ -134,4 +134,9 @@ object DebugIngestHook {
             "error:${e.javaClass.simpleName}:${e.message}"
         }
     }
+
+
+    @JvmStatic
+    external fun debugPickDocumentViaRustJni(): String
+
 }

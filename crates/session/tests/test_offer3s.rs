@@ -759,19 +759,10 @@ fn the_offer_verbs_resolve_the_same_forms_over_the_wire() -> Result<(), Box<dyn 
 /// so the twin cannot be bound from here), and the
 /// assertion pins the requirement, not a symbol.
 #[test]
-#[ignore = "T037 gap: session::offer exposes no offer-window constant (the 3 s window is the clockless expire() hop); un-ignore and bind the assertion to the constant T036/T037 land in offer.rs"]
 fn the_deliberate_offer_window_is_a_named_three_second_constant() {
-    /// The recorded window value: the FR-032c
-    /// deliberate-pause offer window is 3 seconds
-    /// (spec.md:957), the same `3_000` ms the
-    /// adapter-side `MAX_OFFER_MS` carries.
-    const RECORDED_OFFER_WINDOW_MS: u32 = 3_000;
-
     assert_eq!(
-        RECORDED_OFFER_WINDOW_MS, 3_000,
-        "the deliberate-pause offer window is 3 s (FR-032c, spec.md:957) — \
-         TODO(T036/T037): name it in crates/session/src/offer.rs as the window \
-         constant the dialog and this suite share, mirroring \
-         adapter_synthesis::MAX_OFFER_MS (3_000)"
+        session::offer::OFFER_WINDOW_MS,
+        3_000,
+        "the deliberate-pause offer window is 3 s (FR-032c, spec.md:957)"
     );
 }

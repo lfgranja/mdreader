@@ -122,10 +122,9 @@ class ShellApplication : Application() {
         }
 
         override fun onActivityPaused(activity: Activity) {
-            // Keep currentActivity alive across the SAF picker round-trip:
-            // onActivityResult fires before onActivityResumed, so clearing
-            // here would make the result unreachable (the ingest never
-            // runs). Clear only on destroy.
+            // Do NOT null out currentActivity on pause: onActivityResult is dispatched
+            // to the calling Activity before onResume runs when returning from SAF picker
+            // (DocumentsUI) or system dialogs. Annulling here drops the result silently.
         }
 
         override fun onActivitySaveInstanceState(activity: Activity, state: Bundle) {}

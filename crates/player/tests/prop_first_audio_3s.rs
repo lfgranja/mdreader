@@ -131,7 +131,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use proptest::prelude::*;
 
 use adapter_synthesis::chunk::split_document;
-use adapter_synthesis::synth::{Voice, synthesize};
+use adapter_synthesis::synth::synthesize;
 
 /// The production app-shell source under observation.
 ///
@@ -750,7 +750,7 @@ fn visit_step(
         .functions
         .get(step.function)
         .filter(|_| depth < MAX_INLINE_DEPTH)
-        .map(|function| {
+        .map_or_default(|function| {
             let outer = scanner.suppressed;
             scanner.suppressed = Some(step.boundary);
             let inner = scan_region(
@@ -761,8 +761,7 @@ fn visit_step(
             );
             scanner.suppressed = outer;
             inner
-        })
-        .unwrap_or_default();
+        });
     steps.push(Step::Event(step.event(handed_over(&arguments))));
     steps.extend(inner);
     end
@@ -1006,7 +1005,7 @@ proptest! {
 
         // The production engine synthesizes the first chunk: the
         // audio the production path must hand to the backend first.
-        let first_chunk = synthesize(&segments[0], Voice::Faber).map_err(PropError::Engine)?;
+        let first_chunk = synthesize(&segments[0]).map_err(PropError::Engine)?;
         prop_assert!(
             !first_chunk.is_empty(),
             "the production engine delivered an empty first chunk — the adapter's fail-closed contract is broken",

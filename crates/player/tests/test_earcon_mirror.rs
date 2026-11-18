@@ -629,8 +629,10 @@ fn pause_demanding_trigger_publishes_the_mirror_state() -> Result<(), Box<dyn Er
     let mirror = MirrorState {
         transport: TransportState::Interrupted,
         position_secs: MIRROR_POSITION_SECS,
+        synthesizing: false,
         progress: surface.progress,
         progress_label: None,
+        transient_reason: None,
     };
     let wire = serde_json::to_value(&mirror)?;
     let object = wire

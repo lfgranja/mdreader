@@ -29,8 +29,7 @@ mod tests {
         }
 
         // Dead removals must be structural (element deleted), not display:none corpses.
-        // Allow the reason-banner toggle (hidden by default, shown when .visible),
-        // and chapter-nav buttons that are shown only in directory mode (T234).
+        // Allow the reason-banner toggle (hidden by default, shown when .visible).
         let scrubbed = lower
             .replace(
                 ".reason-banner {
@@ -45,15 +44,7 @@ mod tests {
                 "",
             )
             .replace(".rate-value { display: none !important; }", "")
-            .replace(".rate-value{display:none!important;}", "")
-            .replace(
-                r#"id="btnprevchapter" aria-label="capítulo anterior" title="capítulo anterior" style="display:none""#,
-                "",
-            )
-            .replace(
-                r#"id="btnnextchapter" aria-label="próximo capítulo" title="próximo capítulo" style="display:none""#,
-                "",
-            );
+            .replace(".rate-value{display:none!important;}", "");
         assert!(
             !scrubbed.replace(' ', "").contains("display:none"),
             "C-H4: structural dead removal left a display:none corpse in status_view.html"

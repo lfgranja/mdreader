@@ -401,3 +401,13 @@ governance) · `9208578` (v1.8.0 bzip2-1.0.6 admission).
 
 
 T028: gate-9 build artifact confirmed: app-universal-release.apk (118MB, aarch64)
+
+---
+
+## 2026-11-18 — Decisões de governança confirmadas para mdreader
+
+- **Aprovações em PRs (confirmado pelo Software Engineer):** `dev` permite merge com zero aprovações após os checks exigidos passarem; não exige review de CODEOWNER. `main` mantém pelo menos uma aprovação qualificada de alguém diferente do autor e review de CODEOWNER para paths próprios. `.github/CONTRIBUTING.md` foi atualizado no commit `0b2eef24`; configurações remotas do GitHub não foram alteradas nesta mudança.
+- **Autoridade de CI/PR do alvo (confirmado):** GitHub Actions (`.github/workflows/ci.yml`) e `gh` são autoritativos para `mdreader`. Forgejo e seus workflows na `mdmv-dark-factory` são somente referência; nenhum workflow foi importado. HEAD da factory observado como fonte nesta iteração: `ce3d42132edb9466b75eab968be775ebdea38985`; nenhum arquivo da factory foi modificado ou copiado.
+- **Gate 9 release-only (confirmado):** gates Host 1–8 permanecem nos PRs; Gate 9 roda manualmente (`workflow_dispatch`) no commit candidato de release; tags `v*` devem ser protegidas por ruleset GitHub exigindo sucesso de Host e Android antes da liberação. A implementação e a configuração remota ainda estão pendentes de execução e verificação.
+- **Âncora SDD observada:** `specs/010-directory-reading` (`.specify/feature.json`). A decisão Gate 9 está aprovada, mas a escolha 80/20 e o ciclo SDD completo ainda precisam ser registrados após as auditorias de evidência dos Blocos 2–5.
+- **Entrega documental em andamento:** PR #221 contém a atualização de `CONTRIBUTING.md`; seu estado atual de CI é [NV] até nova confirmação ao vivo. PR #220 teve Host e Android verdes na consulta de 2026-11-17 22:01:21 -04:00; estado posterior [NV].

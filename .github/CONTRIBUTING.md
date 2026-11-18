@@ -9,16 +9,18 @@ This repository follows **determinism-first** verification and **adversarial/sep
 
 ## Code review (mandatory, rigorous)
 - All changes land via Pull Request to protected branches (`dev`/`main` as configured).
-- Require at least one approving review from a qualified reviewer; CODEOWNERS review required for owned paths (`.github/CODEOWNERS`).
-- **Checker != author**: the approving reviewer must not be the change author (configure branch protection accordingly).
+- `dev` requires no approving reviews; a Pull Request may be merged with zero approvals after its required CI checks pass.
+- `main` requires at least one approving review from a qualified reviewer; CODEOWNERS review is required for owned paths (`.github/CODEOWNERS`).
+- **Checker != author** on `main`: the approving reviewer must not be the change author (configure branch protection accordingly).
 - For high-blast-radius changes (playback authority, session/store/bookmarks, JNI/Android shell, contracts, supply chain, CI), require explicit risk/rollback notes and device or targeted integration evidence when host checks are insufficient.
 - Prefer small, atomic commits/PRs; no unrelated refactors. Squash/merge strategy follows repository policy.
 
 ## Branch protection (configure in GitHub/Forgejo settings)
-Enable on `main` and `dev`:
+Configure each branch as follows:
 - Require pull request before merging.
-- Require approvals (>=1) and CODEOWNERS review.
-- Dismiss stale approvals on new commits.
+- On `dev`, require zero approving reviews and do not require CODEOWNERS review.
+- On `main`, require at least one approval and CODEOWNERS review for owned paths.
+- Dismiss stale approvals on new commits to `main`.
 - Require status checks to pass: `Host gates (verify.sh 1-8 subset + supply chain)` and, when relevant, `Android build (gate 9, aarch64 debug)`.
 - Require conversation resolution.
 - Restrict force-push and branch deletion.

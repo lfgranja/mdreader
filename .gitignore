@@ -148,3 +148,7 @@ keystore.properties
 
 # Local root organization archive (moved clutter, not source)
 archive/
+
+# Agent orchestration runtime (ledger and isolated worktrees)
+/.specify/queue/concurrency.jsonl
+/.specify/queue/worktrees/

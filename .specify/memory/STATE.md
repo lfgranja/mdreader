@@ -439,3 +439,14 @@ T028: gate-9 build artifact confirmed: app-universal-release.apk (118MB, aarch64
 - **Escolha:** **T229/T230/T234** — follow-ups abertos da spec 010: botão `btnPickDirectory`, listener `directory-selected` e controles de navegação de capítulos na view canônica. Evidência determinística: bridge já expõe e testa `pick_directory`/`next_chapter`/`previous_chapter` (`origin/dev:src-tauri/src/lib.rs:4495-4497,7491-7502`), mas `status_view.html` só tem handler opcional para `#btnPickDirectory` e nenhum botão/listener de capítulo.
 - **Não exige autorização nova:** são follow-ups da spec 010 já aceita; mudança reversível, verificável em host. Sem dispositivo necessário. CI de `dev` verde em `3fcba2aa`, então "elevar a CI" não é candidato nº1.
 - **Âncora:** `specs/023-directory-ui-controls`. Factory fonte: HEAD `fce55ca` (mutou nesta sessão; somente leitura).
+
+## 2026-11-19 — Verificação final (Bloco 8, ciclo 023)
+
+- **PR mesclado:** #225 (`6deebf81`), CI Host gates PASS (18m32s), Android `skipping` (Gate 9 release-only confirmado novamente).
+- **Gates locais ciclo 023:** `cargo fmt --all -- --check` exit 0; `cargo clippy --workspace --all-targets -- -D warnings` exit 0; `cargo nextest run --workspace --profile ci` 1082/1082; censo 137/137 diff vazio; `PROPTEST_CASES=32 bash scripts/verify.sh` `VERIFY_EXIT=0`; cinco bundles HTML byte-idênticos (`dcefad7e…`).
+- **TDD:** RED (2 falhas em botões de capítulo) → GREEN 5/5 no novo alvo `src-tauri::directory_ui_controls`.
+- **Âncora:** `specs/023-directory-ui-controls`. Follow-ups 010 T229/T230/T234 fechados; T232/T233 permanecem abertos.
+- **Factory fonte:** HEAD `fce55ca`, somente leitura; nenhum artefato transplantado.
+- **[NV]:** verificação visual/interação em dispositivo; execução real de `workflow_dispatch` e de tag `v*`; aplicação efetiva do ruleset na criação de tag.
+- **Dívidas remanescentes:** spec 013 TTFA parcial; T232/T233; Gate 8 full deferido; baselines do aparato SDD desalinhadas (informativas, não gate do alvo); duplicidade do número 020 em `specs/`.
+- **Próximo 80/20:** reavaliar no próximo Bloco 5 — candidatos: coerência documental upstream (2,50), T232/T233 (1,00), 013 TTFA completo (0,75, depende de dispositivo).

@@ -137,9 +137,9 @@
 
 - [x] T227 Implement NextChapter bridge action to advance chapter queue and open next chapter snapshot (FR-005, FR-011, partial)
 - [x] T228 Implement PreviousChapter bridge action to retreat chapter queue and open previous chapter snapshot (FR-005, FR-011, partial)
-- [ ] T229 Add directory picker button (btnPickDirectory) to status_view.html and wire click/keydown handlers (FR-001, FR-010). The selected canonical view has only an optional JS handler; no button markup is present.
-- [ ] T230 Add directory-selected event listener in status_view.html to update chapter title and counter (FR-010). The selected canonical view has no such listener.
+- [x] T229 Add directory picker button (btnPickDirectory) to status_view.html and wire click/keydown handlers (FR-001, FR-010). The selected canonical view has only an optional JS handler; no button markup is present.
+- [x] T230 Add directory-selected event listener in status_view.html to update chapter title and counter (FR-010). The selected canonical view has no such listener.
 - [x] T231 Filter 0-byte and binary (null-byte) files in SAF scanDirectory path matching debug hook behavior (FR-012, partial)
 - [ ] T232 Implement chapter pre-synthesis in last 10s for directory reading (FR-005, missing)
 - [ ] T233 Wire resume offer dialog for directory re-open via lookup_directory_on_open (FR-009, partial)
-- [ ] T234 Add chapter navigation controls to status_view.html (next/prev chapter buttons) (FR-011). Bridge actions exist; the selected canonical view has no chapter navigation controls.
+- [x] T234 Add chapter navigation controls to status_view.html (next/prev chapter buttons) (FR-011). Bridge actions exist; the selected canonical view has no chapter navigation controls.

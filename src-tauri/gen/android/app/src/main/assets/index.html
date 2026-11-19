@@ -285,6 +285,16 @@
       margin: 0;
       border: none;
     }
+    .directory-bar {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.65rem;
+    }
+    .chapter-nav {
+      align-items: center;
+      gap: 0.65rem;
+    }
     button:focus-visible {
       outline: 2px solid var(--ressoa-focus);
       outline-offset: 2px;
@@ -480,6 +490,14 @@
       </div>
       <button class="secondary speed-btn" id="btnRateUp" aria-label="Aumentar velocidade">+</button>
     </div>
+
+    <div class="directory-bar" id="directoryBar">
+      <button class="secondary" id="btnPickDirectory" aria-label="Selecionar diretório">📂</button>
+      <div class="chapter-nav" id="chapterNav" hidden>
+        <button class="secondary" id="btnPrevChapter" aria-label="Capítulo anterior">◀</button>
+        <button class="secondary" id="btnNextChapter" aria-label="Próximo capítulo">▶</button>
+      </div>
+    </div>
   </div>
 
   <div id="progress" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-valuetext="velocidade 1,0"><div id="progressFill"></div></div>
@@ -560,6 +578,10 @@
     btnSkipBack: document.getElementById('btnSkipBack'),
     btnSkipForward: document.getElementById('btnSkipForward'),
     btnRepeat: document.getElementById('btnRepeat'),
+    btnPickDirectory: document.getElementById('btnPickDirectory'),
+    btnPrevChapter: document.getElementById('btnPrevChapter'),
+    btnNextChapter: document.getElementById('btnNextChapter'),
+    chapterNav: document.getElementById('chapterNav'),
     btnRateDown: document.getElementById('btnRateDown'),
     btnRateUp: document.getElementById('btnRateUp'),
     speedDots: document.getElementById('speedDots'),
@@ -632,6 +654,13 @@
       els.liveRegion.textContent = text;
     }
     els._lastChapter = hasCh ? state.chapterIndex : undefined;
+  }
+
+  function renderChapterNav() {
+    const hasCh = Number.isInteger(state.chapterIndex)
+      && Number.isInteger(state.chapterCount)
+      && state.chapterCount > 0;
+    if (els.chapterNav) els.chapterNav.hidden = !hasCh;
   }
 
   function renderDocumentTitle() {
@@ -1001,6 +1030,7 @@
     renderDocumentTitle();
     renderTransport();
     renderSectionTitle();
+    renderChapterNav();
     renderProgress();
     renderSpeed();
     renderReason();
@@ -1241,10 +1271,23 @@
 
   els.btnSkipBack.addEventListener('click', () => sendAction('skip_back5s'));
   els.btnSkipForward.addEventListener('click', () => sendAction('skip_forward5s'));
-  const _btnPickDirectory = document.getElementById('btnPickDirectory');
-  if (_btnPickDirectory) _btnPickDirectory.addEventListener('click', () => {
-    sendAction('pick_directory');
-  });
+  if (els.btnPickDirectory) {
+    els.btnPickDirectory.addEventListener('click', () => {
+      sendAction('pick_directory');
+    });
+    els.btnPickDirectory.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        sendAction('pick_directory');
+      }
+    });
+  }
+  if (els.btnPrevChapter) {
+    els.btnPrevChapter.addEventListener('click', () => sendAction('previous_chapter'));
+  }
+  if (els.btnNextChapter) {
+    els.btnNextChapter.addEventListener('click', () => sendAction('next_chapter'));
+  }
   els.btnRepeat.addEventListener('click', () => {
     // Section restart - reuse SkipBack earcon behavior
     sendAction('repeat_section');
@@ -1360,6 +1403,9 @@
 
   // Listen for mirror updates from Rust
   if (window.__TAURI__) {
+    window.__TAURI__.event.listen('tauri://channel/directory-selected', () => {
+      refreshStatusView();
+    });
     window.__TAURI__.event.listen('tauri://channel/mirror-publish', (event) => {
       const mirror = event.payload;
       if (!mirror) return;

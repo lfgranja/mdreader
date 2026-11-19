@@ -99,6 +99,7 @@ src-tauri
 src-tauri::chroma_sanctioned_scope_property
 src-tauri::chroma_scoped
 src-tauri::decorative_wave
+src-tauri::directory_ui_controls
 src-tauri::glassmorphism_contract
 src-tauri::numeric_rate
 src-tauri::overflow_empty_title

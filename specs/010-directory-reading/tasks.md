@@ -141,5 +141,5 @@
 - [x] T230 Add directory-selected event listener in status_view.html to update chapter title and counter (FR-010). The selected canonical view has no such listener.
 - [x] T231 Filter 0-byte and binary (null-byte) files in SAF scanDirectory path matching debug hook behavior (FR-012, partial)
 - [ ] T232 Implement chapter pre-synthesis in last 10s for directory reading (FR-005, missing)
-- [ ] T233 Wire resume offer dialog for directory re-open via lookup_directory_on_open (FR-009, partial)
+- [x] T233 Wire resume offer dialog for directory re-open via lookup_directory_on_open (FR-009) — CONCLUÍDO no ciclo 024 (PR #228, commit c817fa0): rota in_app_dialog publicada, payload chapterFilename/storedOffsetSecs, teste comportamental no target pinado; 4/4 testes host PASS.
 - [x] T234 Add chapter navigation controls to status_view.html (next/prev chapter buttons) (FR-011). Bridge actions exist; the selected canonical view has no chapter navigation controls.

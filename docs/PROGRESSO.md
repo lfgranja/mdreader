@@ -38,3 +38,30 @@
 - [NV] Proteções de branch: não verificadas.
 - [NV] Gate 9 (Android): não executado nem verificado.
 - [NV] Dispositivo/emulador: não verificado.
+
+## 2026-11-20 — Rodada 2: merges, dispositivo e coerência documental (append-only)
+
+### Âncora atualizada
+- `feature.json` = `specs/024-directory-resume-offer` (ciclo #024 concluído e mesclado).
+- HEAD local `dev` = `44841427` (após `origin/dev` @ `29cb287f`, merges dos PRs #227 e #228).
+- Factory HEAD `b1deab1` — somente leitura.
+
+### Contagens reais (via `ls`)
+- `specs/`: **25**; `.specify/assessments/`: **28**; `.specify/bugs/`: **33**; `.specify/validations/`: **28**; `.specify/releases/`: **28**; `docs/research/`: **1** (`index.md`).
+
+### Evidência local
+- `scripts/verify.sh` gate 1–8 em execução nesta rodada; execução anterior `VERIFY_EXIT=0`.
+- 4 checks SDD PASS: completeness (25/0), DAG (855 tasks/0 cycles), uniqueness (0 dup), converge (24 baselined).
+- PRs #227 e #228 **MERGED** via `gh` (Host gates pass: 10m38s e 7m54s). Nenhum PR aberto.
+- Dispositivo 2201117TY (Android 13/SDK 33) conectado: `app.mdreader` v0.1.0, INTERNET ausente, sem crashes (logcat -t 200). Escrita no dispositivo não executada.
+
+### Correções documentais desta rodada
+- `specs/010-directory-reading/tasks.md:144`: T233 marcado `[x]` (implementado no ciclo 024/PR #228).
+- `.specify/bugs/fastlane-distribution-artifacts/fix.md`: nota de reconciliação do guard `test_noscope` (`fastlane/metadata` intencional para F-Droid rc2).
+
+### Afirmações remotas — não verificadas localmente
+- [NV] CI após os merges; aplicação efetiva de ruleset/proteções; gate 9 em artifact release.
+- [NV] Janela visual de 3s, TalkBack/foco, TTFA fim-a-fim e `play_to_audio_ms` em dispositivo (exigem escrita no dispositivo/build Android, não autorizados nesta rodada).
+
+### Nota sobre a spec 020
+- Interjeição do SE às 2026-11-20: **desconsiderar** a instrução anterior sobre "spec 020 do gate de allowlist" (mensagem enviada por engano). Nenhuma ação adicional foi tomada sobre a spec 020 nesta rodada.

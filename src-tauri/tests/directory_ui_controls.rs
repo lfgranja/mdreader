@@ -37,8 +37,12 @@ fn directory_selected_listener_refreshes_chapter_state() {
         "T230: the view must listen for the directory-selected shell event"
     );
     assert!(
-        VIEW.contains("directory-selected', () => {"),
-        "T230: listener body must be present"
+        VIEW.contains("directory-selected', (event) => {"),
+        "T230: listener body must be present and consume the directory-selected payload"
+    );
+    assert!(
+        VIEW.contains("payload.chapterFilename"),
+        "T230: the listener must read the chapter filename from the payload"
     );
     assert!(
         VIEW.contains("refreshStatusView();"),

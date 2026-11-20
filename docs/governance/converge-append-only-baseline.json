@@ -92,6 +92,10 @@
     "specs/023-directory-ui-controls/converge.md": {
       "bytes": 1840,
       "sha256": "395a46819f845eaa286f9e60ba24cf4fbf4bd6dc691745ecd4cfeee08c72f37f"
+    },
+    "specs/024-directory-resume-offer/converge.md": {
+      "bytes": 4103,
+      "sha256": "fb84938cd8ca45a94be247b60cd297a799dad7264d857e9901e1763e08eb0240"
     }
   },
   "schema_version": "087.1.0"

@@ -285,6 +285,16 @@
       margin: 0;
       border: none;
     }
+    .directory-bar {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.65rem;
+    }
+    .chapter-nav {
+      align-items: center;
+      gap: 0.65rem;
+    }
     button:focus-visible {
       outline: 2px solid var(--ressoa-focus);
       outline-offset: 2px;
@@ -447,6 +457,7 @@
       margin-top: 1rem;
       text-align: center;
     }
+</style>
 <!-- SCAFFOLD (template: status-surface.md S3-S5 + existing status_view.html; NOT production): token/aria/movement -->
 <meta name="ressoa-scaffold" content="status-view-restyle-v2.2.0">
 <style id="ressoa-scaffold-tokens">:root{--ressoa-void:#0B0F1A;--ressoa-stage:#141B2D;--ressoa-focus:#8FD8E8;--signal-caution:#FFD400;--signal-failure:#FF4D63;--ressoa-voice:#F2F0E6;--ressoa-hush:#A9B8CE;--ressoa-harp:#E8C46A;--ressoa-celeste:#B9A6F5;--ressoa-aria:#5AD6A8;--ressoa-boundary:#55688F;}@media(prefers-reduced-motion:reduce){#progress-fill{animation:none !important;transform:none !important;opacity:1 !important;animation-play-state: paused !important;} .reason-banner.warning{animation:none !important;animation-play-state: paused !important;} .card::before{animation:none !important;transform:none !important;animation-play-state: paused !important;}#waveform{animation:none !important;animation-play-state: paused !important;}}</style>
@@ -478,6 +489,14 @@
         <span class="rate-value" id="rateValue" aria-hidden="true">1.25×</span>
       </div>
       <button class="secondary speed-btn" id="btnRateUp" aria-label="Aumentar velocidade">+</button>
+    </div>
+
+    <div class="directory-bar" id="directoryBar">
+      <button class="secondary" id="btnPickDirectory" aria-label="Selecionar diretório">📂</button>
+      <div class="chapter-nav" id="chapterNav" hidden>
+        <button class="secondary" id="btnPrevChapter" aria-label="Capítulo anterior">◀</button>
+        <button class="secondary" id="btnNextChapter" aria-label="Próximo capítulo">▶</button>
+      </div>
     </div>
   </div>
 
@@ -559,6 +578,10 @@
     btnSkipBack: document.getElementById('btnSkipBack'),
     btnSkipForward: document.getElementById('btnSkipForward'),
     btnRepeat: document.getElementById('btnRepeat'),
+    btnPickDirectory: document.getElementById('btnPickDirectory'),
+    btnPrevChapter: document.getElementById('btnPrevChapter'),
+    btnNextChapter: document.getElementById('btnNextChapter'),
+    chapterNav: document.getElementById('chapterNav'),
     btnRateDown: document.getElementById('btnRateDown'),
     btnRateUp: document.getElementById('btnRateUp'),
     speedDots: document.getElementById('speedDots'),
@@ -631,6 +654,13 @@
       els.liveRegion.textContent = text;
     }
     els._lastChapter = hasCh ? state.chapterIndex : undefined;
+  }
+
+  function renderChapterNav() {
+    const hasCh = Number.isInteger(state.chapterIndex)
+      && Number.isInteger(state.chapterCount)
+      && state.chapterCount > 0;
+    if (els.chapterNav) els.chapterNav.hidden = !hasCh;
   }
 
   function renderDocumentTitle() {
@@ -1000,6 +1030,7 @@
     renderDocumentTitle();
     renderTransport();
     renderSectionTitle();
+    renderChapterNav();
     renderProgress();
     renderSpeed();
     renderReason();
@@ -1180,8 +1211,10 @@
         renderAll();
       }
     } catch (e) {
+      const rawMsg = typeof e === 'string' ? e : (e && e.message) ? e.message : '';
+      if (rawMsg === 'no document loaded') return;
       console.error('refreshStatusView failed:', e);
-      const msg = (e && e.message) ? e.message : 'falha ao atualizar estado';
+      const msg = rawMsg || 'falha ao atualizar estado';
       if (els.reasonBanner) { els.reasonBanner.textContent = msg; els.reasonBanner.className = 'reason-banner visible failure'; }
       if (els.liveRegion) els.liveRegion.textContent = msg;
     }
@@ -1238,10 +1271,23 @@
 
   els.btnSkipBack.addEventListener('click', () => sendAction('skip_back5s'));
   els.btnSkipForward.addEventListener('click', () => sendAction('skip_forward5s'));
-  const _btnPickDirectory = document.getElementById('btnPickDirectory');
-  if (_btnPickDirectory) _btnPickDirectory.addEventListener('click', () => {
-    sendAction('pick_directory');
-  });
+  if (els.btnPickDirectory) {
+    els.btnPickDirectory.addEventListener('click', () => {
+      sendAction('pick_directory');
+    });
+    els.btnPickDirectory.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        sendAction('pick_directory');
+      }
+    });
+  }
+  if (els.btnPrevChapter) {
+    els.btnPrevChapter.addEventListener('click', () => sendAction('previous_chapter'));
+  }
+  if (els.btnNextChapter) {
+    els.btnNextChapter.addEventListener('click', () => sendAction('next_chapter'));
+  }
   els.btnRepeat.addEventListener('click', () => {
     // Section restart - reuse SkipBack earcon behavior
     sendAction('repeat_section');
@@ -1357,6 +1403,9 @@
 
   // Listen for mirror updates from Rust
   if (window.__TAURI__) {
+    window.__TAURI__.event.listen('tauri://channel/directory-selected', () => {
+      refreshStatusView();
+    });
     window.__TAURI__.event.listen('tauri://channel/mirror-publish', (event) => {
       const mirror = event.payload;
       if (!mirror) return;

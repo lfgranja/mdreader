@@ -401,3 +401,52 @@ governance) · `9208578` (v1.8.0 bzip2-1.0.6 admission).
 
 
 T028: gate-9 build artifact confirmed: app-universal-release.apk (118MB, aarch64)
+
+---
+
+## 2026-11-18 — Decisões de governança confirmadas para mdreader
+
+- **Aprovações em PRs (confirmado pelo Software Engineer):** `dev` permite merge com zero aprovações após os checks exigidos passarem; não exige review de CODEOWNER. `main` mantém pelo menos uma aprovação qualificada de alguém diferente do autor e review de CODEOWNER para paths próprios. `.github/CONTRIBUTING.md` foi atualizado no commit `0b2eef24`; configurações remotas do GitHub não foram alteradas nesta mudança.
+- **Autoridade de CI/PR do alvo (confirmado):** GitHub Actions (`.github/workflows/ci.yml`) e `gh` são autoritativos para `mdreader`. Forgejo e seus workflows na `mdmv-dark-factory` são somente referência; nenhum workflow foi importado. HEAD da factory observado como fonte nesta iteração: `ce3d42132edb9466b75eab968be775ebdea38985`; nenhum arquivo da factory foi modificado ou copiado.
+- **Gate 9 release-only (confirmado e IMPLEMENTADO em 2026-11-18):** gates Host 1–8 permanecem nos PRs; Gate 9 roda manualmente (`workflow_dispatch`) e em tags `v*`; ruleset `v* release gates` (id `27578490`, active) exige os contextos Host e Android em tags `v*`. PR #223 mesclado em `dev` (`568a4e9f`); CI do PR mostrou apenas `Host gates` (PASS 26m33s) e `Android build` = `skipping`, confirmando a mudança ao vivo. Detalhes em `specs/022-gate9-release-only/`.
+- **Âncora SDD observada:** `specs/010-directory-reading` (`.specify/feature.json`). A decisão Gate 9 está aprovada, mas a escolha 80/20 e o ciclo SDD completo ainda precisam ser registrados após as auditorias de evidência dos Blocos 2–5.
+- **Entrega documental em andamento:** PR #221 contém a atualização de `CONTRIBUTING.md`; seu estado atual de CI é [NV] até nova confirmação ao vivo. PR #220 teve Host e Android verdes na consulta de 2026-11-17 22:01:21 -04:00; estado posterior [NV].
+
+## 2026-11-18 — Bloco 5: escolha 80/20 (ciclo Gate 9 release-only)
+
+- **Critério:** impacto na missão × confiança na evidência ÷ esforço × risco (escala 1–5 cada; denominador declarado).
+- **Ranque:** (1) Gate 9 release-only = (5×5)/(2×2) = **6,25**; (2) corrigir baselines do aparato SDD = (2×5)/(3×1) = 3,33; (3) implementar 013 TTFA completo = (5×3)/(5×4) = 0,75.
+- **Escolha:** **Gate 9 release-only**. Decisão de governança já aprovada (STATE.md 2026-11-18); evidência determinística local: `.github/workflows/ci.yml:116-121` mostra Gate 9 rodando em todo PR/push, e `gh api repos/lfgranja/mdreader/rulesets` retorna vazio (sem ruleset de tags `v*`). CI do PR #222 verde (Host 9m47s, Android 27m29s) e merge em `dev` confirmado (`ff1b20e9`) — "elevar a CI" não é candidato nº1.
+- **Evidência remota (verificada ao vivo em 2026-11-18):** ruleset `v* release gates` criado (id `27578490`) e conferido via `gh api`; PR #223 mesclado; remainder [NV]: execução real de `workflow_dispatch` em commit candidato e push de tag `v*` (não realizados — publicação de release fora de escopo).
+- **Âncora:** `specs/022-gate9-release-only` (nova). HEAD da factory fonte dos aparatos SDD: `357e1c10bd4782bf5c3dad8666fe010539c25500` (mutou concorrentemente durante a sessão; factory somente leitura).
+
+## 2026-11-18 — Verificação final (Bloco 8)
+
+- **PRs mesclados:** #222 (recuperação WIP 013, `ff1b20e9`) e #223 (Gate 9 release-only, `568a4e9f`). Ambos com CI verde observada ao vivo.
+- **Gates locais (PR #222):** fmt PASS; 16/16 testes focados; 1077/1077 workspace (`--profile ci`, PROPTEST_CASES=32); clippy exit 0; censo 136/136 diff limpo; bundles byte-idênticos.
+- **Gates CI (PR #223):** Host gates PASS (26m33s); Android `skipping` — prova viva de que Gate 9 não roda em PR.
+- **Stashes:** `stash@{0}` (042a6d84) promovido via PR #222 e descartado após merge confirmado; nenhum stash restante.
+- **Worktrees/branches desta sessão:** removidas; ledger `done` com manifesto para #221/#220/#222/#223. Trabalho alheio (`fix/gate4-github-actions`, checkout compartilhado) intacto.
+- **Factory fonte:** HEAD `357e1c10` (mutou durante a sessão); somente leitura; nenhum artefato transplantado.
+- **[NV] remoto:** execução real de `workflow_dispatch` e push de tag `v*`; proteção efetiva do ruleset na criação de tag (payload verificado, aplicação real não exercitada).
+- **Dívida:** spec 013 permanece parcial (ver `specs/013-ttfa-synthesis-pipeline/converge.md`); T232/T233 abertos; baselines do aparato SDD ausentes no alvo (checks informativos falham, não são o gate autoritativo).
+- **Próximo 80/20 (provisório):** implementar 013 TTFA completo (score 0,75 na fila anterior) — depende de acesso a dispositivo 2201117TY e decisão sobre reabrir o ciclo.
+
+## 2026-11-18 — Bloco 5: escolha 80/20 do ciclo 023
+
+- **Critério:** impacto na missão × confiança na evidência ÷ esforço × risco (escala 1–5 cada).
+- **Ranque:** T229/T230/T234 = (5×5)/(3×3) = **2,78**; coerência documental upstream = (1×5)/(2×1) = 2,50; T232/T233 = (5×4)/(5×4) = 1,00; 013 TTFA completo = (5×3)/(5×4) = 0,75.
+- **Escolha:** **T229/T230/T234** — follow-ups abertos da spec 010: botão `btnPickDirectory`, listener `directory-selected` e controles de navegação de capítulos na view canônica. Evidência determinística: bridge já expõe e testa `pick_directory`/`next_chapter`/`previous_chapter` (`origin/dev:src-tauri/src/lib.rs:4495-4497,7491-7502`), mas `status_view.html` só tem handler opcional para `#btnPickDirectory` e nenhum botão/listener de capítulo.
+- **Não exige autorização nova:** são follow-ups da spec 010 já aceita; mudança reversível, verificável em host. Sem dispositivo necessário. CI de `dev` verde em `3fcba2aa`, então "elevar a CI" não é candidato nº1.
+- **Âncora:** `specs/023-directory-ui-controls`. Factory fonte: HEAD `fce55ca` (mutou nesta sessão; somente leitura).
+
+## 2026-11-19 — Verificação final (Bloco 8, ciclo 023)
+
+- **PR mesclado:** #225 (`6deebf81`), CI Host gates PASS (18m32s), Android `skipping` (Gate 9 release-only confirmado novamente).
+- **Gates locais ciclo 023:** `cargo fmt --all -- --check` exit 0; `cargo clippy --workspace --all-targets -- -D warnings` exit 0; `cargo nextest run --workspace --profile ci` 1082/1082; censo 137/137 diff vazio; `PROPTEST_CASES=32 bash scripts/verify.sh` `VERIFY_EXIT=0`; cinco bundles HTML byte-idênticos (`dcefad7e…`).
+- **TDD:** RED (2 falhas em botões de capítulo) → GREEN 5/5 no novo alvo `src-tauri::directory_ui_controls`.
+- **Âncora:** `specs/023-directory-ui-controls`. Follow-ups 010 T229/T230/T234 fechados; T232/T233 permanecem abertos.
+- **Factory fonte:** HEAD `fce55ca`, somente leitura; nenhum artefato transplantado.
+- **[NV]:** verificação visual/interação em dispositivo; execução real de `workflow_dispatch` e de tag `v*`; aplicação efetiva do ruleset na criação de tag.
+- **Dívidas remanescentes:** spec 013 TTFA parcial; T232/T233; Gate 8 full deferido; baselines do aparato SDD desalinhadas (informativas, não gate do alvo); duplicidade do número 020 em `specs/`.
+- **Próximo 80/20:** reavaliar no próximo Bloco 5 — candidatos: coerência documental upstream (2,50), T232/T233 (1,00), 013 TTFA completo (0,75, depende de dispositivo).

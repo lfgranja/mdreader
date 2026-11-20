@@ -7,6 +7,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.DocumentsContract
+import android.provider.OpenableColumns
 import android.util.Log
 import android.widget.Toast
 import java.io.File
@@ -562,8 +563,16 @@ object DocIngest {
                     Log.w(TAG, "Skipping unreadable chapter ${f.relativePath}", e)
                     return
                 }
+                if (bytes.isEmpty()) {
+                    Log.w(TAG, "Skipping empty chapter: ${f.relativePath}")
+                    return
+                }
                 if (bytes.size > MAX_DOC_BYTES) {
                     Log.w(TAG, "Skipping chapter past the byte cap: ${f.relativePath}")
+                    return
+                }
+                if (bytes.contains(0.toByte())) {
+                    Log.w(TAG, "Skipping binary chapter (contains null byte): ${f.relativePath}")
                     return
                 }
                 val hex = bytesToHex(blake3_256(bytes))
@@ -624,6 +633,13 @@ object DocIngest {
         val uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
         return resolver.query(uri, arrayOf(DocumentsContract.Document.COLUMN_DISPLAY_NAME), null, null, null)
             ?.use { if (it.moveToFirst()) it.getString(0) else null }
+    }
+
+    private fun queryName(resolver: ContentResolver, uri: Uri): String? = try {
+        resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+            ?.use { if (it.moveToFirst()) it.getString(0) else null }
+    } catch (_: Exception) {
+        null
     }
 
     private fun listChildren(resolver: ContentResolver, treeUri: Uri, parentDocId: String): List<Entry> {
@@ -719,7 +735,7 @@ object DocIngest {
         val action = intent.action ?: return false
         val resolver = activity.contentResolver
 
-        Log.i(TAG, "handleIncomingIntent: action=$action type=${intent.type} data=${intent.data}")
+        Log.i(TAG, "handleIncomingIntent: action=$action")
 
         val (bytes, uriStr, extension) = when (action) {
             Intent.ACTION_VIEW -> {
@@ -729,8 +745,8 @@ object DocIngest {
                     ?: resolveFormat(resolver, uri) ?: "md"
                 val rawBytes = try {
                     readDocumentBytes(resolver, uri)
-                } catch (e: Exception) {
-                    Log.e(TAG, "handleIncomingIntent: failed to read ACTION_VIEW uri=$uri", e)
+                } catch (_: Exception) {
+                    Log.e(TAG, "handleIncomingIntent: failed to read ACTION_VIEW document")
                     return false
                 }
                 val effectiveUri = if (!displayName.isNullOrBlank()) {
@@ -752,8 +768,8 @@ object DocIngest {
                     val ext = resolveFormat(resolver, streamUri) ?: "md"
                     val rawBytes = try {
                         readDocumentBytes(resolver, streamUri)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "handleIncomingIntent: failed to read ACTION_SEND streamUri=$streamUri", e)
+                    } catch (_: Exception) {
+                        Log.e(TAG, "handleIncomingIntent: failed to read ACTION_SEND document")
                         return false
                     }
                     Triple(rawBytes, streamUri.toString(), ext)

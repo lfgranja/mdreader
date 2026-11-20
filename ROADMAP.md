@@ -4,7 +4,7 @@
 > **Framework de Produto & Governança:** `Now / Next / Later` + Spec Kit (`assess.*` → `specify` → `clarify` → `plan` → `tasks` → `implement` → `converge` / `bug.*`)  
 > **Objetivo Primário:** `OBJETIVO.md` — leitor de documentos Markdown com síntese de voz 100% offline, Rust como única autoridade de playback/transporte/rate/posição, Kotlin como espelho estrito (`SC-035`), Tauri 2.12.1, CPAL 0.18.2 + AAudio, mono f32 @ 22050 Hz, sherpa-onnx 1.13.8 + Piper pt-BR (`offline_default`). Zero permissão de INTERNET.
 
-*Atualizado: 2026-11-16 · Branch atual: `dev`. Ciclo 018 — Ressoa Voice (closed catalog faber+cadu+jeff, persist/cycle/restart, host gates 1-8 PASS, gate 9 Rust compile PASS). Ciclo rc2 — Spec 021 convergida (targetSdk 36 alinhado ao prazo Google Play 2026), rc2 candidate produzido (.specify/releases/v0.1.0-rc2/); `./scripts/verify.sh` apresentou falha na linha 35 (`fail: comando não encontrado`) nesta sessão e precisa de correção antes do release; signed build/store e receita F-Droid reprodutível (cargo-ndk + Gradle sem `gradlew`) pendentes.*
+*Atualizado: 2026-11-18 · Branch alvo: `dev`. Ciclo 018 — Ressoa Voice (closed catalog faber+cadu+jeff, persist/cycle/restart, host gates 1-8 PASS, gate 9 Rust compile PASS). Ciclo rc2 — Spec 021 convergida (targetSdk 36 alinhado ao prazo Google Play 2026), rc2 candidate produzido (.specify/releases/v0.1.0-rc2/); `./scripts/verify.sh` apresentou falha na linha 35 (`fail: comando não encontrado`) na sessão anterior e precisa de correção antes do release; signed build/store e receita F-Droid reprodutível (cargo-ndk + Gradle sem `gradlew`) pendentes. Spec 013 reaberta para recuperação: implementação e evidência TTFA permanecem parciais.*
 
 ---
 
@@ -16,7 +16,7 @@
 │ • ✅ Spec 017 (AudioChunkCache): cache LRU 32 MiB em RAM com PBT CONVERGIDA (PR #195)       │
 │ • ✅ Bug #196 / PR #197: velocidade acústica dinâmica, re-ancoragem em tempo real e layout    │
 │ • ✅ Spec 014 (normalização) e Spec 015 (prosódia semântica) CONVERGIDAS                      │
-│ • ✅ Spec 010 (Directory Reading) 100% no host/device; Spec 013 (TTFA) host-converged, device TTFA proof pending (converge: partial) │
+│ • ✅ Spec 010 core (49/49) entregue; follow-ups T229/T230/T232/T233 ainda abertos. Spec 013 (TTFA) parcial: watch/worker/startup e verificação final pendentes │
 │ • ✅ Spec 018 (Ressoa Voice): closed catalog (faber+cadu+jeff CC0), persist/cycle/restart, tests PASS, gate 9 Rust compile PASS │
 └─────────────────────────────────────────────────────────────────────────────────────────────┘
                                               ↓
@@ -53,7 +53,7 @@
 | `intent-filter-ingress` | 5/5 | `go` | **Promovido para Spec 019** | `decision.md` → Ingress via ACTION_VIEW e ACTION_SEND |
 | `audio-cache-queue-management` | 5/5 | `go` | **Promovido para Spec 017** | `decision.md` → Spec 017 implementada e atestada (PR #195) |
 | `directory-reading` | 5/5 | `go` | **Promovido para Spec 010** | `decision.md` → ChapterQueue com sort natural e árvore SAF |
-| `ttfa-synthesis-pipeline` | 5/5 | `go` | **Promovido para Spec 013** | `decision.md` → TTFA medido em 1.551 ms no Redmi Note 11 |
+| `ttfa-synthesis-pipeline` | 5/5 | `go` | **Promovido para Spec 013** | Decisão autoriza Option A; convergência e evidência de aceitação continuam parciais |
 | `tts-symbol-fatigue` | 5/5 | `go` | **Promovido para Spec 014** | `decision.md` → Sanitização de Markdown em `normalize.rs` |
 | `md-semantic-prosody` | 5/5 | `go` | **Promovido para Spec 015** | `decision.md` → Pausas e cadência em `prosody.rs` |
 | `ressoa-voice` | 5/5 | `go` | **Promovido para Spec 018** | `decision.md` → Especificação e contratos criados |
@@ -88,10 +88,10 @@
 | **007** | `ressoa-complete-design` | 29/29 | ✓ | ✓ | RMS ~20Hz `AtomicU32`, repeat button | **CONVERGIDO** (100% tasks concluídas) |
 | **008** | `ref-device-emulator` | 40/42 | ✓ | ✓ | Harness de emulação estrutural | **CONVERGIDO** |
 | **009** | `open-file-from-title` | 26/30 | ✓ | ✓ | SAF JNI, Blake3 hash, offerDialog | **CONVERGIDO** (0 findings no `/speckit.converge`) |
-| **010** | `directory-reading` | 49/49 | ✓ | ✓ | ChapterQueue, tree SAF, gapless | **CONVERGIDO** (Atestado em hardware real) |
+| **010** | `directory-reading` | 49/49 core; follow-ups pending | ✓ | ✓ | ChapterQueue, tree SAF, gapless; T227/T228/T231 | **CORE CONVERGIDO**; T229/T230/T232/T233 abertos |
 | **011** | `avd-emulator-setup` | 9/23 | ✓ | ✓ | Scripts e configs AVD | **CONVERGIDO** (Harness operacional) |
 | **012** | `debug-ingest-hook` | 54/69 | ✓ | ✓ | Hooks de teste via ADB | **CONVERGIDO / Suportado** |
-| **013** | `ttfa-synthesis-pipeline` | 5/28 | ✓ | ✓ | Worker pré-roll, TTFA 1.551 ms | **CONVERGIDO** (Comprovado no hardware de ref.) |
+| **013** | `ttfa-synthesis-pipeline` | em progresso | ✓ | ✓ | Refatoração do producer e testes TTFA | **PARCIAL** (ver `specs/013-ttfa-synthesis-pipeline/{tasks,converge}.md`) |
 | **014** | `tts-symbol-normalization` | 9/9 | ✓ | ✓ | `normalize.rs` + PBT | **CONVERGIDO** (Cycle 017) |
 | **015** | `md-semantic-prosody` | 5/6 | ✓ | ✓ | `prosody.rs` + cadência | **CONVERGIDO** (Cycle 017) |
 | **016** | `voz-lula` | 0/25 | ✓ | ✓ | — | **DEFERIDO** (Risco legal/regulatório; sem modelo) |
@@ -132,7 +132,7 @@
 3. **Ingestão SAF & Bookmarking Durável (100% Convergido):** Abertura de arquivos Markdown pela caixa de título via Android SAF, cálculo de fingerprint Blake3, persistência atômica em `redb` a cada 20s e em pausas, e diálogo de retomada inteligente (`offerDialog`) (Spec 009 convergida; bugs de play sanados).
 4. **Normalização e Prosódia Semântica de Markdown (100% Convergido):** Sanitização de símbolos técnicos e pontuação (`normalize.rs`) e pausas estruturais/entonação (`prosody.rs`), eliminando a fadiga auditiva (Specs 014 e 015 convergidas).
 5. **Directory Reading (100% Convergido — 49 tasks):** ChapterQueue com sort natural, persistência em redb, permissões de árvore SAF (`ACTION_OPEN_DOCUMENT_TREE`), transições gapless e comandos de avanço/recuo de capítulos atestados em hardware físico (Spec 010).
-6. **Pipeline de Síntese TTFA com Worker Assíncrono (host-converged; device TTFA proof pending):** Síntese on-device com Piper e sherpa-onnx; TTFA medido em 1.551 ms no Redmi Note 11 em captura anterior, mas `converge.md` de 013 marca parcial (sem rebuild/controlled smoke recente). (Spec 013).
+6. **Pipeline de Síntese TTFA (parcial):** A revisão de recuperação encontrou síntese síncrona ainda chamada pelo `playback_watch_tick` e pelo worker inicial em `spawn` assíncrono. O smoke herdado de 2026-11-07 mediu 1.204 s em documento curto e 8.908 s em documento de 80 KB; a retomada em alto offset não teve atribuição limpa. A medição de 1.551 ms em `verification/T051_T052_attestation.md` pertence àquela attestation e não comprova a Spec 013. (Spec 013).
 7. **Cache Bounded de Áudio em RAM (100% Convergido):** Gerenciamento de memória de 32 MiB (`AudioChunkCache`) com invalidação atômica e política LRU (Spec 017, PR #195).
 8. **Controle Dinâmico de Velocidade (100% Convergido):** Ajuste de taxa dinâmico que afeta o áudio neural imediatamente e re-ancora a reprodução sem travar a interface (PR #197).
 9. **Padrão de Qualidade e Gates de CI:** Gates 1 a 8 rigorosamente verdes (formatação, nextest com 1.050+ testes, docs, clippy pedantic -D warnings, supply chain e pureza do shell).

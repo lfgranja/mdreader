@@ -56,3 +56,11 @@ Device results:
 ## Recommendation
 
 Close the bug — verified end-to-end on the reference device. The fix successfully wires the title-box click handler, surfaces picker-launch errors to the user, initializes the JVM on the Tauri IPC path, and propagates `pickDocument` failures correctly.
+
+## Follow-up verification — served asset parity (2026-11-17)
+
+- `sha256sum dist/index.html src-tauri/src/status_view.html` produced the same SHA-256 for both files: `e3322b82e326d31955c09a2fbee76542f3766dd3e082505eb8b12786bddfb6bb`.
+- `cmp dist/index.html src-tauri/src/status_view.html` exited 0.
+- The target surface-audit implementation resolves `frontendDist` from `src-tauri/tauri.conf.json` and compares the configured bundle entry with `status_view.html`.
+- The local `cargo nextest run --workspace -E 'test(surface_audit)'` did not reach the tests: compilation of cached `cc v1.8.0` failed because its `src/target/{apple,generated,llvm,parser}.rs` files are absent from the extracted registry source. The cached `.crate` SHA-256 matches `Cargo.lock`; no dependency or project source was changed to mask this environment failure.
+- This follow-up verifies packaging parity only; it does not claim a new device reproduction. The 2026-11-07 device results above remain the reproduction evidence.

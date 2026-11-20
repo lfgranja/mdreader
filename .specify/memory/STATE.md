@@ -484,3 +484,13 @@ T028: gate-9 build artifact confirmed: app-universal-release.apk (118MB, aarch64
 - **Gate 9 BLOCKED neste host:** JDK 25 instalado (exigido 17), NDK 29-beta3 (exigido 27.0.12077973), platforms android-34/36 (exigido 35), build-tools 36 (exigido 35), ANDROID_HOME/NDK_HOME ausentes. Rust target aarch64-linux-android e cargo-tauri 2.12.4 OK. Não foi instalado nada; alternativa é `workflow_dispatch`/tag `v*` no CI **[NV]**.
 - **[NV] remoto:** aplicação efetiva de ruleset/proteções de branch, CI após merges, gate 9 em artifact release, qualidade prosódica/REENVIOS 020, termos de licença Kyutai.
 - **Próximo 80/20:** nenhum candidato host-acionável com confiança alta permanece; T232 continua DEFER (200-350 LOC, device + build Android), 013 TTFA parcial, Gate 8 full deferido. Reavaliar se ambiente Android for provisionado.
+
+## 2026-11-20 — Evidência device adicional (leitura passiva via run-as)
+
+- `run-as app.mdreader id` → uid=10284(u0_a284), **DEBUGGABLE confirmado** (flags=DEBUGGABLE no dumpsys).
+- `files/snapshots/`: 1 arquivo de 3.897 bytes (hash `c6c1f42f…`), conteúdo "Hamlet — Ato IV, Cena III" (pt-BR) — snapshot de documento persistido localmente.
+- `bookmarks.redb`: 1.589.248 bytes (bookmarks/settings persistidos em redb).
+- `diagnostic-record.jsonl`: **0 bytes** (sem diagnósticos gerados; app usado antes sem gravação de record — [NV] para comportamento de emissão).
+- `voices/`: `.extracted`, `catalog.version` e 3 diretórios de voz Piper — `pt_BR-cadu-medium`, `pt_BR-faber-medium`, `pt_BR-jeff-medium` — mais `shared/`; catálogo fechado faber+cadu+jeff confirmado no dispositivo.
+- **Interpretação:** evidência local direta de que o app roda 100% offline com vozes Piper embarcadas e snapshot persistido; nenhuma escrita no dispositivo foi feita. Continuam [NV]: TTFA/play_to_audio_ms, janela visual de 3s, TalkBack, gate 9 (bloqueado no host: JDK 25/NDK 29-beta3/platform 35 ausentes).
+- **Correção documental:** `specs/010-directory-reading/tasks.md:144` T233 marcado `[x]` (ciclo 024/PR #228); bug `fastlane-distribution-artifacts` reconciliado em `fix.md`; `docs/PROGRESSO.md` atualizado com nota datada. Commit `a672f0b` publicado em dev.

@@ -273,7 +273,7 @@ jobs:
           cp -r android-shell/src/main/kotlin/* src-tauri/gen/android/app/src/main/kotlin/
           sed -i '/org\.gradle\.java\.home/d' src-tauri/gen/android/gradle.properties
           printf '\norg.gradle.java.home=%s\n' "$JAVA_HOME" >> src-tauri/gen/android/gradle.properties
-          cargo tauri android build --target aarch64 --release
+          cargo tauri android build --target aarch64
 
       - name: Upload release APK artifact
         if: always()

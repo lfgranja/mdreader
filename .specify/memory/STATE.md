@@ -450,3 +450,16 @@ T028: gate-9 build artifact confirmed: app-universal-release.apk (118MB, aarch64
 - **[NV]:** verificação visual/interação em dispositivo; execução real de `workflow_dispatch` e de tag `v*`; aplicação efetiva do ruleset na criação de tag.
 - **Dívidas remanescentes:** spec 013 TTFA parcial; T232/T233; Gate 8 full deferido; baselines do aparato SDD desalinhadas (informativas, não gate do alvo); duplicidade do número 020 em `specs/`.
 - **Próximo 80/20:** reavaliar no próximo Bloco 5 — candidatos: coerência documental upstream (2,50), T232/T233 (1,00), 013 TTFA completo (0,75, depende de dispositivo).
+
+## 2026-11-20 — Herança, sincronização e fechamento SDD (Blocos A–D)
+
+- **Âncora:** `.specify/feature.json` = `specs/010-directory-reading`; HEAD `1d23b773`; merge-base com `origin/dev` = `b3e808ad` (24 commits integrados via merge `--no-ff`, conflitos resolvidos sem perda). Factory HEAD usado como fonte: `b1deab1` (somente leitura; nenhum artefato transplantado).
+- **Bloqueio A:** trabalho sujo untracked/herdado commitado em `3159482` (19 arquivos: AGENTS.md, dist/index.html, shell_jni.rs, .specgate/, .specify/queue/, docs/governance/, guide-to-strict-rust.md, scripts/ci/, docs de estado). Backup integral em `/tmp/mdreader-full-20261120T153605`. Merge de `origin/dev` em `dev` sem conflitos.
+- **Bloqueio B:** `vendor/sherpa-onnx-sys/build.rs` passou a usar o archive vendored (`.tar.bz2` 21,9 MB) no host linux/x64 quando não há env vars, com erro nomeado se ausente/corrompido; `cargo check -p adapter-synthesis` 0 erros sem env var e `bash scripts/verify.sh` gate 1–8 PASS com `VERIFY_EXIT=0` sem `SHERPA_ONNX_LIB_DIR`.
+- **Bloqueio C:** 113 artefatos criados por 4 batches (assessments/validations/releases/checklists/spec-plan-tasks de 020-pockettts), 14 IDs duplicados corrigidos em 002/005/009/010, baselines `sdd-completeness` e `converge-append-only` sincronizados. Commit `1d23b77` (161 arquivos, 5811 inserções).
+- **Bloqueio D:** `docs/PROGRESSO.md` + `docs/research/index.md` criados; `OBJETIVO.md`/`ROADMAP.md` atualizados com nota datada de 2026-11-20 (append-only).
+- **Gates locais (saídas reais):** `scripts/verify.sh` `VERIFY_EXIT=0` (gates 1–8 + scaffold, 1082/1082 nextest); `sdd-completeness: PASS (spec_dirs=24 gaps=0)`; `work-order-dag: PASS (files=24 tasks=840 edges=0 cycles=0)`; `task-id-uniqueness: PASS (duplicates=0)`; `converge-append-only: PASS (files=23 baselined=23)`.
+- **PRs:** nenhum aberto (`gh pr list --state open` vazio); #219/#220/#221/#225 todos `MERGED`. Nenhum merge/auto-merge/force-push feito nesta sessão.
+- **[NV]:** CI remoto, proteções de branch, gate 9 Android, dispositivo/emulador, verificação visual. Nenhuma afirmação remota confirmada ao vivo além do estado `MERGED` dos PRs via `gh`.
+- **Dívidas remanescentes:** 013 TTFA parcial (device proof [NV]); T232/T233; Gate 8 full deferido; duplicidade do número 020; injeção nenhuma detectada.
+- **Próximo 80/20:** T232/T233 (score 1,00 — follow-ups de 010 já aceitos, verificáveis em host) ou coerência documental upstream (2,50). Reavaliar no próximo Bloco 5.

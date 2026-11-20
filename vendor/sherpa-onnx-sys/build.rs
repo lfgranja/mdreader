@@ -146,6 +146,9 @@ fn download_prebuilt_libs(
     target_os: &str,
     target_arch: &str,
 ) -> Result<(PathBuf, String), DynError> {
+    // Name of the archive vendored in the crate for the host build. Computed
+    // before `archive_name` below shadows the function of the same name.
+    let vendored_archive_name = archive_name(LinkMode::Static, "linux", "x86_64")?;
     let archive_name = archive_name(link_mode, target_os, target_arch)?;
     let archive_stem = archive_name
         .strip_suffix(".tar.bz2")
@@ -205,7 +208,8 @@ fn download_prebuilt_libs(
             }
 
             copy_file_atomically(&local_archive_path, &archive_path)?;
-        } else {
+        } else if archive_name != vendored_archive_name {
+            // Targets without a vendored archive keep the original download path.
             let url = download_url(&archive_name);
             eprintln!("Downloading sherpa-onnx libs from {url}");
 
@@ -217,6 +221,21 @@ fn download_prebuilt_libs(
                 .map_err(|e| format!("Failed to download sherpa-onnx archive from {url}: {e}"))?;
             let mut reader = response.into_reader();
             write_reader_atomically(&mut reader, &archive_path)?;
+        } else {
+            // No environment override and this is the vendored host target:
+            // use the archive shipped in CARGO_MANIFEST_DIR instead of the
+            // network so offline builds (verify.sh gate 2) are reproducible.
+            let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR")?);
+            let vendored_path = manifest_dir.join(&archive_name);
+            if !vendored_path.is_file() {
+                return Err(format!(
+                    "Vendored sherpa-onnx archive missing: {} (set SHERPA_ONNX_ARCHIVE_DIR)",
+                    vendored_path.display()
+                )
+                .into());
+            }
+            eprintln!("Using vendored sherpa-onnx archive {}", vendored_path.display());
+            copy_file_atomically(&vendored_path, &archive_path)?;
         }
     }
 

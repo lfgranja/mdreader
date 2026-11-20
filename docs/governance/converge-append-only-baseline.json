@@ -1,0 +1,98 @@
+{
+  "enforce_unbaselined": true,
+  "files": {
+    "specs/001-android-media-shell/converge.md": {
+      "bytes": 2539,
+      "sha256": "ba03eca9e7e5ebe3d5761c14aa9ad905425e47a0e581d13063dbec530cde0f9e"
+    },
+    "specs/002-fr-024-synthesis-adapter/converge.md": {
+      "bytes": 2734,
+      "sha256": "04faf69c154901e524353ded1b7b6e1b10228de0faa311ab4f74510e8774c0a4"
+    },
+    "specs/003-reference-device/converge.md": {
+      "bytes": 2299,
+      "sha256": "aae6e10e5158c61995f68a3698033be4c1205a190444ee349d4c074283237fa2"
+    },
+    "specs/004-ressoa-dogfood-build/converge.md": {
+      "bytes": 2780,
+      "sha256": "432fa19ec0c7b6266d91195669b91c93e59431be0037b1be4bbe0066d56439ca"
+    },
+    "specs/005-adopt-design-ressoa/converge.md": {
+      "bytes": 1289,
+      "sha256": "917fb48d39b5d128929525f7baee88ccc7ed8301e632528dcff55ea8a949a30c"
+    },
+    "specs/006-lente-sinestesica-completa/converge.md": {
+      "bytes": 1265,
+      "sha256": "ac33410ee7c41f08bb79ca87bd669d66327df4c8c55fc1f31c95c8594eef5ac1"
+    },
+    "specs/007-ressoa-complete-design/converge.md": {
+      "bytes": 1296,
+      "sha256": "1599d579f9a24c52c22753f4bdaacb28e6cf75a5e2f5a6f07813a52983a05810"
+    },
+    "specs/008-ref-device-emulator/converge.md": {
+      "bytes": 1283,
+      "sha256": "69f34578d744195d16b10204a15480e16e8f99785c081f9551535cf942f66fe9"
+    },
+    "specs/009-open-file-from-title/converge.md": {
+      "bytes": 5251,
+      "sha256": "cc06548653be4b08efbc55a6ddd84493be9b95dcab4060f3b7e36b6260abd4b7"
+    },
+    "specs/010-directory-reading/converge.md": {
+      "bytes": 4845,
+      "sha256": "79fe3366577c7a7f7adac1d0cc963950f6bbec1e04d2378a5ff6b152afef160b"
+    },
+    "specs/011-avd-emulator-setup/converge.md": {
+      "bytes": 4776,
+      "sha256": "52ce09cf178529545ed3d4439178b253a6a0953428f9767452fa05a4bc2869c7"
+    },
+    "specs/012-debug-ingest-hook/converge.md": {
+      "bytes": 7070,
+      "sha256": "5a256035aa58f259721995762ed1e652fc3afd8f926161fbbe3767dadb0c3e27"
+    },
+    "specs/013-ttfa-synthesis-pipeline/converge.md": {
+      "bytes": 27897,
+      "sha256": "e88b18ddd40745c6621802c46e6f65d0d9e1ae7bb1fd55794e3843b3e1c0985e"
+    },
+    "specs/014-tts-symbol-normalization/converge.md": {
+      "bytes": 3807,
+      "sha256": "62cf521a6c6b411c41773924bd25e95ea9b7233f653500a90db1042b87d13058"
+    },
+    "specs/015-md-semantic-prosody/converge.md": {
+      "bytes": 3278,
+      "sha256": "5df89665691322db2d8b65b7b1095306da47cf577e66a340a24d0b3cdadea251"
+    },
+    "specs/016-voz-lula/converge.md": {
+      "bytes": 1281,
+      "sha256": "db0e37b6c12038d4420be629668e8d2bc3420b584fed9a8301bc9dbe06de6528"
+    },
+    "specs/017-audio-cache-queue-management/converge.md": {
+      "bytes": 1268,
+      "sha256": "ec85ff47909026fae1f252accc4cff045978c28d1a07d398eb7ef70fadec9920"
+    },
+    "specs/018-ressoa-reading-voice/converge.md": {
+      "bytes": 3673,
+      "sha256": "42cc2f806c73dabe052d127bc9f4850536d343268ced68c3cfb7f254ff522597"
+    },
+    "specs/019-intent-filter-ingress/converge.md": {
+      "bytes": 1721,
+      "sha256": "064b0a60517edb557827e1f880d63b63ebe810c266f8b583fce96da6471668ae"
+    },
+    "specs/020-dynamic-doc-cap-scalability/converge.md": {
+      "bytes": 893,
+      "sha256": "7e7eae31e6483a8090c111f2ecd9aecc33a0bd890b255226a733565cb45abdc6"
+    },
+    "specs/021-android-16-accessibility-compliance/converge.md": {
+      "bytes": 2802,
+      "sha256": "cd798cecd3a9aa1b7a3b7beb8ab9b1948e651bcb5331d7668bee4ad5bd869566"
+    },
+    "specs/022-gate9-release-only/converge.md": {
+      "bytes": 1306,
+      "sha256": "5d8276ac3c731136c8012e94d79fff8f53c709ca00e3d2e7bbd65c0ccd93cc8d"
+    },
+    "specs/023-directory-ui-controls/converge.md": {
+      "bytes": 1840,
+      "sha256": "395a46819f845eaa286f9e60ba24cf4fbf4bd6dc691745ecd4cfeee08c72f37f"
+    }
+  },
+  "schema_version": "087.1.0"
+}

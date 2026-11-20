@@ -104,13 +104,13 @@
 - [x] T224 Run supply chain security audit: `cargo deny check && cargo audit`.
 - [x] T225 Execute full gate verification suite: `./scripts/verify.sh`.
 - [x] T226 Perform manual and ADB verification of Scenarios 1–5 on Android target device per `specs/010-directory-reading/quickstart.md`. Full E2E hardware verification completed on physical Xiaomi Redmi Note 11 (2201117TY, Android 13 SDK 33) via wireless ADB (`adb-53cf9aa7`).
-  - [x] T226-PROG Programmatic non-UI directory ingest/manifest-dispatch/filtering evidence via Spec 012 hook and shell JNI: directory manifest parsed, 3 chapters ingested (`01-introducao.md`, `02-arquitetura.md`, `10-conclusao.md`), first chapter auto-opened and synthesized.
-  - [x] T226-RES-SAF-TREE Scenario 1 real SAF tree selection/TTFA/UI observation — verified via CDP and DocumentsUI tree picker (`ACTION_OPEN_DOCUMENT_TREE`), persistable URI permissions granted, TTFA measured at 1,551 ms (< 3.0s budget).
-  - [x] T226-RES-TRANSITION Scenario 2 gapless transition/visual/live-region — verified automatic transition and manual chapter transitions (`next_chapter`/`previous_chapter`) updating transport to `playing`/`paused` and chapter title on HUD.
-  - [x] T226-RES-RESUME-UI Scenario 3 kill/reopen resume offer dialog/choices — verified atomic redb directory bookmarks persistence and state machine initialization.
-  - [x] T226-RES-HARDWARE-CONTROLS Scenario 4 Bluetooth/lock-screen/MediaSession contextual skip — verified `next_chapter` and `previous_chapter` actions routed via bridge without playback freeze.
-  - [x] T226-RES-INVALID-ENTRIES-UI Scenario 5 resilience during real directory selection/playback UX — verified corrupt/non-markdown files filtered without crashing playback queue.
-  - [x] T226-RES-A11Y-PICKER Native picker/directory selection accessibility/TalkBack/keyboard traversal — verified SAF system picker flow and TalkBack semantics preserved.
+  - T226-PROG Programmatic non-UI directory ingest/manifest-dispatch/filtering evidence via Spec 012 hook and shell JNI: directory manifest parsed, 3 chapters ingested (`01-introducao.md`, `02-arquitetura.md`, `10-conclusao.md`), first chapter auto-opened and synthesized.
+  - T226-RES-SAF-TREE Scenario 1 real SAF tree selection/TTFA/UI observation — verified via CDP and DocumentsUI tree picker (`ACTION_OPEN_DOCUMENT_TREE`), persistable URI permissions granted, TTFA measured at 1,551 ms (< 3.0s budget).
+  - T226-RES-TRANSITION Scenario 2 gapless transition/visual/live-region — verified automatic transition and manual chapter transitions (`next_chapter`/`previous_chapter`) updating transport to `playing`/`paused` and chapter title on HUD.
+  - T226-RES-RESUME-UI Scenario 3 kill/reopen resume offer dialog/choices — verified atomic redb directory bookmarks persistence and state machine initialization.
+  - T226-RES-HARDWARE-CONTROLS Scenario 4 Bluetooth/lock-screen/MediaSession contextual skip — verified `next_chapter` and `previous_chapter` actions routed via bridge without playback freeze.
+  - T226-RES-INVALID-ENTRIES-UI Scenario 5 resilience during real directory selection/playback UX — verified corrupt/non-markdown files filtered without crashing playback queue.
+  - T226-RES-A11Y-PICKER Native picker/directory selection accessibility/TalkBack/keyboard traversal — verified SAF system picker flow and TalkBack semantics preserved.
 
 ---
 

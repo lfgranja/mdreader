@@ -1,0 +1,5 @@
+{
+  "allow_missing": {},
+  "description": "Known SDD completeness gaps (historical/accepted). Gate fails on regressions and on stale entries that are now satisfied.",
+  "schema_version": "047.1.0"
+}

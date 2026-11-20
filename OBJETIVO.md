@@ -76,3 +76,10 @@ Um leitor de audiolivros e notas Markdown (`mdreader`, produto **Ressoa*) voltad
 
 ---
 *Documento atualizado em 2026-11-16 com base nos gates, especificações atestadas, PRs consolidados na branch `dev` e pesquisa externa de requisitos 2026.*
+
+---
+
+## 2026-11-20 — estado verificado
+
+Nota datada de **estado verificado** (gates, contagens reais, checks SDD e âncoras de trabalho) consolidada em [`docs/PROGRESSO.md`](docs/PROGRESSO.md). Nenhuma linha anterior foi alterada: esta nota segue o padrão append-only.
+Afirmações remotas — CI, PRs abertos, proteções de branch, gate 9 Android e dispositivo/emulador — estão marcadas `[NV]` no registro completo.

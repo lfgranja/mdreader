@@ -168,3 +168,10 @@
 
 ---
 *Atualizado com base nas evidências diretas do código, execuções de testes em hardware real e árvore do repositório em 2026-11-11.*
+
+---
+
+## 2026-11-20 — estado verificado
+
+Nota datada de **estado verificado** (gates, contagens reais, checks SDD e âncoras de trabalho) consolidada em [`docs/PROGRESSO.md`](docs/PROGRESSO.md). Nenhuma linha anterior foi alterada: esta nota segue o padrão append-only.
+Afirmações remotas — CI, PRs abertos, proteções de branch, gate 9 Android e dispositivo/emulador — estão marcadas `[NV]` no registro completo.

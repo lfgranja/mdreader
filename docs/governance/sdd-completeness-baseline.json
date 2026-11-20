@@ -1,0 +1,56 @@
+{
+  "allow_missing": {
+    "001-dark-factory-meta-loop": [
+      "assessment",
+      "release",
+      "validate"
+    ],
+    "002-meta-loop-execution": [
+      "release"
+    ],
+    "003-meta-loop-impl": [
+      "release"
+    ],
+    "017-fase-0-mvp": [
+      "assessment",
+      "release",
+      "validate"
+    ],
+    "018-adoção-observações-dark": [
+      "assessment",
+      "release",
+      "validate"
+    ],
+    "021-governanca-specs-open-source": [
+      "assessment",
+      "release",
+      "validate"
+    ],
+    "031-fase2-docs-only-ci-workflow": [
+      "release"
+    ],
+    "032-avaliacao-comparativa-ci-runner": [
+      "assessment",
+      "release",
+      "validate"
+    ],
+    "040-avaliacao-critica-comparativa-agentes-harness": [
+      "release",
+      "validate"
+    ],
+    "043-autonomous-execution-harness": [
+      "assessment"
+    ],
+    "044-g6-holdout-executable": [
+      "assessment",
+      "release",
+      "validate"
+    ],
+    "087-avaliacao-intake-gstack-gsd-superpowers": [
+      "release",
+      "validate"
+    ]
+  },
+  "description": "Known SDD completeness gaps (historical/accepted). Gate fails on regressions and on stale entries that are now satisfied.",
+  "schema_version": "047.1.0"
+}

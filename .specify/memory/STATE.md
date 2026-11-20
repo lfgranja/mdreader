@@ -499,3 +499,10 @@ T028: gate-9 build artifact confirmed: app-universal-release.apk (118MB, aarch64
 
 - `gh run list --branch dev --limit 5`: run `44827145915` para `16f2c2a7` — **completed / success** (CI, push, 10m59s, 22:13:27Z). Resolve [NV] de CI no estado atual de `dev`.
 - Runs anteriores (`44826940765`, `44826082890`, merges #227/#228) aparecem `cancelled` — cancelamento por concorrência de pushes rápidos na mesma branch; Não implicam falha de gates (o run final success cobre o HEAD atual). `gh api .../status` reporta `pending` no aggregate, mas os check-runs individuais do HEAD final estão success — [NV] para interpretacao de aggregate.
+
+## 2026-11-20 — Rodada 3: debug hook ausente no APK instalado (somente leitura)
+
+- `cmd package resolve-activity --brief -a app.mdreader.action.DEBUG_INGEST` → **"No activity found"**: o APK instalado (v0.1.0/1000) NÃO contém `DebugIngestActivity` do overlay debug (presente só no variant debug do generated Android project). Consequência: TTFA/play_to_audio_ms **não é mensurável** com o app instalado — exige build debug novo (gate 9), bloqueado no host (JDK 25/NDK 29-beta3/platform 35 ausentes).
+- `diagnostic-record.jsonl` confirmado **0 bytes** via `run-as app.mdreader wc -c`.
+- Gate 9 via CI (`workflow_dispatch`): tecnicamente viável, gera artefato `app-universal-debug-apk` (~214 MB, retenção 14 dias), mas **exige autorização explícita do SE** para disparar + instalar; nenhum dispatch feito. [NV] mantido.
+- Nenhuma ação mutante no dispositivo (sem am start/input/install/grant) — 3 endpoints ADB confirmados como o mesmo serial 53cf9aa7.

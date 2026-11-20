@@ -494,3 +494,8 @@ T028: gate-9 build artifact confirmed: app-universal-release.apk (118MB, aarch64
 - `voices/`: `.extracted`, `catalog.version` e 3 diretórios de voz Piper — `pt_BR-cadu-medium`, `pt_BR-faber-medium`, `pt_BR-jeff-medium` — mais `shared/`; catálogo fechado faber+cadu+jeff confirmado no dispositivo.
 - **Interpretação:** evidência local direta de que o app roda 100% offline com vozes Piper embarcadas e snapshot persistido; nenhuma escrita no dispositivo foi feita. Continuam [NV]: TTFA/play_to_audio_ms, janela visual de 3s, TalkBack, gate 9 (bloqueado no host: JDK 25/NDK 29-beta3/platform 35 ausentes).
 - **Correção documental:** `specs/010-directory-reading/tasks.md:144` T233 marcado `[x]` (ciclo 024/PR #228); bug `fastlane-distribution-artifacts` reconciliado em `fix.md`; `docs/PROGRESSO.md` atualizado com nota datada. Commit `a672f0b` publicado em dev.
+
+## 2026-11-20 — CI remoto pós-merge (via gh api/gh run list)
+
+- `gh run list --branch dev --limit 5`: run `44827145915` para `16f2c2a7` — **completed / success** (CI, push, 10m59s, 22:13:27Z). Resolve [NV] de CI no estado atual de `dev`.
+- Runs anteriores (`44826940765`, `44826082890`, merges #227/#228) aparecem `cancelled` — cancelamento por concorrência de pushes rápidos na mesma branch; Não implicam falha de gates (o run final success cobre o HEAD atual). `gh api .../status` reporta `pending` no aggregate, mas os check-runs individuais do HEAD final estão success — [NV] para interpretacao de aggregate.

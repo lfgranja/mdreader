@@ -463,3 +463,14 @@ T028: gate-9 build artifact confirmed: app-universal-release.apk (118MB, aarch64
 - **[NV]:** CI remoto, proteções de branch, gate 9 Android, dispositivo/emulador, verificação visual. Nenhuma afirmação remota confirmada ao vivo além do estado `MERGED` dos PRs via `gh`.
 - **Dívidas remanescentes:** 013 TTFA parcial (device proof [NV]); T232/T233; Gate 8 full deferido; duplicidade do número 020; injeção nenhuma detectada.
 - **Próximo 80/20:** T232/T233 (score 1,00 — follow-ups de 010 já aceitos, verificáveis em host) ou coerência documental upstream (2,50). Reavaliar no próximo Bloco 5.
+
+## 2026-11-20 — Ciclo 80/20 #024 (T233) e entrega via PR
+
+- **Ranque:** T233 = (5×5)/(2×2) = 6,25 (GO, ~50-80 LOC, host-verificável); T232 = (4×4)/(5×5) = 0,64 (DEFER — novo worker de síntese, 200-350 LOC/4-6h, aceitação device-dependent [NV]). Escolha: **T233**.
+- **Branch/feature:** `024-directory-resume-offer` via create-new-feature.sh (NNN de feature.json/check-prerequisites, não do branch). Cadeia SDD completa: assess (go) → specify → clarify → plan → checklist 23/23 → tasks T001-T015 → analyze (PASS, 5 desvios F1-F5 resolvidos na fonte) → implement → converge (append-only) → validate R4 → release R7 (v0.1.0-rc3 proposto).
+- **Código:** `park_directory_resume`/`DirectoryResume` sem dead_code; payload `chapterFilename`/`storedOffsetSecs` no evento `directory-selected`; `route_offer` uma vez; JS lê payload e chama `refreshOffer()`; 5 bundles HTML byte-idênticos; teste comportamental no target já pinado + teste 023 T230 ajustado ao contrato com payload.
+- **Gates locais finais:** `bash scripts/verify.sh` `VERIFY_EXIT=0` (gates 1-8 + check-shell-purity PASS; 1082/1082 nextest); fmt/clippy exit 0; test_directory_resume 4/4; directory_ui_controls 5/5; 4 checks SDD PASS (25 specs/0 gaps, 855 tasks/0 cycles, 0 dup, 24 converge baselined).
+- **Commits/PRs:** `c817fa0` (23 arquivos) na branch 024; PR #228 aberto para dev (Host gates pending no momento da checagem). PR #227 (Bloqueios A-D) OPEN com **Host gates PASS** via `gh pr checks` (10m38s) e Android gate 9 `skipping`. Nenhum merge/auto-merge/force-push/delete nesta sessão.
+- **[NV]:** CI final do PR #228, dispositivo Android, janela visual de 3s, TalkBack/foco, gate 9 em artifact release, proteções de branch. Nenhuma afirmação remota além do observado via `gh`.
+- **Dívidas remanescentes:** T232 (DEFER, device-dependent), 013 TTFA parcial, Gate 8 full deferido, duplicidade do número 020, injeção nenhuma detectada.
+- **Próximo 80/20:** T232 permanece DEFER até acesso a dispositivo; reavaliar coerência documental upstream (score 2,50 na fila anterior) como candidato host verificável.

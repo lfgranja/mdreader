@@ -92,18 +92,32 @@ fn reopen_paused_directory_routes_to_in_app_offer_dialog_for_3s()
         }
     );
 
-    // Bridge must wire lookup_directory_on_open and 3000ms offer window:
-    assert!(
-        BRIDGE.contains("const OFFER_WINDOW_MS: u64 = 3000"),
-        "Bridge must declare 3000ms (3.0s) OFFER_WINDOW_MS"
+    // The lookup the bridge performs on open resolves the SAME
+    // paused row to the in-app route and an awaited offer (FR-009).
+    let lookup = session::store::lookup_directory_on_open(&store, &hashes)?;
+    assert_eq!(lookup.offer_route, "in_app_dialog");
+    assert_eq!(
+        lookup.cold_start,
+        ColdStart::AwaitOffer {
+            offset_secs: 45.0,
+            first_yield_ms: 1_700_000_000_000,
+        }
     );
-    assert!(
-        BRIDGE.contains("lookup_directory_on_open"),
-        "Bridge must invoke lookup_directory_on_open when reopening a directory"
-    );
+    assert_eq!(lookup.stored.map(|bm| bm.chapter_index), Some(2));
 
-    // status_view.html must connect directory resume context (chapter filename & saved offset)
-    // to offerDialog with the 3.0s window:
+    // The production seam: real bookmark -> queue install -> one
+    // route resolution -> parked open, read back as the surface
+    // reads it (T233). No literal source check stands in for it.
+    let opened = src_tauri::shell_jni::directory_resume_open(store, chapters);
+    assert_eq!(opened["resume"], true);
+    assert_eq!(opened["chapter_index"], 2);
+    assert_eq!(opened["chapterFilename"], "03-estado.md");
+    assert_eq!(opened["storedOffsetSecs"], 45.0);
+    let reply = &opened["offer_route"];
+    assert_eq!(reply["offer_route"], "in_app_dialog");
+    assert_eq!(reply["window_ms"], EXPECTED_OFFER_WINDOW_MS);
+    assert_eq!(reply["pending_cold_start"], true);
+    // The surface renders that published context in its existing dialog.
     assert!(
         STATUS_VIEW.contains("offerDialog") && STATUS_VIEW.contains("in_app_dialog"),
         "status_view.html must present offerDialog on in_app_dialog route"
@@ -144,7 +158,7 @@ fn confirming_continue_restores_active_chapter_and_clock_offset()
     // OfferMachine foregrounded confirmation / expiry yields AutoStart at 45.0s:
     let mut machine = OfferMachine::new();
     machine.on_foregrounded();
-    let _offer = machine.resolve_open(Some(session::store::StoredPosition {
+    let offer = machine.resolve_open(Some(session::store::StoredPosition {
         offset_secs: stored_offset_secs,
         first_yield_ms: 1_000,
         end_kind: SessionEnd::Paused,
@@ -157,10 +171,20 @@ fn confirming_continue_restores_active_chapter_and_clock_offset()
         }
     );
 
-    // Bridge must restore both ChapterQueue active index and clock offset on directory resume:
-    assert!(
-        BRIDGE.contains("set_current_index") && BRIDGE.contains("lookup_directory_on_open"),
-        "Bridge must restore ChapterQueue active index from directory bookmark on resume"
+    // The machine's own answer at the open is the continue offer,
+    // carrying the saved offset the dialog continues from (FR-009).
+    assert_eq!(
+        offer,
+        OpenOffer::Continue {
+            offset_secs: stored_offset_secs,
+            first_yield_ms: 1_000,
+        }
+    );
+    // The installed queue restores that chapter, and expiry
+    // continues from the same saved offset.
+    assert_eq!(
+        queue.current().map(|c| c.filename.as_str()),
+        Some("03-estado.md")
     );
 
     Ok(())

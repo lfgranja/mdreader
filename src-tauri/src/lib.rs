@@ -400,6 +400,55 @@ pub(crate) struct Production {
     started: bool,
 }
 
+/// A fresh state: a new session, no backend, the default
+/// (all-granted host baseline) permissions, and fresh
+/// focus/offer machines with the backgrounded latch.
+fn fresh_state() -> AppState {
+    AppState {
+        session: Mutex::new(PlaybackSession::new()),
+        backend: Mutex::new(None),
+        permissions: Mutex::new(permissions::PermissionSnapshot::default()),
+        focus_tracker: Mutex::new(player::focus::FocusTracker::new()),
+        offer: Mutex::new(session::offer::OfferMachine::new()),
+        pending_open: Mutex::new(None),
+        published_route: Mutex::new(None),
+        rms_channel: Mutex::new(None),
+        last_rms: Mutex::new(0.0f32),
+        view_hidden: Mutex::new(false),
+        last_rms_publish_ms: Mutex::new(0u64),
+        publish_channel: Mutex::new(None),
+        surface_resolver: Mutex::new(None),
+        headings: Mutex::new(Vec::new()),
+        bookmark_store: Mutex::new(None),
+        current_fingerprint: Mutex::new(None),
+        first_yield_ms: Mutex::new(None),
+        diag: diag_record::Recorder::new(),
+        diag_measures: Mutex::new(DiagMeasures::default()),
+        document: Mutex::new(None),
+        production: Mutex::new(None),
+        playback_generation: AtomicU64::new(0),
+        production_wake: AtomicBool::new(false),
+        producer_driving: AtomicBool::new(false),
+        stream_anchor_secs: Mutex::new(0.0),
+        playback_watch: Mutex::new(PlaybackWatch::default()),
+        chapter_queue: Mutex::new(None),
+        chapter_preroll: Mutex::new(player::skip::NextChapterPreRoll::new()),
+        dsp_preset: Mutex::new(0u8),
+    }
+}
+
+/// T233 seam for the pinned directory-resume test: a fresh
+/// state over a real bookmark store. The shell-side seam uses
+/// this, so no test-only constructor is visible in production.
+#[doc(hidden)]
+#[must_use]
+pub fn directory_resume_state(store: BookmarkStore) -> AppState {
+    AppState {
+        bookmark_store: Mutex::new(Some(store)),
+        ..fresh_state()
+    }
+}
+
 #[cfg(test)]
 impl AppState {
     /// Fresh state for the latch-persistence tests: a new
@@ -407,37 +456,7 @@ impl AppState {
     /// baseline) permissions, and fresh focus/offer
     /// machines with the backgrounded latch.
     pub(crate) fn test_state() -> Self {
-        Self {
-            session: Mutex::new(PlaybackSession::new()),
-            backend: Mutex::new(None),
-            permissions: Mutex::new(permissions::PermissionSnapshot::default()),
-            focus_tracker: Mutex::new(player::focus::FocusTracker::new()),
-            offer: Mutex::new(session::offer::OfferMachine::new()),
-            pending_open: Mutex::new(None),
-            published_route: Mutex::new(None),
-            rms_channel: Mutex::new(None),
-            last_rms: Mutex::new(0.0f32),
-            view_hidden: Mutex::new(false),
-            last_rms_publish_ms: Mutex::new(0u64),
-            publish_channel: Mutex::new(None),
-            surface_resolver: Mutex::new(None),
-            headings: Mutex::new(Vec::new()),
-            bookmark_store: Mutex::new(None),
-            current_fingerprint: Mutex::new(None),
-            first_yield_ms: Mutex::new(None),
-            diag: diag_record::Recorder::new(),
-            diag_measures: Mutex::new(DiagMeasures::default()),
-            document: Mutex::new(None),
-            production: Mutex::new(None),
-            playback_generation: AtomicU64::new(0),
-            production_wake: AtomicBool::new(false),
-            producer_driving: AtomicBool::new(false),
-            stream_anchor_secs: Mutex::new(0.0),
-            playback_watch: Mutex::new(PlaybackWatch::default()),
-            chapter_queue: Mutex::new(None),
-            chapter_preroll: Mutex::new(player::skip::NextChapterPreRoll::new()),
-            dsp_preset: Mutex::new(0u8),
-        }
+        fresh_state()
     }
 
     /// Test state over an already-opened bookmark store
@@ -2118,7 +2137,7 @@ fn publish_route(state: &AppState, route: OfferRoute) {
 ///
 /// The route lock's poison error, when the published route cannot
 /// be read.
-fn read_published_route(state: &AppState) -> Result<OfferRoute, String> {
+pub(crate) fn read_published_route(state: &AppState) -> Result<OfferRoute, String> {
     let guard = state
         .published_route
         .lock()
@@ -2150,7 +2169,6 @@ pub(crate) const fn offer_route_wire(route: OfferRoute) -> (&'static str, Option
 /// and the stored position the offer continues from — never a
 /// decision: the offer machine owns the decision of whether and
 /// where the reading starts (FR-044).
-#[expect(dead_code, reason = "directory reading not yet wired")]
 /// Park a directory chapter resume behind the in-app offer dialog (T233/FR-009).
 pub(crate) fn park_directory_resume(
     state: &AppState,
@@ -2187,7 +2205,7 @@ fn take_parked_open(state: &AppState) -> Option<PendingOpen> {
 
 /// Whether a cold-start open is parked (T110): the reader's
 /// choice resolves the parked open instead of the session.
-fn pending_open_exists(state: &AppState) -> bool {
+pub(crate) fn pending_open_exists(state: &AppState) -> bool {
     state.pending_open.lock().is_ok_and(|guard| guard.is_some())
 }
 
@@ -3111,16 +3129,17 @@ pub(crate) fn directory_contextual_skip(
     }
 }
 
-#[expect(dead_code, reason = "directory reading not yet wired")]
 /// Directory resume info from `DIRECTORY_BOOKMARKS` (T233 / FR-009).
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub(crate) struct DirectoryResume {
     /// Restored chapter index in the directory queue.
     pub(crate) chapter_index: usize,
-    /// Stored playback offset in seconds within the chapter.
-    pub(crate) offset_secs: f64,
     /// Offer route to present (in-app dialog / lockscreen / none).
     pub(crate) offer_route: crate::OfferRoute,
+    /// Display name of the chapter the stored position belongs to (T233).
+    pub(crate) chapter_filename: Option<String>,
+    /// Stored row the offer machine resolves the route from (T233).
+    pub(crate) stored_position: Option<StoredPosition>,
 }
 
 /// Install or refresh the directory chapter queue (T200), idempotently.
@@ -3162,10 +3181,20 @@ pub(crate) fn install_chapter_queue(
                         _ => crate::OfferRoute::NoRoute,
                     };
                     if offer_route != crate::OfferRoute::NoRoute || stored.offset_secs > 0.0 {
+                        let chapter_filename = next
+                            .items()
+                            .get(idx)
+                            .map(|chapter| chapter.filename.clone());
+                        let stored_position = StoredPosition {
+                            offset_secs: stored.offset_secs,
+                            first_yield_ms: stored.saved_ts_ms,
+                            end_kind: stored.end_kind,
+                        };
                         resume = Some(DirectoryResume {
                             chapter_index: idx,
-                            offset_secs: stored.offset_secs,
                             offer_route,
+                            chapter_filename,
+                            stored_position: Some(stored_position),
                         });
                     }
                 }

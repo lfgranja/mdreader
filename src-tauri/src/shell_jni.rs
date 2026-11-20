@@ -1430,6 +1430,52 @@ pub fn handle_directory_selected(
         let state = app.state::<crate::AppState>();
         let resume = crate::install_chapter_queue(&state, queue.clone());
 
+        // T233/FR-009: a deliberately paused directory bookmark parks
+        // the reopen behind its in-app continue offer — no chapter
+        // auto-plays until the reader chooses. The route is resolved
+        // ONCE here and published by the park; surface polls only
+        // read that published decision (FR-044).
+        let mut offer_payload = serde_json::Map::new();
+        if let Some(resume) = resume.as_ref()
+            && resume.offer_route == crate::OfferRoute::InAppDialog
+            && let Some(stored) = resume.stored_position
+        {
+            let route = crate::route_offer(&state, &stored);
+            if route == crate::OfferRoute::InAppDialog {
+                let (wire, window_ms) = crate::offer_route_wire(route);
+                let filename = resume.chapter_filename.clone().unwrap_or_default();
+                let snapshot_path = {
+                    let guard = state.chapter_queue.lock().ok();
+                    guard
+                        .as_ref()
+                        .and_then(|g| g.as_ref())
+                        .and_then(|q| q.current())
+                        .map(|chapter| chapter.file_uri.clone())
+                };
+                let document = snapshot_path
+                    .as_deref()
+                    .and_then(|path| std::fs::read_to_string(path).ok())
+                    .unwrap_or_default();
+                crate::park_directory_resume(&state, &document, &filename, stored.offset_secs);
+                let _ignored = offer_payload.insert(
+                    "chapterFilename".to_string(),
+                    serde_json::Value::String(filename),
+                );
+                let _ignored = offer_payload.insert(
+                    "storedOffsetSecs".to_string(),
+                    serde_json::json!(stored.offset_secs),
+                );
+                let _ignored = offer_payload.insert(
+                    "offerRoute".to_string(),
+                    serde_json::Value::String(wire.to_string()),
+                );
+                let _ignored =
+                    offer_payload.insert("windowMs".to_string(), serde_json::json!(window_ms));
+                let _ignored =
+                    offer_payload.insert("pendingColdStart".to_string(), serde_json::json!(true));
+            }
+        }
+
         // Auto-play the current (or restored) chapter if not resuming via offer dialog
         let current_index = {
             let guard = state.chapter_queue.lock().ok();
@@ -1446,19 +1492,63 @@ pub fn handle_directory_selected(
             tracing::error!(error = %e, current_index, "Failed to auto-open first directory chapter");
         }
 
-        let event_payload = serde_json::json!({
+        let mut event_payload = serde_json::json!({
             "type": "directory_selected",
             "tree_uri": tree_uri,
             "root_name": root_name,
             "total_chapters": queue.len(),
             "first_chapter": queue.current().map(|c| &c.filename),
         });
+        if let Some(object) = event_payload.as_object_mut() {
+            object.extend(offer_payload);
+        }
         if let Err(e) = app.emit("tauri://channel/directory-selected", event_payload) {
             tracing::warn!(error = %e, "Failed to emit directory-selected event");
         }
     }
 
     Ok(())
+}
+
+/// T233 behavioural seam for the pinned directory-resume test:
+/// drives a real bookmark store through the same open path as
+/// [`handle_directory_selected`] — queue install, the one route
+/// resolution, parked open — and returns the published reply and
+/// the chapter context the surface binds. There is no second
+/// definition of the flow.
+#[doc(hidden)]
+#[must_use]
+pub fn directory_resume_open(
+    store: session::store::BookmarkStore,
+    chapters: Vec<player::queue::ChapterItem>,
+) -> serde_json::Value {
+    let state = crate::directory_resume_state(store);
+    let queue = player::queue::ChapterQueue::new(chapters);
+    let Some(resume) = crate::install_chapter_queue(&state, queue) else {
+        return serde_json::json!({ "resume": false });
+    };
+    let (filename, offset) = if resume.offer_route == crate::OfferRoute::InAppDialog
+        && let Some(stored) = resume.stored_position
+    {
+        let resolved = crate::route_offer(&state, &stored);
+        let filename = resume.chapter_filename.clone().unwrap_or_default();
+        crate::park_directory_resume(&state, "", &filename, stored.offset_secs);
+        debug_assert_eq!(crate::read_published_route(&state).ok(), Some(resolved));
+        (Some(filename), Some(stored.offset_secs))
+    } else {
+        (None, None)
+    };
+    let reply = crate::commands::offer_reply(
+        crate::read_published_route(&state).unwrap_or(crate::OfferRoute::NoRoute),
+        crate::pending_open_exists(&state),
+    );
+    serde_json::json!({
+        "resume": true,
+        "chapter_index": resume.chapter_index,
+        "chapterFilename": filename,
+        "storedOffsetSecs": offset,
+        "offer_route": reply,
+    })
 }
 
 /// JNI: Directory selection result callback (T194, directory-playback.md §1.3).

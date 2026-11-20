@@ -10,12 +10,12 @@ description: "Task list for feature implementation"
 **Organization**: Tasks grouped by user story (US1–US4). Setup/Foundational/Polish/Verification have no story labels.
 **Branch**: `pr/005-sc001-sc002-sc007-tests` (HEAD `8a4dd32e`) — tests for SC-001/SC-002/SC-007 already added.
 
-- [X] T001 Verify on correct branch `pr/005-sc001-sc002-sc007-tests` (or `005-adopt-design-ressoa`), record HEAD SHA in state. File: `.specify/memory/STATE.md`
-- [X] T002 Run `scripts/verify.sh` gates 1–8 on current tree; record results. Must be green or document existing state. File: `scripts/verify.sh`
-- [X] T003 Audit anchors per plan: `crates/player/src/backend.rs`, `crates/player/src/earcon.rs`, `crates/diag/src/writer.rs`, `src-tauri/src/status_view.html`, `src-tauri/src/status_view.rs`, `android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt` (:701-744), `src-tauri/tauri.conf.json`, `DESIGN-RESSOA/`, `scripts/verify.sh`, `scripts/expected-tests.txt`. Record findings. File: `.specify/memory/STATE.md`
-- [X] T004 Create `src-tauri/src/surface_audit.rs` with closed auditee resolver (A1: `status_view.html`, `status_view.rs` relevant, `MediaMirror.kt` :701-744 slice, `DESIGN-RESSOA/*` audited, `tauri.conf.json`, `logo-primary-concha-r.svg`). Add `pub mod surface_audit;` to `src-tauri/src/lib.rs`. Scaffold via LSP first. Files: `src-tauri/src/surface_audit.rs`, `src-tauri/src/lib.rs`
-- [X] T005 [RED] [P] Add served-identity twin test `surface_audit_served_identity_binds_status_view_as_bundle` in `src-tauri/src/surface_audit/served_identity.rs` asserting byte-identity between `src-tauri/src/status_view.html` and served bundle entry (`frontendDist/index.html`). Must fail initially. Files: `src-tauri/src/surface_audit/served_identity.rs`, `src-tauri/tauri.conf.json`
-- [X] T006 Implement packaging wiring via `src-tauri/build.rs`: copy `src/status_view.html` → `dist/index.html` at build time with `cargo:rerun-if-changed`; ensure bundle serves restyled surface. Update build script. Files: `src-tauri/build.rs`, `src-tauri/tauri.conf.json`
+- [X] T045 Verify on correct branch `pr/005-sc001-sc002-sc007-tests` (or `005-adopt-design-ressoa`), record HEAD SHA in state. File: `.specify/memory/STATE.md`
+- [X] T046 Run `scripts/verify.sh` gates 1–8 on current tree; record results. Must be green or document existing state. File: `scripts/verify.sh`
+- [X] T047 Audit anchors per plan: `crates/player/src/backend.rs`, `crates/player/src/earcon.rs`, `crates/diag/src/writer.rs`, `src-tauri/src/status_view.html`, `src-tauri/src/status_view.rs`, `android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt` (:701-744), `src-tauri/tauri.conf.json`, `DESIGN-RESSOA/`, `scripts/verify.sh`, `scripts/expected-tests.txt`. Record findings. File: `.specify/memory/STATE.md`
+- [X] T048 Create `src-tauri/src/surface_audit.rs` with closed auditee resolver (A1: `status_view.html`, `status_view.rs` relevant, `MediaMirror.kt` :701-744 slice, `DESIGN-RESSOA/*` audited, `tauri.conf.json`, `logo-primary-concha-r.svg`). Add `pub mod surface_audit;` to `src-tauri/src/lib.rs`. Scaffold via LSP first. Files: `src-tauri/src/surface_audit.rs`, `src-tauri/src/lib.rs`
+- [X] T049 [RED] [P] Add served-identity twin test `surface_audit_served_identity_binds_status_view_as_bundle` in `src-tauri/src/surface_audit/served_identity.rs` asserting byte-identity between `src-tauri/src/status_view.html` and served bundle entry (`frontendDist/index.html`). Must fail initially. Files: `src-tauri/src/surface_audit/served_identity.rs`, `src-tauri/tauri.conf.json`
+- [X] T050 Implement packaging wiring via `src-tauri/build.rs`: copy `src/status_view.html` → `dist/index.html` at build time with `cargo:rerun-if-changed`; ensure bundle serves restyled surface. Update build script. Files: `src-tauri/build.rs`, `src-tauri/tauri.conf.json`
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: Can run in parallel (different files, no dependencies on incomplete tasks)
@@ -175,11 +175,11 @@ description: "Task list for feature implementation"
 
 ## Phase 9: Convergence
 
-- [X] T034 [P] [HIGH] Complete restyle of `src-tauri/src/status_view.html` per FR-008/SC-001 (10-hex closed set, role exclusivity `:focus-visible`, aria inventory, movement rules, reduced-motion freeze, solid indeterminate pill) (partial)
-- [X] T035 [P] [HIGH] Verify and complete earcon burst/truncation policy in `crates/player/src/backend.rs` per FR-003/SC-002 (latest wins, emit `EarconTruncation`/`EarconEmissionFailure`, ≤100ms latency) with passing property tests (partial)
-- [X] T036 [P] [HIGH] Verify MediaStyle constraints in `android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt` per FR-002/SC-003 (accent-only `#F2F0E6`, title/section/progress only, no body/rate/brand) (partial)
-- [X] T037 [MEDIUM] Add Concha Harmônica "R" header to `src-tauri/src/status_view.html` per FR-004/US4 (no jade/celeste paints) (partial)
-- [X] T038 [MEDIUM] Ensure served bundle identity passes: verify `dist/index.html` byte-identical to `src-tauri/src/status_view.html` via surface-audit test (partial)
+- [X] T051 [P] [HIGH] Complete restyle of `src-tauri/src/status_view.html` per FR-008/SC-001 (10-hex closed set, role exclusivity `:focus-visible`, aria inventory, movement rules, reduced-motion freeze, solid indeterminate pill) (partial)
+- [X] T052 [P] [HIGH] Verify and complete earcon burst/truncation policy in `crates/player/src/backend.rs` per FR-003/SC-002 (latest wins, emit `EarconTruncation`/`EarconEmissionFailure`, ≤100ms latency) with passing property tests (partial)
+- [X] T053 [P] [HIGH] Verify MediaStyle constraints in `android-shell/src/main/kotlin/app/mdreader/MediaMirror.kt` per FR-002/SC-003 (accent-only `#F2F0E6`, title/section/progress only, no body/rate/brand) (partial)
+- [X] T054 [MEDIUM] Add Concha Harmônica "R" header to `src-tauri/src/status_view.html` per FR-004/US4 (no jade/celeste paints) (partial)
+- [X] T055 [MEDIUM] Ensure served bundle identity passes: verify `dist/index.html` byte-identical to `src-tauri/src/status_view.html` via surface-audit test (partial)
 
 
 ## Phase 10: Convergence

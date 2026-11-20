@@ -1,537 +1,97 @@
 {
   "enforce_unbaselined": true,
   "files": {
-    "specs/001-dark-factory-meta-loop/converge.md": {
-      "bytes": 479,
-      "sha256": "0ffa7dad560442041725e7cb9701a1510cc778a0f21fc7078fa343c0aee9e450"
-    },
-    "specs/002-meta-loop-execution/converge.md": {
-      "bytes": 476,
-      "sha256": "ab53f08e278d493493812fe981bc538d726b1b64de4504799f3e9db2a2985a47"
-    },
-    "specs/003-meta-loop-impl/converge.md": {
-      "bytes": 471,
-      "sha256": "a035d62ee88c5b59edfebe94963b49bbc3fd31eb107d1157bb0d3f56719f2139"
-    },
-    "specs/004-camada-verificacao/converge.md": {
-      "bytes": 475,
-      "sha256": "0ce0b05047dff970f5e3be6788deb3b537b0bdf494c2317dd54463a57c348ec4"
-    },
-    "specs/005-determinism-first/converge.md": {
-      "bytes": 474,
-      "sha256": "f7a368935f36ca9aaac5da346a604262d5c5c612646866059d4436de27fdb68b"
-    },
-    "specs/006-llm-as-judge-adversarial/converge.md": {
-      "bytes": 481,
-      "sha256": "a8b380c62f1c9b910abfea4a07961cddff2a56325adb100b0843c6d7c4d196de"
-    },
-    "specs/007-self-healing/converge.md": {
-      "bytes": 469,
-      "sha256": "44abec16654502d42fce29f4cc45ae756589ec237cb5088932d71969e0769b67"
-    },
-    "specs/008-self-improvement/converge.md": {
-      "bytes": 473,
-      "sha256": "11ac391ab420174352b3e3eb7eae9add944060c1fcb045ae81861a22730a92b2"
-    },
-    "specs/009-system-one-decision-models/converge.md": {
-      "bytes": 483,
-      "sha256": "7ec6622b338f107138089f30a06e7e8005bf3a990aad7717c771a481a697506c"
-    },
-    "specs/010-agent-orchestration/converge.md": {
-      "bytes": 476,
-      "sha256": "55ee7450916cd17aaf0d4146043a0e6bcf6c6cb17652becbb682fe46e959542c"
-    },
-    "specs/010-sdd-frameworks/converge.md": {
-      "bytes": 471,
-      "sha256": "b40b451353c7bb32a328e9cefa1d6feab6e8041e6d34605dd953c9297f3b0e7c"
-    },
-    "specs/011-models-providers-intercambiaveis/converge.md": {
-      "bytes": 489,
-      "sha256": "1cebbe3c011b624bce69498a6f42cc051f3b05603f70f54c667b35c82f719aac"
-    },
-    "specs/011-tracking-custos/converge.md": {
-      "bytes": 472,
-      "sha256": "f5d291b41238c70dedfbbb806f9440143964da9335a19a332339fae94b545536"
-    },
-    "specs/012-avaliacao-modelos-stealth/converge.md": {
-      "bytes": 2554,
-      "sha256": "f98abbc7e19a14a51401061ac2c611ca3e2b42b5a33dde2d89bb31c4763c6b89"
-    },
-    "specs/012-validacao-rankings-llm/converge.md": {
-      "bytes": 479,
-      "sha256": "9821f9f7b22aa73652a69b4865c257546854f3c1a52f80986e1d534346123f18"
-    },
-    "specs/013-greenfield-brownfield/converge.md": {
-      "bytes": 478,
-      "sha256": "1472f86c0c0e084ffbc7f432ac233c61244bed16ca766b65228edc6f2d67ee65"
-    },
-    "specs/014-adocao-integral-parcial/converge.md": {
-      "bytes": 480,
-      "sha256": "cb266d2f4aff65642b8e2028f1127645eeaf61164eb58141e9939da87299d129"
-    },
-    "specs/016-manutencao-autonoma/converge.md": {
-      "bytes": 476,
-      "sha256": "db677e34b251e0c3f6078c0ffc2717b59d59534ae224dfaf567ecd1c460ac63f"
-    },
-    "specs/017-fase-0-mvp/converge.md": {
-      "bytes": 467,
-      "sha256": "ca0cd89351dea7f0f77328ec7bbafe7a34b284253e16a2b9e5677088dec9f5e3"
-    },
-    "specs/018-adoção-observações-dark/converge.md": {
-      "bytes": 522,
-      "sha256": "2ff8a5aac851b124b67998bc578e09b15305cb397bdeafbd3780bd32a238ef81"
-    },
-    "specs/019-avaliacao-comparativa-runtime-harness/converge.md": {
-      "bytes": 562,
-      "sha256": "420d007fc8e2be6cf2248452a1be884b81279899116b55dac6ef38950a7e67c7"
-    },
-    "specs/021-governanca-specs-open-source/converge.md": {
-      "bytes": 523,
-      "sha256": "9c050b61240286f07865155bda49cd7774d69019b4d2d5c540861bd46daef958"
-    },
-    "specs/022-politica-propostas-padrao-repos-alvo/converge.md": {
-      "bytes": 531,
-      "sha256": "5adbc91871a4111c20a3f1a20d32c9ab9e59234152fe212c0ed609b2dac38390"
-    },
-    "specs/023-politica-autonomia-decisao-humano/converge.md": {
-      "bytes": 626,
-      "sha256": "c9719d759c2517be2f645e8c72334a73e1026de04d60f4251eef910f0b046c07"
-    },
-    "specs/024-pilha-escalonamentos-nivel5/converge.md": {
-      "bytes": 522,
-      "sha256": "d351ec6a20972c037fc2c18b8e117fb1f3e88895cdb4727e15ea46c405d02ec8"
-    },
-    "specs/025-auto-commit-merge-ci-review/converge.md": {
-      "bytes": 1970,
-      "sha256": "b6c9327321fbf6b553d7861dd89443c48769755798d681eb6beec4f42d8aac5b"
-    },
-    "specs/026-desalinhamento-politicas-adr/converge.md": {
-      "bytes": 6699,
-      "sha256": "06b243411c61ea61f23d20994d80812882dbf41eb86dd9e2544072d81b6b68d1"
-    },
-    "specs/027-meta-loop-self-evaluation-melhoria/converge.md": {
-      "bytes": 8576,
-      "sha256": "8522d88891938cbc014b930a062ed312fcb3eea9257eb99e4066aa16827965b1"
-    },
-    "specs/028-ciclo-80-20-solo-hub-decoupling/converge.md": {
-      "bytes": 6129,
-      "sha256": "7878b725861f37886d37376281081d46cf478e606aa222d9130f5568c67eec00"
-    },
-    "specs/029-adapters-desktop-browser-agents/converge.md": {
-      "bytes": 7924,
-      "sha256": "ec1925d294f081586fd6793e9dfa3b7b633d3efdac0df75a27697092e005572b"
-    },
-    "specs/030-hub-docs-only-compensatory-baseline/converge.md": {
-      "bytes": 7353,
-      "sha256": "c1cb2e4af8775603317dc982cb9d47f3f1a4e4fc3f8b382caa9a48ce72c1a676"
-    },
-    "specs/031-fase2-docs-only-ci-workflow/converge.md": {
-      "bytes": 3826,
-      "sha256": "da409b6c418cf5fc08c782742d61993a81cbfbfd3f37e5e23c6a6b0b1e33d219"
-    },
-    "specs/032-avaliacao-comparativa-ci-runner/converge.md": {
-      "bytes": 11219,
-      "sha256": "25abc006319eaf6d582d371b7c02e6e99b8e8ade2246e882ae32e8e9cbaafc5a"
-    },
-    "specs/034-adocao-corpus-dark-factories-v2/converge.md": {
-      "bytes": 624,
-      "sha256": "5c9f51e3f2989198fa17e45d37b1f8ed060be4ce7b996ff83cffd645913d0110"
-    },
-    "specs/035-execution-record-metrics-jsonl/converge.md": {
-      "bytes": 525,
-      "sha256": "477076559f50ad79572bf55e626c6c7a6ba8b34bbb7bffd3ba81d9b18d308376"
-    },
-    "specs/036-policy-zta-agent-baseline-supply-chain/converge.md": {
-      "bytes": 533,
-      "sha256": "ede910962f4fc7e534b207c5b6edafa240a11a926c5f33f6a865aa144993422f"
-    },
-    "specs/037-operational-adoption-checklist-035-036/converge.md": {
-      "bytes": 563,
-      "sha256": "5dd53f302d1baae9c84aaf5cf355f855158657fdcc79fb902b1bb634d77837e1"
-    },
-    "specs/038-scope-pr-packaging-adoption-index-031-037/converge.md": {
-      "bytes": 554,
-      "sha256": "d2f028e8825562efdd03de3687ce185d37b4cb7f813fbc93234f487a27adf4c3"
-    },
-    "specs/039-project-telemetry-return-kit/converge.md": {
-      "bytes": 4620,
-      "sha256": "d1b9c151c7401fbfaf879d8d86dff6fca6080de1696b28f9493ada97432ad263"
-    },
-    "specs/040-avaliacao-critica-comparativa-agentes-harness/converge.md": {
-      "bytes": 532,
-      "sha256": "c0641d2f3121727be04697403a7d5bc441f4348f85510b38905f95ca6b69dcd3"
-    },
-    "specs/041-code-review-gold-standard-software-factory/converge.md": {
-      "bytes": 4739,
-      "sha256": "e0825a4181cfdad912b732ebf64067ca15dcf126d64afd85678f999538c69f76"
-    },
-    "specs/042-code-review-no-human-software-factory/converge.md": {
-      "bytes": 4833,
-      "sha256": "cd959d7d6448870e58b645e16117479d30a3c1a7e0d35f4ebcdc5f3e6a166d20"
-    },
-    "specs/043-autonomous-execution-harness/converge.md": {
-      "bytes": 1797,
-      "sha256": "70f91e0269d358fc52f010c2249b011bf3a88db7c494d7848927dc6a2b576847"
-    },
-    "specs/044-g6-holdout-executable/converge.md": {
-      "bytes": 1200,
-      "sha256": "eea8c125d6ad23601060a98578b9af79767c0dad386dbb8be5981294c6ad5224"
-    },
-    "specs/045-hub-gate-includes-tests-holdout-policy/converge.md": {
-      "bytes": 1130,
-      "sha256": "d5c4be28f3a6d7ee8e4cab4f5ce8651c5b9410de122ba1e79df5034937862f08"
-    },
-    "specs/046-hub-gate-telemetry-execution-record-validation/converge.md": {
-      "bytes": 1021,
-      "sha256": "d47497331024b5d2142abaf6be4d5410c5ae5dfcfe619214176f46d59118a0eb"
-    },
-    "specs/047-sdd-completeness-gate/converge.md": {
-      "bytes": 922,
-      "sha256": "2dd7593dccdd0db139307f545ad64eb4c2a9037849e279cfa7dd57f35f6fe2f9"
-    },
-    "specs/048-job-intake-v1/converge.md": {
-      "bytes": 919,
-      "sha256": "7be94002c1d5e7b4f93cce775df0a5543fb18b632406c58acdb717acf1b27ee1"
-    },
-    "specs/049-fila-de-jobs-v1/converge.md": {
-      "bytes": 1391,
-      "sha256": "7bedc4e78dfcd0585ad4a7082ca54ac3f43778f4d730e97e9601fce94c8e5e6b"
-    },
-    "specs/050-hub-ci-gate-restore/converge.md": {
-      "bytes": 1169,
-      "sha256": "9349942819e5e60ae52985bfafce8a49084b104ea81fe8ed652aa2e2b23429e1"
-    },
-    "specs/051-adocao-corpus-dark-factories-v3/converge.md": {
-      "bytes": 2169,
-      "sha256": "2e9be7e3f51005319d465c125030f53cdc9f203fcafa41ca14c73eea98e31526"
-    },
-    "specs/051-autonomous-monetization-agent/converge.md": {
-      "bytes": 2271,
-      "sha256": "28330a25f92e6a07d0c467f294b565921684395dc09ebae888e6e4a14e26621e"
-    },
-    "specs/052-constituicao-agente-marketing-autonomo/converge.md": {
-      "bytes": 1387,
-      "sha256": "d9d8d4bf3bec6fba38547a102e1c0b0522cbe107ad3e0cfe26f23c65dd7f9cc9"
-    },
-    "specs/053-hub-ci-gate-enforcement/converge.md": {
-      "bytes": 1121,
-      "sha256": "9ed57eef6133ba1836aaea2f2075ebbb870b2bb1484d4790ced1c1d2613eceff"
-    },
-    "specs/054-specgate-audit-cli/converge.md": {
-      "bytes": 1347,
-      "sha256": "e8de784b95e8268289f50303e80c7d9dfbe279db02ed7562fb8a85a5074bb826"
-    },
-    "specs/055-especs-agente-marketing-autonomo/converge.md": {
-      "bytes": 1481,
-      "sha256": "7aedc08fcade1f45f81b8bd26587867a9f5fb8ba18452b6802ce35f9cbe947a5"
-    },
-    "specs/056-distribuicao-specgate/converge.md": {
-      "bytes": 1120,
-      "sha256": "3cbd946069ef6e261c113ed11901233a349b81b485c0d18d29a077abf712a434"
-    },
-    "specs/057-daemon-ingestao-jobs/converge.md": {
-      "bytes": 676,
-      "sha256": "09896a16c41894a0144787588a02d5308ea943bafd08a20ec2ba317d7482d4f8"
-    },
-    "specs/059-roteador-modelos/converge.md": {
-      "bytes": 1241,
-      "sha256": "7ae1cf1850819da5b44db75cf7cd8c2a0b6183c0b7a1212b02f65950f677e302"
-    },
-    "specs/060-registro-satelites/converge.md": {
-      "bytes": 722,
-      "sha256": "70ba534672936b0039fcda365f8cd24f4d0b240f53e8496fa27db92fce6bc381"
-    },
-    "specs/061-rastreamento-custos/converge.md": {
-      "bytes": 546,
-      "sha256": "521d383a7ced6895e66a8b3d43da1d604b75ec2708cd73dc775a50d9e33d969d"
-    },
-    "specs/062-egm-goldfish-hybrid/converge.md": {
-      "bytes": 606,
-      "sha256": "91b5693de7e330fc3df5afe6b448d95fec53c86e077a9cee75ba6a687da3177e"
-    },
-    "specs/063-ressoa-sona-onnx-training/converge.md": {
-      "bytes": 3769,
-      "sha256": "a444fdc5eec6116a2585c60cd1b3cdd5c001e28e248cbf6374440e8074afe4d7"
-    },
-    "specs/064-g5-satellite-telemetry-returns-adoption/converge.md": {
-      "bytes": 153,
-      "sha256": "d5d775e056ad49f8551d9c5d1b74c639d428279f0a9e00492528bc10dc4cd227"
-    },
-    "specs/065-prepr-verifier-loop/converge.md": {
-      "bytes": 949,
-      "sha256": "8c541029d1a39db892aef88463b0a0f7996584926ba4bde1e84ad7e4581cd988"
-    },
-    "specs/066-durable-queue-journal/converge.md": {
-      "bytes": 2514,
-      "sha256": "d42050851b74a48089cc45e1a48190b6cab4ae1c9a50a0a2fdf5306dff09fb03"
-    },
-    "specs/067-delivery-metrics-join/converge.md": {
-      "bytes": 2218,
-      "sha256": "e0e29762d378cd46d1b85714f6da7530b05a3c195a083a54d0b70e94aabe8853"
-    },
-    "specs/068-g7-job-credentials/converge.md": {
-      "bytes": 1350,
-      "sha256": "486c5453e93f8d2149105b1153755edcf2c179bf855823ab8f8367706257bc56"
-    },
-    "specs/069-narrow-lights-out-loop/converge.md": {
-      "bytes": 288,
-      "sha256": "84a2bd87c127be3b916bda5557f7420465ef961530b7a3d2e0f4ca1daba9cc55"
-    },
-    "specs/070-queue-ack-telemetry-parity/converge.md": {
-      "bytes": 253,
-      "sha256": "345ea1ace85599999eafe47bdd8667fd78a08a61ce92f99f8804b5681e531887"
-    },
-    "specs/071-journal-relay-bridge/converge.md": {
-      "bytes": 144,
-      "sha256": "2cd7a2df049be04bdf9798a017936ed87a2d7ab3b82e747e8449176ef3325b45"
-    },
-    "specs/072-prepr-fast-lane/converge.md": {
-      "bytes": 93,
-      "sha256": "b7fdcd6cbc008e1db7a375560bd88e915e88fa6df8ca7dfdbef44e00295c898f"
-    },
-    "specs/073-dispatch-fencing-propagation/converge.md": {
-      "bytes": 118,
-      "sha256": "d05621b23146c8add4210c4aa7938357e5c9610e567213c83604ac1cf9928fad"
-    },
-    "specs/074-shadow-digest/converge.md": {
-      "bytes": 102,
-      "sha256": "eb34f8b7a82cdfaf7c63f4fcda8a31de6287497cc2717aab353272217189c57c"
-    },
-    "specs/075-specgate-first-revenue-kit/converge.md": {
-      "bytes": 3323,
-      "sha256": "1f629d3e5db9b0bc1ad82abcafc8319e5f0e83c4ec2a423f2d4ac1997e5c43b2"
-    },
-    "specs/076-auto-safe-eligibility-graduation/converge.md": {
-      "bytes": 183,
-      "sha256": "11705c5ae3f66024bb92516473b943b74db576d8d8b2a597f681a3e4dd55d4b3"
-    },
-    "specs/077-code-review-git-gateway/converge.md": {
-      "bytes": 2918,
-      "sha256": "ef3496cd0621eee296d632a175cc7173398df1753c9a6678392c3af504f0c7c3"
-    },
-    "specs/078-factory-on-coolify-prep/converge.md": {
-      "bytes": 3698,
-      "sha256": "b1dde56b4534730791e6744e319ea69ffaa6cc22f2d8901b19e91b1aeb79a546"
-    },
-    "specs/079-factory-health-deploy/converge.md": {
-      "bytes": 3479,
-      "sha256": "de49e72a7a20214c5942283eb1e97cc2b408d1d96e1eaa8471b0363aa17bdc62"
-    },
-    "specs/080-ci-runner-install-hardening/converge.md": {
-      "bytes": 605,
-      "sha256": "df29a2114abbf00babb7fca82f568bf6b1ca97b92435d27a11d5a46b7c03182a"
-    },
-    "specs/081-token-fence-egress-hardening/converge.md": {
-      "bytes": 303,
-      "sha256": "b0251970261ec06978370a59a4ea1b5bebe8647840b8ad1a349fdb3f558abe13"
-    },
-    "specs/082-holdout-integrity-hash-gate/converge.md": {
-      "bytes": 267,
-      "sha256": "31dd8136944112bf298c51f4c3cc739269f37f00bba46e03baeae243dabe22d4"
-    },
-    "specs/083-worktree-ephemeral-hygiene/converge.md": {
-      "bytes": 270,
-      "sha256": "621f6eb987da0589be1600d43626f4a76f262e2ddb904fdf62e713d3cdfa8712"
-    },
-    "specs/084-telemetry-hash-chain-verifier/converge.md": {
-      "bytes": 276,
-      "sha256": "2579f275f44ec018b61a7eb0750dcd497d7b6e50b9d9af1c0d9c6420f7c737b5"
-    },
-    "specs/085-retry-circuit-breaker-cap/converge.md": {
-      "bytes": 1120,
-      "sha256": "97d4f0516402d7bd9360eeb54803b5bbb77ebce032d918b92a51fb4fdf5c1b53"
-    },
-    "specs/086-sandbox-path-allowlist-guard/converge.md": {
-      "bytes": 3236,
-      "sha256": "8d162fd01bfdcad81094bd5f8921708f82d52e9f0ad5eb807dda6cbfc0e18511"
-    },
-    "specs/087-avaliacao-intake-gstack-gsd-superpowers/converge.md": {
-      "bytes": 480,
-      "sha256": "5b5fe12a093eea264d5d3dd26b4540e2588c029c60c5bce402cd5b28c09ffca1"
-    },
-    "specs/088-flora-phase-enforcement-80-20/converge.md": {
-      "bytes": 1990,
-      "sha256": "46fe96a5757bbfcefa246fdc661a48ced6d3180c1123306213fc858eab5b8613"
-    },
-    "specs/089-avaliacao-intake-5-tipos-ai-software-factories/converge.md": {
-      "bytes": 5621,
-      "sha256": "5882cb2bd757adcd5f1b0ea8b7d3aa737f5698488c5d04e39b61213911c588a7"
-    },
-    "specs/090-work-order-dag-integrity-gate/converge.md": {
-      "bytes": 3389,
-      "sha256": "84463e923b1c6d7166e620d5ca7c825672b132ccd5cc113e15856bca4bbaccd1"
-    },
-    "specs/091-avaliacao-intake-atlas-mcp-memoria/converge.md": {
-      "bytes": 4671,
-      "sha256": "2b6e1cfd6f1a991a7833e54c91812913e1d95f64898d9b2e5f2f3069a03a1671"
-    },
-    "specs/092-context-budget-handle-gate/converge.md": {
-      "bytes": 7546,
-      "sha256": "20b6649a50b32be18e1f1bbf59c97cc2e3751291e0b2cdc41669addb3fbb1b09"
-    },
-    "specs/093-context-budget-adoption-baseline/converge.md": {
-      "bytes": 7525,
-      "sha256": "47295081d251a4e83c4cd1e9d64b81c5484c9b0785ad65c2e1f10f9b0db875c2"
-    },
-    "specs/094-mdmv-decision-center-source-map/converge.md": {
-      "bytes": 3423,
-      "sha256": "bc0c8b199de1e77c36242fd302a05662ba0ba2d95a59f83180743cde30a224db"
-    },
-    "specs/095-template-default-context-adoption/converge.md": {
-      "bytes": 8766,
-      "sha256": "2866f1b66f7a87c113d2f747b155c7f7a5e58218926618d960dd0340fc77f9cb"
-    },
-    "specs/096-decision-gap-intake/converge.md": {
-      "bytes": 2266,
-      "sha256": "3008161a5c43e69559367fd2d4aa13ed26aa6031022f32958c6920bbfa252f94"
-    },
-    "specs/097-parcial-domain-evidence-plan/converge.md": {
-      "bytes": 2353,
-      "sha256": "329542b51a31ffc97f8806c64aaeb6f6744dd790923b96600e292fe8f147e6d1"
-    },
-    "specs/098-autonoma-secret-config-hygiene/converge.md": {
-      "bytes": 2221,
-      "sha256": "745c887e00789aceae010cfe783e67fad9c219934829f32914d72245338552b1"
-    },
-    "specs/098-flora-macro-debloat-intake/converge.md": {
-      "bytes": 6335,
-      "sha256": "2792485e580c28baed188fe12146ef1782926595ef75bb0ebc2dc6a601dcf2dd"
-    },
-    "specs/099-token-rotation/converge.md": {
-      "bytes": 2356,
-      "sha256": "509ea1bc581f0304446d7df88d81f21dab0d5b767c4e4513a2aa648484365380"
-    },
-    "specs/100-decision-center-report/converge.md": {
-      "bytes": 1435,
-      "sha256": "cdc4c9c98eedf4311d03bbd7f5b780a1786a14e4ddd35ef109a460ef27903c8f"
-    },
-    "specs/101-rust-idiomaticity-feedback-governance/converge.md": {
-      "bytes": 2759,
-      "sha256": "a7cd8684ddb138837d08d00c7853a33edca4e71813655fb748692ee94b27d5a9"
-    },
-    "specs/101-self-rotation-adapter/converge.md": {
-      "bytes": 4042,
-      "sha256": "8f0ad141a22d92db2385c0a6e8d1cbf0774258ccb57a2287c760bcc30a762dc9"
-    },
-    "specs/102-rust-llm-governance-completion/converge.md": {
-      "bytes": 2251,
-      "sha256": "b28285a27b579a52f402a2dfc09d9b19cdf1213d3863a417c96e4d937dcdc842"
-    },
-    "specs/103-rust-calibration-and-dependency-gate/converge.md": {
-      "bytes": 2903,
-      "sha256": "fc0abad245a35190a64dd13e3672b39d4ec1908af5dc2f57576f7f0cf3470f05"
-    },
-    "specs/104-rust-d01-close-and-ab-pilot/converge.md": {
-      "bytes": 817,
-      "sha256": "d4bbfdcd97759f24b93b6a934c7caeb13c084bd7cc0c351ca70e665277f34243"
-    },
-    "specs/108-rust-holdout-transfer-pilot/converge.md": {
-      "bytes": 2851,
-      "sha256": "2689173aeef45838d2d4c20ddcb0f49b474ff2910031e71c0a5e50b8d7fc803b"
-    },
-    "specs/111-content-marketing-domain-closure/converge.md": {
-      "bytes": 2194,
-      "sha256": "4d16ae0716e3ca04b03c4d73a3a32903920d65003fbd850bcfe0f721499ab1f3"
-    },
-    "specs/111-rust-ab-runner-and-replication/converge.md": {
-      "bytes": 2489,
-      "sha256": "8d4bc52afbfccb91cf80a25a7658d8b688f736442ed63606afd5ec2e7085c219"
-    },
-    "specs/112-legal-domain-integration/converge.md": {
-      "bytes": 1609,
-      "sha256": "661652d8c692384b21eb8e13a71bc1076c35802091cd3dcb7801c53ba436763c"
-    },
-    "specs/112-rust-llm-negative-result-ledger/converge.md": {
-      "bytes": 1946,
-      "sha256": "597b5b57f3dfa5a9e6c29a582005f0d56594bd65221818a113a47bdeb7783232"
-    },
-    "specs/113-messaging-domain-closure/converge.md": {
-      "bytes": 1493,
-      "sha256": "e686f9c78c430f84dd343ca9ad2e40b726497246d405cbc2cf64cfb7db28cbda"
-    },
-    "specs/114-seo-domain-closure/converge.md": {
-      "bytes": 1454,
-      "sha256": "d5f3a718d80d24bb23c3ce6b9124338591e97677fc8b977033c1d6dc17aa7243"
-    },
-    "specs/115-geo-domain-closure/converge.md": {
-      "bytes": 1453,
-      "sha256": "5e2db8918ebd18c7abf220744f2a689ba947b92fe2e9e85f719d72bbc5b6931f"
-    },
-    "specs/116-marketing-funnel-inbound-closure/converge.md": {
-      "bytes": 1569,
-      "sha256": "9e3809e8355016c56f53eb6d8e79fb00ee9c465521a410c92a983c5480cc34ef"
-    },
-    "specs/117-erp-domain-closure/converge.md": {
-      "bytes": 1458,
-      "sha256": "708c7fae031815e18f2f28083ef847c6b7b2c4d6ec2a2777ec76c67654ce7c02"
-    },
-    "specs/118-customer-support-domain-closure/converge.md": {
-      "bytes": 1550,
-      "sha256": "e553409faa0c71999827239d966b8e43a535a5379f52a1dd3fa926971b8c3c08"
-    },
-    "specs/119-internal-comms-domain-closure/converge.md": {
-      "bytes": 1553,
-      "sha256": "d089c5205c535631b991d31a073f80a5c132c5feffae7909011c87147a048e22"
-    },
-    "specs/120-people-wellbeing-domain-closure/converge.md": {
-      "bytes": 1639,
-      "sha256": "0dd02fbaef7e95f417b1ecc2e1daef0d4a8cc79d6f6fe3453a1db1d007fe5a9c"
-    },
-    "specs/121-crm-domain-closure/converge.md": {
-      "bytes": 1436,
-      "sha256": "7423b7fe1f4c18a2a6a18b68994436e12127a0d489c971a7b5230dc6ec158740"
-    },
-    "specs/122-finance-accounting-domain-closure/converge.md": {
-      "bytes": 1564,
-      "sha256": "a574481167cc1cd1abb71f095bbdab9bc0a42f244f32c61e1c248a296263ca3f"
-    },
-    "specs/123-parallel-agent-shared-repo-gates/converge.md": {
-      "bytes": 9821,
-      "sha256": "266cde046c381e8c05bda4f1bb36986b420955798ce26ba9571ffd950aa775c7"
-    },
-    "specs/124-social-media-domain-closure/converge.md": {
-      "bytes": 1488,
-      "sha256": "94dffddbad37e21f62cb1fa42c3fc15c4cd6d04923973a60d414968259898645"
-    },
-    "specs/125-email-domain-closure/converge.md": {
-      "bytes": 1426,
-      "sha256": "b698cdb305987b9e81180ef3f5be2442a01ecc1f3758af6d2d3e746f8b1f4546"
-    },
-    "specs/126-company-health-domain-closure/converge.md": {
-      "bytes": 1486,
-      "sha256": "7fa145a31eaa232f3ccebb9a67e2d661efda9e23a479a783329bae05b596fa75"
-    },
-    "specs/127-legal-governance-domain-closure/converge.md": {
-      "bytes": 1524,
-      "sha256": "13956e8ac07542c2305109b8779c0b1e09752ebdd95290e152befaf616f108cb"
-    },
-    "specs/128-decision-center-required-gate/converge.md": {
-      "bytes": 1511,
-      "sha256": "94b22ff62f6b37257afb991506c27092ec96cf0252660313c4271f444d7dabfc"
-    },
-    "specs/129-decision-center-query/converge.md": {
-      "bytes": 1386,
-      "sha256": "d88b791f0876f847b6a8055a2ec97a5918dd4db70e9b080bd63047f772725b0b"
-    },
-    "specs/129-mdmv-factory-portable-cli/converge.md": {
-      "bytes": 3060,
-      "sha256": "8c97b83a3992205fdc1283bf7343e85a0d26d3ee72896bf9fe0547099870bc44"
-    },
-    "specs/130-strategic-state-refresh/converge.md": {
-      "bytes": 1500,
-      "sha256": "58b54a7762e19b436f67546ca33e3a9d10d03b49655c7812b16fe9ef89e12c5d"
-    },
-    "specs/131-evidence-integrity-ledger/converge.md": {
-      "bytes": 2020,
-      "sha256": "8f9ac84781e240f7ea2a6b8e8af829e27bab87472ed0a992fc60a225566cec8b"
-    },
-    "specs/132-parallel-gates-hardening/converge.md": {
-      "bytes": 2026,
-      "sha256": "860468fe2f1be99d0781e2cf8048a15dc8bad775cb8a233110cb118d409b5c1a"
-    },
-    "specs/133-health-server-http-stability/converge.md": {
-      "bytes": 2776,
-      "sha256": "22de7fea442fae8e60412a94e09a4a903077e472838a90b515459db56d5bb5a4"
+    "specs/001-android-media-shell/converge.md": {
+      "bytes": 2539,
+      "sha256": "ba03eca9e7e5ebe3d5761c14aa9ad905425e47a0e581d13063dbec530cde0f9e"
+    },
+    "specs/002-fr-024-synthesis-adapter/converge.md": {
+      "bytes": 2734,
+      "sha256": "04faf69c154901e524353ded1b7b6e1b10228de0faa311ab4f74510e8774c0a4"
+    },
+    "specs/003-reference-device/converge.md": {
+      "bytes": 2299,
+      "sha256": "aae6e10e5158c61995f68a3698033be4c1205a190444ee349d4c074283237fa2"
+    },
+    "specs/004-ressoa-dogfood-build/converge.md": {
+      "bytes": 2780,
+      "sha256": "432fa19ec0c7b6266d91195669b91c93e59431be0037b1be4bbe0066d56439ca"
+    },
+    "specs/005-adopt-design-ressoa/converge.md": {
+      "bytes": 1289,
+      "sha256": "917fb48d39b5d128929525f7baee88ccc7ed8301e632528dcff55ea8a949a30c"
+    },
+    "specs/006-lente-sinestesica-completa/converge.md": {
+      "bytes": 1265,
+      "sha256": "ac33410ee7c41f08bb79ca87bd669d66327df4c8c55fc1f31c95c8594eef5ac1"
+    },
+    "specs/007-ressoa-complete-design/converge.md": {
+      "bytes": 1296,
+      "sha256": "1599d579f9a24c52c22753f4bdaacb28e6cf75a5e2f5a6f07813a52983a05810"
+    },
+    "specs/008-ref-device-emulator/converge.md": {
+      "bytes": 1283,
+      "sha256": "69f34578d744195d16b10204a15480e16e8f99785c081f9551535cf942f66fe9"
+    },
+    "specs/009-open-file-from-title/converge.md": {
+      "bytes": 5251,
+      "sha256": "cc06548653be4b08efbc55a6ddd84493be9b95dcab4060f3b7e36b6260abd4b7"
+    },
+    "specs/010-directory-reading/converge.md": {
+      "bytes": 4845,
+      "sha256": "79fe3366577c7a7f7adac1d0cc963950f6bbec1e04d2378a5ff6b152afef160b"
+    },
+    "specs/011-avd-emulator-setup/converge.md": {
+      "bytes": 4776,
+      "sha256": "52ce09cf178529545ed3d4439178b253a6a0953428f9767452fa05a4bc2869c7"
+    },
+    "specs/012-debug-ingest-hook/converge.md": {
+      "bytes": 7070,
+      "sha256": "5a256035aa58f259721995762ed1e652fc3afd8f926161fbbe3767dadb0c3e27"
+    },
+    "specs/013-ttfa-synthesis-pipeline/converge.md": {
+      "bytes": 27897,
+      "sha256": "e88b18ddd40745c6621802c46e6f65d0d9e1ae7bb1fd55794e3843b3e1c0985e"
+    },
+    "specs/014-tts-symbol-normalization/converge.md": {
+      "bytes": 3807,
+      "sha256": "62cf521a6c6b411c41773924bd25e95ea9b7233f653500a90db1042b87d13058"
+    },
+    "specs/015-md-semantic-prosody/converge.md": {
+      "bytes": 3278,
+      "sha256": "5df89665691322db2d8b65b7b1095306da47cf577e66a340a24d0b3cdadea251"
+    },
+    "specs/016-voz-lula/converge.md": {
+      "bytes": 1281,
+      "sha256": "db0e37b6c12038d4420be629668e8d2bc3420b584fed9a8301bc9dbe06de6528"
+    },
+    "specs/017-audio-cache-queue-management/converge.md": {
+      "bytes": 1268,
+      "sha256": "ec85ff47909026fae1f252accc4cff045978c28d1a07d398eb7ef70fadec9920"
+    },
+    "specs/018-ressoa-reading-voice/converge.md": {
+      "bytes": 3673,
+      "sha256": "42cc2f806c73dabe052d127bc9f4850536d343268ced68c3cfb7f254ff522597"
+    },
+    "specs/019-intent-filter-ingress/converge.md": {
+      "bytes": 1721,
+      "sha256": "064b0a60517edb557827e1f880d63b63ebe810c266f8b583fce96da6471668ae"
+    },
+    "specs/020-dynamic-doc-cap-scalability/converge.md": {
+      "bytes": 893,
+      "sha256": "7e7eae31e6483a8090c111f2ecd9aecc33a0bd890b255226a733565cb45abdc6"
+    },
+    "specs/021-android-16-accessibility-compliance/converge.md": {
+      "bytes": 2802,
+      "sha256": "cd798cecd3a9aa1b7a3b7beb8ab9b1948e651bcb5331d7668bee4ad5bd869566"
+    },
+    "specs/022-gate9-release-only/converge.md": {
+      "bytes": 1306,
+      "sha256": "5d8276ac3c731136c8012e94d79fff8f53c709ca00e3d2e7bbd65c0ccd93cc8d"
+    },
+    "specs/023-directory-ui-controls/converge.md": {
+      "bytes": 1840,
+      "sha256": "395a46819f845eaa286f9e60ba24cf4fbf4bd6dc691745ecd4cfeee08c72f37f"
     }
   },
   "schema_version": "087.1.0"

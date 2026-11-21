@@ -541,3 +541,10 @@ T028: gate-9 build artifact confirmed: app-universal-release.apk (118MB, aarch64
 - Gate local `scripts/verify.sh` executado 2x na branch do PR; ambas as execuções abortadas por **SIGTERM externo** (limite de tempo do harness: 1007/1082 e 994/1082, sem FAIL funcional) — não classificado como RED. Evidência autoritativa: CI do PR (green).
 - TTFA medido no device: `play_to_audio_ms=12686` via ACTION_SEND/EXTRA_TEXT; 46 entries de diagnóstico, sessão playing→completed, sem FATAL/ANR. 12686 ms excede baseline 1551 ms / SC-002 3000 ms.
 - [NV] reinstalar APK com capabilities corretas e confirmar ausência de `event.listen not allowed`;昔日 baseline TTFA não revalidado; proteções de branch/ruleset.
+
+## 2026-11-21 — Merge #229 e bloqueio de reinstalação no device
+
+- PR #229 **MERGED** em dev (`bf7971b6`) com Host gates pass (run `44856655405`). Merge disparam run `44857393032`: Host gates success + Android debug build success. Release/SemVer skipped (esperado em push dev).
+- APK debug do run `44857393032` baixado (`/tmp/apk_caps/app-universal-debug.apk`, 265 MB) para reinstalação com capabilities corretas.
+- **BLOQUEIO GENUÍNO:** `adb install` falha com `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user` — MIUI exige confirmação manual na tela (instalação via ADB). Tentativas com APK novo e APK antigo falharam. App `app.mdreader` está **AUSENTE** no dispositivo até o usuário autorizar a instalação na tela. Backup em `/tmp/device_backup/` (bookmarks.redb + snapshot Hamlet) e ambos APKs preservados em `/tmp/apk_caps/` e `/tmp/apk_debug/`.
+- [NV] Confirmação de que `event.listen not allowed` desapareceu após reinstalação — exige intervenção humana no dispositivo.

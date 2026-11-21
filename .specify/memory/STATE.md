@@ -534,3 +534,10 @@ T028: gate-9 build artifact confirmed: app-universal-release.apk (118MB, aarch64
 - **TTFA medido: `play_to_audio_ms=12686`** (12,686 s) no entry `{"kind":"transport_change","position_secs":0.08072562358,"detail":"action=progress play_to_audio_ms=12686"}`. Acima do baseline 1551 ms e do SC-002 3000 ms — registro factual, não juízo de aprovação. [NV] comparação com a medição histórica de 2026-11-07 (11.497 ms) e com dispositivo de referência em condições controladas.
 - **Causa raiz de `event.listen not allowed` confirmada:** `src-tauri/capabilities/` estava no `.gitignore:131`; `default.json` existia só no working tree → CI compilou ACL vazia. Correção: exceção estreita no `.gitignore` + versionamento de `default.json` (commit `c3d2447`, branch `fix/capabilities-device`, PR #229 aberto para dev). `gen/` continua ignorado. [NV] validação definitiva após reinstalar APK do CI com a correção.
 - **Política de builds:** push em dev → debug; push em main → debug + release SemVer (validado em `44849645463`: debug success, release/semver skipped).
+
+## 2026-11-21 — Verificação final do ciclo de capabilities
+
+- PR #229 (`fix/capabilities-device`): CI run `44853226525` — Host gates **success**, Android build debug **success**, Android build release **success**, release-version skipped. 4 checks SDD PASS.
+- Gate local `scripts/verify.sh` executado 2x na branch do PR; ambas as execuções abortadas por **SIGTERM externo** (limite de tempo do harness: 1007/1082 e 994/1082, sem FAIL funcional) — não classificado como RED. Evidência autoritativa: CI do PR (green).
+- TTFA medido no device: `play_to_audio_ms=12686` via ACTION_SEND/EXTRA_TEXT; 46 entries de diagnóstico, sessão playing→completed, sem FATAL/ANR. 12686 ms excede baseline 1551 ms / SC-002 3000 ms.
+- [NV] reinstalar APK com capabilities corretas e confirmar ausência de `event.listen not allowed`;昔日 baseline TTFA não revalidado; proteções de branch/ruleset.

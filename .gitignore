@@ -127,8 +127,10 @@ ressoa-validation-*/
 t184-t226-*/
 *.bak*
 
-# Tauri capabilities generated
-src-tauri/capabilities/
+# Tauri capabilities generated — the canonical default ACL is versioned;
+# generated platform trees under /src-tauri/gen/ remain ignored.
+src-tauri/capabilities/*
+!src-tauri/capabilities/default.json
 
 # Experimental training scripts
 /scripts/build_all_waves.py

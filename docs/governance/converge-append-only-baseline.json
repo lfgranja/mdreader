@@ -104,6 +104,10 @@
     "specs/026-first-useful-segment/converge.md": {
       "bytes": 5677,
       "sha256": "4bedba0baa8603af327408987e1956be68ab423423b4aaa61e6b30edb12c0017"
+    },
+    "specs/027-production-exhaustion/converge.md": {
+      "bytes": 5311,
+      "sha256": "35b9801e3f1297780a76ce78d273237acf54b2f8c1835e35d1f0464f35bfb589"
     }
   },
   "schema_version": "087.1.0"

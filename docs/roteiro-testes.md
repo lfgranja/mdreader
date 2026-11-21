@@ -2,7 +2,7 @@
 
 Roteiro prático para validar todas as funcionalidades do leitor. Ordem recomendada: **host (determinístico) → device passivo → device ativo → visual/escuta**. Cada seção lista pré-condição, passos, resultado esperado e evidência a capturar.
 
-**Regra de ouro**: gates determinísticos e logs são a verdade; saída de LLM/agente é informativa. Afirmações remotas não observadas ao vivo são `[NV]`.
+**Complemento**: validações que exigem julgamento humano (escuta, TalkBack, SAF manual, revisão visual, [NV] remoto) estão em `docs/roteiro-validacao-humana.md`.
 
 ---
 

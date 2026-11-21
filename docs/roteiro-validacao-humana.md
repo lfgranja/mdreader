@@ -1,6 +1,6 @@
 # Roteiro de validações humanas — Ressoa / mdreader
 
-Complemento de `docs/roteiro-testes.md`. cobre **apenas** o que não pode ser automatizado: julgamento sensorial (escuta), navegação de picker nativo, leitura de tela por TalkBack, revisão visual, e confirmação de estado remoto na UI.
+Roteiro complementar a `docs/roteiro-testes.md` (que cobre o que é automatizável). Aqui: apenas julgamento humano e confirmação de estado vivo.
 
 **Regra de ouro**: ADB prepara fixtures; **o julgamento é humano**. Toda afirmação não executada aqui permanece `[NV]`. Não alterar `secure settings` (inclusive TalkBack) por ADB — a ativação é manual pelo usuário na tela. Não editar `src-tauri/gen/**` diretamente.
 
@@ -134,14 +134,14 @@ adb -s $S shell "printf '# Capitulo 31\n\nTexto.\n' > /sdcard/Download/mdreader-
 
 ## 7. [NV] remotos — confirmação na UI do GitHub (V7)
 
-**Tempo**: ~18 min. Todos abaixo permanecem `[NV]` até inspeção ao vivo.
+**Tempo**: ~18 min. Todos abaixo permanecem `[NV]` até inspeção ao vivo. **Não confie em IDs, números de PR, hashes ou resultados registrados em `STATE.md` ou neste documento — STATE é snapshot.** Obtenha o estado real via UI do GitHub ou `gh` no momento da validação.
 
-| Item | Passo | Esperado | min |
+| Item | Passo ( estado vivo ) | Política esperada | min |
 |---|---|---|---|
-| CI checks | Abrir runs pós-#232 e pós-#233; aba Checks | Host gates + Android debug success no HEAD atual; sem aggregate `pending` divergente | 3 |
-| Ruleset | Settings → Branches/Rulesets; localizar id `27578490` | contexts Host+Android exigidos em tags `v*`; `dev` sem aprovação; `main` 1 aprovador + CODEOWNER | 4 |
-| Aprovação distinta | PRs #229/#230/#232/#233; comparar aprovadores com autores | em `main` aprovador ≠ autor; em `dev` zero aprovações permitido após checks | 5 |
-| Merge/review + release | Histórico de `dev`; checar #230/#232/#233 MERGED via merge button; run `workflow_dispatch` | merges intencionais, ordem respeitada; **conteúdo/hash dos APKs permanece [NV]** | 6 |
+| CI checks | `gh run list --branch dev --limit 5` e `gh pr checks <PR aberto/recente>`; conferir o HEAD **atual** de `dev` | Host gates + Android debug success no HEAD atual; sem aggregate `pending` divergente | 3 |
+| Ruleset | Settings → Branches/Rulesets: **identifique o ruleset de release atual** — não procure um ID fixo | contexts Host+Android exigidos em tags `v*`; `dev` sem aprovação; `main` 1 aprovador + CODEOWNER | 4 |
+| Aprovação distinta | `gh pr list --state all --limit 10` e abrir cada PR recente na UI; comparar aprovadores com autores | em `main` aprovador ≠ autor; em `dev` zero aprovações permitido após checks | 5 |
+| Merge/review + release | `git log --oneline -10` + `gh run list` + aba Actions na UI; checar merges recentes e um `workflow_dispatch` | merges intencionais via merge button, ordem respeitada; **conteúdo/hash dos APKs permanece [NV]** | 6 |
 
 **Evidência**: screenshots da aba Checks, regras, reviewers, merge commit e artefatos.
 
@@ -149,9 +149,9 @@ adb -s $S shell "printf '# Capitulo 31\n\nTexto.\n' > /sdcard/Download/mdreader-
 
 ---
 
-## 8. Parciais que exigem insumo novo (V8)
+## 8. Pré-requisitos / harness-gaps (decisão do SE) — não são validações humanas
 
-Não são “validações humanas puras”, mas dependem de decisão/execução com insumo que o harness não tem. Ordem recomendada: 5.2 → 5.11 → 5.9.
+
 
 ### 5.2 — TTFA via ACTION_VIEW
 - **Falta**: ID MediaStore vivo. `content://media/external/file/1000848919` está stale.
@@ -183,7 +183,7 @@ Não são “validações humanas puras”, mas dependem de decisão/execução 
 
 ---
 
-## 9. Ordem resumida (checklist)
+## 10. Ordem resumida (checklist)
 
 - [ ] V1 — escuta (12–15 min)
 - [ ] V2 — TalkBack (8–10 min)
@@ -192,5 +192,5 @@ Não são “validações humanas puras”, mas dependem de decisão/execução 
 - [ ] V5 — C-H1..C-H9 (~65 min)
 - [ ] V6 — revisão visual Archify (15 min)
 - [ ] V7 — [NV] remoto GitHub (~18 min)
-- [ ] V8 — parciais com insumo novo (5.2 rápido → 5.11 Supervisionado → 5.9 longo)
+- [ ] Pré-requisitos §8 (decisão do SE, **não** validação humana): 5.2 ID MediaStore vivo → 5.11 marker offline supervisionado → 5.9 documento >5 min
 - [ ] Registrar resultados em `docs/PROGRESSO.md` (append-only) com `[NV]` explícito

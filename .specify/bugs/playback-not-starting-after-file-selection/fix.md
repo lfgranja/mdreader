@@ -74,3 +74,7 @@ Usuário abriram "Hamlet trecho.md" pelo app de arquivos (ACTION_VIEW, URI `cont
 - Contraste: sessão via ACTION_SEND no mesmo APK avançou de 0.16→10.4s com `play_to_audio_ms=8827`. Logo o problema é específico do caminho ACTION_VIEW/MediaStore, não do motor de síntese.
 
 Hipótese: URI `content://media/external/file/<id>` sem FLAG_GRANT_READ_URI_PERMISSION e sem display name → DocIngest ingere bytes fallback mas o fingerprint bate com bookmark restaurado (c6c1f42f…) → cold-start `AwaitOffer` estaciona o playback (T233, `offer_route=in_app_dialog`), e a UI não exibe o diálogo porque o payload não foi publicado corretamente para ACTION_VIEW. [NV] confirmar oferta pendente.
+
+### Atualização 2026-11-21 (segunda) — causa refinada
+
+A sessão Hamlet eventualmente iniciou áudio, mas com **`play_to_audio_ms=183089`** (183 s ≈ 3 min) e `action=buffer preroll_secs=60.000 preroll_cap_secs=60.000` — o pre-roll encheu o teto de 60 s antes do primeiro sample audível. Sequência: `session_start doc=c6c1f42f…` (23:53:12) → `buffer preroll=60s` (23:56:15) → `progress play_to_audio_ms=183089` (23:56:15.845). Ou seja: não é "nunca toca"; é **latência extrema de primeiro áudio** no caminho ACTION_VIEW com documento grande (snapshot Hamlet 3.897 bytes + cap 1 MiB). O bug T232 (pré-síntese de capítulo, 200-350 LOC) é o dono natural dessa área; registrar como dependência.

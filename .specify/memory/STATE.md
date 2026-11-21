@@ -556,3 +556,9 @@ T028: gate-9 build artifact confirmed: app-universal-release.apk (118MB, aarch64
 - **TTFA pós-correção: `play_to_audio_ms=8827`** (8,827 s) via ACTION_SEND/EXTRA_TEXT + keyevent 126; 49 entries de diagnóstico, sessão playing→completed. Melhoria vs medição anterior 12686 ms (condições diferentes; [NV] comparação controlada). Ainda acima do baseline 1551 ms / SC-002 3000 ms — registro factual.
 - Bookmarks (1,5 MB) restaurados no dispositivo; snapshot Hamlet não restaurado por permissão SELinux no destino ([NV] não impacta gates).
 - dev @ `a4ed35eb`, limpo, nenhum PR aberto, CI pós-merge success (Host gates + debug).
+
+## 2026-11-21 — Bug ACTION_VIEW Hamlet: latência extrema de primeiro áudio
+
+- Usuário reportou: abriu "Hamlet trecho.md" e exibiu `document:1000848919.md` sem tocar. Evidência ADB confirmou sessão `doc=c6c1f42f…` com `progress position_secs=0.0` por ~183 s.
+- Causa refinada: `action=buffer preroll_secs=60.000 preroll_cap_secs=60.000` — pre-roll atinge o teto antes do primeiro sample; `play_to_audio_ms=183089` (183 s). Nome exibido errado porque `queryName` (DocIngest.kt:638) retorna null para URI MediaStore e `effectiveUri` vira `content://media/external/file/1000848919`.
+- Bug `playback-not-starting-after-file-selection/fix.md` reaberto com evidência (commit `5ded6e99` + atualização). Próximo 80/20: T232 pré-síntese de capítulo (dono natural da latência) — permanece DEFER (200-350 LOC, exige gate 9 + device).

@@ -170,7 +170,7 @@ adb -s $SHELL_CMD shell "run-as $PKG sh -c 'rm -f files/diagnostic-record.jsonl;
 
 | # | Cenário | Passos | Resultado / evidência |
 |---|---|---|---|
-| 5.1 | Cold start, documento novo | ACTION_SEND curto; observar 20 s | `session_start`, `play_to_audio_ms`, progressão, `session_end` no fim |
+| 5.1 | Cold start, documento novo | ACTION_SEND curto; **observar até `session_end` aparecer (cap ~60 s de relógio)**, não por tempo fixo | `session_start`, `play_to_audio_ms`, progressão, `session_end` no fim |
 | 5.2 | Primeiro áudio (TTFA) | ACTION_VIEW Hamlet com `-f 0x1` | `play_to_audio_ms` pareado; baseline pós-ciclo 026 ≈ 7506 ms vs 183089 ms antigo |
 | 5.3 | Pause/resume | `input keyevent 127`/`126` (pause/play) | posição congela no pause; `session_end reason=paused`; retomada no bookmark |
 | 5.4 | Skip ±5 s | `#btnSkip*` ou verbos | `action=section` quando cruza fronteira; posição clamp em 0 |
@@ -215,7 +215,7 @@ adb -s $SHELL_CMD shell "run-as $PKG sh -c 'rm -f files/diagnostic-record.jsonl;
 - C-H1..C-H9 execução detalhada: **deferred** no `verify.sh`.
 - Gate 9 local: host sem JDK 17/NDK 27/platform 35 — usar CI (`workflow_dispatch`).
 - Spec 020 (PocketTTS): **NO-GO** registrado (TTFA 9,8–26 s, RTF 2–6,6) — não integrar.
-- TTFA smoke 5+ min pareado: só promover SC-TTFA-001 após execução completa.
+- **Síntese mais lenta que tempo real**: em 2201117TY, 210 s de relógio renderam ~57,7 s de posição; fixture curta emitiu `session_end` em ~17,8 s de posição após ~40 s de relógio. Não usar janelas fixas curtas (ex.: 20 s) — observar até o evento terminal aparecer.
 - [NV] remoto: CI, proteções de branch, artefatos, medições não executadas neste roteiro.
 
 ---

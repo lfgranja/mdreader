@@ -5780,6 +5780,23 @@ pub mod commands {
         }
         let mut produced = 0usize;
         while produced < max_units && production_generation_matches(state, generation) {
+            // 027: finalize an already-drained production before the
+            // backpressure checks; otherwise `production` stays Some forever
+            // and `production_running` gates the end-of-document signal.
+            let exhausted = {
+                let Ok(guard) = state.production.lock() else {
+                    return Ok(());
+                };
+                guard.as_ref().is_some_and(|p| {
+                    p.generation == generation
+                        && p.next_unit >= p.segments.len()
+                        && p.pending.is_empty()
+                })
+            };
+            if exhausted {
+                finish_production_if_current(state, generation);
+                break;
+            }
             let room = queue_room(state);
             let has_pending = {
                 let Ok(guard) = state.production.lock() else {
@@ -10831,6 +10848,37 @@ mod ttfa_013_tests {
         assert!(!commands::production_running_for_generation(
             &state, generation
         ));
+        Ok(())
+    }
+
+    #[test]
+    fn exhausted_production_is_finished_by_produce_bounded() -> Result<(), String> {
+        let state = AppState::test_state();
+        let generation = commands::invalidate_production_generation(&state);
+        {
+            let mut guard = state.production.lock().map_err(|e| e.to_string())?;
+            *guard = Some(Production {
+                generation,
+                segments: Vec::new(),
+                sections: Vec::new(),
+                next_unit: 0,
+                samples_before_entry: 0,
+                pending: std::collections::VecDeque::new(),
+                total_samples: 0,
+                played_samples: 0,
+                next_section: 0,
+                started: true,
+            });
+        }
+        commands::produce_bounded(&state, generation, 2).map_err(|e| e.to_string())?;
+        assert!(
+            state
+                .production
+                .lock()
+                .map_err(|e| e.to_string())?
+                .is_none(),
+            "an exhausted production must be finalized so the end-of-document signal can fire"
+        );
         Ok(())
     }
 

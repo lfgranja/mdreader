@@ -183,7 +183,7 @@ adb -s $S shell "printf '# Capitulo 31\n\nTexto.\n' > /sdcard/Download/mdreader-
 
 ---
 
-## 10. Ordem resumida (checklist)
+## 9. Ordem resumida (checklist)
 
 - [ ] V1 — escuta (12–15 min)
 - [ ] V2 — TalkBack (8–10 min)

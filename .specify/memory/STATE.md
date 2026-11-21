@@ -596,3 +596,11 @@ T028: gate-9 build artifact confirmed: app-universal-release.apk (118MB, aarch64
 - **Resultado: `play_to_audio_ms=7506`** vs baseline `183089` → **redução de 96%**. `action=buffer preroll_secs=8.829 preroll_cap_secs=60.000 dropped_samples=0`.
 - Posição avançou até 0.121 s e estabilizou enquanto o restante da síntese prosegue (primário de 160 bytes tocou primeiro; sem FATAL/ANR/underrun no logcat). [NV] continuidade de longa duração e ausência de gap após o primário — exige observação 5+ min.
 - SC-TTFA-001 (relativo, sem limite absoluto) tem agora evidência pareada de melhora material; não promover a PASS sem smoke 5+ min conforme `converge.md` da spec 013.
+
+## 2026-11-21 — Validação visual/espelhamento no device + achado de stall
+
+- **Capturas de tela** (`adb exec-out screencap -p`, 1080x2400): `/tmp/device_captures/tela_atual.png`, `tela_6s_depois.png`, `stall_199s.png`.
+- **Validação visual PASS**: título `HAMLET trecho.md` (ciclo 025), waveform com 5 camadas coloridas + playhead (bug `sona-waveform-missing-in-screenshot` agora com evidência visual real), botão pause ativo (playing), fundo escuro, controles de capítulo/velocidade. Hashes das capturas com 6 s de diferença divergem → waveform animando.
+- **Smoke de longa duração**: app reproduziu continuamente de 0 s até **199,203 s** (~3,3 min) com 787 entries de diag e nenhum FATAL/ANR/underrun.
+- **ACHADO — stall no fim**: posição parou em `199.20331065760243` e permaneceu por >100 s, sem `session_end` nem `action=complete`; MediaSession ainda `state=3` (PLAYING). Snapshot completo (3897 bytes, termina em "Sai."). Possível bug de não-finalização no fim do documento com primário de 160 bytes. Registrado como **NOVO BUG** em `.specify/bugs/` — não corrigido nesta rodada (fora do ciclo 026).
+- [NV] causa raiz do stall; correção exige novo ciclo.

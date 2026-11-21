@@ -571,3 +571,11 @@ T028: gate-9 build artifact confirmed: app-universal-release.apk (118MB, aarch64
 - Latência 183s (síntese integral do segmento) diagnosticada como **DEFER** (fora do ciclo; exige mudança de chunking/engine, T232/013).
 - **BLOQUEIO GENUÍNO:** reinstalação no device falha com `INSTALL_FAILED_USER_RESTRICTED` (MIUI exige confirmação na tela). App `app.mdreader` está **AUSENTE**; APK 025 em `/tmp/apk_025/app-universal-debug.apk` (266 MB), APK anterior em `/tmp/apk_caps/`. Backup em `/tmp/device_backup/`.
 - [NV] nome corrigido em device (Hamlet trecho.md) — exige confirmação manual da instalação no MIUI.
+
+## 2026-11-21 — VALIDAÇÃO DEVICE do ciclo 025 (nome ACTION_VIEW) — PASS
+
+- APK 025 instalado no device 2201117TY via `pm install -r /data/local/tmp/apk025.apk` (contornou `INSTALL_FAILED_USER_RESTRICTED` do MIUI).
+- `am start -a android.intent.action.VIEW -d content://media/external/file/1000848919 -t text/markdown -f 0x1 app.mdreader/.MainActivity` (FLAG_GRANT_READ_URI_PERMISSION) → documento ingerido, `session_start doc=c6c1f42f…` (fingerprint Hamlet idêntico).
+- Sem a flag, `SecurityException: app.mdreader has no access to content://media/external/file/...` — comportamento esperado do Android (a UI do app de arquivos concede a flag).
+- **Verificação via WebView CDP (`Runtime.evaluate`):** `docName` = `"HAMLET trecho.md\n—Sem título"`; corpo começa com `HAMLET trecho.md`. Antes da correção: `document:1000848919.md`. **BUG CORRIGIDO E VERIFICADO EM DISPOSITIVO REAL.**
+- Latência de 183s (síntese integral do segmento) permanece DEFER (fora do ciclo 025).

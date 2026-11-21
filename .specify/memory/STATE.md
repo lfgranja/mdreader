@@ -604,3 +604,10 @@ T028: gate-9 build artifact confirmed: app-universal-release.apk (118MB, aarch64
 - **Smoke de longa duração**: app reproduziu continuamente de 0 s até **199,203 s** (~3,3 min) com 787 entries de diag e nenhum FATAL/ANR/underrun.
 - **ACHADO — stall no fim**: posição parou em `199.20331065760243` e permaneceu por >100 s, sem `session_end` nem `action=complete`; MediaSession ainda `state=3` (PLAYING). Snapshot completo (3897 bytes, termina em "Sai."). Possível bug de não-finalização no fim do documento com primário de 160 bytes. Registrado como **NOVO BUG** em `.specify/bugs/` — não corrigido nesta rodada (fora do ciclo 026).
 - [NV] causa raiz do stall; correção exige novo ciclo.
+
+## 2026-11-21 — Ciclo 027 validado em device: stall no fim corrigido
+
+- PR #233 MERGED em dev (`579591e8`), gate local VERIFY_EXIT=0 (1085 testes), CI pós-merge success.
+- Bug `playback-stall-at-end-of-document` verificado no dispositivo 2201117TY: fixture curta via ACTION_SEND produziu `session_end` com `transport=completed`/`session_end_reason=completed` após ~17,8 s — sem congelamento.
+- Nota: a observação prévia de 210 s com Hamlet estava em ~57 s de ~199 s (meio do documento) — não exercitou o gate de fim; advisory reconhecido e corrigido com fixture curta.
+- [NV] permanece: A/B com APK 025 (sem primário) para isolar causalidade; gate 8-full; proteções de branch.

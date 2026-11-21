@@ -96,6 +96,10 @@
     "specs/024-directory-resume-offer/converge.md": {
       "bytes": 4103,
       "sha256": "fb84938cd8ca45a94be247b60cd297a799dad7264d857e9901e1763e08eb0240"
+    },
+    "specs/025-action-view-display-name/converge.md": {
+      "bytes": 4217,
+      "sha256": "f38b6307909d1f158863e5a9472eaffbc6fe203c4b9fd05c436d38c55bec00c0"
     }
   },
   "schema_version": "087.1.0"

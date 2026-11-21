@@ -71,3 +71,10 @@
 - Criado `docs/roteiro-testes.md` com 9 seções: pré-condições, gates host, engine/vozes (CLI), transporte/offer/bookmark, UI/WebView/SAF, device ponta a ponta, visual/escuta, bugs com atenção especial e limites conhecidos.
 - Base: 4 agentes de pesquisa paralelos (engine/síntese, transporte/sessão, UI/Android, QA/gates), sintetizados em um único arquivo. Comandos ADB/CLI acionáveis e sinais no `diagnostic-record.jsonl` por cenário.
 - [NV] nenhuma medição remota foi executada para produzir este roteiro; cenários de dispositivo listados como passos a executar, não como resultados.
+
+## 2026-11-21 — Roteiro de validações humanas (append-only)
+
+- Criado `docs/roteiro-validacao-humana.md` com 9 seções: escuta (V1), TalkBack (V2), overflow (V3), SAF (V4), C-H1..C-H9 (V5), revisão visual Archify (V6), [NV] remoto GitHub (V7), parciais com insumo novo (V8), checklist.
+- Complemento de `docs/roteiro-testes.md`; cobre apenas julgamento não automatizável. Critérios subjetivos explícitos (escala 1–5 por voz), evidenced por gravação/transcrição/screenshot.
+- V8 registra insumos necessários: ID MediaStore vivo (5.2), marker offline device-side (5.11), documento com elapsed ≥300 s real (5.9). Riscos de ADB-over-Wi-Fi e thermal documentados.
+- [NV] todo item do roteiro permanece não executado até validação humana; nenhuma afirmação de APPROVED/PASS foi feita.

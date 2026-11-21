@@ -65,3 +65,9 @@
 
 ### Nota sobre a spec 020
 - Interjeição do SE às 2026-11-20: **desconsiderar** a instrução anterior sobre "spec 020 do gate de allowlist" (mensagem enviada por engano). Nenhuma ação adicional foi tomada sobre a spec 020 nesta rodada.
+
+## 2026-11-21 — Roteiro de testes funcional (append-only)
+
+- Criado `docs/roteiro-testes.md` com 9 seções: pré-condições, gates host, engine/vozes (CLI), transporte/offer/bookmark, UI/WebView/SAF, device ponta a ponta, visual/escuta, bugs com atenção especial e limites conhecidos.
+- Base: 4 agentes de pesquisa paralelos (engine/síntese, transporte/sessão, UI/Android, QA/gates), sintetizados em um único arquivo. Comandos ADB/CLI acionáveis e sinais no `diagnostic-record.jsonl` por cenário.
+- [NV] nenhuma medição remota foi executada para produzir este roteiro; cenários de dispositivo listados como passos a executar, não como resultados.

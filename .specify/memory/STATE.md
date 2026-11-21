@@ -588,3 +588,11 @@ T028: gate-9 build artifact confirmed: app-universal-release.apk (118MB, aarch64
 - Artefatos SDD completos: assess go, FR-026-001..006, T001-T014, analyze, converge, validate R4, release R7 (v0.1.0-rc5 proposto). Commit `f22fd98b` (15 arquivos).
 - APK debug do merge baixado (`/tmp/apk_026/app-universal-debug.apk`, 266 MB). Instalação no device **BLOQUEADA** por `INSTALL_FAILED_USER_RESTRICTED` (MIUI exige confirmação na tela). App `app.mdreader` está ausente no dispositivo; APK também em `/data/local/tmp/apk026.apk`.
 - **[NV]** medição de TTFA pós-correção no dispositivo — exige confirmação manual da instalação no MIUI + captura pareada (SC-TTFA-001 é relativo). 183s anterior permanece como baseline documentado, não como resultado do ciclo.
+
+## 2026-11-21 — [NV] FECHADO: TTFA pareado no dispositivo (ciclo 026)
+
+- APK 026 instalado com sucesso via `pm install -r /data/local/tmp/apk026.apk` no endpoint TLS `adb-53cf9aa7-4VfOJ6._adb-tls-connect._tcp` (dispositivo voltou à base com novos endpoints).
+- Diag limpo antes da medição; ACTION_VIEW `content://media/external/file/1000848919` com `-f 0x1` (FLAG_GRANT_READ_URI_PERMISSION); mesmo documento (fingerprint `c6c1f42f…`), mesmo dispositivo 2201117TY, mesmo caminho da medição anterior de 183 s — **captura pareada**.
+- **Resultado: `play_to_audio_ms=7506`** vs baseline `183089` → **redução de 96%**. `action=buffer preroll_secs=8.829 preroll_cap_secs=60.000 dropped_samples=0`.
+- Posição avançou até 0.121 s e estabilizou enquanto o restante da síntese prosegue (primário de 160 bytes tocou primeiro; sem FATAL/ANR/underrun no logcat). [NV] continuidade de longa duração e ausência de gap após o primário — exige observação 5+ min.
+- SC-TTFA-001 (relativo, sem limite absoluto) tem agora evidência pareada de melhora material; não promover a PASS sem smoke 5+ min conforme `converge.md` da spec 013.

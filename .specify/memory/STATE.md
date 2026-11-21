@@ -506,3 +506,15 @@ T028: gate-9 build artifact confirmed: app-universal-release.apk (118MB, aarch64
 - `diagnostic-record.jsonl` confirmado **0 bytes** via `run-as app.mdreader wc -c`.
 - Gate 9 via CI (`workflow_dispatch`): tecnicamente viável, gera artefato `app-universal-debug-apk` (~214 MB, retenção 14 dias), mas **exige autorização explícita do SE** para disparar + instalar; nenhum dispatch feito. [NV] mantido.
 - Nenhuma ação mutante no dispositivo (sem am start/input/install/grant) — 3 endpoints ADB confirmados como o mesmo serial 53cf9aa7.
+
+## 2026-11-21 — Builds release + debug movidos para GitHub Actions (SUCESSO)
+
+- **Motivação:** SE solicitou mover builds para CI para poupar CPU/RAM locais (host sem JDK 17/NDK 27/platform 35).
+- **Mudanças no workflow:** novo job `android-release-build` (simétrico ao debug, `needs: host-gates`, guarda `workflow_dispatch || tag v*`), comando `cargo tauri android build --target aarch64` (Tauri CLI não aceita `--release`; release é o padrão), restore do keystore via secret `RELEASE_KEYSTORE_BASE64`, artifact `app-universal-release-apk`.
+- **Correções de buildRelease necessárias (3 iterações, todas com evidência de log do CI):**
+  1. `--release` inválido na CLI Tauri → removido.
+  2. `:app:minifyUniversalReleaseWithR8` — "Optimized resource shrinking requires non-final IDs" → `android.nonFinalResIds=true` em `src-tauri/gen/android/gradle.properties`.
+  3. `:app:lintVitalUniversalRelease` — `HardcodedDebugMode` em `AndroidManifest.xml:23` → removido `android:debuggable="true"` (variant debug já controla via `build.gradle.kts:39 isDebuggable=true`).
+- **Commits:** `0f9859c` (job release + secret), `f60863c` (fix CLI), `901cabc` (fix R8), `e3d6425` (fix lint). Secret `RELEASE_KEYSTORE_BASE64` criado via `gh secret set` (keystore não versionado; nunca exposto em texto).
+- **Dispatch final:** run `44844182975` (`workflow_dispatch` em `dev`) — **Host gates success + Android build (aarch64 debug) success + Android build (aarch64 release) success**. Artifacts: `app-universal-release-apk` 202.342.705 bytes (193 MB), `app-universal-debug-apk` 214.174.473 bytes (204 MB). [NV] verificação de conteúdo/hash dos APKs — apenas tamanho confirmado via API.
+- **[NV] restante:** gate 9 local (host ainda sem toolchain), instalação dos APKs no dispositivo (não autorizada), verificação visual/TalkBack/TTFA.

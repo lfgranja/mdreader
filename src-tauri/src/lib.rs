@@ -3982,7 +3982,7 @@ pub mod commands {
             // The offer is open: the document is parked, NO audio
             // is synthesized, enqueued, or started, and the
             // payload reports the waiting reading.
-            let _prepared = prepare_session_document(&document, state, filename)
+            let _prepared = prepare_session_document(&document, state, filename, false)
                 .map_err(|error| refuse(state, error))?;
             park_cold_start(state, &document, filename, start_offset_secs);
             publish_current_state(state, None);
@@ -5554,6 +5554,55 @@ pub mod commands {
         }))
     }
 
+    /// Byte budget for the opening segment (013 TTFA): a short
+    /// first unit lets the handover to audible audio happen
+    /// before the whole opening block is synthesized.
+    pub(crate) const PRIMER_BYTES: usize = 160;
+
+    /// Split the opening segment into a short primer and its
+    /// remainder (013 TTFA). The synthesis hands over after its
+    /// first segment, so one large opening unit delays the first
+    /// useful audio by that whole unit's synthesis. The cut is
+    /// made at the last ASCII whitespace inside the byte budget,
+    /// never inside a word. A document with a single or already
+    /// short opening segment, or with no whitespace in the
+    /// budget, is left untouched.
+    pub(crate) fn split_first_segment_primer(
+        mut segments: Vec<adapter_synthesis::chunk::DocumentSegment>,
+    ) -> Vec<adapter_synthesis::chunk::DocumentSegment> {
+        let Some(first) = segments.first() else {
+            return segments;
+        };
+        if first.byte_length() <= PRIMER_BYTES {
+            return segments;
+        }
+        // The budget counts bytes, so its end may fall inside a
+        // multi-byte character; step back to the last boundary.
+        let mut window_end = PRIMER_BYTES.min(first.content.len());
+        while !first.content.is_char_boundary(window_end) {
+            window_end -= 1;
+        }
+        let Some(cut) = first.content[..window_end].rfind(|c: char| c.is_ascii_whitespace()) else {
+            return segments;
+        };
+        let primer = adapter_synthesis::chunk::DocumentSegment {
+            content: first.content[..cut].to_string(),
+            segment_index: 0,
+            ..first.clone()
+        };
+        let rest = adapter_synthesis::chunk::DocumentSegment {
+            content: first.content[cut + 1..].to_string(),
+            segment_index: 1,
+            ..first.clone()
+        };
+        segments[0] = primer;
+        segments.insert(1, rest);
+        for (index, segment) in segments.iter_mut().enumerate().skip(2) {
+            segment.segment_index = index as u64;
+        }
+        segments
+    }
+
     /// Extract the document's sections from the parsed segments
     /// (T019 / FR-028a / T143): every `Heading`-boundary segment
     /// that carries a title becomes one section, in document
@@ -6677,6 +6726,7 @@ pub mod commands {
         document: &str,
         state: &AppState,
         filename: &str,
+        primer: bool,
     ) -> Result<
         (
             Vec<adapter_synthesis::chunk::DocumentSegment>,
@@ -6704,6 +6754,11 @@ pub mod commands {
         // adapter owns the chunk boundary; the engine receives
         // bounded chunks only.
         let segments = adapter_synthesis::chunk::split_document(document, "");
+        let segments = if primer {
+            split_first_segment_primer(segments)
+        } else {
+            segments
+        };
         if segments.is_empty() {
             return Err(OpenError::NoSegments);
         }
@@ -6771,13 +6826,14 @@ pub mod commands {
             .fetch_add(1, Ordering::AcqRel)
             .saturating_add(1);
         state.production_wake.store(true, Ordering::Release);
-        let (segments, sections) = match prepare_session_document(document, state, filename) {
-            Ok(value) => value,
-            Err(error) => {
-                let _ = invalidate_production_generation(state);
-                return Err(error);
-            }
-        };
+        let (segments, sections) =
+            match prepare_session_document(document, state, filename, start_offset_secs == 0.0) {
+                Ok(value) => value,
+                Err(error) => {
+                    let _ = invalidate_production_generation(state);
+                    return Err(error);
+                }
+            };
         open_backend(state).inspect_err(|_| {
             let _ = invalidate_production_generation(state);
         })?;
@@ -10658,6 +10714,57 @@ mod ttfa_013_tests {
     use super::*;
     use crate::commands;
     use engine_core::closed::TransportState;
+
+    fn primer_segment(index: u64, content: &str) -> adapter_synthesis::chunk::DocumentSegment {
+        use adapter_synthesis::chunk::{BoundaryKind, DocumentSegment, SourceRange};
+        DocumentSegment {
+            content: content.to_string(),
+            source_range: SourceRange::whole_lines(1, 9),
+            boundary_kind: BoundaryKind::Paragraph,
+            segment_index: index,
+            resume_point: Some(SourceRange::whole_lines(3, 4)),
+        }
+    }
+
+    #[test]
+    fn t013_primer_splits_long_opening_and_reindexes() {
+        use adapter_synthesis::chunk::SourceRange;
+        let opening = format!("{} {}", "a".repeat(150), "b".repeat(40));
+        let segments = vec![
+            primer_segment(0, &opening),
+            primer_segment(1, "second"),
+            primer_segment(2, "third"),
+        ];
+        let split = commands::split_first_segment_primer(segments);
+        assert_eq!(split.len(), 4);
+        assert_eq!(split[0].content, "a".repeat(150));
+        assert_eq!(split[1].content, "b".repeat(40));
+        assert_eq!(split[0].segment_index, 0);
+        assert_eq!(split[1].segment_index, 1);
+        assert_eq!(split[2].segment_index, 2);
+        assert_eq!(split[3].segment_index, 3);
+        assert_eq!(split[0].source_range, SourceRange::whole_lines(1, 9));
+        assert_eq!(split[1].resume_point, Some(SourceRange::whole_lines(3, 4)));
+    }
+
+    #[test]
+    fn t013_primer_leaves_short_single_and_unbroken_openings_untouched() {
+        let short = vec![
+            primer_segment(0, "short opening"),
+            primer_segment(1, "next"),
+        ];
+        assert_eq!(commands::split_first_segment_primer(short.clone()), short);
+        let single = vec![primer_segment(0, &"a".repeat(500))];
+        assert_eq!(commands::split_first_segment_primer(single.clone()), single);
+        let unbroken = vec![
+            primer_segment(0, &"a".repeat(200)),
+            primer_segment(1, "next"),
+        ];
+        assert_eq!(
+            commands::split_first_segment_primer(unbroken.clone()),
+            unbroken
+        );
+    }
 
     #[test]
     fn t004_watch_tick_is_synthesis_free_contract() -> Result<(), String> {

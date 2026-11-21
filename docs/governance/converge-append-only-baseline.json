@@ -100,6 +100,10 @@
     "specs/025-action-view-display-name/converge.md": {
       "bytes": 4217,
       "sha256": "f38b6307909d1f158863e5a9472eaffbc6fe203c4b9fd05c436d38c55bec00c0"
+    },
+    "specs/026-first-useful-segment/converge.md": {
+      "bytes": 5677,
+      "sha256": "4bedba0baa8603af327408987e1956be68ab423423b4aaa61e6b30edb12c0017"
     }
   },
   "schema_version": "087.1.0"

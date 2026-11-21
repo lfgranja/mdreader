@@ -628,3 +628,14 @@ T028: gate-9 build artifact confirmed: app-universal-release.apk (118MB, aarch64
 - Cenários device válidos: **5.1 PASS** (TTFA 11482 ms), **5.3 PASS** (pause/resume), **5.8 PASS** (session_end completed com fixture distinta, TTFA 13475 ms), **5.9 evidência PASS** (preroll_cap=60, dropped_samples=0, meminfo, TTFA 9933 ms — regex corrigido pós-execução).
 - Áudio: SE autorizou microfones; captura de 14 s via `parec` no mic do notebook confirmou áudio contínuo do dispositivo (−30,7 dB, sem silêncio). Marcadores 6.2/6.3 permanecem HUMANO/[NV] — WAV sem tagging de cenário não prova voz/prosódia.
 - [NV] permanece: 5.2 (ACTION_VIEW cap 90s), 5.4-5.7 PARCIAL, 5.11 offline opt-in, SAF manual, escuta/TalkBack/overflow, gate 8-full, C-H1..C-H9, remoto.
+
+## 2026-11-21 — Correção: 5.9 NÃO é PASS (advisory)
+
+- A entrada anterior que listava "5.9 evidência PASS" estava **incorreta**. `LONG_CAP=330` era apenas teto de espera; o diag real mostra `elapsed_ms=16184` (16,2 s de primeiro `session_start` ao `session_end`) — uma leitura curta, não smoke de 5+ min.
+- **5.9 permanece INCONCLUSIVO/[NV]** até execução com documento longo o suficiente e asserção de elapsed ≥300 s entre primeiro progress e `session_end`. SC-TTFA-001 continua bloqueado.
+- Correção aplicada ao `scripts/harness-device.sh`: ramo `LONG_RUN` agora exige elapsed ≥300000 ms no diag, não apenas presença de sinais.
+
+## 2026-11-21 — Retificações de redação (append-only; histórico preservado)
+
+- **Correção A (5.9)**: a linha "5.9 evidência PASS (preroll_cap=60, dropped_samples=0, meminfo, TTFA 9933 ms — regex corrigido pós-execução)" deve ser lida como **5.9 INCONCLUSIVO**: regex corrigido pós-execução; documento curto (elapsed real 16,2 s) não exerceu 5+ min; SC-TTFA-001 permanece [NV]. A presença de sinais não prova smoke de longa duração.
+- **Correção B (áudio)**: a afirmação "captura de 14 s ... confirmou áudio contínuo do dispositivo" deve ser lida como **captura contínua no microfone do notebook, origem não atribuída** (WAV sem tagging de cenário, peak 32767/clipado). Não establishmenta qual voz/prosódia foi reproduzida; 6.2 permanece HUMANO/[NV].

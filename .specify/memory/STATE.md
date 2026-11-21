@@ -579,3 +579,12 @@ T028: gate-9 build artifact confirmed: app-universal-release.apk (118MB, aarch64
 - Sem a flag, `SecurityException: app.mdreader has no access to content://media/external/file/...` — comportamento esperado do Android (a UI do app de arquivos concede a flag).
 - **Verificação via WebView CDP (`Runtime.evaluate`):** `docName` = `"HAMLET trecho.md\n—Sem título"`; corpo começa com `HAMLET trecho.md`. Antes da correção: `document:1000848919.md`. **BUG CORRIGIDO E VERIFICADO EM DISPOSITIVO REAL.**
 - Latência de 183s (síntese integral do segmento) permanece DEFER (fora do ciclo 025).
+
+## 2026-11-21 — Ciclo 026 merged; validação TTFA em device pendente
+
+- PR #232 **MERGED** em dev (`63817985`) com Host gates pass (`44904113013`) e CI pós-merge `44908647547` success (Host gates + debug build).
+- Código: `src-tauri/src/lib.rs` — `PRIMER_BYTES=160`, `split_first_segment_primer`, `prepare_session_document(primer: bool)`, 2 testes em `ttfa_013_tests`.
+- Gates locais: `scripts/verify.sh` **VERIFY_EXIT=0** (gates 1-8 + purity, **1084/1084** testes); fmt/clippy PASS; 4 checks SDD PASS (27 specs/0 gaps, 881 tasks/0 cycles, 0 dup, 26 baselined).
+- Artefatos SDD completos: assess go, FR-026-001..006, T001-T014, analyze, converge, validate R4, release R7 (v0.1.0-rc5 proposto). Commit `f22fd98b` (15 arquivos).
+- APK debug do merge baixado (`/tmp/apk_026/app-universal-debug.apk`, 266 MB). Instalação no device **BLOQUEADA** por `INSTALL_FAILED_USER_RESTRICTED` (MIUI exige confirmação na tela). App `app.mdreader` está ausente no dispositivo; APK também em `/data/local/tmp/apk026.apk`.
+- **[NV]** medição de TTFA pós-correção no dispositivo — exige confirmação manual da instalação no MIUI + captura pareada (SC-TTFA-001 é relativo). 183s anterior permanece como baseline documentado, não como resultado do ciclo.

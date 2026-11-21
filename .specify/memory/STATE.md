@@ -619,3 +619,12 @@ T028: gate-9 build artifact confirmed: app-universal-release.apk (118MB, aarch64
 - Captura de 14 s durante reprodução: `/tmp/audio_captures/mic_notebook.wav` — mean −30,7 dB, peak 0 dB, RMS 952, **zero trechos de silêncio** (silencedetect −45 dB/0,5 s) → áudio contínuo capturado do dispositivo pelo ar.
 - Monitor de saída do PC: −91 dB (silencioso, esperado — áudio origem é o celular).
 - Isso permite validar objetivamente escuta de vozes/prosódia/asteriscos (antes `[NV]`/HUMANO) via análise de áudio; ainda não prova semântica (conteúdo falado) sem ASR.
+
+## 2026-11-21 — Execução automatizada do roteiro (harnesses)
+
+- Criados `scripts/harness-host.sh` (426 linhas, seções 1-3) e `scripts/harness-device.sh` (~690 linhas, seções 4-6) para reproduzir `docs/roteiro-testes.md` de forma determinística, com captura de stdout/stderr/$?, screenshots e resumo PASS/FAIL/INCONCLUSIVE.
+- **Host harness**: `PASS=115 FAIL=0 NV=4`, exit 0 (`/tmp/mdreader-harness-20261121T220640Z/summary.txt`). Inclui verify.sh com gates 1-8 + purity e 1085 testes.
+- **Device harness**: 5 execuções (v2-v7) para corrigir bugs do próprio harness: (1) quoting do ACTION_SEND, (2) caminho do diag (`/data/data/app.mdreader/diagnostic-record.jsonl`, não `files/`), (3) regexes `key=value` em `detail`, (4) fixture distinta por cenário para evitar offer pendente, (5) `--offline` device-side via nohup (Wi-Fi não strandado). Resultado final v7: `DEVICE_EXIT=0`, AUTO contraditórios=0 (`/tmp/mdreader-device-harness-v7/`).
+- Cenários device válidos: **5.1 PASS** (TTFA 11482 ms), **5.3 PASS** (pause/resume), **5.8 PASS** (session_end completed com fixture distinta, TTFA 13475 ms), **5.9 evidência PASS** (preroll_cap=60, dropped_samples=0, meminfo, TTFA 9933 ms — regex corrigido pós-execução).
+- Áudio: SE autorizou microfones; captura de 14 s via `parec` no mic do notebook confirmou áudio contínuo do dispositivo (−30,7 dB, sem silêncio). Marcadores 6.2/6.3 permanecem HUMANO/[NV] — WAV sem tagging de cenário não prova voz/prosódia.
+- [NV] permanece: 5.2 (ACTION_VIEW cap 90s), 5.4-5.7 PARCIAL, 5.11 offline opt-in, SAF manual, escuta/TalkBack/overflow, gate 8-full, C-H1..C-H9, remoto.

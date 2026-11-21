@@ -562,3 +562,12 @@ T028: gate-9 build artifact confirmed: app-universal-release.apk (118MB, aarch64
 - Usuário reportou: abriu "Hamlet trecho.md" e exibiu `document:1000848919.md` sem tocar. Evidência ADB confirmou sessão `doc=c6c1f42f…` com `progress position_secs=0.0` por ~183 s.
 - Causa refinada: `action=buffer preroll_secs=60.000 preroll_cap_secs=60.000` — pre-roll atinge o teto antes do primeiro sample; `play_to_audio_ms=183089` (183 s). Nome exibido errado porque `queryName` (DocIngest.kt:638) retorna null para URI MediaStore e `effectiveUri` vira `content://media/external/file/1000848919`.
 - Bug `playback-not-starting-after-file-selection/fix.md` reaberto com evidência (commit `5ded6e99` + atualização). Próximo 80/20: T232 pré-síntese de capítulo (dono natural da latência) — permanece DEFER (200-350 LOC, exige gate 9 + device).
+
+## 2026-11-21 — Ciclo 025 (ACTION_VIEW display name) merged; validação device pendente
+
+- PR #230 **MERGED** em dev (`177cf31e`), Host gates pass (run `44864740458`), CI pós-merge `44866299402`: Host gates success + debug build success. Release skipped (push dev).
+- Ciclo SDD 025 completo: assess go, FR-025-001..005, T001-T012, analyze, converge, validate R4, release R7 (v0.1.0-rc4 proposto). 4 checks SDD PASS (26 specs/0 gaps, 867 tasks/0 cycles, 0 dup, 25 converge baselined).
+- Código: `android-shell/src/main/kotlin/app/mdreader/DocIngest.kt` — fallback MediaStore.Files (`_id=?`) para `queryName`, rejeição de nomes numéricos, `effectiveUri=content://display_name/<nome>` sempre no ACTION_VIEW. Commit `64a75de`.
+- Latência 183s (síntese integral do segmento) diagnosticada como **DEFER** (fora do ciclo; exige mudança de chunking/engine, T232/013).
+- **BLOQUEIO GENUÍNO:** reinstalação no device falha com `INSTALL_FAILED_USER_RESTRICTED` (MIUI exige confirmação na tela). App `app.mdreader` está **AUSENTE**; APK 025 em `/tmp/apk_025/app-universal-debug.apk` (266 MB), APK anterior em `/tmp/apk_caps/`. Backup em `/tmp/device_backup/`.
+- [NV] nome corrigido em device (Hamlet trecho.md) — exige confirmação manual da instalação no MIUI.

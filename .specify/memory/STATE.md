@@ -611,3 +611,11 @@ T028: gate-9 build artifact confirmed: app-universal-release.apk (118MB, aarch64
 - Bug `playback-stall-at-end-of-document` verificado no dispositivo 2201117TY: fixture curta via ACTION_SEND produziu `session_end` com `transport=completed`/`session_end_reason=completed` após ~17,8 s — sem congelamento.
 - Nota: a observação prévia de 210 s com Hamlet estava em ~57 s de ~199 s (meio do documento) — não exercitou o gate de fim; advisory reconhecido e corrigido com fixture curta.
 - [NV] permanece: A/B com APK 025 (sem primário) para isolar causalidade; gate 8-full; proteções de branch.
+
+## 2026-11-21 — Captura de áudio habilitada (autorização do SE)
+
+- SE autorizou uso do microfone do notebook e do celular para ouvir a reprodução.
+- Host tem `arecord`/`parec`/`ffmpeg`/`sox`; microfone analógico `alsa_input.pci-0000_05_00.6.analog-stereo` (ALC255) disponível.
+- Captura de 14 s durante reprodução: `/tmp/audio_captures/mic_notebook.wav` — mean −30,7 dB, peak 0 dB, RMS 952, **zero trechos de silêncio** (silencedetect −45 dB/0,5 s) → áudio contínuo capturado do dispositivo pelo ar.
+- Monitor de saída do PC: −91 dB (silencioso, esperado — áudio origem é o celular).
+- Isso permite validar objetivamente escuta de vozes/prosódia/asteriscos (antes `[NV]`/HUMANO) via análise de áudio; ainda não prova semântica (conteúdo falado) sem ASR.

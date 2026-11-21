@@ -178,7 +178,7 @@ adb -s $SHELL_CMD shell "run-as $PKG sh -c 'rm -f files/diagnostic-record.jsonl;
 | 5.6 | Ciclo de voz | `cycle_voice_next` ×3 | faber→cadu→jeff→faber; `voices present=true` |
 | 5.7 | Retomada 3 s | pausar → reabrir documento | diálogo `in_app_dialog` com nome/offset; auto-start no expiry se foregrounded |
 | 5.8 | Fim do documento | fixture curta até `session_end` | `transport=completed` + `session_end_reason=completed` (bug de stall corrigido no ciclo 027) |
-| 5.9 | Longa duração | reproduzir >5 min | sem underrun; `preroll_cap_secs=60`, `dropped_samples=0`; `meminfo` estável |
+| 5.9 | Longa duração | documento longo o suficiente para **elapsed ≥300 s** medido do primeiro `session_start`/progress ao `session_end`; `--long` só estende o teto de espera, não a duração do áudio | `elapsed_ms ≥ 300000` **e** `session_end_reason=completed`; sem underrun; `preroll_cap_secs=60`, `dropped_samples=0`; `meminfo` estável. Fixture curta que termina em ~16 s é **INCONCLUSIVA**, não PASS |
 | 5.10 | Foco/áudio | `dumpsys audio` + intents `duckable_transient`/`permanent_loss`/`regained` | `focus_transition` no record; sem auto-resume indevido |
 | 5.11 | Offline | desativar Wi-Fi/dados | leitura e síntese continuam; nenhum pedido de rede |
 
@@ -215,7 +215,7 @@ adb -s $SHELL_CMD shell "run-as $PKG sh -c 'rm -f files/diagnostic-record.jsonl;
 - C-H1..C-H9 execução detalhada: **deferred** no `verify.sh`.
 - Gate 9 local: host sem JDK 17/NDK 27/platform 35 — usar CI (`workflow_dispatch`).
 - Spec 020 (PocketTTS): **NO-GO** registrado (TTFA 9,8–26 s, RTF 2–6,6) — não integrar.
-- TTFA smoke 5+ min pareado: só promover SC-TTFA-001 após execução completa.
+- TTFA smoke 5+ min pareado: só promover SC-TTFA-001 após execução completa com **`elapsed_ms ≥ 300000` medido do primeiro `session_start`/progress ao `session_end` com `session_end_reason=completed`**. Um cap de espera de 330 s sobre fixture curta não prova 5+ min de reprodução.
 - **Síntese mais lenta que tempo real**: em 2201117TY, 210 s de relógio renderam ~57,7 s de posição; fixture curta emitiu `session_end` em ~17,8 s de posição após ~40 s de relógio. Não usar janelas fixas curtas (ex.: 20 s) — observar até o evento terminal aparecer.
 - [NV] remoto: CI, proteções de branch, artefatos, medições não executadas neste roteiro.
 
@@ -228,6 +228,6 @@ adb -s $SHELL_CMD shell "run-as $PKG sh -c 'rm -f files/diagnostic-record.jsonl;
 - [ ] 3. CLI transporte/offer/bookmark
 - [ ] 4. Ingestão SAF + ACTION_VIEW + ACTION_SEND
 - [ ] 5. UI: play/pause/stop/skip/rate/voz/diretório/diálogo/notificação
-- [ ] 6. Device: TTFA pareado, fim do documento, 5+ min, foco, offline
+- [ ] 6. Device: TTFA pareado, fim do documento, **≥300 s de elapsed real (não cap de espera)**, foco, offline
 - [ ] 7. Visual: screenshots, waveform animando, a11y, escuta
 - [ ] 8. Registrar evidências em `docs/PROGRESSO.md` (append-only) com `[NV]` explícito

@@ -683,6 +683,7 @@ record "4.3-C-H1..C-H9" "HUMANO" "NV" "surface audit / byte-identity: DEFERRED n
 log "--- 6. capturas e hash ---"
 D="$OUT/6.1"
 reset_scenario "$D"
+SEND_TEXT="Cenario 6.1 capturas com fingerprint unico para validar animacao do waveform sob reproducao ativa."
 trigger_send "$D"
 sleep 3
 capture_pair "6.1-waveform" "$D"

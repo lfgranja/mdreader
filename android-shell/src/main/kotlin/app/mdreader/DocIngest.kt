@@ -6,7 +6,9 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.provider.BaseColumns
 import android.provider.DocumentsContract
+import android.provider.MediaStore
 import android.provider.OpenableColumns
 import android.util.Log
 import android.widget.Toast
@@ -635,11 +637,36 @@ object DocIngest {
             ?.use { if (it.moveToFirst()) it.getString(0) else null }
     }
 
-    private fun queryName(resolver: ContentResolver, uri: Uri): String? = try {
-        resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
-            ?.use { if (it.moveToFirst()) it.getString(0) else null }
-    } catch (_: Exception) {
-        null
+    private fun isUsableName(name: String?): Boolean =
+        !name.isNullOrBlank() && !name.all { it.isDigit() }
+
+    private fun queryName(resolver: ContentResolver, uri: Uri): String? {
+        val directName = try {
+            resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+                ?.use { if (it.moveToFirst()) it.getString(0) else null }
+        } catch (_: Exception) {
+            null
+        }
+        if (isUsableName(directName)) return directName
+
+        // MediaStore item URIs (content://media/<volume>/file/<id>) may answer the
+        // OpenableColumns query with null. The same _display_name column is exposed
+        // by the MediaStore.Files collection, so look it up there by _id instead.
+        if (uri.scheme != ContentResolver.SCHEME_CONTENT || uri.authority != MediaStore.AUTHORITY) return null
+        val id = uri.lastPathSegment?.toLongOrNull() ?: return null
+        val volume = uri.pathSegments.firstOrNull() ?: "external"
+        val mediaName = try {
+            resolver.query(
+                MediaStore.Files.getContentUri(volume),
+                arrayOf(OpenableColumns.DISPLAY_NAME),
+                "${BaseColumns._ID}=?",
+                arrayOf(id.toString()),
+                null,
+            )?.use { if (it.moveToFirst()) it.getString(0) else null }
+        } catch (_: Exception) {
+            null
+        }
+        return mediaName?.takeIf { isUsableName(it) }
     }
 
     private fun listChildren(resolver: ContentResolver, treeUri: Uri, parentDocId: String): List<Entry> {
@@ -749,11 +776,10 @@ object DocIngest {
                     Log.e(TAG, "handleIncomingIntent: failed to read ACTION_VIEW document")
                     return false
                 }
-                val effectiveUri = if (!displayName.isNullOrBlank()) {
-                    "content://display_name/${Uri.encode(displayName)}"
-                } else {
-                    uri.toString()
-                }
+                val name = displayName
+                    ?: uri.lastPathSegment?.takeIf { isUsableName(it) }
+                    ?: "document.md"
+                val effectiveUri = "content://display_name/${Uri.encode(name)}"
                 Triple(rawBytes, effectiveUri, ext)
             }
             Intent.ACTION_SEND -> {

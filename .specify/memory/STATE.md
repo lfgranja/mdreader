@@ -548,3 +548,11 @@ T028: gate-9 build artifact confirmed: app-universal-release.apk (118MB, aarch64
 - APK debug do run `44857393032` baixado (`/tmp/apk_caps/app-universal-debug.apk`, 265 MB) para reinstalação com capabilities corretas.
 - **BLOQUEIO GENUÍNO:** `adb install` falha com `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user` — MIUI exige confirmação manual na tela (instalação via ADB). Tentativas com APK novo e APK antigo falharam. App `app.mdreader` está **AUSENTE** no dispositivo até o usuário autorizar a instalação na tela. Backup em `/tmp/device_backup/` (bookmarks.redb + snapshot Hamlet) e ambos APKs preservados em `/tmp/apk_caps/` e `/tmp/apk_debug/`.
 - [NV] Confirmação de que `event.listen not allowed` desapareceu após reinstalação — exige intervenção humana no dispositivo.
+
+## 2026-11-21 — Fechamento do [NV] capabilities + TTFA pós-merge
+
+- Reinstalação do APK do run `44857393032` (com capabilities versionadas) bem-sucedida após confirmação manual do MIUI na tela (autorização do SE + usuário).
+- **Verificação determinística:** `adb logcat -d | grep -c 'event.listen not allowed'` → **0**; log mostra `Publish listener registered`. BUG FECHADO.
+- **TTFA pós-correção: `play_to_audio_ms=8827`** (8,827 s) via ACTION_SEND/EXTRA_TEXT + keyevent 126; 49 entries de diagnóstico, sessão playing→completed. Melhoria vs medição anterior 12686 ms (condições diferentes; [NV] comparação controlada). Ainda acima do baseline 1551 ms / SC-002 3000 ms — registro factual.
+- Bookmarks (1,5 MB) restaurados no dispositivo; snapshot Hamlet não restaurado por permissão SELinux no destino ([NV] não impacta gates).
+- dev @ `a4ed35eb`, limpo, nenhum PR aberto, CI pós-merge success (Host gates + debug).
